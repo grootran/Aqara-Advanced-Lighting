@@ -1,0 +1,67 @@
+# Quality scale tracking for Aqara Advanced Lighting integration
+# Target: Bronze (initial release), path to Silver and Gold
+
+rules:
+  # Bronze tier rules (mandatory)
+  config-flow:
+    status: done
+    comment: UI configuration implemented in config_flow.py
+
+  unique-id:
+    status: done
+    comment: Uses Z2M IEEE addresses as unique identifiers for device tracking
+
+  action-setup:
+    status: done
+    comment: Services registered in async_setup in __init__.py
+
+  entity-unique-id:
+    status: exempt
+    comment: Service-only integration initially, no entities created
+
+  # Silver tier rules (planned)
+  entity-unavailable:
+    status: exempt
+    comment: No entities initially, will implement when entities are added
+
+  parallel-updates:
+    status: exempt
+    comment: No platform entities initially
+
+  reauthentication-flow:
+    status: exempt
+    comment: No authentication required, uses MQTT integration
+
+  # Gold tier rules (future)
+  devices:
+    status: todo
+    comment: Plan to add device entities for each discovered Aqara light
+
+  diagnostics:
+    status: todo
+    comment: Plan to implement diagnostic data collection
+
+  entity-translations:
+    status: exempt
+    comment: No entities initially, will implement when entities are added
+
+  entity-category:
+    status: exempt
+    comment: No entities initially
+
+  entity-device-class:
+    status: exempt
+    comment: No entities initially
+
+  # Platinum tier rules (aspirational)
+  strict-typing:
+    status: done
+    comment: Type hints used throughout, py.typed file to be added
+
+  async-dependency:
+    status: done
+    comment: All dependencies use asyncio, MQTT integration is async
+
+  runtime-data:
+    status: done
+    comment: Uses ConfigEntry.runtime_data for state management

@@ -1,0 +1,14 @@
+{
+  "domain": "aqara_advanced_lighting",
+  "name": "Aqara Advanced Lighting",
+  "version": "0.1.0",
+  "documentation": "https://github.com/absent42/Aqara-Advanced-Lighting",
+  "issue_tracker": "https://github.com/absent42/Aqara-Advanced-Lighting/issues",
+  "codeowners": ["@absent42"],
+  "dependencies": ["mqtt"],
+  "iot_class": "local_push",
+  "config_flow": true,
+  "requirements": [],
+  "integration_type": "service",
+  "quality_scale": "custom"
+}

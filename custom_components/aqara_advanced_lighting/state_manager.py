@@ -1,0 +1,182 @@
+"""State management for effect restoration."""
+
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+from homeassistant.const import (
+    ATTR_ENTITY_ID,
+    STATE_OFF,
+    STATE_ON,
+    STATE_UNAVAILABLE,
+    STATE_UNKNOWN,
+)
+from homeassistant.core import HomeAssistant, State
+
+from .models import DeviceState, DynamicEffect
+
+_LOGGER = logging.getLogger(__name__)
+
+
+class StateManager:
+    """Manage device states for restoration after effects."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        """Initialize the state manager."""
+        self.hass = hass
+        self._states: dict[str, DeviceState] = {}
+
+    def capture_state(
+        self, entity_id: str, z2m_friendly_name: str
+    ) -> DeviceState | None:
+        """Capture current light state before applying effect.
+
+        Returns:
+            DeviceState object if successfully captured, None otherwise.
+        """
+        # Get current state from Home Assistant
+        state = self.hass.states.get(entity_id)
+
+        if not state or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+            _LOGGER.warning(
+                "Cannot capture state for %s: state is %s",
+                entity_id,
+                state.state if state else "None",
+            )
+            return None
+
+        # Build state data for restoration
+        state_data: dict[str, Any] = {}
+
+        # Capture on/off state
+        if state.state == STATE_ON:
+            state_data["state"] = STATE_ON
+
+            # Capture brightness if available
+            if brightness := state.attributes.get("brightness"):
+                state_data["brightness"] = brightness
+
+            # Capture color if available (RGB)
+            if rgb_color := state.attributes.get("rgb_color"):
+                state_data["color"] = {
+                    "r": rgb_color[0],
+                    "g": rgb_color[1],
+                    "b": rgb_color[2],
+                }
+
+            # Capture color temperature if available
+            if color_temp := state.attributes.get("color_temp"):
+                state_data["color_temp"] = color_temp
+
+        else:
+            state_data["state"] = STATE_OFF
+
+        # Create device state object
+        device_state = DeviceState(
+            entity_id=entity_id,
+            z2m_friendly_name=z2m_friendly_name,
+            previous_state=state_data,
+            effect_active=False,
+        )
+
+        # Store in registry
+        self._states[entity_id] = device_state
+
+        _LOGGER.debug(
+            "Captured state for %s: %s", entity_id, state_data
+        )
+
+        return device_state
+
+    def mark_effect_active(
+        self, entity_id: str, effect: DynamicEffect
+    ) -> None:
+        """Mark an effect as active for an entity."""
+        if entity_id not in self._states:
+            _LOGGER.warning(
+                "Cannot mark effect active: no state captured for %s", entity_id
+            )
+            return
+
+        self._states[entity_id].effect_active = True
+        self._states[entity_id].current_effect = effect
+
+        _LOGGER.debug(
+            "Marked effect %s active for %s", effect.effect, entity_id
+        )
+
+    def mark_effect_inactive(self, entity_id: str) -> None:
+        """Mark effect as inactive for an entity."""
+        if entity_id in self._states:
+            self._states[entity_id].effect_active = False
+            self._states[entity_id].current_effect = None
+            _LOGGER.debug("Marked effect inactive for %s", entity_id)
+
+    def get_device_state(self, entity_id: str) -> DeviceState | None:
+        """Get stored device state."""
+        return self._states.get(entity_id)
+
+    def has_stored_state(self, entity_id: str) -> bool:
+        """Check if there is a stored state for an entity."""
+        return entity_id in self._states
+
+    def is_effect_active(self, entity_id: str) -> bool:
+        """Check if an effect is currently active for an entity."""
+        if entity_id not in self._states:
+            return False
+        return self._states[entity_id].effect_active
+
+    def get_restoration_payload(self, entity_id: str) -> dict[str, Any] | None:
+        """Get MQTT payload to restore previous state.
+
+        Returns:
+            Dict with MQTT payload for state restoration, or None if no state stored.
+        """
+        if entity_id not in self._states:
+            _LOGGER.warning("No stored state for %s", entity_id)
+            return None
+
+        device_state = self._states[entity_id]
+        previous_state = device_state.previous_state
+
+        # Build restoration payload
+        payload: dict[str, Any] = {}
+
+        # Handle on/off state
+        if previous_state.get("state") == STATE_OFF:
+            payload["state"] = STATE_OFF
+            return payload
+
+        # Light was on, restore its properties
+        payload["state"] = STATE_ON
+
+        if brightness := previous_state.get("brightness"):
+            payload["brightness"] = brightness
+
+        if color := previous_state.get("color"):
+            payload["color"] = color
+
+        if color_temp := previous_state.get("color_temp"):
+            payload["color_temp"] = color_temp
+
+        return payload
+
+    def clear_state(self, entity_id: str) -> None:
+        """Clear stored state for an entity."""
+        if entity_id in self._states:
+            del self._states[entity_id]
+            _LOGGER.debug("Cleared stored state for %s", entity_id)
+
+    def clear_all_states(self) -> None:
+        """Clear all stored states."""
+        self._states.clear()
+        _LOGGER.debug("Cleared all stored states")
+
+    def get_all_active_effects(self) -> dict[str, DeviceState]:
+        """Get all entities with active effects."""
+        return {
+            entity_id: state
+            for entity_id, state in self._states.items()
+            if state.effect_active
+        }

@@ -1,0 +1,302 @@
+# Service definitions for Aqara Advanced Lighting
+
+set_dynamic_effect:
+  name: Set dynamic effect
+  description: Activate a dynamic RGB effect on Aqara lights.
+  target:
+    entity:
+      domain: light
+  fields:
+    effect:
+      name: Effect type
+      description: The dynamic effect pattern to activate.
+      required: true
+      example: "breathing"
+      selector:
+        select:
+          options:
+            - label: "Breathing"
+              value: "breathing"
+            - label: "Candlelight"
+              value: "candlelight"
+            - label: "Chasing"
+              value: "chasing"
+            - label: "Dash"
+              value: "dash"
+            - label: "Fading"
+              value: "fading"
+            - label: "Flash"
+              value: "flash"
+            - label: "Flicker"
+              value: "flicker"
+            - label: "Flow 1"
+              value: "flow1"
+            - label: "Flow 2"
+              value: "flow2"
+            - label: "Hopping"
+              value: "hopping"
+            - label: "Rainbow 1"
+              value: "rainbow1"
+            - label: "Rainbow 2"
+              value: "rainbow2"
+            - label: "Rolling"
+              value: "rolling"
+    speed:
+      name: Effect speed
+      description: Animation speed (1-100%).
+      required: true
+      default: 50
+      example: 75
+      selector:
+        number:
+          min: 1
+          max: 100
+          unit_of_measurement: "%"
+    color_1:
+      name: Color 1
+      description: First effect color (required).
+      required: true
+      default: [255, 0, 0]
+      selector:
+        color_rgb:
+    color_2:
+      name: Color 2
+      description: Second effect color (optional).
+      required: false
+      default: [255, 127, 0]
+      selector:
+        color_rgb:
+    color_3:
+      name: Color 3
+      description: Third effect color (optional).
+      required: false
+      default: [255, 255, 0]
+      selector:
+        color_rgb:
+    color_4:
+      name: Color 4
+      description: Fourth effect color (optional).
+      required: false
+      default: [0, 255, 0]
+      selector:
+        color_rgb:
+    color_5:
+      name: Color 5
+      description: Fifth effect color (optional).
+      required: false
+      default: [0, 0, 255]
+      selector:
+        color_rgb:
+    color_6:
+      name: Color 6
+      description: Sixth effect color (optional).
+      required: false
+      default: [75, 0, 130]
+      selector:
+        color_rgb:
+    color_7:
+      name: Color 7
+      description: Seventh effect color (optional).
+      required: false
+      default: [148, 0, 211]
+      selector:
+        color_rgb:
+    color_8:
+      name: Color 8
+      description: Eighth effect color (optional).
+      required: false
+      default: [255, 255, 255]
+      selector:
+        color_rgb:
+    segments:
+      name: Effect segments
+      description: Segments to apply effect to (T1 Strip only). Examples - '1-10', 'odd', 'even', 'first-half'.
+      required: false
+      example: "1-20"
+      selector:
+        text:
+    turn_on:
+      name: Turn on lights
+      description: Whether to turn on lights that are currently off before applying the effect.
+      required: false
+      default: false
+      selector:
+        boolean:
+
+set_segment_pattern:
+  name: Set segment pattern
+  description: Set individual segment colors on Aqara lights with addressable segments.
+  target:
+    entity:
+      domain: light
+  fields:
+    segment_colors:
+      name: Segment colors
+      description: List of segment/color pairs. Each item should be a dictionary with 'segment' (number or range) and 'color' (RGB dict with r, g, b keys).
+      required: true
+      example: '[{"segment": 1, "color": {"r": 255, "g": 0, "b": 0}}, {"segment": "5-10", "color": {"r": 0, "g": 255, "b": 0}}]'
+      selector:
+        object:
+    turn_on:
+      name: Turn on lights
+      description: Whether to turn on lights that are currently off before applying the pattern.
+      required: false
+      default: false
+      selector:
+        boolean:
+    turn_off_unspecified:
+      name: Turn off unspecified segments
+      description: Turn off segments not specified.
+      required: false
+      default: false
+      selector:
+        boolean:
+
+create_gradient:
+  name: Create gradient
+  description: Create a smooth color gradient across segments.
+  target:
+    entity:
+      domain: light
+  fields:
+    color_1:
+      name: Color 1
+      description: First gradient color (required).
+      required: true
+      default: [255, 0, 0]
+      selector:
+        color_rgb:
+    color_2:
+      name: Color 2
+      description: Second gradient color (required).
+      required: true
+      default: [0, 0, 255]
+      selector:
+        color_rgb:
+    color_3:
+      name: Color 3
+      description: Third gradient color (optional).
+      required: false
+      default: [255, 255, 0]
+      selector:
+        color_rgb:
+    color_4:
+      name: Color 4
+      description: Fourth gradient color (optional).
+      required: false
+      default: [0, 255, 0]
+      selector:
+        color_rgb:
+    color_5:
+      name: Color 5
+      description: Fifth gradient color (optional).
+      required: false
+      default: [255, 0, 255]
+      selector:
+        color_rgb:
+    color_6:
+      name: Color 6
+      description: Sixth gradient color (optional).
+      required: false
+      default: [0, 255, 255]
+      selector:
+        color_rgb:
+    segments:
+      name: Segments
+      description: Segments to apply gradient to. If not specified, uses all available segments.
+      required: false
+      example: "1-20"
+      selector:
+        text:
+    turn_on:
+      name: Turn on lights
+      description: Whether to turn on lights that are currently off before applying the gradient.
+      required: false
+      default: false
+      selector:
+        boolean:
+    turn_off_unspecified:
+      name: Turn off unspecified segments
+      description: Turn off segments not specified. Only applies when segments parameter is provided.
+      required: false
+      default: false
+      selector:
+        boolean:
+
+create_blocks:
+  name: Create color blocks
+  description: Create evenly spaced blocks of color across segments.
+  target:
+    entity:
+      domain: light
+  fields:
+    color_1:
+      name: Color 1
+      description: First block color (required).
+      required: true
+      default: [255, 0, 0]
+      selector:
+        color_rgb:
+    color_2:
+      name: Color 2
+      description: Second block color (optional).
+      required: false
+      default: [0, 255, 0]
+      selector:
+        color_rgb:
+    color_3:
+      name: Color 3
+      description: Third block color (optional).
+      required: false
+      default: [0, 0, 255]
+      selector:
+        color_rgb:
+    color_4:
+      name: Color 4
+      description: Fourth block color (optional).
+      required: false
+      default: [255, 255, 0]
+      selector:
+        color_rgb:
+    color_5:
+      name: Color 5
+      description: Fifth block color (optional).
+      required: false
+      default: [255, 0, 255]
+      selector:
+        color_rgb:
+    color_6:
+      name: Color 6
+      description: Sixth block color (optional).
+      required: false
+      default: [0, 255, 255]
+      selector:
+        color_rgb:
+    segments:
+      name: Segments
+      description: Segments to apply blocks to. If not specified, uses all available segments.
+      required: false
+      example: "1-20"
+      selector:
+        text:
+    turn_on:
+      name: Turn on lights
+      description: Whether to turn on lights that are currently off before applying the blocks.
+      required: false
+      default: false
+      selector:
+        boolean:
+    expand:
+      name: Expand blocks
+      description: If true, expands colors evenly across segments (e.g., 2 colors across 20 segments = 10 segments per color). If false, repeats colors in alternating pattern (e.g., 2 colors = alternating every segment).
+      required: false
+      default: false
+      selector:
+        boolean:
+    turn_off_unspecified:
+      name: Turn off unspecified segments
+      description: Turn off segments not specified. Only applies when segments parameter is provided.
+      required: false
+      default: false
+      selector:
+        boolean:

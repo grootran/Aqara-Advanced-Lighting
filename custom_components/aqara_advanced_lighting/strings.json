@@ -1,0 +1,130 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Aqara Advanced Lighting",
+        "description": "Configure advanced lighting control for Aqara lights via Zigbee2MQTT.",
+        "data": {
+          "z2m_base_topic": "Zigbee2MQTT base topic"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Aqara Advanced Lighting",
+        "description": "Update the Zigbee2MQTT base topic configuration.",
+        "data": {
+          "z2m_base_topic": "Zigbee2MQTT base topic"
+        }
+      }
+    },
+    "error": {
+      "mqtt_not_loaded": "MQTT integration is not loaded. Please set up the MQTT integration first.",
+      "unknown": "An unexpected error occurred."
+    },
+    "abort": {
+      "single_instance_allowed": "Only a single instance of Aqara Advanced Lighting is allowed.",
+      "already_configured": "This integration is already configured."
+    }
+  },
+  "services": {
+    "set_dynamic_effect": {
+      "name": "Set dynamic effect",
+      "description": "Activate a dynamic RGB effect on Aqara lights.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
+        },
+        "effect": {
+          "name": "Effect type",
+          "description": "The dynamic effect pattern to activate."
+        },
+        "speed": {
+          "name": "Effect speed",
+          "description": "Animation speed (1-100%)."
+        },
+        "colors": {
+          "name": "Effect colors",
+          "description": "List of RGB colors for the effect (1-8 colors). Each color should have 'r', 'g', 'b' keys with values 0-255."
+        },
+        "segments": {
+          "name": "Effect segments",
+          "description": "Segments to apply effect to (T1 Strip only). Examples: '1-10', 'odd', 'even', 'first-half'."
+        }
+      }
+    },
+    "set_segment_pattern": {
+      "name": "Set segment pattern",
+      "description": "Set individual segment colors on Aqara lights.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
+        },
+        "segment_colors": {
+          "name": "Segment colors",
+          "description": "List of segment/color pairs. Each item should have 'segment' (number or range) and 'color' (RGB dict) keys."
+        }
+      }
+    },
+    "create_gradient": {
+      "name": "Create gradient",
+      "description": "Create a color gradient across segments.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
+        },
+        "colors": {
+          "name": "Gradient colors",
+          "description": "List of RGB colors to create gradient from (2-6 colors)."
+        },
+        "segments": {
+          "name": "Segments",
+          "description": "Segments to apply gradient to. If not specified, uses all segments."
+        }
+      }
+    },
+    "create_blocks": {
+      "name": "Create color blocks",
+      "description": "Create evenly spaced blocks of color across segments.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
+        },
+        "colors": {
+          "name": "Block colors",
+          "description": "List of RGB colors for the blocks."
+        },
+        "segments": {
+          "name": "Segments",
+          "description": "Segments to apply blocks to. If not specified, uses all segments."
+        }
+      }
+    },
+    "restore_state": {
+      "name": "Restore state",
+      "description": "Restore the light to its pre-effect state.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to restore."
+        }
+      }
+    },
+    "turn_off_effect": {
+      "name": "Turn off effect",
+      "description": "Turn off the current effect.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
+        },
+        "restore": {
+          "name": "Restore previous state",
+          "description": "Whether to restore the light to its pre-effect state."
+        }
+      }
+    }
+  }
+}
