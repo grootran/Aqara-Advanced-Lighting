@@ -371,16 +371,25 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
             # Publish to MQTT
             try:
-                await mqtt_client.async_publish_dynamic_effect(
-                    z2m_name, dynamic_effect, brightness
-                )
+                await mqtt_client.async_publish_dynamic_effect(z2m_name, dynamic_effect)
                 state_manager.mark_effect_active(entity_id, dynamic_effect)
-                _LOGGER.info(
-                    "Applied effect %s to %s", effect, entity_id
-                )
+                _LOGGER.info("Applied effect %s to %s", effect, entity_id)
             except Exception as ex:
                 msg = f"Failed to publish effect to {z2m_name}"
                 raise HomeAssistantError(msg) from ex
+
+            # Set brightness using HA service if specified
+            if brightness is not None:
+                try:
+                    await hass.services.async_call(
+                        "light",
+                        "turn_on",
+                        {"entity_id": entity_id, "brightness": brightness},
+                        blocking=True,
+                    )
+                    _LOGGER.debug("Set brightness to %s for %s", brightness, entity_id)
+                except Exception as ex:
+                    _LOGGER.warning("Failed to set brightness for %s: %s", entity_id, ex)
 
     async def handle_set_segment_pattern(call: ServiceCall) -> None:
         """Handle set_segment_pattern service call."""
@@ -454,18 +463,25 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             # Capture state and publish pattern
             state_manager.capture_state(entity_id, z2m_name)
 
-            # For T1M, pass brightness as standard light command
-            # For T1 Strip, brightness is already embedded in segment_colors
-            t1m_brightness = brightness if device.model_id != MODEL_T1_STRIP else None
-
             try:
-                await mqtt_client.async_publish_segment_pattern(
-                    z2m_name, segment_colors, t1m_brightness
-                )
+                await mqtt_client.async_publish_segment_pattern(z2m_name, segment_colors)
                 _LOGGER.info("Applied segment pattern to %s", entity_id)
             except Exception as ex:
                 msg = f"Failed to publish segment pattern to {z2m_name}"
                 raise HomeAssistantError(msg) from ex
+
+            # Set brightness using HA service for T1M (T1 Strip has brightness embedded)
+            if brightness is not None and device.model_id != MODEL_T1_STRIP:
+                try:
+                    await hass.services.async_call(
+                        "light",
+                        "turn_on",
+                        {"entity_id": entity_id, "brightness": brightness},
+                        blocking=True,
+                    )
+                    _LOGGER.debug("Set brightness to %s for %s", brightness, entity_id)
+                except Exception as ex:
+                    _LOGGER.warning("Failed to set brightness for %s: %s", entity_id, ex)
 
     async def handle_create_gradient(call: ServiceCall) -> None:
         """Handle create_gradient service call."""
@@ -575,18 +591,25 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             # Capture state and publish gradient
             state_manager.capture_state(entity_id, z2m_name)
 
-            # For T1M, pass brightness as standard light command
-            # For T1 Strip, brightness is already embedded in segment_colors
-            t1m_brightness = brightness if device.model_id != MODEL_T1_STRIP else None
-
             try:
-                await mqtt_client.async_publish_segment_pattern(
-                    z2m_name, segment_colors, t1m_brightness
-                )
+                await mqtt_client.async_publish_segment_pattern(z2m_name, segment_colors)
                 _LOGGER.info("Applied gradient to %s", entity_id)
             except Exception as ex:
                 msg = f"Failed to publish gradient to {z2m_name}"
                 raise HomeAssistantError(msg) from ex
+
+            # Set brightness using HA service for T1M (T1 Strip has brightness embedded)
+            if brightness is not None and device.model_id != MODEL_T1_STRIP:
+                try:
+                    await hass.services.async_call(
+                        "light",
+                        "turn_on",
+                        {"entity_id": entity_id, "brightness": brightness},
+                        blocking=True,
+                    )
+                    _LOGGER.debug("Set brightness to %s for %s", brightness, entity_id)
+                except Exception as ex:
+                    _LOGGER.warning("Failed to set brightness for %s: %s", entity_id, ex)
 
     async def handle_create_blocks(call: ServiceCall) -> None:
         """Handle create_blocks service call."""
@@ -697,18 +720,25 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             # Capture state and publish blocks
             state_manager.capture_state(entity_id, z2m_name)
 
-            # For T1M, pass brightness as standard light command
-            # For T1 Strip, brightness is already embedded in segment_colors
-            t1m_brightness = brightness if device.model_id != MODEL_T1_STRIP else None
-
             try:
-                await mqtt_client.async_publish_segment_pattern(
-                    z2m_name, segment_colors, t1m_brightness
-                )
+                await mqtt_client.async_publish_segment_pattern(z2m_name, segment_colors)
                 _LOGGER.info("Applied block pattern to %s", entity_id)
             except Exception as ex:
                 msg = f"Failed to publish blocks to {z2m_name}"
                 raise HomeAssistantError(msg) from ex
+
+            # Set brightness using HA service for T1M (T1 Strip has brightness embedded)
+            if brightness is not None and device.model_id != MODEL_T1_STRIP:
+                try:
+                    await hass.services.async_call(
+                        "light",
+                        "turn_on",
+                        {"entity_id": entity_id, "brightness": brightness},
+                        blocking=True,
+                    )
+                    _LOGGER.debug("Set brightness to %s for %s", brightness, entity_id)
+                except Exception as ex:
+                    _LOGGER.warning("Failed to set brightness for %s: %s", entity_id, ex)
 
     # Register services
     hass.services.async_register(
