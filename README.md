@@ -366,7 +366,7 @@ automation:
 - Ensure speed is 1-100
 
 ### T1 Strip segment count issues
-- Ensure your T1 Strip's `length` attribute is correctly set in Z2M
+- Ensure your T1 Strip's `length` attribute is correctly set in Z2M or HA
 - The integration reads this to calculate segment count (5 segments per meter)
 - If unavailable, it defaults to 10 segments (2 meters) with a warning
 
