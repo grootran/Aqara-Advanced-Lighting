@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -24,12 +25,14 @@ from .const import (
     ATTR_COLOR_8,
     ATTR_EFFECT,
     ATTR_EXPAND,
+    ATTR_PRESET,
     ATTR_SEGMENT_COLORS,
     ATTR_SEGMENTS,
     ATTR_SPEED,
     ATTR_TURN_OFF_UNSPECIFIED,
     ATTR_TURN_ON,
     DOMAIN,
+    EFFECT_PRESETS,
     MAX_BRIGHTNESS,
     MAX_EFFECT_COLORS,
     MAX_GRADIENT_COLORS,
@@ -92,12 +95,13 @@ SEGMENT_COLOR_SCHEMA = vol.Schema(
 SERVICE_SET_DYNAMIC_EFFECT_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
-        vol.Required(ATTR_EFFECT): cv.string,
-        vol.Required(ATTR_SPEED): vol.All(
+        vol.Optional(ATTR_PRESET): cv.string,
+        vol.Optional(ATTR_EFFECT): cv.string,
+        vol.Optional(ATTR_SPEED): vol.All(
             vol.Coerce(int), vol.Range(MIN_SPEED, MAX_SPEED)
         ),
-        # Individual color pickers (color_1 is required, 2-8 are optional)
-        vol.Required(ATTR_COLOR_1): RGB_COLOR_LIST_SCHEMA,
+        # Individual color pickers (optional when using preset)
+        vol.Optional(ATTR_COLOR_1): RGB_COLOR_LIST_SCHEMA,
         vol.Optional(ATTR_COLOR_2): RGB_COLOR_LIST_SCHEMA,
         vol.Optional(ATTR_COLOR_3): RGB_COLOR_LIST_SCHEMA,
         vol.Optional(ATTR_COLOR_4): RGB_COLOR_LIST_SCHEMA,
@@ -237,28 +241,62 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         mqtt_client, state_manager = _get_mqtt_client_and_state_manager(hass)
 
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
-        effect_str: str = call.data[ATTR_EFFECT]
-        speed: int = call.data[ATTR_SPEED]
+        preset: str | None = call.data.get(ATTR_PRESET)
         segments: str | None = call.data.get(ATTR_SEGMENTS)
-        brightness: int | None = call.data.get(ATTR_BRIGHTNESS)
         turn_on: bool = call.data.get(ATTR_TURN_ON, False)
 
-        # Collect colors from individual color picker parameters
-        colors_data: list[dict[str, int]] = []
-        for color_attr in [
-            ATTR_COLOR_1,
-            ATTR_COLOR_2,
-            ATTR_COLOR_3,
-            ATTR_COLOR_4,
-            ATTR_COLOR_5,
-            ATTR_COLOR_6,
-            ATTR_COLOR_7,
-            ATTR_COLOR_8,
-        ]:
-            color_rgb = call.data.get(color_attr)
-            if color_rgb:
-                # Color picker returns [r, g, b] list, convert to dict
-                colors_data.append({"r": color_rgb[0], "g": color_rgb[1], "b": color_rgb[2]})
+        # If preset is selected, use preset values
+        if preset:
+            if preset not in EFFECT_PRESETS:
+                msg = f"Invalid preset: {preset}"
+                raise ServiceValidationError(msg)
+
+            preset_data = EFFECT_PRESETS[preset]
+            effect_str: str = preset_data["effect"]
+            speed: int = preset_data["speed"]
+            brightness: int | None = preset_data.get("brightness")
+
+            # Convert preset colors to expected format
+            colors_data: list[dict[str, int]] = [
+                {"r": color[0], "g": color[1], "b": color[2]}
+                for color in preset_data["colors"]
+            ]
+        else:
+            # Manual mode - require effect, speed, and at least color_1
+            effect_str_opt: str | None = call.data.get(ATTR_EFFECT)
+            speed_opt: int | None = call.data.get(ATTR_SPEED)
+
+            if not effect_str_opt:
+                msg = "Effect type is required when not using a preset"
+                raise ServiceValidationError(msg)
+            if speed_opt is None:
+                msg = "Speed is required when not using a preset"
+                raise ServiceValidationError(msg)
+
+            effect_str = effect_str_opt
+            speed = speed_opt
+            brightness: int | None = call.data.get(ATTR_BRIGHTNESS)
+
+            # Collect colors from individual color picker parameters
+            colors_data: list[dict[str, int]] = []
+            for color_attr in [
+                ATTR_COLOR_1,
+                ATTR_COLOR_2,
+                ATTR_COLOR_3,
+                ATTR_COLOR_4,
+                ATTR_COLOR_5,
+                ATTR_COLOR_6,
+                ATTR_COLOR_7,
+                ATTR_COLOR_8,
+            ]:
+                color_rgb = call.data.get(color_attr)
+                if color_rgb:
+                    # Color picker returns [r, g, b] list, convert to dict
+                    colors_data.append({"r": color_rgb[0], "g": color_rgb[1], "b": color_rgb[2]})
+
+            if not colors_data:
+                msg = "At least one color (color_1) is required when not using a preset"
+                raise ServiceValidationError(msg)
 
         # Convert effect string to EffectType
         try:

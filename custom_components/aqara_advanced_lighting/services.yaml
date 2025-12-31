@@ -7,10 +7,57 @@ set_dynamic_effect:
     entity:
       domain: light
   fields:
+    preset:
+      name: Preset
+      description: Select an Aqara app preset effect (optional). Overrides manual effect and color settings.
+      required: false
+      selector:
+        select:
+          options:
+            - label: "T2: Candlelight"
+              value: "t2_candlelight"
+            - label: "T2: Breath"
+              value: "t2_breath"
+            - label: "T2: Colorful"
+              value: "t2_colorful"
+            - label: "T2: Security"
+              value: "t2_security"
+            - label: "T1M: Dinner"
+              value: "t1m_dinner"
+            - label: "T1M: Sunset"
+              value: "t1m_sunset"
+            - label: "T1M: Autumn"
+              value: "t1m_autumn"
+            - label: "T1M: Galaxy"
+              value: "t1m_galaxy"
+            - label: "T1M: Daydream"
+              value: "t1m_daydream"
+            - label: "T1M: Holiday"
+              value: "t1m_holiday"
+            - label: "T1M: Party"
+              value: "t1m_party"
+            - label: "T1M: Meteor"
+              value: "t1m_meteor"
+            - label: "T1M: Alert"
+              value: "t1m_alert"
+            - label: "T1 Strip: Rainbow"
+              value: "t1_rainbow"
+            - label: "T1 Strip: Heartbeat"
+              value: "t1_heartbeat"
+            - label: "T1 Strip: Gala"
+              value: "t1_gala"
+            - label: "T1 Strip: Sea of flowers"
+              value: "t1_sea_of_flowers"
+            - label: "T1 Strip: Rhythmic"
+              value: "t1_rhythmic"
+            - label: "T1 Strip: Exciting"
+              value: "t1_exciting"
+            - label: "T1 Strip: Colorful"
+              value: "t1_colorful"
     effect:
       name: Effect type
-      description: The dynamic effect pattern to activate.
-      required: true
+      description: The dynamic effect pattern to activate. Required if preset is not selected.
+      required: false
       example: "breathing"
       selector:
         select:

@@ -18,6 +18,7 @@ SERVICE_CREATE_BLOCKS: Final = "create_blocks"
 # Service attributes
 ATTR_EFFECT: Final = "effect"
 ATTR_SPEED: Final = "speed"
+ATTR_PRESET: Final = "preset"
 ATTR_COLOR_1: Final = "color_1"
 ATTR_COLOR_2: Final = "color_2"
 ATTR_COLOR_3: Final = "color_3"
@@ -106,3 +107,241 @@ DATA_COORDINATOR: Final = "coordinator"
 DATA_STATE_MANAGER: Final = "state_manager"
 DATA_DEVICE_REGISTRY: Final = "device_registry"
 DATA_UNSUB: Final = "unsub"
+
+# Effect presets from Aqara app
+# T2 Bulb presets
+PRESET_T2_CANDLELIGHT: Final = "t2_candlelight"
+PRESET_T2_BREATH: Final = "t2_breath"
+PRESET_T2_COLORFUL: Final = "t2_colorful"
+PRESET_T2_SECURITY: Final = "t2_security"
+
+# T1M presets
+PRESET_T1M_DINNER: Final = "t1m_dinner"
+PRESET_T1M_SUNSET: Final = "t1m_sunset"
+PRESET_T1M_AUTUMN: Final = "t1m_autumn"
+PRESET_T1M_GALAXY: Final = "t1m_galaxy"
+PRESET_T1M_DAYDREAM: Final = "t1m_daydream"
+PRESET_T1M_HOLIDAY: Final = "t1m_holiday"
+PRESET_T1M_PARTY: Final = "t1m_party"
+PRESET_T1M_METEOR: Final = "t1m_meteor"
+PRESET_T1M_ALERT: Final = "t1m_alert"
+
+# T1 Strip presets
+PRESET_T1_RAINBOW: Final = "t1_rainbow"
+PRESET_T1_HEARTBEAT: Final = "t1_heartbeat"
+PRESET_T1_GALA: Final = "t1_gala"
+PRESET_T1_SEA_OF_FLOWERS: Final = "t1_sea_of_flowers"
+PRESET_T1_RHYTHMIC: Final = "t1_rhythmic"
+PRESET_T1_EXCITING: Final = "t1_exciting"
+PRESET_T1_COLORFUL: Final = "t1_colorful"
+
+# Preset definitions
+EFFECT_PRESETS: Final = {
+    # T2 Bulb presets
+    PRESET_T2_CANDLELIGHT: {
+        "name": "T2: Candlelight",
+        "effect": EFFECT_T2_CANDLELIGHT,
+        "colors": [[255, 125, 18]],
+        "speed": 50,
+        "brightness": 255,
+    },
+    PRESET_T2_BREATH: {
+        "name": "T2: Breath",
+        "effect": EFFECT_T2_BREATHING,
+        "colors": [[255, 125, 18]],
+        "speed": 50,
+        "brightness": 255,
+    },
+    PRESET_T2_COLORFUL: {
+        "name": "T2: Colorful",
+        "effect": EFFECT_T2_FADING,
+        "colors": [
+            [255, 0, 0],
+            [255, 125, 0],
+            [255, 255, 0],
+            [0, 255, 0],
+            [0, 255, 255],
+            [0, 0, 255],
+            [255, 0, 255],
+        ],
+        "speed": 50,
+        "brightness": 255,
+    },
+    PRESET_T2_SECURITY: {
+        "name": "T2: Security",
+        "effect": EFFECT_T2_FLASH,
+        "colors": [[255, 0, 0]],
+        "speed": 100,
+        "brightness": 255,
+    },
+    # T1M presets
+    PRESET_T1M_DINNER: {
+        "name": "T1M: Dinner",
+        "effect": EFFECT_T1M_BREATHING,
+        "colors": [[255, 98, 0]],
+        "speed": 50,
+        "brightness": 255,
+    },
+    PRESET_T1M_SUNSET: {
+        "name": "T1M: Sunset",
+        "effect": EFFECT_T1M_FADING,
+        "colors": [[255, 98, 0], [255, 0, 0]],
+        "speed": 50,
+        "brightness": 255,
+    },
+    PRESET_T1M_AUTUMN: {
+        "name": "T1M: Autumn",
+        "effect": EFFECT_T1M_HOPPING,
+        "colors": [[255, 125, 0], [255, 0, 0]],
+        "speed": 50,
+        "brightness": 255,
+    },
+    PRESET_T1M_GALAXY: {
+        "name": "T1M: Galaxy",
+        "effect": EFFECT_T1M_BREATHING,
+        "colors": [[0, 0, 255], [255, 0, 255]],
+        "speed": 50,
+        "brightness": 255,
+    },
+    PRESET_T1M_DAYDREAM: {
+        "name": "T1M: Daydream",
+        "effect": EFFECT_T1M_FLOW1,
+        "colors": [[255, 0, 255], [0, 255, 255]],
+        "speed": 50,
+        "brightness": 255,
+    },
+    PRESET_T1M_HOLIDAY: {
+        "name": "T1M: Holiday",
+        "effect": EFFECT_T1M_FLOW2,
+        "colors": [[255, 0, 0], [0, 255, 0], [0, 0, 255]],
+        "speed": 50,
+        "brightness": 255,
+    },
+    PRESET_T1M_PARTY: {
+        "name": "T1M: Party",
+        "effect": EFFECT_T1M_HOPPING,
+        "colors": [[255, 0, 0], [255, 255, 0], [0, 255, 0], [0, 255, 255], [0, 0, 255]],
+        "speed": 100,
+        "brightness": 255,
+    },
+    PRESET_T1M_METEOR: {
+        "name": "T1M: Meteor",
+        "effect": EFFECT_T1M_ROLLING,
+        "colors": [[0, 128, 255], [255, 0, 128]],
+        "speed": 50,
+        "brightness": 255,
+    },
+    PRESET_T1M_ALERT: {
+        "name": "T1M: Alert",
+        "effect": EFFECT_T1M_BREATHING,
+        "colors": [[255, 0, 0], [0, 0, 255]],
+        "speed": 100,
+        "brightness": 255,
+    },
+    # T1 Strip presets (all use same decoded colors)
+    PRESET_T1_RAINBOW: {
+        "name": "T1 Strip: Rainbow",
+        "effect": EFFECT_T1_RAINBOW1,
+        "colors": [
+            [163, 214, 84],
+            [122, 76, 204],
+            [153, 153, 38],
+            [102, 15, 92],
+            [104, 245, 127],
+            [255, 56, 81],
+            [81, 232, 81],
+        ],
+        "speed": 50,
+        "brightness": 255,
+    },
+    PRESET_T1_HEARTBEAT: {
+        "name": "T1 Strip: Heartbeat",
+        "effect": EFFECT_T1_BREATHING,
+        "colors": [
+            [163, 214, 84],
+            [122, 76, 204],
+            [153, 153, 38],
+            [102, 15, 92],
+            [104, 245, 127],
+            [255, 56, 81],
+            [81, 232, 81],
+        ],
+        "speed": 50,
+        "brightness": 255,
+    },
+    PRESET_T1_GALA: {
+        "name": "T1 Strip: Gala",
+        "effect": EFFECT_T1_CHASING,
+        "colors": [
+            [163, 214, 84],
+            [122, 76, 204],
+            [153, 153, 38],
+            [102, 15, 92],
+            [104, 245, 127],
+            [255, 56, 81],
+            [81, 232, 81],
+        ],
+        "speed": 50,
+        "brightness": 255,
+    },
+    PRESET_T1_SEA_OF_FLOWERS: {
+        "name": "T1 Strip: Sea of flowers",
+        "effect": EFFECT_T1_HOPPING,
+        "colors": [
+            [163, 214, 84],
+            [122, 76, 204],
+            [153, 153, 38],
+            [102, 15, 92],
+            [104, 245, 127],
+            [255, 56, 81],
+            [81, 232, 81],
+        ],
+        "speed": 50,
+        "brightness": 255,
+    },
+    PRESET_T1_RHYTHMIC: {
+        "name": "T1 Strip: Rhythmic",
+        "effect": EFFECT_T1_FLASH,
+        "colors": [
+            [163, 214, 84],
+            [122, 76, 204],
+            [153, 153, 38],
+            [102, 15, 92],
+            [104, 245, 127],
+            [255, 56, 81],
+            [81, 232, 81],
+        ],
+        "speed": 50,
+        "brightness": 255,
+    },
+    PRESET_T1_EXCITING: {
+        "name": "T1 Strip: Exciting",
+        "effect": EFFECT_T1_DASH,
+        "colors": [
+            [163, 214, 84],
+            [122, 76, 204],
+            [153, 153, 38],
+            [102, 15, 92],
+            [104, 245, 127],
+            [255, 56, 81],
+            [81, 232, 81],
+        ],
+        "speed": 100,
+        "brightness": 255,
+    },
+    PRESET_T1_COLORFUL: {
+        "name": "T1 Strip: Colorful",
+        "effect": EFFECT_T1_RAINBOW2,
+        "colors": [
+            [163, 214, 84],
+            [122, 76, 204],
+            [153, 153, 38],
+            [102, 15, 92],
+            [104, 245, 127],
+            [255, 56, 81],
+            [81, 232, 81],
+        ],
+        "speed": 50,
+        "brightness": 255,
+    },
+}
