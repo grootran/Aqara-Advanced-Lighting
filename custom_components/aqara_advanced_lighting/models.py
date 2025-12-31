@@ -77,10 +77,20 @@ class SegmentColor:
 
     segment: int | str  # int or range like "1-5", "odd", "even"
     color: RGBColor
+    brightness: int | None = None  # 1-255, used for T1 Strip only
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for MQTT payload."""
-        return {"segment": self.segment, "color": self.color.to_dict()}
+        result = {"segment": self.segment, "color": self.color.to_dict()}
+        if self.brightness is not None:
+            result["brightness"] = self.brightness
+        return result
+
+    def __post_init__(self) -> None:
+        """Validate brightness value."""
+        if self.brightness is not None and not (1 <= self.brightness <= 255):
+            msg = f"Brightness must be 1-255, got {self.brightness}"
+            raise ValueError(msg)
 
 
 @dataclass

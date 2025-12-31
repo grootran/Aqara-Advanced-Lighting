@@ -28,6 +28,7 @@ ATTR_COLOR_7: Final = "color_7"
 ATTR_COLOR_8: Final = "color_8"
 ATTR_SEGMENTS: Final = "segments"
 ATTR_SEGMENT_COLORS: Final = "segment_colors"
+ATTR_BRIGHTNESS: Final = "brightness"
 ATTR_TURN_ON: Final = "turn_on"
 ATTR_EXPAND: Final = "expand"
 ATTR_TURN_OFF_UNSPECIFIED: Final = "turn_off_unspecified"
@@ -55,6 +56,10 @@ MAX_SPEED: Final = 100
 # RGB color constraints
 MIN_RGB_VALUE: Final = 0
 MAX_RGB_VALUE: Final = 255
+
+# Brightness constraints
+MIN_BRIGHTNESS: Final = 1
+MAX_BRIGHTNESS: Final = 255
 
 # Supported Aqara light models (Z2M model identifiers)
 MODEL_T1M_20_SEGMENT: Final = "lumi.light.acn031"

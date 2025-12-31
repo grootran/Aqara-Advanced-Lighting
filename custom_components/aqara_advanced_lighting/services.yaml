@@ -137,6 +137,16 @@ set_segment_pattern:
       example: '[{"segment": 1, "color": {"r": 255, "g": 0, "b": 0}}, {"segment": "5-10", "color": {"r": 0, "g": 255, "b": 0}}]'
       selector:
         object:
+    brightness:
+      name: Brightness
+      description: Brightness level (1-255). For T1 Strip only - T1M uses standard light brightness control.
+      required: false
+      example: 128
+      selector:
+        number:
+          min: 1
+          max: 255
+          mode: slider
     turn_on:
       name: Turn on lights
       description: Whether to turn on lights that are currently off before applying the pattern.
@@ -208,6 +218,16 @@ create_gradient:
       example: "1-20"
       selector:
         text:
+    brightness:
+      name: Brightness
+      description: Brightness level (1-255). For T1 Strip only - T1M uses standard light brightness control.
+      required: false
+      example: 128
+      selector:
+        number:
+          min: 1
+          max: 255
+          mode: slider
     turn_on:
       name: Turn on lights
       description: Whether to turn on lights that are currently off before applying the gradient.
@@ -279,6 +299,16 @@ create_blocks:
       example: "1-20"
       selector:
         text:
+    brightness:
+      name: Brightness
+      description: Brightness level (1-255). For T1 Strip only - T1M uses standard light brightness control.
+      required: false
+      example: 128
+      selector:
+        number:
+          min: 1
+          max: 255
+          mode: slider
     turn_on:
       name: Turn on lights
       description: Whether to turn on lights that are currently off before applying the blocks.

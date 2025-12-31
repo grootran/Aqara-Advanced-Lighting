@@ -8,16 +8,16 @@ Control Aqara lights with advanced RGB dynamic effects, individual segment patte
 
 ### Supported Devices
 
-| Model | Device | Segments | Dynamic Effects | Segment Control |
+| Device | Model | Segments | Dynamic Effects | Segment Control |
 |-------|--------|----------|-----------------|-----------------|
-| ACN031 | T1M Ceiling Light (20 segments) | 20 | ✅ 6 effects | ✅ |
-| ACN032 | T1M Ceiling Light (26 segments) | 26 | ✅ 6 effects | ✅ |
-| ACN132 | T1 LED Strip | Variable (5/meter) | ✅ 8 effects | ✅ |
-| AGL001/AGL003/AGL005/AGL007 | T2 RGB Bulb (E26/E27/GU10) | N/A | ✅ 4 effects | ❌ |
+| T1 Ceiling Light (20 segments) | ACN031 | 20 | ✅ 6 effects | ✅ |
+| T1M Ceiling Light (26 segments) | ACN032 | 26 | ✅ 6 effects | ✅ |
+| T1 LED Strip | ACN132 | Variable (5/meter) | ✅ 8 effects | ✅ |
+| T2 RGB Bulb (E26/E27/GU10) | AGL001/AGL003/AGL005/AGL007 | N/A | ✅ 4 effects | ❌ |
 
 ### Features
 
-- **Dynamic RGB Effects** - 13 different effects including breathing, fading, flowing, chasing, rainbow, and more
+- **Dynamic RGB Effects** - 13 different effects in total including breathing, fading, flowing, chasing, rainbow, and more
 - **Effect Dropdown Selector** - Easy-to-use UI dropdown showing all available effects
 - **RGB Color Pickers** - Intuitive color picker UI for all services (up to 8 colors for effects, 6 for gradients)
 - **Individual Segment Control** - Set custom colors for each segment on T1M and T1 Strip lights
@@ -26,10 +26,8 @@ Control Aqara lights with advanced RGB dynamic effects, individual segment patte
 - **Flexible Segment Selection** - Support for ranges ("1-20"), individual segments, and special selectors ("odd", "even")
 - **Auto Turn-On Option** - Optionally turn lights on automatically before applying effects
 - **Unspecified Segment Control** - Option to turn off segments not included in patterns
-- **State Restoration** - Capture and restore light state before/after effects
 - **Automatic Device Discovery** - Discovers supported Aqara lights through Zigbee2MQTT
 - **Service-Based API** - All features accessible via Home Assistant services, automations, and scripts
-- **Zigbee2MQTT Integration** - Works seamlessly with your existing Z2M setup
 
 ## Requirements
 
@@ -327,6 +325,12 @@ automation:
 - Check that entity_id exists and is correct
 - Verify RGB color values are 0-255
 - Ensure speed is 1-100
+
+### Device firmware
+- Make sure your device firmware is up to date
+- T1M: 0.0.0_0027
+- T1 strip: 0.0.0_0027
+- T2 bulb: 0.0.0_0030
 
 ## Support
 

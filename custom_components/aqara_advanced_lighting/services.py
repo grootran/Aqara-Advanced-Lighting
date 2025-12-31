@@ -13,6 +13,7 @@ from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
 from .const import (
+    ATTR_BRIGHTNESS,
     ATTR_COLOR_1,
     ATTR_COLOR_2,
     ATTR_COLOR_3,
@@ -29,14 +30,17 @@ from .const import (
     ATTR_TURN_OFF_UNSPECIFIED,
     ATTR_TURN_ON,
     DOMAIN,
+    MAX_BRIGHTNESS,
     MAX_EFFECT_COLORS,
     MAX_GRADIENT_COLORS,
     MAX_RGB_VALUE,
     MAX_SPEED,
+    MIN_BRIGHTNESS,
     MIN_EFFECT_COLORS,
     MIN_GRADIENT_COLORS,
     MIN_RGB_VALUE,
     MIN_SPEED,
+    MODEL_T1_STRIP,
     SERVICE_CREATE_BLOCKS,
     SERVICE_CREATE_GRADIENT,
     SERVICE_SET_DYNAMIC_EFFECT,
@@ -110,6 +114,9 @@ SERVICE_SET_SEGMENT_PATTERN_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
         vol.Required(ATTR_SEGMENT_COLORS): [SEGMENT_COLOR_SCHEMA],
+        vol.Optional(ATTR_BRIGHTNESS): vol.All(
+            vol.Coerce(int), vol.Range(min=MIN_BRIGHTNESS, max=MAX_BRIGHTNESS)
+        ),
         vol.Optional(ATTR_TURN_ON, default=False): cv.boolean,
         vol.Optional(ATTR_TURN_OFF_UNSPECIFIED, default=False): cv.boolean,
     }
@@ -126,6 +133,9 @@ SERVICE_CREATE_GRADIENT_SCHEMA = vol.Schema(
         vol.Optional(ATTR_COLOR_5): RGB_COLOR_LIST_SCHEMA,
         vol.Optional(ATTR_COLOR_6): RGB_COLOR_LIST_SCHEMA,
         vol.Optional(ATTR_SEGMENTS): cv.string,
+        vol.Optional(ATTR_BRIGHTNESS): vol.All(
+            vol.Coerce(int), vol.Range(min=MIN_BRIGHTNESS, max=MAX_BRIGHTNESS)
+        ),
         vol.Optional(ATTR_TURN_ON, default=False): cv.boolean,
         vol.Optional(ATTR_TURN_OFF_UNSPECIFIED, default=False): cv.boolean,
     }
@@ -142,6 +152,9 @@ SERVICE_CREATE_BLOCKS_SCHEMA = vol.Schema(
         vol.Optional(ATTR_COLOR_5): RGB_COLOR_LIST_SCHEMA,
         vol.Optional(ATTR_COLOR_6): RGB_COLOR_LIST_SCHEMA,
         vol.Optional(ATTR_SEGMENTS): cv.string,
+        vol.Optional(ATTR_BRIGHTNESS): vol.All(
+            vol.Coerce(int), vol.Range(min=MIN_BRIGHTNESS, max=MAX_BRIGHTNESS)
+        ),
         vol.Optional(ATTR_TURN_ON, default=False): cv.boolean,
         vol.Optional(ATTR_EXPAND, default=False): cv.boolean,
         vol.Optional(ATTR_TURN_OFF_UNSPECIFIED, default=False): cv.boolean,
@@ -324,6 +337,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
         segment_colors_data: list[dict[str, Any]] = call.data[ATTR_SEGMENT_COLORS]
+        brightness: int | None = call.data.get(ATTR_BRIGHTNESS)
         turn_on: bool = call.data.get(ATTR_TURN_ON, False)
         turn_off_unspecified: bool = call.data.get(ATTR_TURN_OFF_UNSPECIFIED, False)
 
@@ -373,11 +387,15 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     if seg_num not in specified_segments:
                         expanded_data.append({"segment": seg_num, "color": {"r": 0, "g": 0, "b": 0}})
 
+            # Determine if brightness should be applied (T1 Strip only)
+            use_brightness = device.model_id == MODEL_T1_STRIP and brightness is not None
+
             # Convert to SegmentColor objects
             segment_colors = [
                 SegmentColor(
                     segment=sc["segment"],
                     color=RGBColor(**sc["color"]),
+                    brightness=brightness if use_brightness else None,
                 )
                 for sc in expanded_data
             ]
@@ -400,6 +418,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
         segments_str: str | None = call.data.get(ATTR_SEGMENTS)
+        brightness: int | None = call.data.get(ATTR_BRIGHTNESS)
         turn_on: bool = call.data.get(ATTR_TURN_ON, False)
         turn_off_unspecified: bool = call.data.get(ATTR_TURN_OFF_UNSPECIFIED, False)
 
@@ -485,11 +504,15 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     if seg_num not in specified_segments:
                         gradient_data.append({"segment": seg_num, "color": {"r": 0, "g": 0, "b": 0}})
 
+            # Determine if brightness should be applied (T1 Strip only)
+            use_brightness = device.model_id == MODEL_T1_STRIP and brightness is not None
+
             # Convert to SegmentColor objects
             segment_colors = [
                 SegmentColor(
                     segment=sc["segment"],
                     color=RGBColor(**sc["color"]),
+                    brightness=brightness if use_brightness else None,
                 )
                 for sc in gradient_data
             ]
@@ -512,6 +535,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
         segments_str: str | None = call.data.get(ATTR_SEGMENTS)
+        brightness: int | None = call.data.get(ATTR_BRIGHTNESS)
         turn_on: bool = call.data.get(ATTR_TURN_ON, False)
         expand: bool = call.data.get(ATTR_EXPAND, False)
         turn_off_unspecified: bool = call.data.get(ATTR_TURN_OFF_UNSPECIFIED, False)
@@ -598,11 +622,15 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     if seg_num not in specified_segments:
                         blocks_data.append({"segment": seg_num, "color": {"r": 0, "g": 0, "b": 0}})
 
+            # Determine if brightness should be applied (T1 Strip only)
+            use_brightness = device.model_id == MODEL_T1_STRIP and brightness is not None
+
             # Convert to SegmentColor objects
             segment_colors = [
                 SegmentColor(
                     segment=sc["segment"],
                     color=RGBColor(**sc["color"]),
+                    brightness=brightness if use_brightness else None,
                 )
                 for sc in blocks_data
             ]
