@@ -245,7 +245,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         segments: str | None = call.data.get(ATTR_SEGMENTS)
         turn_on: bool = call.data.get(ATTR_TURN_ON, False)
 
-        # If preset is selected, use preset values
+        # Store preset data for device validation
+        preset_data = None
         if preset:
             if preset not in EFFECT_PRESETS:
                 msg = f"Invalid preset: {preset}"
@@ -332,6 +333,14 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     "Z2M device %s not found in registry, skipping", z2m_name
                 )
                 continue
+
+            # Validate preset is compatible with device type if using preset
+            if preset_data and "device_types" in preset_data:
+                allowed_device_types = preset_data["device_types"]
+                if device.model_id not in allowed_device_types:
+                    preset_name = preset_data.get("name", preset)
+                    msg = f"Preset '{preset_name}' is not compatible with device {z2m_name} (model: {device.model_id})"
+                    raise ServiceValidationError(msg)
 
             # Validate effect is supported for this model
             is_valid, error_msg = validate_effect_for_model(device.model_id, effect)
