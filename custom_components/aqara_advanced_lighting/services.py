@@ -44,6 +44,7 @@ from .const import (
     MIN_RGB_VALUE,
     MIN_SPEED,
     MODEL_T1_STRIP,
+    SEGMENT_PATTERN_PRESETS,
     SERVICE_CREATE_BLOCKS,
     SERVICE_CREATE_GRADIENT,
     SERVICE_SET_DYNAMIC_EFFECT,
@@ -120,7 +121,8 @@ SERVICE_SET_DYNAMIC_EFFECT_SCHEMA = vol.Schema(
 SERVICE_SET_SEGMENT_PATTERN_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
-        vol.Required(ATTR_SEGMENT_COLORS): [SEGMENT_COLOR_SCHEMA],
+        vol.Optional(ATTR_PRESET): cv.string,
+        vol.Optional(ATTR_SEGMENT_COLORS): [SEGMENT_COLOR_SCHEMA],
         vol.Optional(ATTR_BRIGHTNESS): vol.All(
             vol.Coerce(int), vol.Range(min=MIN_BRIGHTNESS, max=MAX_BRIGHTNESS)
         ),
@@ -185,6 +187,112 @@ def _get_mqtt_client_and_state_manager(
         raise ServiceValidationError(msg)
 
     return mqtt_client, state_manager
+
+
+def _get_actual_segment_count(
+    hass: HomeAssistant, entity_id: str, model_id: str
+) -> int:
+    """Get actual segment count for a device, considering T1 Strip variable length.
+
+    For T1 Strip, attempts to read the length attribute from entity state.
+    Falls back to reasonable defaults if unavailable.
+    """
+    base_count = get_segment_count(model_id)
+
+    # If not T1 Strip (base_count != 0), return the fixed count
+    if base_count != 0:
+        return base_count
+
+    # For T1 Strip, try to get actual length from entity attributes or separate length entity
+    if model_id == MODEL_T1_STRIP:
+        state = hass.states.get(entity_id)
+        length_meters = None
+
+        # Try to get length from main entity attributes first
+        if state and state.attributes:
+            length_meters = state.attributes.get("length")
+
+        # If not in attributes, try to find separate length entity
+        if length_meters is None:
+            # Method 1: Try to build entity ID from light entity name
+            # e.g., light.t1_led_strip -> number.t1_led_strip_length
+            base_name = entity_id.split(".", 1)[-1] if "." in entity_id else entity_id
+
+            for domain in ["number", "sensor"]:
+                length_entity_id = f"{domain}.{base_name}_length"
+                length_state = hass.states.get(length_entity_id)
+                if length_state and length_state.state not in ("unknown", "unavailable"):
+                    try:
+                        length_meters = float(length_state.state)
+                        _LOGGER.debug(
+                            "Found T1 Strip length from entity %s: %s meters",
+                            length_entity_id,
+                            length_meters
+                        )
+                        break
+                    except (ValueError, TypeError):
+                        pass
+
+            # Method 2: If still not found, search device registry for length entity on same device
+            if length_meters is None:
+                from homeassistant.helpers import entity_registry as er, device_registry as dr
+
+                entity_reg = er.async_get(hass)
+                device_reg = dr.async_get(hass)
+
+                # Get the light entity's entry to find its device
+                light_entity_entry = entity_reg.async_get(entity_id)
+                if light_entity_entry and light_entity_entry.device_id:
+                    # Get all entities for this device
+                    device_entities = er.async_entries_for_device(
+                        entity_reg, light_entity_entry.device_id
+                    )
+
+                    # Look for a length entity (number or sensor with "length" in unique_id or entity_id)
+                    for entity_entry in device_entities:
+                        if entity_entry.domain in ["number", "sensor"]:
+                            # Check if it's a length entity by looking at unique_id or entity_id
+                            if (
+                                "length" in entity_entry.entity_id.lower()
+                                or (entity_entry.unique_id and "length" in entity_entry.unique_id.lower())
+                            ):
+                                length_state = hass.states.get(entity_entry.entity_id)
+                                if length_state and length_state.state not in ("unknown", "unavailable"):
+                                    try:
+                                        length_meters = float(length_state.state)
+                                        _LOGGER.debug(
+                                            "Found T1 Strip length from device entity %s: %s meters",
+                                            entity_entry.entity_id,
+                                            length_meters
+                                        )
+                                        break
+                                    except (ValueError, TypeError):
+                                        pass
+
+        # Calculate segment count from length if we found it
+        if length_meters is not None:
+            try:
+                # T1 Strip has 5 segments per meter
+                segment_count = int(float(length_meters) * 5)
+                _LOGGER.debug(
+                    "T1 Strip %s: %s meters = %s segments",
+                    entity_id,
+                    length_meters,
+                    segment_count
+                )
+                return segment_count
+            except (ValueError, TypeError):
+                pass
+
+        # Default to 2 meters (10 segments) if length unavailable
+        _LOGGER.debug(
+            "Could not determine T1 Strip length for %s (no length entity or attribute found), defaulting to 10 segments (2 meters)",
+            entity_id
+        )
+        return 10
+
+    # For other unknown devices, return a reasonable default
+    return 20
 
 
 async def _ensure_light_on(
@@ -396,10 +504,24 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         mqtt_client, state_manager = _get_mqtt_client_and_state_manager(hass)
 
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
-        segment_colors_data: list[dict[str, Any]] = call.data[ATTR_SEGMENT_COLORS]
+        preset: str | None = call.data.get(ATTR_PRESET)
+        segment_colors_data: list[dict[str, Any]] | None = call.data.get(ATTR_SEGMENT_COLORS)
         brightness: int | None = call.data.get(ATTR_BRIGHTNESS)
         turn_on: bool = call.data.get(ATTR_TURN_ON, False)
         turn_off_unspecified: bool = call.data.get(ATTR_TURN_OFF_UNSPECIFIED, False)
+
+        # Get preset data if preset is specified
+        preset_data = None
+        if preset:
+            preset_data = SEGMENT_PATTERN_PRESETS.get(preset)
+            if not preset_data:
+                msg = f"Invalid preset: {preset}"
+                raise ServiceValidationError(msg)
+
+        # Require either preset or segment_colors
+        if not preset and not segment_colors_data:
+            msg = "Either preset or segment_colors must be specified"
+            raise ServiceValidationError(msg)
 
         # Process each entity
         for entity_id in entity_ids:
@@ -430,12 +552,43 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 raise ServiceValidationError(msg)
 
             # Get segment count for this device
-            max_segments = get_segment_count(device.model_id)
-            if max_segments == 0:
-                max_segments = 100  # Default for variable length devices
+            max_segments = _get_actual_segment_count(hass, entity_id, device.model_id)
+
+            # Validate preset is compatible with device type if using preset
+            if preset_data and "device_types" in preset_data:
+                allowed_device_types = preset_data["device_types"]
+                if device.model_id not in allowed_device_types:
+                    preset_name = preset_data.get("name", preset)
+                    msg = f"Preset '{preset_name}' is not compatible with device {z2m_name} (model: {device.model_id})"
+                    raise ServiceValidationError(msg)
 
             # Ensure light is on if requested
             await _ensure_light_on(hass, mqtt_client, entity_id, z2m_name, turn_on)
+
+            # For T1 Strip, set brightness BEFORE sending segment pattern
+            # Z2M converter reads brightness from device state, not from segment objects
+            if brightness is not None and device.model_id == MODEL_T1_STRIP:
+                try:
+                    await hass.services.async_call(
+                        "light",
+                        "turn_on",
+                        {"entity_id": entity_id, "brightness": brightness},
+                        blocking=True,
+                    )
+                    _LOGGER.debug("Set brightness to %s for T1 Strip %s before segment pattern", brightness, entity_id)
+                    # Small delay to ensure state is updated before segment command
+                    await asyncio.sleep(0.1)
+                except Exception as ex:
+                    _LOGGER.warning("Failed to set brightness for %s: %s", entity_id, ex)
+
+            # If using preset, build segment_colors from preset data
+            if preset_data:
+                preset_segments = preset_data["segments"]
+                # Build segment_colors_data from preset
+                segment_colors_data = [
+                    {"segment": i + 1, "color": {"r": color[0], "g": color[1], "b": color[2]}}
+                    for i, color in enumerate(preset_segments[:max_segments])
+                ]
 
             # Expand segment ranges into individual segments
             expanded_data = expand_segment_colors(segment_colors_data, max_segments)
@@ -447,15 +600,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     if seg_num not in specified_segments:
                         expanded_data.append({"segment": seg_num, "color": {"r": 0, "g": 0, "b": 0}})
 
-            # Determine if brightness should be applied (T1 Strip only)
-            use_brightness = device.model_id == MODEL_T1_STRIP and brightness is not None
-
-            # Convert to SegmentColor objects
+            # Convert to SegmentColor objects (no brightness - T1 Strip uses light's global brightness)
             segment_colors = [
                 SegmentColor(
                     segment=sc["segment"],
                     color=RGBColor(**sc["color"]),
-                    brightness=brightness if use_brightness else None,
                 )
                 for sc in expanded_data
             ]
@@ -470,7 +619,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 msg = f"Failed to publish segment pattern to {z2m_name}"
                 raise HomeAssistantError(msg) from ex
 
-            # Set brightness using HA service for T1M (T1 Strip has brightness embedded)
+            # Set brightness using HA service for T1M only (T1 Strip brightness was already set above)
             if brightness is not None and device.model_id != MODEL_T1_STRIP:
                 try:
                     await hass.services.async_call(
@@ -540,19 +689,31 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             # Ensure light is on if requested
             await _ensure_light_on(hass, mqtt_client, entity_id, z2m_name, turn_on)
 
+            # For T1 Strip, set brightness BEFORE sending gradient
+            # Z2M converter reads brightness from device state, not from segment objects
+            if brightness is not None and device.model_id == MODEL_T1_STRIP:
+                try:
+                    await hass.services.async_call(
+                        "light",
+                        "turn_on",
+                        {"entity_id": entity_id, "brightness": brightness},
+                        blocking=True,
+                    )
+                    _LOGGER.debug("Set brightness to %s for T1 Strip %s before gradient", brightness, entity_id)
+                    # Small delay to ensure state is updated before segment command
+                    await asyncio.sleep(0.1)
+                except Exception as ex:
+                    _LOGGER.warning("Failed to set brightness for %s: %s", entity_id, ex)
+
             # Determine segments to use
             if segments_str:
                 # Parse segment range
-                max_segments = get_segment_count(device.model_id)
-                if max_segments == 0:
-                    max_segments = 100  # Default for variable length devices
+                max_segments = _get_actual_segment_count(hass, entity_id, device.model_id)
                 segment_list = parse_segment_range(segments_str, max_segments)
                 segment_count = len(segment_list)
             else:
                 # Use all segments
-                segment_count = get_segment_count(device.model_id)
-                if segment_count == 0:
-                    segment_count = 20  # Default assumption
+                segment_count = _get_actual_segment_count(hass, entity_id, device.model_id)
                 segment_list = list(range(1, segment_count + 1))
 
             # Generate gradient
@@ -567,23 +728,17 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
             # If turn_off_unspecified is enabled, add black to all unspecified segments
             if turn_off_unspecified and segments_str:
-                max_segments_total = get_segment_count(device.model_id)
-                if max_segments_total == 0:
-                    max_segments_total = 100
+                max_segments_total = _get_actual_segment_count(hass, entity_id, device.model_id)
                 specified_segments = {sc["segment"] for sc in gradient_data}
                 for seg_num in range(1, max_segments_total + 1):
                     if seg_num not in specified_segments:
                         gradient_data.append({"segment": seg_num, "color": {"r": 0, "g": 0, "b": 0}})
 
-            # Determine if brightness should be applied (T1 Strip only)
-            use_brightness = device.model_id == MODEL_T1_STRIP and brightness is not None
-
-            # Convert to SegmentColor objects
+            # Convert to SegmentColor objects (no brightness - T1 Strip uses light's global brightness)
             segment_colors = [
                 SegmentColor(
                     segment=sc["segment"],
                     color=RGBColor(**sc["color"]),
-                    brightness=brightness if use_brightness else None,
                 )
                 for sc in gradient_data
             ]
@@ -598,7 +753,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 msg = f"Failed to publish gradient to {z2m_name}"
                 raise HomeAssistantError(msg) from ex
 
-            # Set brightness using HA service for T1M (T1 Strip has brightness embedded)
+            # Set brightness using HA service for T1M only (T1 Strip brightness was already set above)
             if brightness is not None and device.model_id != MODEL_T1_STRIP:
                 try:
                     await hass.services.async_call(
@@ -669,19 +824,31 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             # Ensure light is on if requested
             await _ensure_light_on(hass, mqtt_client, entity_id, z2m_name, turn_on)
 
+            # For T1 Strip, set brightness BEFORE sending blocks
+            # Z2M converter reads brightness from device state, not from segment objects
+            if brightness is not None and device.model_id == MODEL_T1_STRIP:
+                try:
+                    await hass.services.async_call(
+                        "light",
+                        "turn_on",
+                        {"entity_id": entity_id, "brightness": brightness},
+                        blocking=True,
+                    )
+                    _LOGGER.debug("Set brightness to %s for T1 Strip %s before blocks", brightness, entity_id)
+                    # Small delay to ensure state is updated before segment command
+                    await asyncio.sleep(0.1)
+                except Exception as ex:
+                    _LOGGER.warning("Failed to set brightness for %s: %s", entity_id, ex)
+
             # Determine segments to use
             if segments_str:
                 # Parse segment range
-                max_segments = get_segment_count(device.model_id)
-                if max_segments == 0:
-                    max_segments = 100  # Default for variable length devices
+                max_segments = _get_actual_segment_count(hass, entity_id, device.model_id)
                 segment_list = parse_segment_range(segments_str, max_segments)
                 segment_count = len(segment_list)
             else:
                 # Use all segments
-                segment_count = get_segment_count(device.model_id)
-                if segment_count == 0:
-                    segment_count = 20  # Default assumption
+                segment_count = _get_actual_segment_count(hass, entity_id, device.model_id)
                 segment_list = list(range(1, segment_count + 1))
 
             # Generate blocks
@@ -696,23 +863,17 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
             # If turn_off_unspecified is enabled, add black to all unspecified segments
             if turn_off_unspecified and segments_str:
-                max_segments_total = get_segment_count(device.model_id)
-                if max_segments_total == 0:
-                    max_segments_total = 100
+                max_segments_total = _get_actual_segment_count(hass, entity_id, device.model_id)
                 specified_segments = {sc["segment"] for sc in blocks_data}
                 for seg_num in range(1, max_segments_total + 1):
                     if seg_num not in specified_segments:
                         blocks_data.append({"segment": seg_num, "color": {"r": 0, "g": 0, "b": 0}})
 
-            # Determine if brightness should be applied (T1 Strip only)
-            use_brightness = device.model_id == MODEL_T1_STRIP and brightness is not None
-
-            # Convert to SegmentColor objects
+            # Convert to SegmentColor objects (no brightness - T1 Strip uses light's global brightness)
             segment_colors = [
                 SegmentColor(
                     segment=sc["segment"],
                     color=RGBColor(**sc["color"]),
-                    brightness=brightness if use_brightness else None,
                 )
                 for sc in blocks_data
             ]
@@ -727,7 +888,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 msg = f"Failed to publish blocks to {z2m_name}"
                 raise HomeAssistantError(msg) from ex
 
-            # Set brightness using HA service for T1M (T1 Strip has brightness embedded)
+            # Set brightness using HA service for T1M only (T1 Strip brightness was already set above)
             if brightness is not None and device.model_id != MODEL_T1_STRIP:
                 try:
                     await hass.services.async_call(

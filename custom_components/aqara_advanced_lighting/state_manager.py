@@ -39,8 +39,8 @@ class StateManager:
         state = self.hass.states.get(entity_id)
 
         if not state or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
-            _LOGGER.warning(
-                "Cannot capture state for %s: state is %s",
+            _LOGGER.debug(
+                "Cannot capture state for %s: state is %s (this is normal if the device is offline or Home Assistant just started)",
                 entity_id,
                 state.state if state else "None",
             )

@@ -1,7 +1,7 @@
 {
   "domain": "aqara_advanced_lighting",
   "name": "Aqara Advanced Lighting",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "documentation": "https://github.com/absent42/Aqara-Advanced-Lighting",
   "issue_tracker": "https://github.com/absent42/Aqara-Advanced-Lighting/issues",
   "codeowners": ["@absent42"],

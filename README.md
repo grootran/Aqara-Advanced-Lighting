@@ -17,13 +17,19 @@ Control Aqara lights with advanced RGB dynamic effects, individual segment patte
 
 ### Features
 
-- **Dynamic RGB Effects** - 13 different effects in total including breathing, fading, flowing, chasing, rainbow, and more
-- **Effect Dropdown Selector** - Easy-to-use UI dropdown showing all available effects
+- **Aqara App Effect Presets** - Quick access to 24 preset effects from the Aqara mobile app
+  - 4 T2 Bulb presets (Candlelight, Breath, Colorful, Security)
+  - 9 T1M presets (Dinner, Sunset, Autumn, Galaxy, Daydream, Holiday, Party, Meteor, Alert)
+  - 7 T1 Strip presets (Rainbow, Heartbeat, Gala, Sea of Flowers, Rhythmic, Exciting, Colorful)
+- **Segment Pattern Presets** - 12 beautiful T1M/T1 Strip segment color patterns from the Aqara app
+- **Dynamic RGB Effects** - 13 different manual effects including breathing, fading, flowing, chasing, rainbow, and more
+- **Effect Dropdown Selector** - Easy-to-use UI dropdown showing all available effects and presets
 - **RGB Color Pickers** - Intuitive color picker UI for all services (up to 8 colors for effects, 6 for gradients)
 - **Individual Segment Control** - Set custom colors for each segment on T1M and T1 Strip lights
 - **Smooth Color Gradients** - Create beautiful color transitions across segments with 2-6 colors
 - **Color Block Patterns** - Generate evenly spaced or alternating color blocks
 - **Flexible Segment Selection** - Support for ranges ("1-20"), individual segments, and special selectors ("odd", "even")
+- **T1 Strip Variable Length Support** - Automatically detects and adapts to your T1 Strip's length (1-10 meters)
 - **Auto Turn-On Option** - Optionally turn lights on automatically before applying effects
 - **Unspecified Segment Control** - Option to turn off segments not included in patterns
 - **Automatic Device Discovery** - Discovers supported Aqara lights through Zigbee2MQTT
@@ -39,6 +45,10 @@ Control Aqara lights with advanced RGB dynamic effects, individual segment patte
 ## Installation
 
 ### Via HACS (Recommended)
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=absent42&repository=Aqara-Advanced-Lighting&category=Integration)
+
+**Or manually:**
 
 1. Open HACS in Home Assistant
 2. Go to "Integrations"
@@ -82,11 +92,20 @@ All features are available as Home Assistant services. Call these services from 
 
 #### 1. Set Dynamic Effect
 
-Activate a dynamic RGB effect on your lights.
+Activate a dynamic RGB effect on your lights - choose from Aqara app presets or create your own custom effect.
 
 **Service:** `aqara_advanced_lighting.set_dynamic_effect`
 
-**Example:**
+**Example (Using Preset):**
+```yaml
+service: aqara_advanced_lighting.set_dynamic_effect
+target:
+  entity_id: light.aqara_ceiling_light
+data:
+  preset: "t1m_sunset"
+```
+
+**Example (Custom Effect):**
 ```yaml
 service: aqara_advanced_lighting.set_dynamic_effect
 target:
@@ -101,19 +120,33 @@ data:
 
 **Parameters:**
 - `entity_id` (required): Light entity or group to control
-- `effect` (required): Effect type - dropdown selector with all available effects
-- `speed` (required): Animation speed (1-100%)
-- `color_1` through `color_8`: RGB color pickers (color_1 required, others optional)
+- `preset` (optional): Aqara app preset effect - dropdown selector with 24 presets
+- `effect` (required if no preset): Effect type - dropdown selector with all available effects
+- `speed` (required if no preset): Animation speed (1-100%)
+- `color_1` through `color_8`: RGB color pickers (color_1 required if no preset, others optional)
 - `segments` (optional): For T1 Strip only - segments to apply effect to (e.g., "1-20", "odd", "even")
+- `brightness` (optional): Brightness level (1-255)
 - `turn_on` (optional): Turn light on before applying effect (default: false)
+
+**Note:** When using `preset`, manual `effect`, `speed`, and `color` parameters are ignored.
 
 #### 2. Set Segment Pattern
 
-Set individual segment colors (T1M and T1 Strip only).
+Set individual segment colors (T1M and T1 Strip only) - choose from 12 Aqara app presets or create your own custom pattern.
 
 **Service:** `aqara_advanced_lighting.set_segment_pattern`
 
-**Example:**
+**Example (Using Preset):**
+```yaml
+service: aqara_advanced_lighting.set_segment_pattern
+target:
+  entity_id: light.aqara_ceiling_light
+data:
+  preset: "t1m_segment_1"
+  brightness: 200
+```
+
+**Example (Custom Pattern):**
 ```yaml
 service: aqara_advanced_lighting.set_segment_pattern
 target:
@@ -139,11 +172,15 @@ data:
 
 **Parameters:**
 - `entity_id` (required): Light entity with segment support
-- `segment_colors` (required): List of segment/color pairs
+- `preset` (optional): Aqara app segment pattern preset (Preset 1 through Preset 12) - dropdown selector
+- `segment_colors` (required if no preset): List of segment/color pairs
   - `segment`: Segment number or range (e.g., 1, "5-10", "odd", "even")
   - `color`: RGB color dict with r, g, b values (0-255)
+- `brightness` (optional): Brightness level (1-255)
 - `turn_on` (optional): Turn light on before applying pattern (default: false)
 - `turn_off_unspecified` (optional): Turn off segments not specified (default: false)
+
+**Note:** When using `preset`, the `segment_colors` parameter is ignored. Presets work on T1M (20 & 26 segment) and T1 Strip devices.
 
 #### 3. Create Gradient
 
@@ -169,6 +206,7 @@ data:
 - `color_2` (required): Second gradient color - RGB color picker
 - `color_3` through `color_6` (optional): Additional gradient colors - RGB color pickers
 - `segments` (optional): Segments to apply gradient to (e.g., "1-20", "5-15")
+- `brightness` (optional): Brightness level (1-255)
 - `turn_on` (optional): Turn light on before applying gradient (default: false)
 - `turn_off_unspecified` (optional): Turn off segments not specified (default: false)
 
@@ -197,6 +235,7 @@ data:
 - `color_2` through `color_6` (optional): Additional block colors - RGB color pickers
 - `segments` (optional): Segments to apply blocks to (e.g., "1-20", "odd", "even")
 - `expand` (optional): Expand colors to fill segments evenly vs. alternating (default: false)
+- `brightness` (optional): Brightness level (1-255)
 - `turn_on` (optional): Turn light on before applying blocks (default: false)
 - `turn_off_unspecified` (optional): Turn off segments not specified (default: false)
 
@@ -325,6 +364,11 @@ automation:
 - Check that entity_id exists and is correct
 - Verify RGB color values are 0-255
 - Ensure speed is 1-100
+
+### T1 Strip segment count issues
+- Ensure your T1 Strip's `length` attribute is correctly set in Z2M
+- The integration reads this to calculate segment count (5 segments per meter)
+- If unavailable, it defaults to 10 segments (2 meters) with a warning
 
 ### Device firmware
 - Make sure your device firmware is up to date

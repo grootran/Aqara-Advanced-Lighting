@@ -187,10 +187,42 @@ set_segment_pattern:
     entity:
       domain: light
   fields:
+    preset:
+      name: Preset
+      description: Select an Aqara app segment pattern preset (optional). Overrides manual segment_colors setting.
+      required: false
+      selector:
+        select:
+          mode: dropdown
+          options:
+            - label: "Preset 1"
+              value: "t1m_segment_1"
+            - label: "Preset 2"
+              value: "t1m_segment_2"
+            - label: "Preset 3"
+              value: "t1m_segment_3"
+            - label: "Preset 4"
+              value: "t1m_segment_4"
+            - label: "Preset 5"
+              value: "t1m_segment_5"
+            - label: "Preset 6"
+              value: "t1m_segment_6"
+            - label: "Preset 7"
+              value: "t1m_segment_7"
+            - label: "Preset 8"
+              value: "t1m_segment_8"
+            - label: "Preset 9"
+              value: "t1m_segment_9"
+            - label: "Preset 10"
+              value: "t1m_segment_10"
+            - label: "Preset 11"
+              value: "t1m_segment_11"
+            - label: "Preset 12"
+              value: "t1m_segment_12"
     segment_colors:
       name: Segment colors
       description: List of segment/color pairs. Each item should be a dictionary with 'segment' (number or range) and 'color' (RGB dict with r, g, b keys).
-      required: true
+      required: false
       example: '[{"segment": 1, "color": {"r": 255, "g": 0, "b": 0}}, {"segment": "5-10", "color": {"r": 0, "g": 255, "b": 0}}]'
       selector:
         object:
