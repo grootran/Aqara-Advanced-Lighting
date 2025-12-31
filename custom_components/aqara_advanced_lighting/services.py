@@ -106,6 +106,9 @@ SERVICE_SET_DYNAMIC_EFFECT_SCHEMA = vol.Schema(
         vol.Optional(ATTR_COLOR_7): RGB_COLOR_LIST_SCHEMA,
         vol.Optional(ATTR_COLOR_8): RGB_COLOR_LIST_SCHEMA,
         vol.Optional(ATTR_SEGMENTS): cv.string,
+        vol.Optional(ATTR_BRIGHTNESS): vol.All(
+            vol.Coerce(int), vol.Range(min=MIN_BRIGHTNESS, max=MAX_BRIGHTNESS)
+        ),
         vol.Optional(ATTR_TURN_ON, default=False): cv.boolean,
     }
 )
@@ -237,6 +240,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         effect_str: str = call.data[ATTR_EFFECT]
         speed: int = call.data[ATTR_SPEED]
         segments: str | None = call.data.get(ATTR_SEGMENTS)
+        brightness: int | None = call.data.get(ATTR_BRIGHTNESS)
         turn_on: bool = call.data.get(ATTR_TURN_ON, False)
 
         # Collect colors from individual color picker parameters
@@ -321,7 +325,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             # Publish to MQTT
             try:
                 await mqtt_client.async_publish_dynamic_effect(
-                    z2m_name, dynamic_effect
+                    z2m_name, dynamic_effect, brightness
                 )
                 state_manager.mark_effect_active(entity_id, dynamic_effect)
                 _LOGGER.info(
@@ -403,9 +407,13 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             # Capture state and publish pattern
             state_manager.capture_state(entity_id, z2m_name)
 
+            # For T1M, pass brightness as standard light command
+            # For T1 Strip, brightness is already embedded in segment_colors
+            t1m_brightness = brightness if device.model_id != MODEL_T1_STRIP else None
+
             try:
                 await mqtt_client.async_publish_segment_pattern(
-                    z2m_name, segment_colors
+                    z2m_name, segment_colors, t1m_brightness
                 )
                 _LOGGER.info("Applied segment pattern to %s", entity_id)
             except Exception as ex:
@@ -520,9 +528,13 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             # Capture state and publish gradient
             state_manager.capture_state(entity_id, z2m_name)
 
+            # For T1M, pass brightness as standard light command
+            # For T1 Strip, brightness is already embedded in segment_colors
+            t1m_brightness = brightness if device.model_id != MODEL_T1_STRIP else None
+
             try:
                 await mqtt_client.async_publish_segment_pattern(
-                    z2m_name, segment_colors
+                    z2m_name, segment_colors, t1m_brightness
                 )
                 _LOGGER.info("Applied gradient to %s", entity_id)
             except Exception as ex:
@@ -638,9 +650,13 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             # Capture state and publish blocks
             state_manager.capture_state(entity_id, z2m_name)
 
+            # For T1M, pass brightness as standard light command
+            # For T1 Strip, brightness is already embedded in segment_colors
+            t1m_brightness = brightness if device.model_id != MODEL_T1_STRIP else None
+
             try:
                 await mqtt_client.async_publish_segment_pattern(
-                    z2m_name, segment_colors
+                    z2m_name, segment_colors, t1m_brightness
                 )
                 _LOGGER.info("Applied block pattern to %s", entity_id)
             except Exception as ex:

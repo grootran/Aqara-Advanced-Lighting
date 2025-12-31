@@ -115,6 +115,16 @@ set_dynamic_effect:
       example: "1-20"
       selector:
         text:
+    brightness:
+      name: Brightness
+      description: Brightness level (1-255).
+      required: false
+      example: 128
+      selector:
+        number:
+          min: 1
+          max: 255
+          mode: slider
     turn_on:
       name: Turn on lights
       description: Whether to turn on lights that are currently off before applying the effect.
@@ -139,7 +149,7 @@ set_segment_pattern:
         object:
     brightness:
       name: Brightness
-      description: Brightness level (1-255). For T1 Strip only - T1M uses standard light brightness control.
+      description: Brightness level (1-255).
       required: false
       example: 128
       selector:
@@ -220,7 +230,7 @@ create_gradient:
         text:
     brightness:
       name: Brightness
-      description: Brightness level (1-255). For T1 Strip only - T1M uses standard light brightness control.
+      description: Brightness level (1-255).
       required: false
       example: 128
       selector:
@@ -301,7 +311,7 @@ create_blocks:
         text:
     brightness:
       name: Brightness
-      description: Brightness level (1-255). For T1 Strip only - T1M uses standard light brightness control.
+      description: Brightness level (1-255).
       required: false
       example: 128
       selector:
