@@ -217,29 +217,34 @@ class MQTTClient:
         """Publish dynamic effect to Z2M device.
 
         IMPORTANT: Payload order matters per Z2M requirements.
-        Order: effect, effect_speed, effect_colors, [effect_segments], [brightness]
+        Order: effect, effect_speed, effect_colors, [effect_segments]
 
-        Brightness is sent as a standard light command for all devices.
+        Brightness must be sent as a separate command AFTER the effect.
         """
         topic = f"{self.entry.runtime_data.z2m_base_topic}/{z2m_friendly_name}/set"
         payload = effect.to_mqtt_payload()
-
-        # Add brightness if specified (standard light brightness control)
-        if brightness is not None:
-            payload["brightness"] = brightness
 
         _LOGGER.debug(
             "Publishing dynamic effect to %s: %s", z2m_friendly_name, payload
         )
 
+        # Send effect command
         await mqtt.async_publish(self.hass, topic, json.dumps(payload))
+
+        # Send brightness as separate command if specified
+        if brightness is not None:
+            brightness_payload = {"brightness": brightness}
+            _LOGGER.debug(
+                "Publishing brightness to %s: %s", z2m_friendly_name, brightness_payload
+            )
+            await mqtt.async_publish(self.hass, topic, json.dumps(brightness_payload))
 
     async def async_publish_segment_pattern(
         self, z2m_friendly_name: str, segment_colors: list[SegmentColor], brightness: int | None = None
     ) -> None:
         """Publish segment pattern to Z2M device.
 
-        For T1M devices, brightness is sent as a standard light command.
+        For T1M devices, brightness is sent as a separate command.
         For T1 Strip, brightness is embedded in the segment_colors payload.
         """
         topic = f"{self.entry.runtime_data.z2m_base_topic}/{z2m_friendly_name}/set"
@@ -249,15 +254,20 @@ class MQTTClient:
             PAYLOAD_SEGMENT_COLORS: [sc.to_dict() for sc in segment_colors],
         }
 
-        # Add brightness for T1M (standard light brightness control)
-        if brightness is not None:
-            payload["brightness"] = brightness
-
         _LOGGER.debug(
             "Publishing segment pattern to %s: %s", z2m_friendly_name, payload
         )
 
+        # Send segment pattern command
         await mqtt.async_publish(self.hass, topic, json.dumps(payload))
+
+        # Send brightness as separate command for T1M (T1 Strip has brightness embedded)
+        if brightness is not None:
+            brightness_payload = {"brightness": brightness}
+            _LOGGER.debug(
+                "Publishing brightness to %s: %s", z2m_friendly_name, brightness_payload
+            )
+            await mqtt.async_publish(self.hass, topic, json.dumps(brightness_payload))
 
     async def async_turn_off_effect(self, z2m_friendly_name: str) -> None:
         """Turn off effect on Z2M device."""

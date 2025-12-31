@@ -191,7 +191,7 @@ EFFECT_PRESETS: Final = {
     },
     PRESET_T1M_AUTUMN: {
         "name": "T1M: Autumn",
-        "effect": EFFECT_T1M_HOPPING,
+        "effect": EFFECT_T1M_FLOW1,
         "colors": [[255, 125, 0], [255, 0, 0]],
         "speed": 50,
         "brightness": 255,
@@ -234,7 +234,7 @@ EFFECT_PRESETS: Final = {
     PRESET_T1M_ALERT: {
         "name": "T1M: Alert",
         "effect": EFFECT_T1M_BREATHING,
-        "colors": [[255, 0, 0], [0, 0, 255]],
+        "colors": [[255, 0, 0]],
         "speed": 100,
         "brightness": 255,
     },
