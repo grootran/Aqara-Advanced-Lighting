@@ -5,6 +5,99 @@ All notable changes to the Aqara Advanced Lighting integration will be documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-01-02
+
+## New Features
+
+### CCT Dynamic Sequences
+- **Multi-Step CCT Sequences** - Create dynamic color temperature and brightness sequences
+  - Up to 20 custom steps per sequence with individual color temperature, brightness, transition time, and hold duration
+  - Three loop modes: once, count (repeat X times), continuous
+  - Two end behaviors: maintain last state or turn off
+  - Service: start_cct_sequence with manual or preset configuration
+  - Service: stop_cct_sequence to stop running sequences
+  - Service: pause_cct_sequence to pause sequences mid-execution
+  - Service: resume_cct_sequence to resume paused sequences
+- **CCT Sequence Presets** - Three built-in presets for common scenarios
+  - Goodnight: 30-minute gradual dim from 4000K to 2700K, 50% to off
+  - Wakeup: 30-minute sunrise simulation from 2700K to 6500K, 0% to 100%
+  - Mindful Breathing: Continuous breathing cycle for meditation
+- **Interruptible Sequences** - Sequences can be stopped or paused at any point
+- **Event System** - Fires Home Assistant events for sequence lifecycle (started, completed, stopped, step changed)
+
+### Effect and Pattern State Restoration
+- **Stop Effect Service** - Restore lights to their pre-effect state
+  - Service: stop_effect with optional state restoration
+  - Automatically captures light state before applying effects or patterns
+  - Restores brightness, color (RGB), and color temperature
+  - Falls back to warm white if no previous state is saved
+  - Works with all dynamic effects and segment patterns
+- **Persistent State Storage** - Light states are saved across Home Assistant restarts
+  - States stored in .storage/aqara_advanced_lighting.state_manager
+  - Automatic expiry of entries older than 24 hours
+  - Loaded automatically on integration setup
+
+### Performance Optimization
+- **Batch MQTT Publishing** - Synchronized group effects now publish to all devices in parallel
+  - Uses asyncio.gather for efficient parallel operations
+  - Applies when sync parameter is true and multiple lights are targeted
+  - Significantly reduces latency when controlling multiple lights simultaneously
+- **LRU Caching** - Device capability lookups are now cached
+  - Reduces overhead for repeated device validation
+  - Improves service call performance
+  - Cache size of 32 devices
+- **Parallel Brightness Changes** - Brightness adjustments across multiple entities execute in parallel
+  - Uses asyncio.gather for concurrent Home Assistant service calls
+  - Faster execution when setting brightness for multiple lights
+
+### Group Synchronization
+- **Light Group Support** - All services now support Home Assistant light groups
+  - Automatic group detection and entity resolution
+  - Groups are expanded to individual light entities
+  - Duplicate entities are automatically removed
+  - Synchronized effects across all group members
+  - Works with all 9 services: set_dynamic_effect, stop_effect, set_segment_pattern, create_gradient, create_blocks, start_cct_sequence, stop_cct_sequence, pause_cct_sequence, resume_cct_sequence
+
+## Technical Changes
+
+### Code Structure
+- Added _resolve_entity_ids() helper function in services.py for group entity resolution
+- Added async_publish_batch_effects() method in mqtt_client.py for parallel effect publishing
+- Added async_publish_batch_segments() method in mqtt_client.py for parallel segment publishing
+- Added @lru_cache decorator to get_device_capabilities() in light_capabilities.py
+- Added @lru_cache decorator to is_supported_model() in light_capabilities.py
+- Added @lru_cache decorator to supports_segment_addressing() in light_capabilities.py
+- Added @lru_cache decorator to supports_effect_segments() in light_capabilities.py
+
+### Service Handler Updates
+- All 9 service handlers now use _resolve_entity_ids() for group support
+- handle_set_dynamic_effect: Uses batch publishing when sync=true and multiple devices
+- handle_set_dynamic_effect: Parallel brightness changes using asyncio.gather
+- All segment services: Use batch publishing for synchronized group operations
+
+## Breaking Changes
+
+None - This release is fully backward compatible with v0.2.0.
+
+Note: Segment pattern preset values have changed from "t1m_segment_X" to "segment_X". If you have automations or scripts using the old format, update them to the new format.
+
+## Requirements
+
+- Home Assistant 2025.12.0 or newer
+- MQTT integration configured
+- Zigbee2MQTT 2.7.2 or newer
+- Supported Aqara devices:
+  - T1 Ceiling Light (ACN031) - 20 segments
+  - T1M Ceiling Light (ACN032) - 26 segments
+  - T1 LED Strip (ACN132) - Variable (5 segments/meter, 1-10m)
+  - T2 RGB Bulb (AGL001/AGL003/AGL005/AGL007)
+
+### Upgrade from v0.2.0
+
+1. Update the integration through HACS
+2. Reload the integration (Settings > Devices & Services > Aqara Advanced Lighting > Three dots > Reload)
+3. Update any automations/scripts using old segment preset format ("t1m_segment_1" to "segment_1")
+
 ## [0.2.0] - 2025-12-31
 
 ## New Features
@@ -150,3 +243,5 @@ One click HACS cutton
 - IoT class: local_push
 
 [0.1.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.1.0
+[0.2.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.2.0
+[0.3.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.3.0

@@ -8,12 +8,13 @@ Control Aqara lights with advanced RGB dynamic effects, individual segment patte
 
 ### Supported Devices
 
-| Device | Model | Segments | Dynamic Effects | Segment Control |
-|-------|--------|----------|-----------------|-----------------|
-| T1 Ceiling Light (20 segments) | ACN031 | 20 | ✅ 6 effects | ✅ |
-| T1M Ceiling Light (26 segments) | ACN032 | 26 | ✅ 6 effects | ✅ |
-| T1 LED Strip | ACN132 | Variable (5/meter) | ✅ 8 effects | ✅ |
-| T2 RGB Bulb (E26/E27/GU10) | AGL001/AGL003/AGL005/AGL007 | N/A | ✅ 4 effects | ❌ |
+| Device | Model | Segments | Dynamic Effects | Segment Control | CCT Sequences |
+|-------|--------|----------|-----------------|-----------------|---------------|
+| T1 Ceiling Light (20 segments) | ACN031 | 20 | ✓ 6 effects | ✓ | ✓ |
+| T1M Ceiling Light (26 segments) | ACN032 | 26 | ✓ 6 effects | ✓ | ✓ |
+| T1 LED Strip | ACN132 | Variable (5/meter) | ✓ 8 effects | ✓ | ✓ |
+| T2 RGB Bulb (E26/E27/GU10) | AGL001/AGL003/AGL005/AGL007 | N/A | ✓ 4 effects | N/A | ✓ |
+| T2 CCT Bulb (E26/E27/GU10) | AGL002/AGL004/AGL006/AGL008 | N/A | N/A | N/A | ✓ |
 
 ### Features
 
@@ -21,34 +22,30 @@ Control Aqara lights with advanced RGB dynamic effects, individual segment patte
   - 4 T2 Bulb presets (Candlelight, Breath, Colorful, Security)
   - 9 T1M presets (Dinner, Sunset, Autumn, Galaxy, Daydream, Holiday, Party, Meteor, Alert)
   - 7 T1 Strip presets (Rainbow, Heartbeat, Gala, Sea of Flowers, Rhythmic, Exciting, Colorful)
-- **Segment Pattern Presets** - 12 beautiful T1M/T1 Strip segment color patterns from the Aqara app
+- **Segment Pattern Presets** - 12 T1M/T1 Strip segment color patterns from the Aqara app
 - **Dynamic RGB Effects** - 13 different manual effects including breathing, fading, flowing, chasing, rainbow, and more
 - **Effect Dropdown Selector** - Easy-to-use UI dropdown showing all available effects and presets
-- **RGB Color Pickers** - Intuitive color picker UI for all services (up to 8 colors for effects, 6 for gradients)
+- **RGB Color Pickers** - Color picker UI for all services (up to 8 colors for effects, 6 for gradients)
 - **Individual Segment Control** - Set custom colors for each segment on T1M and T1 Strip lights
-- **Smooth Color Gradients** - Create beautiful color transitions across segments with 2-6 colors
+- **Smooth Color Gradients** - Create color transitions across segments with 2-6 colors
 - **Color Block Patterns** - Generate evenly spaced or alternating color blocks
 - **Flexible Segment Selection** - Support for ranges ("1-20"), individual segments, and special selectors ("odd", "even")
-- **T1 Strip Variable Length Support** - Automatically detects and adapts to your T1 Strip's length (1-10 meters)
-- **Auto Turn-On Option** - Optionally turn lights on automatically before applying effects
+- **CCT Dynamic Sequences** - Create multi-step color temperature and brightness sequences with smooth transitions
+- **T1 Strip Variable Length Support** - Automatically detects and adapts to T1 Strip's length (1-10 meters)
+- **Light Group Support** - All services work with Home Assistant light groups for synchronized multi-light control
+- **Auto Turn-On Option** - Optionally turn lights on automatically before applying effects or sequences
 - **Unspecified Segment Control** - Option to turn off segments not included in patterns
 - **Automatic Device Discovery** - Discovers supported Aqara lights through Zigbee2MQTT
 - **Service-Based API** - All features accessible via Home Assistant services, automations, and scripts
 
 ## Requirements
 
-- Home Assistant 2025.12.0 or newer
+- Home Assistant 2025.12.0 or newer (older versions not tested)
 - MQTT integration configured and running
 - Zigbee2MQTT 2.7.2 or newer
 - Supported Aqara light devices (see table above)
 
 ## Installation
-
-### Via HACS (Recommended)
-
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=absent42&repository=Aqara-Advanced-Lighting&category=Integration)
-
-**Or manually:**
 
 1. Open HACS in Home Assistant
 2. Go to "Integrations"
@@ -87,6 +84,24 @@ To change the Z2M base topic:
 ## Usage
 
 All features are available as Home Assistant services. Call these services from automations, scripts, or the Developer Tools.
+
+### Working with Light Groups
+
+All services support Home Assistant light groups. When you target a light group, the integration automatically:
+- Detects the group and expands it to individual light entities
+- Removes any duplicate entities
+- Applies the effect/pattern to all lights simultaneously (when sync parameter is true)
+- Uses batch MQTT publishing for optimal performance
+
+**Example - Applying an effect to a group:**
+```yaml
+service: aqara_advanced_lighting.set_dynamic_effect
+target:
+  entity_id: light.living_room_group  # Your light group
+data:
+  preset: "t1m_sunset"
+  sync: true  # Synchronized effect across all lights
+```
 
 ### Services
 
@@ -142,7 +157,7 @@ service: aqara_advanced_lighting.set_segment_pattern
 target:
   entity_id: light.aqara_ceiling_light
 data:
-  preset: "t1m_segment_1"
+  preset: "segment_1"
   brightness: 200
 ```
 
@@ -238,6 +253,90 @@ data:
 - `brightness` (optional): Brightness level (1-255)
 - `turn_on` (optional): Turn light on before applying blocks (default: false)
 - `turn_off_unspecified` (optional): Turn off segments not specified (default: false)
+
+#### 5. Start CCT Sequence
+
+Create and run dynamic CCT (color temperature) sequences with up to 20 customizable steps, or use built-in presets for common scenarios.
+
+**Service:** `aqara_advanced_lighting.start_cct_sequence`
+
+**Usage:** Choose a preset from the dropdown, or use the Home Assistant UI to configure each step individually. Step 1 is required, steps 2-20 are optional and collapsed by default (click "Show advanced fields" to access them).
+
+**Available Presets:**
+- **Goodnight**: Gently fade from neutral white to warm dim light over 30 minutes, ideal for falling asleep
+- **Wakeup**: Gradually brighten from warm dim to cool daylight over 30 minutes, simulating sunrise
+- **Mindful breathing**: Smooth breathing pattern alternating between warm and cool tones, continuous loop
+
+**Example YAML - Using a preset:**
+```yaml
+service: aqara_advanced_lighting.start_cct_sequence
+target:
+  entity_id: light.bedroom_ceiling
+data:
+  preset: "goodnight"        # Use built-in Goodnight preset
+  turn_on: true              # Turn on light before starting sequence
+```
+
+**Example YAML - Custom sequence (for automations/scripts):**
+```yaml
+service: aqara_advanced_lighting.start_cct_sequence
+target:
+  entity_id: light.aqara_ceiling_light
+data:
+  turn_on: true              # Turn on light before starting sequence
+  step_1_color_temp: 2700    # Warm white
+  step_1_brightness: 128
+  step_1_transition: 2.0     # Fade to this setting over 2 seconds
+  step_1_hold: 10.0          # Hold for 10 seconds after transition completes
+  step_2_color_temp: 5000    # Cool white
+  step_2_brightness: 255
+  step_2_transition: 3.0     # Fade over 3 seconds
+  step_2_hold: 15.0          # Hold for 15 seconds after transition completes
+  step_3_color_temp: 3500    # Neutral white
+  step_3_brightness: 200
+  step_3_transition: 1.0
+  step_3_hold: 8.0
+  loop_mode: "count"
+  loop_count: 3
+  end_behavior: "maintain"
+```
+
+**Parameters:**
+- `entity_id` (required): Light entity or group to control
+- `preset` (optional): Use a built-in preset ("goodnight", "wakeup", "mindful_breathing"). When preset is selected, manual step/loop/end_behavior parameters are ignored
+- `turn_on` (optional): Turn light on before starting sequence (default: false)
+- **Step 1 fields** (required if not using preset):
+  - `step_1_color_temp`: Color temperature in kelvin (2700-6500)
+  - `step_1_brightness`: Brightness level (1-255)
+  - `step_1_transition`: Time in seconds to transition to this step (0-3600)
+  - `step_1_hold`: Time to hold at this step after transition completes (0-3600)
+- **Steps 2-20 fields** (optional): Same format as step 1, access via "Show advanced fields" in UI
+- `loop_mode` (optional): How to loop the sequence (default: "once", ignored when using preset)
+  - `"once"`: Run sequence one time
+  - `"count"`: Loop X times (requires loop_count)
+  - `"continuous"`: Loop indefinitely until stopped
+- `loop_count` (optional): Number of times to repeat (1-1000, required when loop_mode is "count", ignored when using preset)
+- `end_behavior` (optional): Action when sequence completes (default: "maintain", ignored when using preset)
+  - `"maintain"`: Keep light at last step's settings
+  - `"turn_off"`: Turn off the light
+
+**Note:** Each step consists of a transition period followed by a hold period. For example, if transition is 2s and hold is 10s, the light will fade for 2s then remain at those settings for 10s before the next step starts. Transitions use smooth step-based interpolation for gradual brightness and color temperature changes.
+
+#### 6. Stop CCT Sequence
+
+Stop a running CCT sequence on a light.
+
+**Service:** `aqara_advanced_lighting.stop_cct_sequence`
+
+**Example:**
+```yaml
+service: aqara_advanced_lighting.stop_cct_sequence
+target:
+  entity_id: light.aqara_ceiling_light
+```
+
+**Parameters:**
+- `entity_id` (required): Light entity or group to stop sequence on
 
 ### Available Effects
 
@@ -341,6 +440,120 @@ automation:
           color_1: [255, 200, 100]   # Warm orange
           color_2: [255, 255, 200]   # Soft white
           turn_on: true
+```
+
+### CCT Preset Automations
+
+**Wakeup Sequence**
+```yaml
+automation:
+  - alias: "Sunrise wakeup"
+    trigger:
+      - platform: time
+        at: "06:30:00"
+    action:
+      - service: aqara_advanced_lighting.start_cct_sequence
+        target:
+          entity_id: light.bedroom_ceiling
+        data:
+          preset: "wakeup"
+          turn_on: true
+```
+
+**Goodnight Sequence**
+```yaml
+automation:
+  - alias: "Bedtime routine"
+    trigger:
+      - platform: time
+        at: "22:00:00"
+    action:
+      - service: aqara_advanced_lighting.start_cct_sequence
+        target:
+          entity_id: light.bedroom_ceiling
+        data:
+          preset: "goodnight"
+          turn_on: true
+```
+
+**Mindful Breathing**
+```yaml
+script:
+  meditation_mode:
+    alias: "Meditation Breathing Light"
+    sequence:
+      - service: aqara_advanced_lighting.start_cct_sequence
+        target:
+          entity_id: light.living_room_ceiling
+        data:
+          preset: "mindful_breathing"
+          turn_on: true
+```
+
+### Circadian Rhythm CCT Sequence
+
+```yaml
+automation:
+  - alias: "Circadian lighting sequence"
+    trigger:
+      - platform: time
+        at: "06:00:00"
+    action:
+      - service: aqara_advanced_lighting.start_cct_sequence
+        target:
+          entity_id: light.living_room_ceiling
+        data:
+          turn_on: true
+          step_1_color_temp: 2700      # Warm morning light
+          step_1_brightness: 100
+          step_1_transition: 5.0
+          step_1_hold: 7200.0          # Hold for 2 hours
+          step_2_color_temp: 4000      # Midday neutral
+          step_2_brightness: 200
+          step_2_transition: 10.0
+          step_2_hold: 14400.0         # Hold for 4 hours
+          step_3_color_temp: 5500      # Afternoon cool
+          step_3_brightness: 255
+          step_3_transition: 10.0
+          step_3_hold: 10800.0         # Hold for 3 hours
+          step_4_color_temp: 3500      # Evening warm
+          step_4_brightness: 150
+          step_4_transition: 10.0
+          step_4_hold: 7200.0          # Hold for 2 hours
+          step_5_color_temp: 2200      # Night warm dim
+          step_5_brightness: 50
+          step_5_transition: 5.0
+          step_5_hold: 3600.0          # Hold for 1 hour
+          loop_mode: "once"
+          end_behavior: "maintain"
+```
+
+### Reading Light Sequence
+
+```yaml
+script:
+  reading_mode:
+    alias: "Reading Mode CCT Sequence"
+    sequence:
+      - service: aqara_advanced_lighting.start_cct_sequence
+        target:
+          entity_id: light.desk_lamp
+        data:
+          turn_on: true
+          step_1_color_temp: 4500      # Focus light
+          step_1_brightness: 255
+          step_1_transition: 1.0
+          step_1_hold: 1800.0          # Hold for 30 minutes
+          step_2_color_temp: 3500      # Ease eyes
+          step_2_brightness: 200
+          step_2_transition: 2.0
+          step_2_hold: 1800.0          # Hold for 30 minutes
+          step_3_color_temp: 2700      # Relax
+          step_3_brightness: 150
+          step_3_transition: 3.0
+          step_3_hold: 900.0           # Hold for 15 minutes
+          loop_mode: "once"
+          end_behavior: "maintain"
 ```
 
 ## Troubleshooting

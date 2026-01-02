@@ -186,6 +186,61 @@ class Z2MDevice:
 
 
 @dataclass
+class CCTSequenceStep:
+    """Single step in a CCT dynamic sequence."""
+
+    color_temp: int  # Color temperature in kelvin (2700-6500)
+    brightness: int  # Brightness 1-255
+    transition: float  # Transition time to reach this step (seconds)
+    hold: float  # Hold time after transition completes before next step (seconds)
+
+    def __post_init__(self) -> None:
+        """Validate step parameters."""
+        if not (2700 <= self.color_temp <= 6500):
+            msg = f"Color temp must be 2700-6500K, got {self.color_temp}"
+            raise ValueError(msg)
+        if not (1 <= self.brightness <= 255):
+            msg = f"Brightness must be 1-255, got {self.brightness}"
+            raise ValueError(msg)
+        if self.transition < 0:
+            msg = "Transition time cannot be negative"
+            raise ValueError(msg)
+        if self.hold < 0:
+            msg = "Hold time cannot be negative"
+            raise ValueError(msg)
+
+
+@dataclass
+class CCTSequence:
+    """CCT dynamic effect sequence configuration."""
+
+    steps: list[CCTSequenceStep]  # 1-20 steps
+    loop_mode: str  # "once", "count", "continuous"
+    loop_count: int | None = None  # Number of loops if mode is "count"
+    end_behavior: str = "maintain"  # "maintain" or "turn_off"
+
+    def __post_init__(self) -> None:
+        """Validate sequence parameters."""
+        if not (1 <= len(self.steps) <= 20):
+            msg = f"Sequence must have 1-20 steps, got {len(self.steps)}"
+            raise ValueError(msg)
+
+        if self.loop_mode not in ("once", "count", "continuous"):
+            msg = f"Loop mode must be 'once', 'count', or 'continuous', got {self.loop_mode}"
+            raise ValueError(msg)
+
+        if self.loop_mode == "count" and (
+            self.loop_count is None or self.loop_count < 1
+        ):
+            msg = "Loop count must be >= 1 when loop_mode is 'count'"
+            raise ValueError(msg)
+
+        if self.end_behavior not in ("maintain", "turn_off"):
+            msg = f"End behavior must be 'maintain' or 'turn_off', got {self.end_behavior}"
+            raise ValueError(msg)
+
+
+@dataclass
 class AqaraLightingRuntimeData:
     """Runtime data for the Aqara Advanced Lighting integration."""
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Final
 
 from .const import (
@@ -30,6 +31,10 @@ from .const import (
     MODEL_T2_BULB_E27,
     MODEL_T2_BULB_GU10_110V,
     MODEL_T2_BULB_GU10_230V,
+    MODEL_T2_CCT_E26,
+    MODEL_T2_CCT_E27,
+    MODEL_T2_CCT_GU10_110V,
+    MODEL_T2_CCT_GU10_230V,
 )
 from .models import AqaraLightModel, DeviceCapabilities, EffectType
 
@@ -99,8 +104,16 @@ CAPABILITIES_T2_BULB: Final = DeviceCapabilities(
     model_name="Aqara T2 RGB Bulb",
 )
 
+CAPABILITIES_T2_CCT: Final = DeviceCapabilities(
+    model=AqaraLightModel.T2_BULB,  # Reuse same enum for CCT variant
+    segment_count=0,  # No segments
+    supported_effects=[],  # CCT bulbs don't support RGB effects
+    supports_segment_addressing=False,
+    supports_effect_segments=False,
+    model_name="Aqara T2 CCT Bulb",
+)
+
 # Mapping from Z2M model ID to capabilities
-# All T2 bulb variants share the same capabilities
 MODEL_CAPABILITIES: Final[dict[str, DeviceCapabilities]] = {
     MODEL_T1M_20_SEGMENT: CAPABILITIES_T1M_20,
     MODEL_T1M_26_SEGMENT: CAPABILITIES_T1M_26,
@@ -109,16 +122,28 @@ MODEL_CAPABILITIES: Final[dict[str, DeviceCapabilities]] = {
     MODEL_T2_BULB_E27: CAPABILITIES_T2_BULB,
     MODEL_T2_BULB_GU10_230V: CAPABILITIES_T2_BULB,
     MODEL_T2_BULB_GU10_110V: CAPABILITIES_T2_BULB,
+    MODEL_T2_CCT_E26: CAPABILITIES_T2_CCT,
+    MODEL_T2_CCT_E27: CAPABILITIES_T2_CCT,
+    MODEL_T2_CCT_GU10_230V: CAPABILITIES_T2_CCT,
+    MODEL_T2_CCT_GU10_110V: CAPABILITIES_T2_CCT,
 }
 
 
+@lru_cache(maxsize=32)
 def get_device_capabilities(model_id: str) -> DeviceCapabilities | None:
-    """Get device capabilities for a Z2M model ID."""
+    """Get device capabilities for a Z2M model ID.
+
+    Results are cached for performance.
+    """
     return MODEL_CAPABILITIES.get(model_id)
 
 
+@lru_cache(maxsize=32)
 def is_supported_model(model_id: str) -> bool:
-    """Check if a Z2M model ID is supported."""
+    """Check if a Z2M model ID is supported.
+
+    Results are cached for performance.
+    """
     return model_id in MODEL_CAPABILITIES
 
 
@@ -155,24 +180,36 @@ def get_supported_effects_for_model(model_id: str) -> list[EffectType]:
     return capabilities.supported_effects
 
 
+@lru_cache(maxsize=32)
 def supports_segment_addressing(model_id: str) -> bool:
-    """Check if a device supports individual segment addressing."""
+    """Check if a device supports individual segment addressing.
+
+    Results are cached for performance.
+    """
     capabilities = get_device_capabilities(model_id)
     if not capabilities:
         return False
     return capabilities.supports_segment_addressing
 
 
+@lru_cache(maxsize=32)
 def supports_effect_segments(model_id: str) -> bool:
-    """Check if a device supports effect_segments parameter."""
+    """Check if a device supports effect_segments parameter.
+
+    Results are cached for performance.
+    """
     capabilities = get_device_capabilities(model_id)
     if not capabilities:
         return False
     return capabilities.supports_effect_segments
 
 
+@lru_cache(maxsize=32)
 def get_segment_count(model_id: str) -> int:
-    """Get segment count for a device model."""
+    """Get segment count for a device model.
+
+    Results are cached for performance.
+    """
     capabilities = get_device_capabilities(model_id)
     if not capabilities:
         return 0

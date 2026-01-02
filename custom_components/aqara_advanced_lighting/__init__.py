@@ -11,7 +11,13 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 
-from .const import CONF_Z2M_BASE_TOPIC, DEFAULT_Z2M_BASE_TOPIC, DOMAIN
+from .cct_sequence_manager import CCTSequenceManager
+from .const import (
+    CONF_Z2M_BASE_TOPIC,
+    DATA_CCT_SEQUENCE_MANAGER,
+    DEFAULT_Z2M_BASE_TOPIC,
+    DOMAIN,
+)
 from .models import AqaraLightingConfigEntry, AqaraLightingRuntimeData
 from .mqtt_client import MQTTClient
 from .services import async_setup_services, async_unload_services
@@ -67,8 +73,12 @@ async def async_setup_entry(
     mqtt_client = MQTTClient(hass, entry)
     await mqtt_client.async_setup()
 
-    # Initialize state manager
+    # Initialize state manager and load persisted states
     state_manager = StateManager(hass)
+    await state_manager.async_load()
+
+    # Initialize CCT sequence manager (needs mqtt_client for direct Z2M communication)
+    cct_sequence_manager = CCTSequenceManager(hass, mqtt_client)
 
     # Store components in hass.data for service access
     # Ensure DOMAIN key exists in hass.data
@@ -77,6 +87,7 @@ async def async_setup_entry(
 
     hass.data[DOMAIN]["mqtt_client"] = mqtt_client
     hass.data[DOMAIN]["state_manager"] = state_manager
+    hass.data[DOMAIN][DATA_CCT_SEQUENCE_MANAGER] = cct_sequence_manager
 
     _LOGGER.info("Aqara Advanced Lighting integration setup complete")
 
@@ -99,6 +110,8 @@ async def async_unload_entry(
         del hass.data[DOMAIN]["mqtt_client"]
     if "state_manager" in hass.data[DOMAIN]:
         del hass.data[DOMAIN]["state_manager"]
+    if DATA_CCT_SEQUENCE_MANAGER in hass.data[DOMAIN]:
+        del hass.data[DOMAIN][DATA_CCT_SEQUENCE_MANAGER]
 
     # Check if this is the last config entry
     remaining_entries = [

@@ -2,18 +2,20 @@
 
 set_dynamic_effect:
   name: Set dynamic effect
-  description: Activate a dynamic RGB effect on Aqara lights.
+  description: Activate a dynamic RGB effect on Aqara lights. Use presets from the Aqara app or create custom effects with up to 8 colors.
   target:
     entity:
       domain: light
+      integration: mqtt
   fields:
     preset:
-      name: Preset
-      description: Select an Aqara app preset effect (optional). Overrides manual effect and color settings.
+      name: Preset effect
+      description: Choose a preset effect from the Aqara mobile app. When selected, manual effect/speed/color parameters are ignored.
       required: false
       selector:
         select:
           options:
+            # T2 Bulb presets
             - label: "T2: Candlelight"
               value: "t2_candlelight"
             - label: "T2: Breath"
@@ -22,6 +24,7 @@ set_dynamic_effect:
               value: "t2_colorful"
             - label: "T2: Security"
               value: "t2_security"
+            # T1M presets
             - label: "T1M: Dinner"
               value: "t1m_dinner"
             - label: "T1M: Sunset"
@@ -40,69 +43,74 @@ set_dynamic_effect:
               value: "t1m_meteor"
             - label: "T1M: Alert"
               value: "t1m_alert"
+            # T1 Strip presets
             - label: "T1 Strip: Rainbow"
-              value: "t1_rainbow"
+              value: "t1_strip_rainbow"
             - label: "T1 Strip: Heartbeat"
-              value: "t1_heartbeat"
+              value: "t1_strip_heartbeat"
             - label: "T1 Strip: Gala"
-              value: "t1_gala"
-            - label: "T1 Strip: Sea of flowers"
-              value: "t1_sea_of_flowers"
+              value: "t1_strip_gala"
+            - label: "T1 Strip: Sea of Flowers"
+              value: "t1_strip_sea_of_flowers"
             - label: "T1 Strip: Rhythmic"
-              value: "t1_rhythmic"
+              value: "t1_strip_rhythmic"
             - label: "T1 Strip: Exciting"
-              value: "t1_exciting"
+              value: "t1_strip_exciting"
             - label: "T1 Strip: Colorful"
-              value: "t1_colorful"
+              value: "t1_strip_colorful"
+          mode: dropdown
     effect:
       name: Effect type
-      description: The dynamic effect pattern to activate. Required if preset is not selected.
+      description: Choose effect type manually (required if not using a preset). Available effects vary by light model.
       required: false
-      example: "breathing"
       selector:
         select:
           options:
-            - label: "Breathing"
-              value: "breathing"
-            - label: "Candlelight"
-              value: "candlelight"
-            - label: "Chasing"
-              value: "chasing"
-            - label: "Dash"
-              value: "dash"
-            - label: "Fading"
-              value: "fading"
-            - label: "Flash"
-              value: "flash"
-            - label: "Flicker"
-              value: "flicker"
+            # T1M effects
             - label: "Flow 1"
               value: "flow1"
             - label: "Flow 2"
               value: "flow2"
+            - label: "Fading"
+              value: "fading"
             - label: "Hopping"
               value: "hopping"
-            - label: "Rainbow 1"
-              value: "rainbow1"
-            - label: "Rainbow 2"
-              value: "rainbow2"
+            - label: "Breathing"
+              value: "breathing"
             - label: "Rolling"
               value: "rolling"
+            # T1 Strip effects (includes all T1M effects plus these)
+            - label: "Rainbow 1"
+              value: "rainbow1"
+            - label: "Chasing"
+              value: "chasing"
+            - label: "Flash"
+              value: "flash"
+            - label: "Rainbow 2"
+              value: "rainbow2"
+            - label: "Flicker"
+              value: "flicker"
+            - label: "Dash"
+              value: "dash"
+            # T2 Bulb effects
+            - label: "Candlelight"
+              value: "candlelight"
+          mode: dropdown
     speed:
-      name: Effect speed
-      description: Animation speed (1-100%).
-      required: true
-      default: 50
+      name: Speed
+      description: Animation speed (1-100%). Required if not using a preset.
+      required: false
       example: 75
       selector:
         number:
           min: 1
           max: 100
           unit_of_measurement: "%"
+          mode: slider
     color_1:
       name: Color 1
-      description: First effect color (required).
-      required: true
+      description: First effect color (required if not using a preset).
+      required: false
       default: [255, 0, 0]
       selector:
         color_rgb:
@@ -156,107 +164,151 @@ set_dynamic_effect:
       selector:
         color_rgb:
     segments:
-      name: Effect segments
-      description: Segments to apply effect to (T1 Strip only). Examples - '1-10', 'odd', 'even', 'first-half'.
+      name: Segments
+      description: For T1 Strip only - segments to apply effect to (e.g., "1-20", "odd", "even").
       required: false
       example: "1-20"
       selector:
         text:
     brightness:
       name: Brightness
-      description: Brightness level (1-255).
+      description: Brightness level for the effect (1-100%).
       required: false
-      example: 128
+      example: 80
       selector:
         number:
           min: 1
-          max: 255
+          max: 100
+          unit_of_measurement: "%"
           mode: slider
     turn_on:
-      name: Turn on lights
-      description: Whether to turn on lights that are currently off before applying the effect.
+      name: Turn on light
+      description: Automatically turn on the light before applying the effect.
       required: false
       default: false
+      selector:
+        boolean:
+    sync:
+      name: Synchronized
+      description: When targeting multiple lights, apply the effect to all lights simultaneously for synchronized group effects.
+      required: false
+      default: true
+      selector:
+        boolean:
+
+stop_effect:
+  name: Stop effect
+  description: Stop the current RGB dynamic effect or segment pattern and restore the light to its previous state. If no previous state is saved, the effect is stopped without changing the light state.
+  target:
+    entity:
+      domain: light
+      integration: mqtt
+  fields:
+    restore_state:
+      name: Restore state
+      description: Restore the light to its pre-effect state (brightness, color, temperature). If disabled, only stops the effect without changing light settings.
+      required: false
+      default: true
       selector:
         boolean:
 
 set_segment_pattern:
   name: Set segment pattern
-  description: Set individual segment colors on Aqara lights with addressable segments.
+  description: Set individual segment colors on T1M and T1 Strip lights. Use presets from the Aqara app or create custom patterns.
   target:
     entity:
       domain: light
+      integration: mqtt
   fields:
     preset:
-      name: Preset
-      description: Select an Aqara app segment pattern preset (optional). Overrides manual segment_colors setting.
+      name: Preset pattern
+      description: Choose a preset segment pattern from the Aqara mobile app (Preset 1 through Preset 12). When selected, manual segment_colors parameter is ignored.
       required: false
       selector:
         select:
-          mode: dropdown
           options:
             - label: "Preset 1"
-              value: "t1m_segment_1"
+              value: "segment_1"
             - label: "Preset 2"
-              value: "t1m_segment_2"
+              value: "segment_2"
             - label: "Preset 3"
-              value: "t1m_segment_3"
+              value: "segment_3"
             - label: "Preset 4"
-              value: "t1m_segment_4"
+              value: "segment_4"
             - label: "Preset 5"
-              value: "t1m_segment_5"
+              value: "segment_5"
             - label: "Preset 6"
-              value: "t1m_segment_6"
+              value: "segment_6"
             - label: "Preset 7"
-              value: "t1m_segment_7"
+              value: "segment_7"
             - label: "Preset 8"
-              value: "t1m_segment_8"
+              value: "segment_8"
             - label: "Preset 9"
-              value: "t1m_segment_9"
+              value: "segment_9"
             - label: "Preset 10"
-              value: "t1m_segment_10"
+              value: "segment_10"
             - label: "Preset 11"
-              value: "t1m_segment_11"
+              value: "segment_11"
             - label: "Preset 12"
-              value: "t1m_segment_12"
+              value: "segment_12"
+          mode: dropdown
     segment_colors:
       name: Segment colors
-      description: List of segment/color pairs. Each item should be a dictionary with 'segment' (number or range) and 'color' (RGB dict with r, g, b keys).
+      description: List of segment/color pairs. Each entry specifies a segment (number or range like "1-5", "odd", "even") and its RGB color. Required if not using a preset.
       required: false
-      example: '[{"segment": 1, "color": {"r": 255, "g": 0, "b": 0}}, {"segment": "5-10", "color": {"r": 0, "g": 255, "b": 0}}]'
+      example:
+        - segment: 1
+          color:
+            r: 255
+            g: 0
+            b: 0
+        - segment: "5-10"
+          color:
+            r: 0
+            g: 255
+            b: 0
       selector:
         object:
     brightness:
       name: Brightness
-      description: Brightness level (1-255).
+      description: Brightness level for the pattern (1-100%).
       required: false
-      example: 128
+      example: 80
       selector:
         number:
           min: 1
-          max: 255
+          max: 100
+          unit_of_measurement: "%"
           mode: slider
     turn_on:
-      name: Turn on lights
-      description: Whether to turn on lights that are currently off before applying the pattern.
+      name: Turn on light
+      description: Automatically turn on the light before applying the pattern.
       required: false
       default: false
       selector:
         boolean:
     turn_off_unspecified:
       name: Turn off unspecified segments
-      description: Turn off segments not specified.
+      description: Turn off segments not specified in the pattern.
       required: false
       default: false
+      selector:
+        boolean:
+    sync:
+      name: Synchronized
+      description: When targeting multiple lights, apply the pattern to all lights simultaneously for synchronized group effects.
+      required: false
+      default: true
       selector:
         boolean:
 
 create_gradient:
   name: Create gradient
-  description: Create a smooth color gradient across segments.
+  description: Create a smooth color gradient across segments on T1M and T1 Strip lights. Use 2-6 colors for the gradient.
   target:
     entity:
       domain: light
+      integration: mqtt
   fields:
     color_1:
       name: Color 1
@@ -302,24 +354,25 @@ create_gradient:
         color_rgb:
     segments:
       name: Segments
-      description: Segments to apply gradient to. If not specified, uses all available segments.
+      description: Segments to apply gradient to (e.g., "1-20", "5-15"). If not specified, applies to all segments.
       required: false
       example: "1-20"
       selector:
         text:
     brightness:
       name: Brightness
-      description: Brightness level (1-255).
+      description: Brightness level for the gradient (1-100%).
       required: false
-      example: 128
+      example: 80
       selector:
         number:
           min: 1
-          max: 255
+          max: 100
+          unit_of_measurement: "%"
           mode: slider
     turn_on:
-      name: Turn on lights
-      description: Whether to turn on lights that are currently off before applying the gradient.
+      name: Turn on light
+      description: Automatically turn on the light before applying the gradient.
       required: false
       default: false
       selector:
@@ -331,13 +384,21 @@ create_gradient:
       default: false
       selector:
         boolean:
+    sync:
+      name: Synchronized
+      description: When targeting multiple lights, apply the gradient to all lights simultaneously for synchronized group effects.
+      required: false
+      default: true
+      selector:
+        boolean:
 
 create_blocks:
-  name: Create color blocks
-  description: Create evenly spaced blocks of color across segments.
+  name: Create blocks
+  description: Create evenly spaced blocks of color across segments on T1M and T1 Strip lights. Use 1-6 colors for the blocks.
   target:
     entity:
       domain: light
+      integration: mqtt
   fields:
     color_1:
       name: Color 1
@@ -383,31 +444,32 @@ create_blocks:
         color_rgb:
     segments:
       name: Segments
-      description: Segments to apply blocks to. If not specified, uses all available segments.
+      description: Segments to apply blocks to (e.g., "1-20", "odd", "even"). If not specified, applies to all segments.
       required: false
       example: "1-20"
       selector:
         text:
     brightness:
       name: Brightness
-      description: Brightness level (1-255).
+      description: Brightness level for the blocks (1-100%).
       required: false
-      example: 128
+      example: 80
       selector:
         number:
           min: 1
-          max: 255
+          max: 100
+          unit_of_measurement: "%"
           mode: slider
     turn_on:
-      name: Turn on lights
-      description: Whether to turn on lights that are currently off before applying the blocks.
+      name: Turn on light
+      description: Automatically turn on the light before applying blocks.
       required: false
       default: false
       selector:
         boolean:
     expand:
       name: Expand blocks
-      description: If true, expands colors evenly across segments (e.g., 2 colors across 20 segments = 10 segments per color). If false, repeats colors in alternating pattern (e.g., 2 colors = alternating every segment).
+      description: Expand the blocks to fill segments evenly. If false, alternates colors.
       required: false
       default: false
       selector:
@@ -419,3 +481,993 @@ create_blocks:
       default: false
       selector:
         boolean:
+    sync:
+      name: Synchronized
+      description: When targeting multiple lights, apply the blocks to all lights simultaneously for synchronized group effects.
+      required: false
+      default: true
+      selector:
+        boolean:
+
+start_cct_sequence:
+  name: Start CCT sequence
+  description: Start a dynamic CCT (color temperature) sequence on Aqara lights. Use a preset sequence or define up to 20 custom steps with color temperature, brightness, transition, and hold time.
+  target:
+    entity:
+      domain: light
+      integration: mqtt
+  fields:
+    preset:
+      name: Preset sequence
+      description: Choose a preset CCT sequence. When selected, manual step parameters are ignored.
+      required: false
+      selector:
+        select:
+          options:
+            - label: "Goodnight"
+              value: "goodnight"
+            - label: "Wakeup"
+              value: "wakeup"
+            - label: "Mindful breathing"
+              value: "mindful_breathing"
+            - label: "Circadian rhythm"
+              value: "circadian"
+          mode: dropdown
+    turn_on:
+      name: Turn on light
+      description: Automatically turn on the light before starting the sequence if it is off.
+      required: false
+      default: false
+      selector:
+        boolean:
+    sync:
+      name: Synchronized
+      description: When targeting multiple lights, start the sequence on all lights simultaneously for synchronized group effects.
+      required: false
+      default: true
+      selector:
+        boolean:
+    step_1:
+      name: "Step 1 (Required)"
+      collapsed: false
+      fields:
+        step_1_color_temp:
+          name: "Color temperature"
+          description: Color temperature in kelvin (2700-6500K).
+          required: true
+          default: 2700
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: "K"
+              mode: slider
+        step_1_brightness:
+          name: "Brightness"
+          description: Brightness level (1-100%).
+          required: true
+          default: 50
+          selector:
+            number:
+              min: 1
+              max: 100
+              unit_of_measurement: "%"
+              mode: slider
+        step_1_transition:
+          name: "Transition time"
+          description: Time in seconds to transition to this step's settings (0-3600).
+          required: true
+          default: 2.0
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_1_hold:
+          name: "Hold time"
+          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          required: true
+          default: 10.0
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+    steps_2_to_5:
+      name: "Steps 2-5 (Optional)"
+      collapsed: true
+      fields:
+        step_2_color_temp:
+          name: "Step 2: Color temperature"
+          description: Color temperature in kelvin (2700-6500K).
+          required: false
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: "K"
+              mode: slider
+        step_2_brightness:
+          name: "Step 2: Brightness"
+          description: Brightness level (1-100%).
+          required: false
+          selector:
+            number:
+              min: 1
+              max: 100
+              unit_of_measurement: "%"
+              mode: slider
+        step_2_transition:
+          name: "Step 2: Transition time"
+          description: Time in seconds to transition to this step's settings (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_2_hold:
+          name: "Step 2: Hold time"
+          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_3_color_temp:
+          name: "Step 3: Color temperature"
+          description: Color temperature in kelvin (2700-6500K).
+          required: false
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: "K"
+              mode: slider
+        step_3_brightness:
+          name: "Step 3: Brightness"
+          description: Brightness level (1-100%).
+          required: false
+          selector:
+            number:
+              min: 1
+              max: 100
+              unit_of_measurement: "%"
+              mode: slider
+        step_3_transition:
+          name: "Step 3: Transition time"
+          description: Time in seconds to transition to this step's settings (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_3_hold:
+          name: "Step 3: Hold time"
+          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_4_color_temp:
+          name: "Step 4: Color temperature"
+          description: Color temperature in kelvin (2700-6500K).
+          required: false
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: "K"
+              mode: slider
+        step_4_brightness:
+          name: "Step 4: Brightness"
+          description: Brightness level (1-100%).
+          required: false
+          selector:
+            number:
+              min: 1
+              max: 100
+              unit_of_measurement: "%"
+              mode: slider
+        step_4_transition:
+          name: "Step 4: Transition time"
+          description: Time in seconds to transition to this step's settings (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_4_hold:
+          name: "Step 4: Hold time"
+          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_5_color_temp:
+          name: "Step 5: Color temperature"
+          description: Color temperature in kelvin (2700-6500K).
+          required: false
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: "K"
+              mode: slider
+        step_5_brightness:
+          name: "Step 5: Brightness"
+          description: Brightness level (1-100%).
+          required: false
+          selector:
+            number:
+              min: 1
+              max: 100
+              unit_of_measurement: "%"
+              mode: slider
+        step_5_transition:
+          name: "Step 5: Transition time"
+          description: Time in seconds to transition to this step's settings (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_5_hold:
+          name: "Step 5: Hold time"
+          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+    steps_6_to_10:
+      name: "Steps 6-10 (Optional)"
+      collapsed: true
+      fields:
+        step_6_color_temp:
+          name: "Step 6: Color temperature"
+          description: Color temperature in kelvin (2700-6500K).
+          required: false
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: "K"
+              mode: slider
+        step_6_brightness:
+          name: "Step 6: Brightness"
+          description: Brightness level (1-100%).
+          required: false
+          selector:
+            number:
+              min: 1
+              max: 100
+              unit_of_measurement: "%"
+              mode: slider
+        step_6_transition:
+          name: "Step 6: Transition time"
+          description: Time in seconds to transition to this step's settings (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_6_hold:
+          name: "Step 6: Hold time"
+          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_7_color_temp:
+          name: "Step 7: Color temperature"
+          description: Color temperature in kelvin (2700-6500K).
+          required: false
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: "K"
+              mode: slider
+        step_7_brightness:
+          name: "Step 7: Brightness"
+          description: Brightness level (1-100%).
+          required: false
+          selector:
+            number:
+              min: 1
+              max: 100
+              unit_of_measurement: "%"
+              mode: slider
+        step_7_transition:
+          name: "Step 7: Transition time"
+          description: Time in seconds to transition to this step's settings (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_7_hold:
+          name: "Step 7: Hold time"
+          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_8_color_temp:
+          name: "Step 8: Color temperature"
+          description: Color temperature in kelvin (2700-6500K).
+          required: false
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: "K"
+              mode: slider
+        step_8_brightness:
+          name: "Step 8: Brightness"
+          description: Brightness level (1-100%).
+          required: false
+          selector:
+            number:
+              min: 1
+              max: 100
+              unit_of_measurement: "%"
+              mode: slider
+        step_8_transition:
+          name: "Step 8: Transition time"
+          description: Time in seconds to transition to this step's settings (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_8_hold:
+          name: "Step 8: Hold time"
+          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_9_color_temp:
+          name: "Step 9: Color temperature"
+          description: Color temperature in kelvin (2700-6500K).
+          required: false
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: "K"
+              mode: slider
+        step_9_brightness:
+          name: "Step 9: Brightness"
+          description: Brightness level (1-100%).
+          required: false
+          selector:
+            number:
+              min: 1
+              max: 100
+              unit_of_measurement: "%"
+              mode: slider
+        step_9_transition:
+          name: "Step 9: Transition time"
+          description: Time in seconds to transition to this step's settings (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_9_hold:
+          name: "Step 9: Hold time"
+          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_10_color_temp:
+          name: "Step 10: Color temperature"
+          description: Color temperature in kelvin (2700-6500K).
+          required: false
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: "K"
+              mode: slider
+        step_10_brightness:
+          name: "Step 10: Brightness"
+          description: Brightness level (1-100%).
+          required: false
+          selector:
+            number:
+              min: 1
+              max: 100
+              unit_of_measurement: "%"
+              mode: slider
+        step_10_transition:
+          name: "Step 10: Transition time"
+          description: Time in seconds to transition to this step's settings (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_10_hold:
+          name: "Step 10: Hold time"
+          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+    steps_11_to_15:
+      name: "Steps 11-15 (Optional)"
+      collapsed: true
+      fields:
+        step_11_color_temp:
+          name: "Step 11: Color temperature"
+          description: Color temperature in kelvin (2700-6500K).
+          required: false
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: "K"
+              mode: slider
+        step_11_brightness:
+          name: "Step 11: Brightness"
+          description: Brightness level (1-100%).
+          required: false
+          selector:
+            number:
+              min: 1
+              max: 100
+              unit_of_measurement: "%"
+              mode: slider
+        step_11_transition:
+          name: "Step 11: Transition time"
+          description: Time in seconds to transition to this step's settings (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_11_hold:
+          name: "Step 11: Hold time"
+          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_12_color_temp:
+          name: "Step 12: Color temperature"
+          description: Color temperature in kelvin (2700-6500K).
+          required: false
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: "K"
+              mode: slider
+        step_12_brightness:
+          name: "Step 12: Brightness"
+          description: Brightness level (1-100%).
+          required: false
+          selector:
+            number:
+              min: 1
+              max: 100
+              unit_of_measurement: "%"
+              mode: slider
+        step_12_transition:
+          name: "Step 12: Transition time"
+          description: Time in seconds to transition to this step's settings (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_12_hold:
+          name: "Step 12: Hold time"
+          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_13_color_temp:
+          name: "Step 13: Color temperature"
+          description: Color temperature in kelvin (2700-6500K).
+          required: false
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: "K"
+              mode: slider
+        step_13_brightness:
+          name: "Step 13: Brightness"
+          description: Brightness level (1-100%).
+          required: false
+          selector:
+            number:
+              min: 1
+              max: 100
+              unit_of_measurement: "%"
+              mode: slider
+        step_13_transition:
+          name: "Step 13: Transition time"
+          description: Time in seconds to transition to this step's settings (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_13_hold:
+          name: "Step 13: Hold time"
+          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_14_color_temp:
+          name: "Step 14: Color temperature"
+          description: Color temperature in kelvin (2700-6500K).
+          required: false
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: "K"
+              mode: slider
+        step_14_brightness:
+          name: "Step 14: Brightness"
+          description: Brightness level (1-100%).
+          required: false
+          selector:
+            number:
+              min: 1
+              max: 100
+              unit_of_measurement: "%"
+              mode: slider
+        step_14_transition:
+          name: "Step 14: Transition time"
+          description: Time in seconds to transition to this step's settings (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_14_hold:
+          name: "Step 14: Hold time"
+          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_15_color_temp:
+          name: "Step 15: Color temperature"
+          description: Color temperature in kelvin (2700-6500K).
+          required: false
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: "K"
+              mode: slider
+        step_15_brightness:
+          name: "Step 15: Brightness"
+          description: Brightness level (1-100%).
+          required: false
+          selector:
+            number:
+              min: 1
+              max: 100
+              unit_of_measurement: "%"
+              mode: slider
+        step_15_transition:
+          name: "Step 15: Transition time"
+          description: Time in seconds to transition to this step's settings (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_15_hold:
+          name: "Step 15: Hold time"
+          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+    steps_16_to_20:
+      name: "Steps 16-20 (Optional)"
+      collapsed: true
+      fields:
+        step_16_color_temp:
+          name: "Step 16: Color temperature"
+          description: Color temperature in kelvin (2700-6500K).
+          required: false
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: "K"
+              mode: slider
+        step_16_brightness:
+          name: "Step 16: Brightness"
+          description: Brightness level (1-100%).
+          required: false
+          selector:
+            number:
+              min: 1
+              max: 100
+              unit_of_measurement: "%"
+              mode: slider
+        step_16_transition:
+          name: "Step 16: Transition time"
+          description: Time in seconds to transition to this step's settings (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_16_hold:
+          name: "Step 16: Hold time"
+          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_17_color_temp:
+          name: "Step 17: Color temperature"
+          description: Color temperature in kelvin (2700-6500K).
+          required: false
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: "K"
+              mode: slider
+        step_17_brightness:
+          name: "Step 17: Brightness"
+          description: Brightness level (1-100%).
+          required: false
+          selector:
+            number:
+              min: 1
+              max: 100
+              unit_of_measurement: "%"
+              mode: slider
+        step_17_transition:
+          name: "Step 17: Transition time"
+          description: Time in seconds to transition to this step's settings (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_17_hold:
+          name: "Step 17: Hold time"
+          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_18_color_temp:
+          name: "Step 18: Color temperature"
+          description: Color temperature in kelvin (2700-6500K).
+          required: false
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: "K"
+              mode: slider
+        step_18_brightness:
+          name: "Step 18: Brightness"
+          description: Brightness level (1-100%).
+          required: false
+          selector:
+            number:
+              min: 1
+              max: 100
+              unit_of_measurement: "%"
+              mode: slider
+        step_18_transition:
+          name: "Step 18: Transition time"
+          description: Time in seconds to transition to this step's settings (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_18_hold:
+          name: "Step 18: Hold time"
+          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_19_color_temp:
+          name: "Step 19: Color temperature"
+          description: Color temperature in kelvin (2700-6500K).
+          required: false
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: "K"
+              mode: slider
+        step_19_brightness:
+          name: "Step 19: Brightness"
+          description: Brightness level (1-100%).
+          required: false
+          selector:
+            number:
+              min: 1
+              max: 100
+              unit_of_measurement: "%"
+              mode: slider
+        step_19_transition:
+          name: "Step 19: Transition time"
+          description: Time in seconds to transition to this step's settings (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_19_hold:
+          name: "Step 19: Hold time"
+          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_20_color_temp:
+          name: "Step 20: Color temperature"
+          description: Color temperature in kelvin (2700-6500K).
+          required: false
+          selector:
+            number:
+              min: 2700
+              max: 6500
+              step: 100
+              unit_of_measurement: "K"
+              mode: slider
+        step_20_brightness:
+          name: "Step 20: Brightness"
+          description: Brightness level (1-100%).
+          required: false
+          selector:
+            number:
+              min: 1
+              max: 100
+              unit_of_measurement: "%"
+              mode: slider
+        step_20_transition:
+          name: "Step 20: Transition time"
+          description: Time in seconds to transition to this step's settings (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_20_hold:
+          name: "Step 20: Hold time"
+          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+    loop_mode:
+      name: Loop mode
+      description: How the sequence should loop.
+      required: false
+      default: "once"
+      selector:
+        select:
+          options:
+            - label: "Run once"
+              value: "once"
+            - label: "Loop X times"
+              value: "count"
+            - label: "Continuous loop"
+              value: "continuous"
+    loop_count:
+      name: Loop count
+      description: Number of times to loop the sequence (required when loop mode is 'Loop X times').
+      required: false
+      example: 5
+      selector:
+        number:
+          min: 1
+          max: 1000
+          mode: box
+    end_behavior:
+      name: End behavior
+      description: What to do when the sequence completes.
+      required: false
+      default: "maintain"
+      selector:
+        select:
+          options:
+            - label: "Maintain last state"
+              value: "maintain"
+            - label: "Turn off light"
+              value: "turn_off"
+
+stop_cct_sequence:
+  name: Stop CCT sequence
+  description: Stop a running CCT sequence on Aqara lights.
+  target:
+    entity:
+      domain: light
+      integration: mqtt
+
+pause_cct_sequence:
+  name: Pause CCT sequence
+  description: Pause a running CCT sequence on Aqara lights. The sequence will stop at its current state until resumed.
+  target:
+    entity:
+      domain: light
+      integration: mqtt
+
+resume_cct_sequence:
+  name: Resume CCT sequence
+  description: Resume a paused CCT sequence on Aqara lights. The sequence will continue from where it was paused.
+  target:
+    entity:
+      domain: light
+      integration: mqtt

@@ -11,13 +11,22 @@ DEFAULT_Z2M_BASE_TOPIC: Final = "zigbee2mqtt"
 
 # Service names
 SERVICE_SET_DYNAMIC_EFFECT: Final = "set_dynamic_effect"
+SERVICE_STOP_EFFECT: Final = "stop_effect"
 SERVICE_SET_SEGMENT_PATTERN: Final = "set_segment_pattern"
 SERVICE_CREATE_GRADIENT: Final = "create_gradient"
 SERVICE_CREATE_BLOCKS: Final = "create_blocks"
+SERVICE_START_CCT_SEQUENCE: Final = "start_cct_sequence"
+SERVICE_STOP_CCT_SEQUENCE: Final = "stop_cct_sequence"
+SERVICE_PAUSE_CCT_SEQUENCE: Final = "pause_cct_sequence"
+SERVICE_RESUME_CCT_SEQUENCE: Final = "resume_cct_sequence"
+
+# Group synchronization delay (seconds between commands for synced groups)
+GROUP_SYNC_DELAY: Final = 0.05
 
 # Service attributes
 ATTR_EFFECT: Final = "effect"
 ATTR_SPEED: Final = "speed"
+ATTR_SYNC: Final = "sync"
 ATTR_PRESET: Final = "preset"
 ATTR_COLOR_1: Final = "color_1"
 ATTR_COLOR_2: Final = "color_2"
@@ -33,6 +42,14 @@ ATTR_BRIGHTNESS: Final = "brightness"
 ATTR_TURN_ON: Final = "turn_on"
 ATTR_EXPAND: Final = "expand"
 ATTR_TURN_OFF_UNSPECIFIED: Final = "turn_off_unspecified"
+ATTR_STEPS: Final = "steps"
+ATTR_COLOR_TEMP: Final = "color_temp"
+ATTR_TRANSITION: Final = "transition"
+ATTR_HOLD: Final = "hold"
+ATTR_LOOP_MODE: Final = "loop_mode"
+ATTR_LOOP_COUNT: Final = "loop_count"
+ATTR_END_BEHAVIOR: Final = "end_behavior"
+ATTR_RESTORE_STATE: Final = "restore_state"
 
 # MQTT topics
 TOPIC_Z2M_BRIDGE_DEVICES: Final = "bridge/devices"
@@ -58,11 +75,40 @@ MAX_SPEED: Final = 100
 MIN_RGB_VALUE: Final = 0
 MAX_RGB_VALUE: Final = 255
 
-# Brightness constraints
-MIN_BRIGHTNESS: Final = 1
-MAX_BRIGHTNESS: Final = 255
+# Brightness constraints (UI uses percentage, devices use 1-255)
+MIN_BRIGHTNESS_PERCENT: Final = 1  # Minimum percentage for UI
+MAX_BRIGHTNESS_PERCENT: Final = 100  # Maximum percentage for UI
+MIN_BRIGHTNESS_DEVICE: Final = 1  # Minimum value for device
+MAX_BRIGHTNESS_DEVICE: Final = 255  # Maximum value for device
+
+# CCT sequence constraints
+MIN_COLOR_TEMP_KELVIN: Final = 2700
+MAX_COLOR_TEMP_KELVIN: Final = 6500
+MIN_TRANSITION_TIME: Final = 0.0
+MAX_TRANSITION_TIME: Final = 3600.0  # 1 hour
+MIN_HOLD_TIME: Final = 0.0
+MAX_HOLD_TIME: Final = 3600.0  # 1 hour
+MIN_SEQUENCE_STEPS: Final = 1
+MAX_SEQUENCE_STEPS: Final = 20
+MIN_LOOP_COUNT: Final = 1
+MAX_LOOP_COUNT: Final = 100
+
+# Smooth transition settings using light's built-in transition capability
+# These values balance smoothness with command overhead
+TRANSITION_STEP_INTERVAL: Final = 0.1  # Seconds between transition steps (100ms for smooth easing curve)
+MIN_TRANSITION_STEPS: Final = 10  # Minimum steps for any transition (ensures smooth easing even for short transitions)
+
+# CCT sequence loop modes
+LOOP_MODE_ONCE: Final = "once"
+LOOP_MODE_COUNT: Final = "count"
+LOOP_MODE_CONTINUOUS: Final = "continuous"
+
+# CCT sequence end behaviors
+END_BEHAVIOR_MAINTAIN: Final = "maintain"
+END_BEHAVIOR_TURN_OFF: Final = "turn_off"
 
 # Supported Aqara light models (Z2M model identifiers)
+# RGB + CCT models
 MODEL_T1M_20_SEGMENT: Final = "lumi.light.acn031"
 MODEL_T1M_26_SEGMENT: Final = "lumi.light.acn032"
 MODEL_T1_STRIP: Final = "lumi.light.acn132"
@@ -70,6 +116,11 @@ MODEL_T2_BULB_E26: Final = "lumi.light.agl001"
 MODEL_T2_BULB_E27: Final = "lumi.light.agl003"
 MODEL_T2_BULB_GU10_230V: Final = "lumi.light.agl005"
 MODEL_T2_BULB_GU10_110V: Final = "lumi.light.agl007"
+# CCT-only models (support CCT sequences only, no RGB effects)
+MODEL_T2_CCT_E26: Final = "lumi.light.agl002"
+MODEL_T2_CCT_E27: Final = "lumi.light.agl004"
+MODEL_T2_CCT_GU10_230V: Final = "lumi.light.agl006"
+MODEL_T2_CCT_GU10_110V: Final = "lumi.light.agl008"
 
 # Effect types for T1M (ACN031/ACN032)
 EFFECT_T1M_FLOW1: Final = "flow1"
@@ -107,6 +158,25 @@ DATA_COORDINATOR: Final = "coordinator"
 DATA_STATE_MANAGER: Final = "state_manager"
 DATA_DEVICE_REGISTRY: Final = "device_registry"
 DATA_UNSUB: Final = "unsub"
+DATA_CCT_SEQUENCE_MANAGER: Final = "cct_sequence_manager"
+
+# Event types for automation triggers
+EVENT_SEQUENCE_STARTED: Final = f"{DOMAIN}_sequence_started"
+EVENT_SEQUENCE_COMPLETED: Final = f"{DOMAIN}_sequence_completed"
+EVENT_SEQUENCE_STOPPED: Final = f"{DOMAIN}_sequence_stopped"
+EVENT_STEP_CHANGED: Final = f"{DOMAIN}_step_changed"
+EVENT_EFFECT_ACTIVATED: Final = f"{DOMAIN}_effect_activated"
+EVENT_EFFECT_STOPPED: Final = f"{DOMAIN}_effect_stopped"
+
+# Event data keys
+EVENT_ATTR_ENTITY_ID: Final = "entity_id"
+EVENT_ATTR_SEQUENCE_ID: Final = "sequence_id"
+EVENT_ATTR_STEP_INDEX: Final = "step_index"
+EVENT_ATTR_TOTAL_STEPS: Final = "total_steps"
+EVENT_ATTR_LOOP_ITERATION: Final = "loop_iteration"
+EVENT_ATTR_EFFECT_TYPE: Final = "effect_type"
+EVENT_ATTR_PRESET: Final = "preset"
+EVENT_ATTR_REASON: Final = "reason"
 
 # Effect presets from Aqara app
 # T2 Bulb presets
@@ -127,13 +197,19 @@ PRESET_T1M_METEOR: Final = "t1m_meteor"
 PRESET_T1M_ALERT: Final = "t1m_alert"
 
 # T1 Strip presets
-PRESET_T1_RAINBOW: Final = "t1_rainbow"
-PRESET_T1_HEARTBEAT: Final = "t1_heartbeat"
-PRESET_T1_GALA: Final = "t1_gala"
-PRESET_T1_SEA_OF_FLOWERS: Final = "t1_sea_of_flowers"
-PRESET_T1_RHYTHMIC: Final = "t1_rhythmic"
-PRESET_T1_EXCITING: Final = "t1_exciting"
-PRESET_T1_COLORFUL: Final = "t1_colorful"
+PRESET_T1_STRIP_RAINBOW: Final = "t1_strip_rainbow"
+PRESET_T1_STRIP_HEARTBEAT: Final = "t1_strip_heartbeat"
+PRESET_T1_STRIP_GALA: Final = "t1_strip_gala"
+PRESET_T1_STRIP_SEA_OF_FLOWERS: Final = "t1_strip_sea_of_flowers"
+PRESET_T1_STRIP_RHYTHMIC: Final = "t1_strip_rhythmic"
+PRESET_T1_STRIP_EXCITING: Final = "t1_strip_exciting"
+PRESET_T1_STRIP_COLORFUL: Final = "t1_strip_colorful"
+
+# CCT sequence presets
+PRESET_CCT_GOODNIGHT: Final = "goodnight"
+PRESET_CCT_WAKEUP: Final = "wakeup"
+PRESET_CCT_MINDFUL_BREATHING: Final = "mindful_breathing"
+PRESET_CCT_CIRCADIAN: Final = "circadian"
 
 # Preset definitions
 EFFECT_PRESETS: Final = {
@@ -252,39 +328,37 @@ EFFECT_PRESETS: Final = {
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT],
     },
     # T1 Strip presets (all use same decoded colors)
-    PRESET_T1_RAINBOW: {
+    PRESET_T1_STRIP_RAINBOW: {
         "name": "T1 Strip: Rainbow",
         "effect": EFFECT_T1_RAINBOW1,
         "colors": [
-            [163, 214, 84],
-            [122, 76, 204],
-            [153, 153, 38],
-            [102, 15, 92],
-            [104, 245, 127],
-            [255, 56, 81],
-            [81, 232, 81],
+            [255, 0, 0],      # Red
+            [255, 255, 0],    # Yellow
+            [255, 192, 203],  # Pink
+            [0, 255, 0],      # Green
+            [128, 0, 128],    # Purple
+            [255, 127, 0],    # Orange
+            [0, 0, 255],      # Blue
         ],
         "speed": 60,
         "brightness": 255,
         "device_types": [MODEL_T1_STRIP],
     },
-    PRESET_T1_HEARTBEAT: {
+    PRESET_T1_STRIP_HEARTBEAT: {
         "name": "T1 Strip: Heartbeat",
         "effect": EFFECT_T1_FLASH,
         "colors": [
-            [163, 214, 84],
-            [122, 76, 204],
-            [153, 153, 38],
-            [102, 15, 92],
-            [104, 245, 127],
-            [255, 56, 81],
-            [81, 232, 81],
+            [139, 0, 0],      # Dark red
+            [220, 20, 60],    # Crimson
+            [255, 0, 0],      # Red
+            [255, 69, 0],     # Red-orange
+            [255, 99, 71],    # Tomato
         ],
         "speed": 60,
         "brightness": 255,
         "device_types": [MODEL_T1_STRIP],
     },
-    PRESET_T1_GALA: {
+    PRESET_T1_STRIP_GALA: {
         "name": "T1 Strip: Gala",
         "effect": EFFECT_T1_BREATHING,
         "colors": [
@@ -300,65 +374,61 @@ EFFECT_PRESETS: Final = {
         "brightness": 255,
         "device_types": [MODEL_T1_STRIP],
     },
-    PRESET_T1_SEA_OF_FLOWERS: {
+    PRESET_T1_STRIP_SEA_OF_FLOWERS: {
         "name": "T1 Strip: Sea of flowers",
         "effect": EFFECT_T1_CHASING,
         "colors": [
-            [163, 214, 84],
-            [122, 76, 204],
-            [153, 153, 38],
-            [102, 15, 92],
-            [104, 245, 127],
-            [255, 56, 81],
-            [81, 232, 81],
+            [135, 206, 235],  # Sky blue
+            [64, 224, 208],   # Turquoise
+            [255, 255, 0],    # Yellow
+            [144, 238, 144],  # Light green
+            [0, 100, 0],      # Dark green
+            [0, 0, 139],      # Dark blue
+            [173, 255, 47],   # Green-yellow
         ],
         "speed": 50,
         "brightness": 255,
         "device_types": [MODEL_T1_STRIP],
     },
-    PRESET_T1_RHYTHMIC: {
+    PRESET_T1_STRIP_RHYTHMIC: {
         "name": "T1 Strip: Rhythmic",
         "effect": EFFECT_T1_HOPPING,
         "colors": [
-            [163, 214, 84],
-            [122, 76, 204],
-            [153, 153, 38],
-            [102, 15, 92],
-            [104, 245, 127],
-            [255, 56, 81],
-            [81, 232, 81],
+            [255, 0, 0],      # Red
+            [255, 69, 0],     # Red-orange
+            [255, 140, 0],    # Dark orange
+            [255, 165, 0],    # Orange
+            [255, 215, 0],    # Gold
+            [255, 255, 0],    # Yellow
+            [255, 200, 0],    # Golden yellow
         ],
         "speed": 50,
         "brightness": 255,
         "device_types": [MODEL_T1_STRIP],
     },
-    PRESET_T1_EXCITING: {
+    PRESET_T1_STRIP_EXCITING: {
         "name": "T1 Strip: Exciting",
         "effect": EFFECT_T1_FLICKER,
         "colors": [
-            [163, 214, 84],
-            [122, 76, 204],
-            [153, 153, 38],
-            [102, 15, 92],
-            [104, 245, 127],
-            [255, 56, 81],
-            [81, 232, 81],
+            [255, 255, 255],  # White
+            [255, 0, 0],      # Red
+            [0, 0, 255],      # Blue
         ],
         "speed": 40,
         "brightness": 255,
         "device_types": [MODEL_T1_STRIP],
     },
-    PRESET_T1_COLORFUL: {
+    PRESET_T1_STRIP_COLORFUL: {
         "name": "T1 Strip: Colorful",
         "effect": EFFECT_T1_RAINBOW2,
         "colors": [
-            [163, 214, 84],
-            [122, 76, 204],
-            [153, 153, 38],
-            [102, 15, 92],
-            [104, 245, 127],
-            [255, 56, 81],
-            [81, 232, 81],
+            [255, 0, 0],      # Red
+            [0, 255, 0],      # Green
+            [0, 0, 255],      # Blue
+            [255, 255, 0],    # Yellow
+            [0, 255, 255],    # Cyan
+            [255, 0, 255],    # Magenta
+            [255, 128, 0],    # Orange (secondary)
         ],
         "speed": 60,
         "brightness": 255,
@@ -366,24 +436,24 @@ EFFECT_PRESETS: Final = {
     },
 }
 
-# T1M Segment pattern presets
-PRESET_T1M_SEGMENT_1: Final = "t1m_segment_1"
-PRESET_T1M_SEGMENT_2: Final = "t1m_segment_2"
-PRESET_T1M_SEGMENT_3: Final = "t1m_segment_3"
-PRESET_T1M_SEGMENT_4: Final = "t1m_segment_4"
-PRESET_T1M_SEGMENT_5: Final = "t1m_segment_5"
-PRESET_T1M_SEGMENT_6: Final = "t1m_segment_6"
-PRESET_T1M_SEGMENT_7: Final = "t1m_segment_7"
-PRESET_T1M_SEGMENT_8: Final = "t1m_segment_8"
-PRESET_T1M_SEGMENT_9: Final = "t1m_segment_9"
-PRESET_T1M_SEGMENT_10: Final = "t1m_segment_10"
-PRESET_T1M_SEGMENT_11: Final = "t1m_segment_11"
-PRESET_T1M_SEGMENT_12: Final = "t1m_segment_12"
+# Segment pattern presets (T1M and T1 Strip)
+PRESET_SEGMENT_1: Final = "segment_1"
+PRESET_SEGMENT_2: Final = "segment_2"
+PRESET_SEGMENT_3: Final = "segment_3"
+PRESET_SEGMENT_4: Final = "segment_4"
+PRESET_SEGMENT_5: Final = "segment_5"
+PRESET_SEGMENT_6: Final = "segment_6"
+PRESET_SEGMENT_7: Final = "segment_7"
+PRESET_SEGMENT_8: Final = "segment_8"
+PRESET_SEGMENT_9: Final = "segment_9"
+PRESET_SEGMENT_10: Final = "segment_10"
+PRESET_SEGMENT_11: Final = "segment_11"
+PRESET_SEGMENT_12: Final = "segment_12"
 
-# T1M Segment pattern preset definitions
+# Segment pattern preset definitions (T1M and T1 Strip)
 SEGMENT_PATTERN_PRESETS: Final = {
-    PRESET_T1M_SEGMENT_1: {
-        "name": "T1M Segment: Preset 1",
+    PRESET_SEGMENT_1: {
+        "name": "Segment: Preset 1",
         "icon": "preset_01.svg",
         "segments": [
             [255, 205, 213], [255, 205, 213], [255, 205, 213], [255, 205, 213],
@@ -396,8 +466,8 @@ SEGMENT_PATTERN_PRESETS: Final = {
         ],
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
     },
-    PRESET_T1M_SEGMENT_2: {
-        "name": "T1M Segment: Preset 2",
+    PRESET_SEGMENT_2: {
+        "name": "Segment: Preset 2",
         "icon": "preset_02.svg",
         "segments": [
             [255, 235, 193], [255, 235, 193], [255, 235, 193], [255, 235, 193],
@@ -410,8 +480,8 @@ SEGMENT_PATTERN_PRESETS: Final = {
         ],
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
     },
-    PRESET_T1M_SEGMENT_3: {
-        "name": "T1M Segment: Preset 3",
+    PRESET_SEGMENT_3: {
+        "name": "Segment: Preset 3",
         "icon": "preset_03.svg",
         "segments": [
             [129, 235, 254], [129, 235, 254], [129, 235, 254], [129, 235, 254],
@@ -424,8 +494,8 @@ SEGMENT_PATTERN_PRESETS: Final = {
         ],
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
     },
-    PRESET_T1M_SEGMENT_4: {
-        "name": "T1M Segment: Preset 4",
+    PRESET_SEGMENT_4: {
+        "name": "Segment: Preset 4",
         "icon": "preset_04.svg",
         "segments": [
             [233, 202, 249], [233, 202, 249], [233, 202, 249], [233, 202, 249],
@@ -438,8 +508,8 @@ SEGMENT_PATTERN_PRESETS: Final = {
         ],
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
     },
-    PRESET_T1M_SEGMENT_5: {
-        "name": "T1M Segment: Preset 5",
+    PRESET_SEGMENT_5: {
+        "name": "Segment: Preset 5",
         "icon": "preset_05.svg",
         "segments": [
             [255, 83, 74], [255, 83, 74], [255, 83, 74], [255, 83, 74],
@@ -452,8 +522,8 @@ SEGMENT_PATTERN_PRESETS: Final = {
         ],
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
     },
-    PRESET_T1M_SEGMENT_6: {
-        "name": "T1M Segment: Preset 6",
+    PRESET_SEGMENT_6: {
+        "name": "Segment: Preset 6",
         "icon": "preset_06.svg",
         "segments": [
             [26, 152, 249], [26, 152, 249], [26, 152, 249], [26, 152, 249],
@@ -466,8 +536,8 @@ SEGMENT_PATTERN_PRESETS: Final = {
         ],
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
     },
-    PRESET_T1M_SEGMENT_7: {
-        "name": "T1M Segment: Preset 7",
+    PRESET_SEGMENT_7: {
+        "name": "Segment: Preset 7",
         "icon": "preset_07.svg",
         "segments": [
             [167, 188, 255], [167, 188, 255], [167, 188, 255], [167, 188, 255],
@@ -480,8 +550,8 @@ SEGMENT_PATTERN_PRESETS: Final = {
         ],
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
     },
-    PRESET_T1M_SEGMENT_8: {
-        "name": "T1M Segment: Preset 8",
+    PRESET_SEGMENT_8: {
+        "name": "Segment: Preset 8",
         "icon": "preset_08.svg",
         "segments": [
             [255, 221, 50], [255, 221, 50], [255, 221, 50], [255, 221, 50],
@@ -494,8 +564,8 @@ SEGMENT_PATTERN_PRESETS: Final = {
         ],
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
     },
-    PRESET_T1M_SEGMENT_9: {
-        "name": "T1M Segment: Preset 9",
+    PRESET_SEGMENT_9: {
+        "name": "Segment: Preset 9",
         "icon": "preset_09.svg",
         "segments": [
             [255, 134, 160], [255, 134, 160], [255, 134, 160], [255, 134, 160],
@@ -508,8 +578,8 @@ SEGMENT_PATTERN_PRESETS: Final = {
         ],
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
     },
-    PRESET_T1M_SEGMENT_10: {
-        "name": "T1M Segment: Preset 10",
+    PRESET_SEGMENT_10: {
+        "name": "Segment: Preset 10",
         "icon": "preset_10.svg",
         "segments": [
             [193, 129, 235], [193, 129, 235], [193, 129, 235], [193, 129, 235],
@@ -522,8 +592,8 @@ SEGMENT_PATTERN_PRESETS: Final = {
         ],
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
     },
-    PRESET_T1M_SEGMENT_11: {
-        "name": "T1M Segment: Preset 11",
+    PRESET_SEGMENT_11: {
+        "name": "Segment: Preset 11",
         "icon": "preset_11.svg",
         "segments": [
             [45, 168, 249], [45, 168, 249], [45, 168, 249], [45, 168, 249],
@@ -536,8 +606,8 @@ SEGMENT_PATTERN_PRESETS: Final = {
         ],
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
     },
-    PRESET_T1M_SEGMENT_12: {
-        "name": "T1M Segment: Preset 12",
+    PRESET_SEGMENT_12: {
+        "name": "Segment: Preset 12",
         "icon": "preset_12.svg",
         "segments": [
             [255, 170, 161], [255, 170, 161], [255, 170, 161], [255, 170, 161],
@@ -551,3 +621,121 @@ SEGMENT_PATTERN_PRESETS: Final = {
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
     },
 }
+
+# CCT sequence preset definitions
+CCT_SEQUENCE_PRESETS: Final = {
+    PRESET_CCT_GOODNIGHT: {
+        "name": "Goodnight",
+        "steps": [
+            {
+                "color_temp": 4000,
+                "brightness": 126,  # 50%
+                "transition": 0.0,
+                "hold": 0.0,
+            },
+            {
+                "color_temp": 2700,
+                "brightness": 1,  # ~0% (minimum device value)
+                "transition": 1800.0,  # 30 minutes
+                "hold": 0.0,
+            },
+        ],
+        "loop_mode": LOOP_MODE_ONCE,
+        "end_behavior": END_BEHAVIOR_TURN_OFF,
+    },
+    PRESET_CCT_WAKEUP: {
+        "name": "Wakeup",
+        "steps": [
+            {
+                "color_temp": 2700,
+                "brightness": 1,  # 1%
+                "transition": 0.0,
+                "hold": 0.0,
+            },
+            {
+                "color_temp": 6500,
+                "brightness": 255,  # 100%
+                "transition": 1800.0,  # 30 minutes
+                "hold": 0.0,
+            },
+        ],
+        "loop_mode": LOOP_MODE_ONCE,
+        "end_behavior": END_BEHAVIOR_MAINTAIN,
+    },
+    PRESET_CCT_MINDFUL_BREATHING: {
+        "name": "Mindful breathing",
+        "steps": [
+            {
+                "color_temp": 3500,
+                "brightness": 50,  # 20%
+                "transition": 1.5,
+                "hold": 0.5,
+            },
+            {
+                "color_temp": 4900,
+                "brightness": 204,  # 80%
+                "transition": 2.0,
+                "hold": 0.5,
+            },
+        ],
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_MAINTAIN,
+    },
+    PRESET_CCT_CIRCADIAN: {
+        "name": "Circadian rhythm",
+        "steps": [
+            {
+                "color_temp": 2700,  # Warm morning light
+                "brightness": 100,
+                "transition": 5.0,
+                "hold": 7200.0,  # Hold for 2 hours
+            },
+            {
+                "color_temp": 4000,  # Midday neutral
+                "brightness": 200,
+                "transition": 10.0,
+                "hold": 14400.0,  # Hold for 4 hours
+            },
+            {
+                "color_temp": 5500,  # Afternoon cool
+                "brightness": 255,
+                "transition": 10.0,
+                "hold": 10800.0,  # Hold for 3 hours
+            },
+            {
+                "color_temp": 3500,  # Evening warm
+                "brightness": 150,
+                "transition": 10.0,
+                "hold": 7200.0,  # Hold for 2 hours
+            },
+            {
+                "color_temp": 2200,  # Night warm dim
+                "brightness": 50,
+                "transition": 5.0,
+                "hold": 3600.0,  # Hold for 1 hour
+            },
+        ],
+        "loop_mode": LOOP_MODE_ONCE,
+        "end_behavior": END_BEHAVIOR_MAINTAIN,
+    },
+}
+
+
+# Utility functions
+def brightness_percent_to_device(percent: int) -> int:
+    """Convert brightness percentage (1-100) to device value (1-255).
+
+    Args:
+        percent: Brightness percentage (1-100)
+
+    Returns:
+        Device brightness value (1-255)
+    """
+    if percent < MIN_BRIGHTNESS_PERCENT or percent > MAX_BRIGHTNESS_PERCENT:
+        msg = f"Brightness percentage must be {MIN_BRIGHTNESS_PERCENT}-{MAX_BRIGHTNESS_PERCENT}, got {percent}"
+        raise ValueError(msg)
+
+    # Linear conversion: 1% = 1, 100% = 255
+    # Formula: device = round((percent / 100) * 254) + 1
+    # This ensures: 1% -> 1, 100% -> 255
+    return round(((percent - 1) / 99) * 254) + 1

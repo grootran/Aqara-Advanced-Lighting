@@ -25,6 +25,83 @@
       "already_configured": "This integration is already configured."
     }
   },
+  "exceptions": {
+    "integration_not_initialized": {
+      "message": "The Aqara Advanced Lighting integration is not initialized. Please check that the integration is properly configured."
+    },
+    "components_not_initialized": {
+      "message": "Integration components are not initialized. Please reload the integration or restart Home Assistant."
+    },
+    "cct_manager_not_initialized": {
+      "message": "The CCT sequence manager is not initialized. Please reload the integration."
+    },
+    "mqtt_client_not_initialized": {
+      "message": "The MQTT client is not initialized. Please check your MQTT configuration and reload the integration."
+    },
+    "invalid_preset": {
+      "message": "Invalid preset: {preset}. Please select a valid preset from the list."
+    },
+    "effect_required": {
+      "message": "Effect type is required when not using a preset. Please specify the effect type to use."
+    },
+    "speed_required": {
+      "message": "Effect speed is required when not using a preset. Please specify the speed (1-100)."
+    },
+    "color_required": {
+      "message": "At least one color (color_1) is required when not using a preset. Please select at least one color."
+    },
+    "invalid_effect_type": {
+      "message": "Invalid effect type: {effect}. This effect is not supported. Please choose from the available effects for your device."
+    },
+    "preset_not_compatible": {
+      "message": "The preset \"{preset}\" is not compatible with device {device} (model: {model}). Please select a preset designed for this device type."
+    },
+    "effect_not_supported": {
+      "message": "The effect \"{effect}\" is not supported by device {device}. {reason}"
+    },
+    "segment_addressing_not_supported": {
+      "message": "Device {device} does not support segment addressing. Only T1M ceiling lights and T1 LED strips support this feature."
+    },
+    "segment_colors_required": {
+      "message": "Either a preset or segment_colors must be specified. Please select a preset or provide segment colors."
+    },
+    "loop_count_required": {
+      "message": "Loop count is required when loop mode is \"count\". Please specify how many times to loop the sequence."
+    },
+    "step_incomplete": {
+      "message": "Step {step} is incomplete. All fields (color temperature, brightness, transition time, and hold duration) must be provided for each step."
+    },
+    "step_required": {
+      "message": "At least one step is required. Please configure Step 1 with all required fields."
+    },
+    "invalid_sequence_configuration": {
+      "message": "Invalid sequence configuration: {error}. Please check your step values are within valid ranges."
+    },
+    "publish_effect_failed": {
+      "message": "Failed to publish effect to {device}. Please check that the device is available and try again."
+    },
+    "publish_pattern_failed": {
+      "message": "Failed to publish segment pattern to {device}. Please check that the device is available and try again."
+    },
+    "publish_gradient_failed": {
+      "message": "Failed to publish gradient to {device}. Please check that the device is available and try again."
+    },
+    "publish_blocks_failed": {
+      "message": "Failed to publish block pattern to {device}. Please check that the device is available and try again."
+    },
+    "start_sequence_failed": {
+      "message": "Failed to start CCT sequence for {entity}. Please check that the light is available and try again."
+    },
+    "stop_sequence_failed": {
+      "message": "Failed to stop CCT sequence for {entity}. The sequence may have already completed."
+    },
+    "entity_not_mapped": {
+      "message": "Entity {entity} could not be mapped to a Zigbee2MQTT device. Please ensure the device is paired with Zigbee2MQTT and visible in Home Assistant."
+    },
+    "device_not_found": {
+      "message": "Device {device} was not found in the Zigbee2MQTT registry. Please ensure the device is properly paired."
+    }
+  },
   "services": {
     "set_dynamic_effect": {
       "name": "Set dynamic effect",

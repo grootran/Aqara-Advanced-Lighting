@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.const import (
@@ -13,10 +14,17 @@ from homeassistant.const import (
     STATE_UNKNOWN,
 )
 from homeassistant.core import HomeAssistant, State
+from homeassistant.helpers.storage import Store
 
+from .const import DOMAIN
 from .models import DeviceState, DynamicEffect
 
 _LOGGER = logging.getLogger(__name__)
+
+# Storage configuration
+STORAGE_VERSION = 1
+STORAGE_KEY = f"{DOMAIN}.state_manager"
+STATE_EXPIRY_HOURS = 24
 
 
 class StateManager:
@@ -26,6 +34,77 @@ class StateManager:
         """Initialize the state manager."""
         self.hass = hass
         self._states: dict[str, DeviceState] = {}
+        self._store: Store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
+        self._loaded: bool = False
+
+    async def async_load(self) -> None:
+        """Load stored states from persistent storage."""
+        if self._loaded:
+            return
+
+        try:
+            stored_data = await self._store.async_load()
+            if stored_data:
+                self._load_states_from_data(stored_data)
+            self._loaded = True
+            _LOGGER.debug("Loaded %d stored states from persistent storage", len(self._states))
+        except Exception as ex:
+            _LOGGER.warning("Failed to load stored states: %s", ex)
+            self._loaded = True
+
+    def _load_states_from_data(self, data: dict[str, Any]) -> None:
+        """Load states from stored data, expiring old entries."""
+        states_data = data.get("states", {})
+        expiry_threshold = datetime.now() - timedelta(hours=STATE_EXPIRY_HOURS)
+
+        for entity_id, state_data in states_data.items():
+            # Check if entry has expired
+            timestamp_str = state_data.get("timestamp")
+            if timestamp_str:
+                try:
+                    timestamp = datetime.fromisoformat(timestamp_str)
+                    if timestamp < expiry_threshold:
+                        _LOGGER.debug(
+                            "Skipping expired state for %s (captured %s)",
+                            entity_id,
+                            timestamp_str,
+                        )
+                        continue
+                except (ValueError, TypeError):
+                    pass  # If timestamp is invalid, load anyway
+
+            # Recreate DeviceState
+            try:
+                device_state = DeviceState(
+                    entity_id=state_data["entity_id"],
+                    z2m_friendly_name=state_data["z2m_friendly_name"],
+                    previous_state=state_data["previous_state"],
+                    effect_active=state_data.get("effect_active", False),
+                    current_effect=None,  # Don't restore active effects on restart
+                )
+                self._states[entity_id] = device_state
+            except (KeyError, TypeError) as ex:
+                _LOGGER.debug("Skipping invalid state data for %s: %s", entity_id, ex)
+
+    async def async_save(self) -> None:
+        """Save states to persistent storage."""
+        states_data = {}
+        timestamp = datetime.now().isoformat()
+
+        for entity_id, device_state in self._states.items():
+            states_data[entity_id] = {
+                "entity_id": device_state.entity_id,
+                "z2m_friendly_name": device_state.z2m_friendly_name,
+                "previous_state": device_state.previous_state,
+                "effect_active": device_state.effect_active,
+                "timestamp": timestamp,
+            }
+
+        try:
+            await self._store.async_save({"states": states_data})
+            _LOGGER.debug("Saved %d states to persistent storage", len(states_data))
+        except Exception as ex:
+            _LOGGER.warning("Failed to save states: %s", ex)
 
     def capture_state(
         self, entity_id: str, z2m_friendly_name: str
@@ -86,6 +165,9 @@ class StateManager:
         _LOGGER.debug(
             "Captured state for %s: %s", entity_id, state_data
         )
+
+        # Schedule save to persistent storage
+        self.hass.async_create_task(self.async_save())
 
         return device_state
 
@@ -167,11 +249,15 @@ class StateManager:
         if entity_id in self._states:
             del self._states[entity_id]
             _LOGGER.debug("Cleared stored state for %s", entity_id)
+            # Schedule save to persistent storage
+            self.hass.async_create_task(self.async_save())
 
     def clear_all_states(self) -> None:
         """Clear all stored states."""
         self._states.clear()
         _LOGGER.debug("Cleared all stored states")
+        # Schedule save to persistent storage
+        self.hass.async_create_task(self.async_save())
 
     def get_all_active_effects(self) -> dict[str, DeviceState]:
         """Get all entities with active effects."""
