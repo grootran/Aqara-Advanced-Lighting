@@ -5,6 +5,84 @@ All notable changes to the Aqara Advanced Lighting integration will be documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-01-04
+
+## What's New
+
+Version 0.4.0 introduces frontend enhancement and new RGB segment sequence capabilities.
+
+### Frontend Panel
+
+A new UI panel has been added to the Home Assistant sidebar for easy access to presets:
+
+- **Sidebar Integration** - Access the "Aqara Lighting" panel directly from the Home Assistant sidebar
+- **UI Buttons** - Interface for managing lights, effects, and sequences
+- **Preset Buttons** - Access to all effect and sequence presets
+- **Built with Lit** - Modern, lightweight web component framework for optimal performance
+- More features to be added soon
+
+The panel provides a centralized location for controlling Aqara lights without needing to use the Developer Tools or create automations.
+
+### RGB Segment Sequences
+
+Create animated segment patterns with the segment sequence feature:
+
+**Key Features:**
+- **Up to 20 Customizable Steps** - Build multi-step sequences
+- **Multiple Activation Patterns:**
+  - Sequential forward/reverse - Segments activate one by one
+  - Random - Segments activate in random order
+  - Simultaneous - All segments activate at once
+- **Pattern Modes:**
+  - Gradient - Smooth color transitions across segments
+  - Blocks (repeat/expand) - Evenly spaced color blocks
+  - Individual - Custom color per segment
+- **Timing Control:**
+  - Duration - Time to complete the activation pattern
+  - Hold - Time to hold after activation completes
+- **Loop Options:**
+  - Run once, loop X times, or continuous loop
+  - Choose to maintain state or turn off when complete
+- **Pause and Resume** - Control sequence playback mid-execution
+
+**Built-in Presets:**
+- **Loading bar** - Sequential segment activation creating a loading bar effect
+- **Wave** - Smooth color gradient wave flowing back and forth
+- **Sparkle** - Random twinkling segments creating a sparkle effect
+- and more
+
+**New Services:**
+- start_segment_sequence - Start an RGB segment sequence
+- stop_segment_sequence - Stop a running sequence
+- pause_segment_sequence - Pause a running sequence
+- resume_segment_sequence - Resume a paused sequence
+
+### CCT Sequence Enhancements
+
+The existing CCT sequence feature has been enhanced with pause and resume functionality:
+
+**New Services:**
+- pause_cct_sequence - Pause a running CCT sequence while maintaining current state
+- resume_cct_sequence - Resume a paused CCT sequence from where it was paused
+
+This gives you better control over long-running sequences, allowing you to temporarily pause them without losing progress.
+
+## Breaking Changes
+
+None. This release is fully backward compatible with v0.3.0.
+
+## New Services
+
+### RGB Segment Sequences
+- aqara_advanced_lighting.start_segment_sequence
+- aqara_advanced_lighting.stop_segment_sequence
+- aqara_advanced_lighting.pause_segment_sequence
+- aqara_advanced_lighting.resume_segment_sequence
+
+### CCT Sequence Control
+- aqara_advanced_lighting.pause_cct_sequence
+- aqara_advanced_lighting.resume_cct_sequence
+
 ## [0.3.0] - 2026-01-02
 
 ## New Features
@@ -245,3 +323,4 @@ One click HACS cutton
 [0.1.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.1.0
 [0.2.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.2.0
 [0.3.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.3.0
+[0.4.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.4.0
