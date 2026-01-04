@@ -151,6 +151,8 @@ class DeviceState:
     previous_state: dict[str, Any]  # Original state before effect
     effect_active: bool
     current_effect: DynamicEffect | None = None
+    paused_cct_sequence: bool = False
+    paused_segment_sequence: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for storage."""
@@ -171,6 +173,8 @@ class DeviceState:
                 if self.current_effect
                 else None
             ),
+            "paused_cct_sequence": self.paused_cct_sequence,
+            "paused_segment_sequence": self.paused_segment_sequence,
         }
 
 
@@ -215,6 +219,80 @@ class CCTSequence:
     """CCT dynamic effect sequence configuration."""
 
     steps: list[CCTSequenceStep]  # 1-20 steps
+    loop_mode: str  # "once", "count", "continuous"
+    loop_count: int | None = None  # Number of loops if mode is "count"
+    end_behavior: str = "maintain"  # "maintain" or "turn_off"
+
+    def __post_init__(self) -> None:
+        """Validate sequence parameters."""
+        if not (1 <= len(self.steps) <= 20):
+            msg = f"Sequence must have 1-20 steps, got {len(self.steps)}"
+            raise ValueError(msg)
+
+        if self.loop_mode not in ("once", "count", "continuous"):
+            msg = f"Loop mode must be 'once', 'count', or 'continuous', got {self.loop_mode}"
+            raise ValueError(msg)
+
+        if self.loop_mode == "count" and (
+            self.loop_count is None or self.loop_count < 1
+        ):
+            msg = "Loop count must be >= 1 when loop_mode is 'count'"
+            raise ValueError(msg)
+
+        if self.end_behavior not in ("maintain", "turn_off"):
+            msg = f"End behavior must be 'maintain' or 'turn_off', got {self.end_behavior}"
+            raise ValueError(msg)
+
+
+@dataclass
+class SegmentSequenceStep:
+    """Single step in an RGB segment sequence."""
+
+    segments: str  # Segment range: "1-20", "odd", "even", "1,5,10"
+    colors: list[RGBColor]  # 1-6 colors for blocks or gradient
+    mode: str  # "blocks_repeat", "blocks_expand", or "gradient"
+    duration: float  # Total time to activate all segments (seconds)
+    hold: float  # Hold time after activation completes before next step (seconds)
+    activation_pattern: str  # "all", "sequential_forward", "sequential_reverse", "random"
+
+    def __post_init__(self) -> None:
+        """Validate step parameters."""
+        if not (1 <= len(self.colors) <= 6):
+            msg = f"Step must have 1-6 colors, got {len(self.colors)}"
+            raise ValueError(msg)
+
+        if self.mode not in ("blocks_repeat", "blocks_expand", "gradient"):
+            msg = f"Mode must be 'blocks_repeat', 'blocks_expand', or 'gradient', got {self.mode}"
+            raise ValueError(msg)
+
+        if self.duration < 0:
+            msg = "Duration cannot be negative"
+            raise ValueError(msg)
+
+        if self.hold < 0:
+            msg = "Hold time cannot be negative"
+            raise ValueError(msg)
+
+        valid_patterns = (
+            "all",
+            "sequential_forward",
+            "sequential_reverse",
+            "random",
+            "ping_pong",
+            "center_out",
+            "edges_in",
+            "paired",
+        )
+        if self.activation_pattern not in valid_patterns:
+            msg = f"Activation pattern must be one of {valid_patterns}, got {self.activation_pattern}"
+            raise ValueError(msg)
+
+
+@dataclass
+class SegmentSequence:
+    """RGB segment sequence configuration."""
+
+    steps: list[SegmentSequenceStep]  # 1-20 steps
     loop_mode: str  # "once", "count", "continuous"
     loop_count: int | None = None  # Number of loops if mode is "count"
     end_behavior: str = "maintain"  # "maintain" or "turn_off"

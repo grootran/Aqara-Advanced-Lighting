@@ -19,6 +19,10 @@ SERVICE_START_CCT_SEQUENCE: Final = "start_cct_sequence"
 SERVICE_STOP_CCT_SEQUENCE: Final = "stop_cct_sequence"
 SERVICE_PAUSE_CCT_SEQUENCE: Final = "pause_cct_sequence"
 SERVICE_RESUME_CCT_SEQUENCE: Final = "resume_cct_sequence"
+SERVICE_START_SEGMENT_SEQUENCE: Final = "start_segment_sequence"
+SERVICE_STOP_SEGMENT_SEQUENCE: Final = "stop_segment_sequence"
+SERVICE_PAUSE_SEGMENT_SEQUENCE: Final = "pause_segment_sequence"
+SERVICE_RESUME_SEGMENT_SEQUENCE: Final = "resume_segment_sequence"
 
 # Group synchronization delay (seconds between commands for synced groups)
 GROUP_SYNC_DELAY: Final = 0.05
@@ -50,6 +54,9 @@ ATTR_LOOP_MODE: Final = "loop_mode"
 ATTR_LOOP_COUNT: Final = "loop_count"
 ATTR_END_BEHAVIOR: Final = "end_behavior"
 ATTR_RESTORE_STATE: Final = "restore_state"
+ATTR_MODE: Final = "mode"
+ATTR_DURATION: Final = "duration"
+ATTR_ACTIVATION_PATTERN: Final = "activation_pattern"
 
 # MQTT topics
 TOPIC_Z2M_BRIDGE_DEVICES: Final = "bridge/devices"
@@ -107,6 +114,27 @@ LOOP_MODE_CONTINUOUS: Final = "continuous"
 END_BEHAVIOR_MAINTAIN: Final = "maintain"
 END_BEHAVIOR_TURN_OFF: Final = "turn_off"
 
+# Segment sequence modes
+SEGMENT_MODE_BLOCKS_REPEAT: Final = "blocks_repeat"
+SEGMENT_MODE_BLOCKS_EXPAND: Final = "blocks_expand"
+SEGMENT_MODE_GRADIENT: Final = "gradient"
+
+# Segment sequence activation patterns
+ACTIVATION_ALL: Final = "all"
+ACTIVATION_SEQUENTIAL_FORWARD: Final = "sequential_forward"
+ACTIVATION_SEQUENTIAL_REVERSE: Final = "sequential_reverse"
+ACTIVATION_RANDOM: Final = "random"
+ACTIVATION_PING_PONG: Final = "ping_pong"
+ACTIVATION_CENTER_OUT: Final = "center_out"
+ACTIVATION_EDGES_IN: Final = "edges_in"
+ACTIVATION_PAIRED: Final = "paired"
+
+# Segment sequence constraints
+MIN_SEGMENT_COLORS: Final = 1
+MAX_SEGMENT_COLORS: Final = 6
+MIN_DURATION: Final = 0.0
+MAX_DURATION: Final = 3600.0  # 1 hour
+
 # Supported Aqara light models (Z2M model identifiers)
 # RGB + CCT models
 MODEL_T1M_20_SEGMENT: Final = "lumi.light.acn031"
@@ -159,6 +187,7 @@ DATA_STATE_MANAGER: Final = "state_manager"
 DATA_DEVICE_REGISTRY: Final = "device_registry"
 DATA_UNSUB: Final = "unsub"
 DATA_CCT_SEQUENCE_MANAGER: Final = "cct_sequence_manager"
+DATA_SEGMENT_SEQUENCE_MANAGER: Final = "segment_sequence_manager"
 
 # Event types for automation triggers
 EVENT_SEQUENCE_STARTED: Final = f"{DOMAIN}_sequence_started"
@@ -216,6 +245,7 @@ EFFECT_PRESETS: Final = {
     # T2 Bulb presets
     PRESET_T2_CANDLELIGHT: {
         "name": "T2: Candlelight",
+        "icon": "mdi:candle",
         "effect": EFFECT_T2_CANDLELIGHT,
         "colors": [[255, 125, 18]],
         "speed": 50,
@@ -224,6 +254,7 @@ EFFECT_PRESETS: Final = {
     },
     PRESET_T2_BREATH: {
         "name": "T2: Breath",
+        "icon": "mdi:meditation",
         "effect": EFFECT_T2_BREATHING,
         "colors": [[255, 125, 18]],
         "speed": 50,
@@ -232,6 +263,7 @@ EFFECT_PRESETS: Final = {
     },
     PRESET_T2_COLORFUL: {
         "name": "T2: Colorful",
+        "icon": "mdi:palette",
         "effect": EFFECT_T2_FADING,
         "colors": [
             [92, 87, 255],
@@ -248,6 +280,7 @@ EFFECT_PRESETS: Final = {
     },
     PRESET_T2_SECURITY: {
         "name": "T2: Security",
+        "icon": "mdi:shield-alert",
         "effect": EFFECT_T2_FLASH,
         "colors": [[255, 0, 0]],
         "speed": 100,
@@ -257,6 +290,7 @@ EFFECT_PRESETS: Final = {
     # T1M presets
     PRESET_T1M_DINNER: {
         "name": "T1M: Dinner",
+        "icon": "mdi:silverware-fork-knife",
         "effect": EFFECT_T1M_FLOW1,
         "colors": [[214, 235, 255], [92, 86, 255], [93, 0, 255]],
         "speed": 75,
@@ -265,6 +299,7 @@ EFFECT_PRESETS: Final = {
     },
     PRESET_T1M_SUNSET: {
         "name": "T1M: Sunset",
+        "icon": "mdi:weather-sunset",
         "effect": EFFECT_T1M_FLOW2,
         "colors": [[255, 0, 0], [255, 138, 138], [179, 191, 255], [0, 0, 255]],
         "speed": 10,
@@ -273,6 +308,7 @@ EFFECT_PRESETS: Final = {
     },
     PRESET_T1M_AUTUMN: {
         "name": "T1M: Autumn",
+        "icon": "mdi:leaf-maple",
         "effect": EFFECT_T1M_FLOW1,
         "colors": [[255, 71, 0], [255, 119, 0], [255, 154, 0], [255, 225, 0]],
         "speed": 60,
@@ -281,6 +317,7 @@ EFFECT_PRESETS: Final = {
     },
     PRESET_T1M_GALAXY: {
         "name": "T1M: Galaxy",
+        "icon": "mdi:star-circle",
         "effect": EFFECT_T1M_FADING,
         "colors": [[0, 137, 255], [198, 0, 255], [255, 0, 255], [0, 0, 255]],
         "speed": 40,
@@ -289,6 +326,7 @@ EFFECT_PRESETS: Final = {
     },
     PRESET_T1M_DAYDREAM: {
         "name": "T1M: Daydream",
+        "icon": "mdi:cloud",
         "effect": EFFECT_T1M_FADING,
         "colors": [[255, 0, 0], [255, 155, 143], [255, 0, 255], [255, 163, 249]],
         "speed": 70,
@@ -297,6 +335,7 @@ EFFECT_PRESETS: Final = {
     },
     PRESET_T1M_HOLIDAY: {
         "name": "T1M: Holiday",
+        "icon": "mdi:pine-tree",
         "effect": EFFECT_T1M_BREATHING,
         "colors": [[7, 255, 36], [255, 97, 0], [55, 184, 255], [0, 6, 255]],
         "speed": 10,
@@ -305,6 +344,7 @@ EFFECT_PRESETS: Final = {
     },
     PRESET_T1M_PARTY: {
         "name": "T1M: Party",
+        "icon": "mdi:party-popper",
         "effect": EFFECT_T1M_HOPPING,
         "colors": [[255, 0, 0], [255, 94, 0], [255, 255, 0], [255, 0, 255], [0, 255, 255], [0, 0, 255], [255, 0, 255]],
         "speed": 50,
@@ -313,6 +353,7 @@ EFFECT_PRESETS: Final = {
     },
     PRESET_T1M_METEOR: {
         "name": "T1M: Meteor",
+        "icon": "mdi:meteor",
         "effect": EFFECT_T1M_ROLLING,
         "colors": [[255, 148, 0], [89, 255, 0], [0, 255, 252], [175, 7, 255]],
         "speed": 50,
@@ -321,6 +362,7 @@ EFFECT_PRESETS: Final = {
     },
     PRESET_T1M_ALERT: {
         "name": "T1M: Alert",
+        "icon": "mdi:alert",
         "effect": EFFECT_T1M_HOPPING,
         "colors": [[255, 0, 0]],
         "speed": 100,
@@ -330,6 +372,7 @@ EFFECT_PRESETS: Final = {
     # T1 Strip presets (all use same decoded colors)
     PRESET_T1_STRIP_RAINBOW: {
         "name": "T1 Strip: Rainbow",
+        "icon": "mdi:rainbow",
         "effect": EFFECT_T1_RAINBOW1,
         "colors": [
             [255, 0, 0],      # Red
@@ -346,6 +389,7 @@ EFFECT_PRESETS: Final = {
     },
     PRESET_T1_STRIP_HEARTBEAT: {
         "name": "T1 Strip: Heartbeat",
+        "icon": "mdi:heart-pulse",
         "effect": EFFECT_T1_FLASH,
         "colors": [
             [139, 0, 0],      # Dark red
@@ -360,6 +404,7 @@ EFFECT_PRESETS: Final = {
     },
     PRESET_T1_STRIP_GALA: {
         "name": "T1 Strip: Gala",
+        "icon": "mdi:party-popper",
         "effect": EFFECT_T1_BREATHING,
         "colors": [
             [163, 214, 84],
@@ -376,6 +421,7 @@ EFFECT_PRESETS: Final = {
     },
     PRESET_T1_STRIP_SEA_OF_FLOWERS: {
         "name": "T1 Strip: Sea of flowers",
+        "icon": "mdi:flower",
         "effect": EFFECT_T1_CHASING,
         "colors": [
             [135, 206, 235],  # Sky blue
@@ -392,6 +438,7 @@ EFFECT_PRESETS: Final = {
     },
     PRESET_T1_STRIP_RHYTHMIC: {
         "name": "T1 Strip: Rhythmic",
+        "icon": "mdi:sine-wave",
         "effect": EFFECT_T1_HOPPING,
         "colors": [
             [255, 0, 0],      # Red
@@ -408,6 +455,7 @@ EFFECT_PRESETS: Final = {
     },
     PRESET_T1_STRIP_EXCITING: {
         "name": "T1 Strip: Exciting",
+        "icon": "mdi:flash",
         "effect": EFFECT_T1_FLICKER,
         "colors": [
             [255, 255, 255],  # White
@@ -420,6 +468,7 @@ EFFECT_PRESETS: Final = {
     },
     PRESET_T1_STRIP_COLORFUL: {
         "name": "T1 Strip: Colorful",
+        "icon": "mdi:palette",
         "effect": EFFECT_T1_RAINBOW2,
         "colors": [
             [255, 0, 0],      # Red
@@ -626,6 +675,7 @@ SEGMENT_PATTERN_PRESETS: Final = {
 CCT_SEQUENCE_PRESETS: Final = {
     PRESET_CCT_GOODNIGHT: {
         "name": "Goodnight",
+        "icon": "mdi:weather-night",
         "steps": [
             {
                 "color_temp": 4000,
@@ -645,6 +695,7 @@ CCT_SEQUENCE_PRESETS: Final = {
     },
     PRESET_CCT_WAKEUP: {
         "name": "Wakeup",
+        "icon": "mdi:weather-sunset-up",
         "steps": [
             {
                 "color_temp": 2700,
@@ -664,6 +715,7 @@ CCT_SEQUENCE_PRESETS: Final = {
     },
     PRESET_CCT_MINDFUL_BREATHING: {
         "name": "Mindful breathing",
+        "icon": "mdi:meditation",
         "steps": [
             {
                 "color_temp": 3500,
@@ -683,6 +735,7 @@ CCT_SEQUENCE_PRESETS: Final = {
     },
     PRESET_CCT_CIRCADIAN: {
         "name": "Circadian rhythm",
+        "icon": "mdi:sun-clock",
         "steps": [
             {
                 "color_temp": 2700,  # Warm morning light
@@ -717,6 +770,128 @@ CCT_SEQUENCE_PRESETS: Final = {
         ],
         "loop_mode": LOOP_MODE_ONCE,
         "end_behavior": END_BEHAVIOR_MAINTAIN,
+    },
+}
+
+# Segment sequence presets
+PRESET_SEGMENT_SEQ_LOADING_BAR: Final = "loading_bar"
+PRESET_SEGMENT_SEQ_WAVE: Final = "wave"
+PRESET_SEGMENT_SEQ_SPARKLE: Final = "sparkle"
+PRESET_SEGMENT_SEQ_THEATER_CHASE: Final = "theater_chase"
+PRESET_SEGMENT_SEQ_RAINBOW_FILL: Final = "rainbow_fill"
+PRESET_SEGMENT_SEQ_COMET: Final = "comet"
+
+SEGMENT_SEQUENCE_PRESETS: Final = {
+    PRESET_SEGMENT_SEQ_LOADING_BAR: {
+        "name": "Loading bar",
+        "icon": "mdi:progress-download",
+        "steps": [
+            {
+                "segments": "all",
+                "colors": [[0, 200, 255]],
+                "mode": SEGMENT_MODE_BLOCKS_REPEAT,
+                "duration": 3.0,
+                "hold": 2.0,
+                "activation_pattern": ACTIVATION_SEQUENTIAL_FORWARD,
+            },
+        ],
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_MAINTAIN,
+    },
+    PRESET_SEGMENT_SEQ_WAVE: {
+        "name": "Wave",
+        "icon": "mdi:wave",
+        "steps": [
+            {
+                "segments": "all",
+                "colors": [[255, 0, 100], [100, 0, 255]],
+                "mode": SEGMENT_MODE_GRADIENT,
+                "duration": 5.0,
+                "hold": 1.0,
+                "activation_pattern": ACTIVATION_SEQUENTIAL_FORWARD,
+            },
+            {
+                "segments": "all",
+                "colors": [[100, 0, 255], [255, 0, 100]],
+                "mode": SEGMENT_MODE_GRADIENT,
+                "duration": 5.0,
+                "hold": 1.0,
+                "activation_pattern": ACTIVATION_SEQUENTIAL_REVERSE,
+            },
+        ],
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_MAINTAIN,
+    },
+    PRESET_SEGMENT_SEQ_SPARKLE: {
+        "name": "Sparkle",
+        "icon": "mdi:star-four-points",
+        "steps": [
+            {
+                "segments": "all",
+                "colors": [[255, 255, 255], [255, 200, 0], [0, 0, 0]],
+                "mode": SEGMENT_MODE_BLOCKS_REPEAT,
+                "duration": 2.0,
+                "hold": 1.0,
+                "activation_pattern": ACTIVATION_RANDOM,
+            },
+        ],
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_TURN_OFF,
+    },
+    PRESET_SEGMENT_SEQ_THEATER_CHASE: {
+        "name": "Theater chase",
+        "icon": "mdi:theater",
+        "steps": [
+            {
+                "segments": "all",
+                "colors": [[255, 0, 0], [0, 0, 255], [0, 255, 0]],
+                "mode": SEGMENT_MODE_BLOCKS_REPEAT,
+                "duration": 3.0,
+                "hold": 0.5,
+                "activation_pattern": ACTIVATION_SEQUENTIAL_FORWARD,
+            },
+        ],
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_MAINTAIN,
+    },
+    PRESET_SEGMENT_SEQ_RAINBOW_FILL: {
+        "name": "Rainbow fill",
+        "icon": "mdi:format-color-fill",
+        "steps": [
+            {
+                "segments": "all",
+                "colors": [
+                    [255, 0, 0],
+                    [255, 127, 0],
+                    [255, 255, 0],
+                    [0, 255, 0],
+                    [0, 0, 255],
+                    [139, 0, 255],
+                ],
+                "mode": SEGMENT_MODE_GRADIENT,
+                "duration": 10.0,
+                "hold": 5.0,
+                "activation_pattern": ACTIVATION_ALL,
+            },
+        ],
+        "loop_mode": LOOP_MODE_ONCE,
+        "end_behavior": END_BEHAVIOR_MAINTAIN,
+    },
+    PRESET_SEGMENT_SEQ_COMET: {
+        "name": "Comet",
+        "icon": "mdi:meteor",
+        "steps": [
+            {
+                "segments": "all",
+                "colors": [[255, 255, 255], [100, 150, 255], [0, 50, 100], [0, 0, 0]],
+                "mode": SEGMENT_MODE_GRADIENT,
+                "duration": 4.0,
+                "hold": 0.5,
+                "activation_pattern": ACTIVATION_SEQUENTIAL_FORWARD,
+            },
+        ],
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_TURN_OFF,
     },
 }
 

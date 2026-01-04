@@ -35,6 +35,15 @@
     "cct_manager_not_initialized": {
       "message": "The CCT sequence manager is not initialized. Please reload the integration."
     },
+    "segment_manager_not_initialized": {
+      "message": "The RGB segment sequence manager is not initialized. Please reload the integration."
+    },
+    "device_no_segment_support": {
+      "message": "Device {entity_id} does not support RGB segment sequences. Only T1M ceiling lights and T1 LED strips support this feature."
+    },
+    "step_requires_colors": {
+      "message": "Step {step} requires at least one color. Please add color_1 for this step."
+    },
     "mqtt_client_not_initialized": {
       "message": "The MQTT client is not initialized. Please check your MQTT configuration and reload the integration."
     },
@@ -200,6 +209,70 @@
         "restore": {
           "name": "Restore previous state",
           "description": "Whether to restore the light to its pre-effect state."
+        }
+      }
+    },
+    "start_segment_sequence": {
+      "name": "Start RGB segment sequence",
+      "description": "Start a timed RGB segment sequence on T1M/T1 Strip lights with custom color activation patterns.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
+        },
+        "preset": {
+          "name": "Preset sequence",
+          "description": "Use a built-in preset sequence (loading_bar, wave, sparkle, theater_chase, rainbow_fill, comet)."
+        },
+        "turn_on": {
+          "name": "Turn on light",
+          "description": "Turn on the light before starting the sequence if it is currently off."
+        },
+        "sync": {
+          "name": "Synchronized start",
+          "description": "Start the sequence on all lights simultaneously (recommended for groups)."
+        },
+        "loop_mode": {
+          "name": "Loop mode",
+          "description": "How the sequence should loop (once, count, continuous)."
+        },
+        "loop_count": {
+          "name": "Loop count",
+          "description": "Number of times to loop the sequence (required when loop mode is count)."
+        },
+        "end_behavior": {
+          "name": "End behavior",
+          "description": "What to do when the sequence completes (maintain or turn_off)."
+        }
+      }
+    },
+    "stop_segment_sequence": {
+      "name": "Stop RGB segment sequence",
+      "description": "Stop a running RGB segment sequence on T1M/T1 Strip lights.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
+        }
+      }
+    },
+    "pause_segment_sequence": {
+      "name": "Pause RGB segment sequence",
+      "description": "Pause a running RGB segment sequence. The sequence will stop at its current state until resumed.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
+        }
+      }
+    },
+    "resume_segment_sequence": {
+      "name": "Resume RGB segment sequence",
+      "description": "Resume a paused RGB segment sequence. The sequence will continue from where it was paused.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
         }
       }
     }

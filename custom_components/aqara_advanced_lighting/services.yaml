@@ -491,7 +491,7 @@ create_blocks:
 
 start_cct_sequence:
   name: Start CCT sequence
-  description: Start a dynamic CCT (color temperature) sequence on Aqara lights. Use a preset sequence or define up to 20 custom steps with color temperature, brightness, transition, and hold time.
+  description: Start a dynamic CCT (color temperature) sequence on Aqara lights. Use a preset sequence or define up to 10 custom steps with color temperature, brightness, transition, and hold time. For 11-20 steps, use YAML mode.
   target:
     entity:
       domain: light
@@ -973,444 +973,6 @@ start_cct_sequence:
               step: 0.1
               unit_of_measurement: "s"
               mode: box
-    steps_11_to_15:
-      name: "Steps 11-15 (Optional)"
-      collapsed: true
-      fields:
-        step_11_color_temp:
-          name: "Step 11: Color temperature"
-          description: Color temperature in kelvin (2700-6500K).
-          required: false
-          selector:
-            number:
-              min: 2700
-              max: 6500
-              step: 100
-              unit_of_measurement: "K"
-              mode: slider
-        step_11_brightness:
-          name: "Step 11: Brightness"
-          description: Brightness level (1-100%).
-          required: false
-          selector:
-            number:
-              min: 1
-              max: 100
-              unit_of_measurement: "%"
-              mode: slider
-        step_11_transition:
-          name: "Step 11: Transition time"
-          description: Time in seconds to transition to this step's settings (0-3600).
-          required: false
-          selector:
-            number:
-              min: 0
-              max: 3600
-              step: 0.1
-              unit_of_measurement: "s"
-              mode: box
-        step_11_hold:
-          name: "Step 11: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
-          required: false
-          selector:
-            number:
-              min: 0
-              max: 3600
-              step: 0.1
-              unit_of_measurement: "s"
-              mode: box
-        step_12_color_temp:
-          name: "Step 12: Color temperature"
-          description: Color temperature in kelvin (2700-6500K).
-          required: false
-          selector:
-            number:
-              min: 2700
-              max: 6500
-              step: 100
-              unit_of_measurement: "K"
-              mode: slider
-        step_12_brightness:
-          name: "Step 12: Brightness"
-          description: Brightness level (1-100%).
-          required: false
-          selector:
-            number:
-              min: 1
-              max: 100
-              unit_of_measurement: "%"
-              mode: slider
-        step_12_transition:
-          name: "Step 12: Transition time"
-          description: Time in seconds to transition to this step's settings (0-3600).
-          required: false
-          selector:
-            number:
-              min: 0
-              max: 3600
-              step: 0.1
-              unit_of_measurement: "s"
-              mode: box
-        step_12_hold:
-          name: "Step 12: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
-          required: false
-          selector:
-            number:
-              min: 0
-              max: 3600
-              step: 0.1
-              unit_of_measurement: "s"
-              mode: box
-        step_13_color_temp:
-          name: "Step 13: Color temperature"
-          description: Color temperature in kelvin (2700-6500K).
-          required: false
-          selector:
-            number:
-              min: 2700
-              max: 6500
-              step: 100
-              unit_of_measurement: "K"
-              mode: slider
-        step_13_brightness:
-          name: "Step 13: Brightness"
-          description: Brightness level (1-100%).
-          required: false
-          selector:
-            number:
-              min: 1
-              max: 100
-              unit_of_measurement: "%"
-              mode: slider
-        step_13_transition:
-          name: "Step 13: Transition time"
-          description: Time in seconds to transition to this step's settings (0-3600).
-          required: false
-          selector:
-            number:
-              min: 0
-              max: 3600
-              step: 0.1
-              unit_of_measurement: "s"
-              mode: box
-        step_13_hold:
-          name: "Step 13: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
-          required: false
-          selector:
-            number:
-              min: 0
-              max: 3600
-              step: 0.1
-              unit_of_measurement: "s"
-              mode: box
-        step_14_color_temp:
-          name: "Step 14: Color temperature"
-          description: Color temperature in kelvin (2700-6500K).
-          required: false
-          selector:
-            number:
-              min: 2700
-              max: 6500
-              step: 100
-              unit_of_measurement: "K"
-              mode: slider
-        step_14_brightness:
-          name: "Step 14: Brightness"
-          description: Brightness level (1-100%).
-          required: false
-          selector:
-            number:
-              min: 1
-              max: 100
-              unit_of_measurement: "%"
-              mode: slider
-        step_14_transition:
-          name: "Step 14: Transition time"
-          description: Time in seconds to transition to this step's settings (0-3600).
-          required: false
-          selector:
-            number:
-              min: 0
-              max: 3600
-              step: 0.1
-              unit_of_measurement: "s"
-              mode: box
-        step_14_hold:
-          name: "Step 14: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
-          required: false
-          selector:
-            number:
-              min: 0
-              max: 3600
-              step: 0.1
-              unit_of_measurement: "s"
-              mode: box
-        step_15_color_temp:
-          name: "Step 15: Color temperature"
-          description: Color temperature in kelvin (2700-6500K).
-          required: false
-          selector:
-            number:
-              min: 2700
-              max: 6500
-              step: 100
-              unit_of_measurement: "K"
-              mode: slider
-        step_15_brightness:
-          name: "Step 15: Brightness"
-          description: Brightness level (1-100%).
-          required: false
-          selector:
-            number:
-              min: 1
-              max: 100
-              unit_of_measurement: "%"
-              mode: slider
-        step_15_transition:
-          name: "Step 15: Transition time"
-          description: Time in seconds to transition to this step's settings (0-3600).
-          required: false
-          selector:
-            number:
-              min: 0
-              max: 3600
-              step: 0.1
-              unit_of_measurement: "s"
-              mode: box
-        step_15_hold:
-          name: "Step 15: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
-          required: false
-          selector:
-            number:
-              min: 0
-              max: 3600
-              step: 0.1
-              unit_of_measurement: "s"
-              mode: box
-    steps_16_to_20:
-      name: "Steps 16-20 (Optional)"
-      collapsed: true
-      fields:
-        step_16_color_temp:
-          name: "Step 16: Color temperature"
-          description: Color temperature in kelvin (2700-6500K).
-          required: false
-          selector:
-            number:
-              min: 2700
-              max: 6500
-              step: 100
-              unit_of_measurement: "K"
-              mode: slider
-        step_16_brightness:
-          name: "Step 16: Brightness"
-          description: Brightness level (1-100%).
-          required: false
-          selector:
-            number:
-              min: 1
-              max: 100
-              unit_of_measurement: "%"
-              mode: slider
-        step_16_transition:
-          name: "Step 16: Transition time"
-          description: Time in seconds to transition to this step's settings (0-3600).
-          required: false
-          selector:
-            number:
-              min: 0
-              max: 3600
-              step: 0.1
-              unit_of_measurement: "s"
-              mode: box
-        step_16_hold:
-          name: "Step 16: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
-          required: false
-          selector:
-            number:
-              min: 0
-              max: 3600
-              step: 0.1
-              unit_of_measurement: "s"
-              mode: box
-        step_17_color_temp:
-          name: "Step 17: Color temperature"
-          description: Color temperature in kelvin (2700-6500K).
-          required: false
-          selector:
-            number:
-              min: 2700
-              max: 6500
-              step: 100
-              unit_of_measurement: "K"
-              mode: slider
-        step_17_brightness:
-          name: "Step 17: Brightness"
-          description: Brightness level (1-100%).
-          required: false
-          selector:
-            number:
-              min: 1
-              max: 100
-              unit_of_measurement: "%"
-              mode: slider
-        step_17_transition:
-          name: "Step 17: Transition time"
-          description: Time in seconds to transition to this step's settings (0-3600).
-          required: false
-          selector:
-            number:
-              min: 0
-              max: 3600
-              step: 0.1
-              unit_of_measurement: "s"
-              mode: box
-        step_17_hold:
-          name: "Step 17: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
-          required: false
-          selector:
-            number:
-              min: 0
-              max: 3600
-              step: 0.1
-              unit_of_measurement: "s"
-              mode: box
-        step_18_color_temp:
-          name: "Step 18: Color temperature"
-          description: Color temperature in kelvin (2700-6500K).
-          required: false
-          selector:
-            number:
-              min: 2700
-              max: 6500
-              step: 100
-              unit_of_measurement: "K"
-              mode: slider
-        step_18_brightness:
-          name: "Step 18: Brightness"
-          description: Brightness level (1-100%).
-          required: false
-          selector:
-            number:
-              min: 1
-              max: 100
-              unit_of_measurement: "%"
-              mode: slider
-        step_18_transition:
-          name: "Step 18: Transition time"
-          description: Time in seconds to transition to this step's settings (0-3600).
-          required: false
-          selector:
-            number:
-              min: 0
-              max: 3600
-              step: 0.1
-              unit_of_measurement: "s"
-              mode: box
-        step_18_hold:
-          name: "Step 18: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
-          required: false
-          selector:
-            number:
-              min: 0
-              max: 3600
-              step: 0.1
-              unit_of_measurement: "s"
-              mode: box
-        step_19_color_temp:
-          name: "Step 19: Color temperature"
-          description: Color temperature in kelvin (2700-6500K).
-          required: false
-          selector:
-            number:
-              min: 2700
-              max: 6500
-              step: 100
-              unit_of_measurement: "K"
-              mode: slider
-        step_19_brightness:
-          name: "Step 19: Brightness"
-          description: Brightness level (1-100%).
-          required: false
-          selector:
-            number:
-              min: 1
-              max: 100
-              unit_of_measurement: "%"
-              mode: slider
-        step_19_transition:
-          name: "Step 19: Transition time"
-          description: Time in seconds to transition to this step's settings (0-3600).
-          required: false
-          selector:
-            number:
-              min: 0
-              max: 3600
-              step: 0.1
-              unit_of_measurement: "s"
-              mode: box
-        step_19_hold:
-          name: "Step 19: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
-          required: false
-          selector:
-            number:
-              min: 0
-              max: 3600
-              step: 0.1
-              unit_of_measurement: "s"
-              mode: box
-        step_20_color_temp:
-          name: "Step 20: Color temperature"
-          description: Color temperature in kelvin (2700-6500K).
-          required: false
-          selector:
-            number:
-              min: 2700
-              max: 6500
-              step: 100
-              unit_of_measurement: "K"
-              mode: slider
-        step_20_brightness:
-          name: "Step 20: Brightness"
-          description: Brightness level (1-100%).
-          required: false
-          selector:
-            number:
-              min: 1
-              max: 100
-              unit_of_measurement: "%"
-              mode: slider
-        step_20_transition:
-          name: "Step 20: Transition time"
-          description: Time in seconds to transition to this step's settings (0-3600).
-          required: false
-          selector:
-            number:
-              min: 0
-              max: 3600
-              step: 0.1
-              unit_of_measurement: "s"
-              mode: box
-        step_20_hold:
-          name: "Step 20: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
-          required: false
-          selector:
-            number:
-              min: 0
-              max: 3600
-              step: 0.1
-              unit_of_measurement: "s"
-              mode: box
     loop_mode:
       name: Loop mode
       description: How the sequence should loop.
@@ -1467,6 +1029,1121 @@ pause_cct_sequence:
 resume_cct_sequence:
   name: Resume CCT sequence
   description: Resume a paused CCT sequence on Aqara lights. The sequence will continue from where it was paused.
+  target:
+    entity:
+      domain: light
+      integration: mqtt
+start_segment_sequence:
+  name: Start RGB segment sequence
+  description: Start a timed RGB segment sequence on T1M/T1 Strip lights. Create dynamic patterns with custom color activation over time. Use presets or build custom sequences with up to 10 steps. For 11-20 steps, use YAML mode.
+  target:
+    entity:
+      domain: light
+      integration: mqtt
+  fields:
+    preset:
+      name: Preset sequence
+      description: Choose a preset segment sequence. When selected, manual step parameters are ignored.
+      required: false
+      selector:
+        select:
+          options:
+            - label: "Loading bar"
+              value: "loading_bar"
+            - label: "Wave"
+              value: "wave"
+            - label: "Sparkle"
+              value: "sparkle"
+            - label: "Theater chase"
+              value: "theater_chase"
+            - label: "Rainbow fill"
+              value: "rainbow_fill"
+            - label: "Comet"
+              value: "comet"
+          mode: dropdown
+    turn_on:
+      name: Turn on light
+      description: Turn on the light before starting the sequence if it is currently off.
+      required: false
+      default: false
+      selector:
+        boolean:
+    sync:
+      name: Synchronized start
+      description: Start the sequence on all lights simultaneously (recommended for groups).
+      required: false
+      default: true
+      selector:
+        boolean:
+    step_1:
+      name: "Step 1 (Required)"
+      collapsed: false
+      fields:
+        step_1_segments:
+          name: "Segments"
+          description: Segment range to control (e.g., "1-20", "odd", "even", "1,5,10", "all").
+          required: false
+          example: "all"
+          selector:
+            text:
+        step_1_mode:
+          name: "Color mode"
+          description: How to apply colors to segments.
+          required: false
+          selector:
+            select:
+              options:
+                - label: "Blocks (repeat)"
+                  value: "blocks_repeat"
+                - label: "Blocks (expand)"
+                  value: "blocks_expand"
+                - label: "Gradient"
+                  value: "gradient"
+        step_1_color_1:
+          name: "Color 1"
+          description: First color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_1_color_2:
+          name: "Color 2"
+          description: Second color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_1_color_3:
+          name: "Color 3"
+          description: Third color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_1_color_4:
+          name: "Color 4"
+          description: Fourth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_1_color_5:
+          name: "Color 5"
+          description: Fifth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_1_color_6:
+          name: "Color 6"
+          description: Sixth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_1_duration:
+          name: "Duration"
+          description: Total time to activate all segments in this step (0-3600 seconds).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_1_hold:
+          name: "Hold time"
+          description: Time to hold after activation completes before next step (0-3600 seconds).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_1_activation_pattern:
+          name: "Activation pattern"
+          description: How segments activate during the duration time.
+          required: false
+          selector:
+            select:
+              options:
+                - label: "All at once"
+                  value: "all"
+                - label: "Sequential forward"
+                  value: "sequential_forward"
+                - label: "Sequential reverse"
+                  value: "sequential_reverse"
+                - label: "Random"
+                  value: "random"
+                - label: "Ping pong"
+                  value: "ping_pong"
+                - label: "Center out"
+                  value: "center_out"
+                - label: "Edges in"
+                  value: "edges_in"
+                - label: "Paired"
+                  value: "paired"
+    steps_2_to_5:
+      name: "Steps 2-5 (Optional)"
+      collapsed: true
+      fields:
+        step_2_segments:
+          name: "Step 2: Segments"
+          description: Segment range to control (e.g., "1-20", "odd", "even", "1,5,10", "all").
+          required: false
+          selector:
+            text:
+        step_2_mode:
+          name: "Step 2: Color mode"
+          description: How to apply colors to segments.
+          required: false
+          selector:
+            select:
+              options:
+                - label: "Blocks (repeat)"
+                  value: "blocks_repeat"
+                - label: "Blocks (expand)"
+                  value: "blocks_expand"
+                - label: "Gradient"
+                  value: "gradient"
+        step_2_color_1:
+          name: "Step 2: Color 1"
+          description: First color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_2_color_2:
+          name: "Step 2: Color 2"
+          description: Second color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_2_color_3:
+          name: "Step 2: Color 3"
+          description: Third color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_2_color_4:
+          name: "Step 2: Color 4"
+          description: Fourth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_2_color_5:
+          name: "Step 2: Color 5"
+          description: Fifth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_2_color_6:
+          name: "Step 2: Color 6"
+          description: Sixth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_2_duration:
+          name: "Step 2: Duration"
+          description: Total time to activate all segments in this step (0-3600 seconds).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_2_hold:
+          name: "Step 2: Hold time"
+          description: Time to hold after activation completes before next step (0-3600 seconds).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_2_activation_pattern:
+          name: "Step 2: Activation pattern"
+          description: How segments activate during the duration time.
+          required: false
+          selector:
+            select:
+              options:
+                - label: "All at once"
+                  value: "all"
+                - label: "Sequential forward"
+                  value: "sequential_forward"
+                - label: "Sequential reverse"
+                  value: "sequential_reverse"
+                - label: "Random"
+                  value: "random"
+                - label: "Ping pong"
+                  value: "ping_pong"
+                - label: "Center out"
+                  value: "center_out"
+                - label: "Edges in"
+                  value: "edges_in"
+                - label: "Paired"
+                  value: "paired"
+        step_3_segments:
+          name: "Step 3: Segments"
+          description: Segment range to control (e.g., "1-20", "odd", "even", "1,5,10", "all").
+          required: false
+          selector:
+            text:
+        step_3_mode:
+          name: "Step 3: Color mode"
+          description: How to apply colors to segments.
+          required: false
+          selector:
+            select:
+              options:
+                - label: "Blocks (repeat)"
+                  value: "blocks_repeat"
+                - label: "Blocks (expand)"
+                  value: "blocks_expand"
+                - label: "Gradient"
+                  value: "gradient"
+        step_3_color_1:
+          name: "Step 3: Color 1"
+          description: First color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_3_color_2:
+          name: "Step 3: Color 2"
+          description: Second color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_3_color_3:
+          name: "Step 3: Color 3"
+          description: Third color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_3_color_4:
+          name: "Step 3: Color 4"
+          description: Fourth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_3_color_5:
+          name: "Step 3: Color 5"
+          description: Fifth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_3_color_6:
+          name: "Step 3: Color 6"
+          description: Sixth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_3_duration:
+          name: "Step 3: Duration"
+          description: Total time to activate all segments in this step (0-3600 seconds).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_3_hold:
+          name: "Step 3: Hold time"
+          description: Time to hold after activation completes before next step (0-3600 seconds).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_3_activation_pattern:
+          name: "Step 3: Activation pattern"
+          description: How segments activate during the duration time.
+          required: false
+          selector:
+            select:
+              options:
+                - label: "All at once"
+                  value: "all"
+                - label: "Sequential forward"
+                  value: "sequential_forward"
+                - label: "Sequential reverse"
+                  value: "sequential_reverse"
+                - label: "Random"
+                  value: "random"
+                - label: "Ping pong"
+                  value: "ping_pong"
+                - label: "Center out"
+                  value: "center_out"
+                - label: "Edges in"
+                  value: "edges_in"
+                - label: "Paired"
+                  value: "paired"
+        step_4_segments:
+          name: "Step 4: Segments"
+          description: Segment range to control (e.g., "1-20", "odd", "even", "1,5,10", "all").
+          required: false
+          selector:
+            text:
+        step_4_mode:
+          name: "Step 4: Color mode"
+          description: How to apply colors to segments.
+          required: false
+          selector:
+            select:
+              options:
+                - label: "Blocks (repeat)"
+                  value: "blocks_repeat"
+                - label: "Blocks (expand)"
+                  value: "blocks_expand"
+                - label: "Gradient"
+                  value: "gradient"
+        step_4_color_1:
+          name: "Step 4: Color 1"
+          description: First color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_4_color_2:
+          name: "Step 4: Color 2"
+          description: Second color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_4_color_3:
+          name: "Step 4: Color 3"
+          description: Third color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_4_color_4:
+          name: "Step 4: Color 4"
+          description: Fourth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_4_color_5:
+          name: "Step 4: Color 5"
+          description: Fifth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_4_color_6:
+          name: "Step 4: Color 6"
+          description: Sixth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_4_duration:
+          name: "Step 4: Duration"
+          description: Total time to activate all segments in this step (0-3600 seconds).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_4_hold:
+          name: "Step 4: Hold time"
+          description: Time to hold after activation completes before next step (0-3600 seconds).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_4_activation_pattern:
+          name: "Step 4: Activation pattern"
+          description: How segments activate during the duration time.
+          required: false
+          selector:
+            select:
+              options:
+                - label: "All at once"
+                  value: "all"
+                - label: "Sequential forward"
+                  value: "sequential_forward"
+                - label: "Sequential reverse"
+                  value: "sequential_reverse"
+                - label: "Random"
+                  value: "random"
+                - label: "Ping pong"
+                  value: "ping_pong"
+                - label: "Center out"
+                  value: "center_out"
+                - label: "Edges in"
+                  value: "edges_in"
+                - label: "Paired"
+                  value: "paired"
+        step_5_segments:
+          name: "Step 5: Segments"
+          description: Segment range to control (e.g., "1-20", "odd", "even", "1,5,10", "all").
+          required: false
+          selector:
+            text:
+        step_5_mode:
+          name: "Step 5: Color mode"
+          description: How to apply colors to segments.
+          required: false
+          selector:
+            select:
+              options:
+                - label: "Blocks (repeat)"
+                  value: "blocks_repeat"
+                - label: "Blocks (expand)"
+                  value: "blocks_expand"
+                - label: "Gradient"
+                  value: "gradient"
+        step_5_color_1:
+          name: "Step 5: Color 1"
+          description: First color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_5_color_2:
+          name: "Step 5: Color 2"
+          description: Second color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_5_color_3:
+          name: "Step 5: Color 3"
+          description: Third color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_5_color_4:
+          name: "Step 5: Color 4"
+          description: Fourth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_5_color_5:
+          name: "Step 5: Color 5"
+          description: Fifth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_5_color_6:
+          name: "Step 5: Color 6"
+          description: Sixth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_5_duration:
+          name: "Step 5: Duration"
+          description: Total time to activate all segments in this step (0-3600 seconds).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_5_hold:
+          name: "Step 5: Hold time"
+          description: Time to hold after activation completes before next step (0-3600 seconds).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_5_activation_pattern:
+          name: "Step 5: Activation pattern"
+          description: How segments activate during the duration time.
+          required: false
+          selector:
+            select:
+              options:
+                - label: "All at once"
+                  value: "all"
+                - label: "Sequential forward"
+                  value: "sequential_forward"
+                - label: "Sequential reverse"
+                  value: "sequential_reverse"
+                - label: "Random"
+                  value: "random"
+                - label: "Ping pong"
+                  value: "ping_pong"
+                - label: "Center out"
+                  value: "center_out"
+                - label: "Edges in"
+                  value: "edges_in"
+                - label: "Paired"
+                  value: "paired"
+    steps_6_to_10:
+      name: "Steps 6-10 (Optional)"
+      collapsed: true
+      fields:
+        step_6_segments:
+          name: "Step 6: Segments"
+          description: Segment range to control (e.g., "1-20", "odd", "even", "1,5,10", "all").
+          required: false
+          selector:
+            text:
+        step_6_mode:
+          name: "Step 6: Color mode"
+          description: How to apply colors to segments.
+          required: false
+          selector:
+            select:
+              options:
+                - label: "Blocks (repeat)"
+                  value: "blocks_repeat"
+                - label: "Blocks (expand)"
+                  value: "blocks_expand"
+                - label: "Gradient"
+                  value: "gradient"
+        step_6_color_1:
+          name: "Step 6: Color 1"
+          description: First color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_6_color_2:
+          name: "Step 6: Color 2"
+          description: Second color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_6_color_3:
+          name: "Step 6: Color 3"
+          description: Third color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_6_color_4:
+          name: "Step 6: Color 4"
+          description: Fourth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_6_color_5:
+          name: "Step 6: Color 5"
+          description: Fifth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_6_color_6:
+          name: "Step 6: Color 6"
+          description: Sixth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_6_duration:
+          name: "Step 6: Duration"
+          description: Total time to activate all segments in this step (0-3600 seconds).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_6_hold:
+          name: "Step 6: Hold time"
+          description: Time to hold after activation completes before next step (0-3600 seconds).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_6_activation_pattern:
+          name: "Step 6: Activation pattern"
+          description: How segments activate during the duration time.
+          required: false
+          selector:
+            select:
+              options:
+                - label: "All at once"
+                  value: "all"
+                - label: "Sequential forward"
+                  value: "sequential_forward"
+                - label: "Sequential reverse"
+                  value: "sequential_reverse"
+                - label: "Random"
+                  value: "random"
+                - label: "Ping pong"
+                  value: "ping_pong"
+                - label: "Center out"
+                  value: "center_out"
+                - label: "Edges in"
+                  value: "edges_in"
+                - label: "Paired"
+                  value: "paired"
+        step_7_segments:
+          name: "Step 7: Segments"
+          description: Segment range to control (e.g., "1-20", "odd", "even", "1,5,10", "all").
+          required: false
+          selector:
+            text:
+        step_7_mode:
+          name: "Step 7: Color mode"
+          description: How to apply colors to segments.
+          required: false
+          selector:
+            select:
+              options:
+                - label: "Blocks (repeat)"
+                  value: "blocks_repeat"
+                - label: "Blocks (expand)"
+                  value: "blocks_expand"
+                - label: "Gradient"
+                  value: "gradient"
+        step_7_color_1:
+          name: "Step 7: Color 1"
+          description: First color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_7_color_2:
+          name: "Step 7: Color 2"
+          description: Second color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_7_color_3:
+          name: "Step 7: Color 3"
+          description: Third color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_7_color_4:
+          name: "Step 7: Color 4"
+          description: Fourth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_7_color_5:
+          name: "Step 7: Color 5"
+          description: Fifth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_7_color_6:
+          name: "Step 7: Color 6"
+          description: Sixth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_7_duration:
+          name: "Step 7: Duration"
+          description: Total time to activate all segments in this step (0-3600 seconds).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_7_hold:
+          name: "Step 7: Hold time"
+          description: Time to hold after activation completes before next step (0-3600 seconds).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_7_activation_pattern:
+          name: "Step 7: Activation pattern"
+          description: How segments activate during the duration time.
+          required: false
+          selector:
+            select:
+              options:
+                - label: "All at once"
+                  value: "all"
+                - label: "Sequential forward"
+                  value: "sequential_forward"
+                - label: "Sequential reverse"
+                  value: "sequential_reverse"
+                - label: "Random"
+                  value: "random"
+                - label: "Ping pong"
+                  value: "ping_pong"
+                - label: "Center out"
+                  value: "center_out"
+                - label: "Edges in"
+                  value: "edges_in"
+                - label: "Paired"
+                  value: "paired"
+        step_8_segments:
+          name: "Step 8: Segments"
+          description: Segment range to control (e.g., "1-20", "odd", "even", "1,5,10", "all").
+          required: false
+          selector:
+            text:
+        step_8_mode:
+          name: "Step 8: Color mode"
+          description: How to apply colors to segments.
+          required: false
+          selector:
+            select:
+              options:
+                - label: "Blocks (repeat)"
+                  value: "blocks_repeat"
+                - label: "Blocks (expand)"
+                  value: "blocks_expand"
+                - label: "Gradient"
+                  value: "gradient"
+        step_8_color_1:
+          name: "Step 8: Color 1"
+          description: First color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_8_color_2:
+          name: "Step 8: Color 2"
+          description: Second color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_8_color_3:
+          name: "Step 8: Color 3"
+          description: Third color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_8_color_4:
+          name: "Step 8: Color 4"
+          description: Fourth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_8_color_5:
+          name: "Step 8: Color 5"
+          description: Fifth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_8_color_6:
+          name: "Step 8: Color 6"
+          description: Sixth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_8_duration:
+          name: "Step 8: Duration"
+          description: Total time to activate all segments in this step (0-3600 seconds).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_8_hold:
+          name: "Step 8: Hold time"
+          description: Time to hold after activation completes before next step (0-3600 seconds).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_8_activation_pattern:
+          name: "Step 8: Activation pattern"
+          description: How segments activate during the duration time.
+          required: false
+          selector:
+            select:
+              options:
+                - label: "All at once"
+                  value: "all"
+                - label: "Sequential forward"
+                  value: "sequential_forward"
+                - label: "Sequential reverse"
+                  value: "sequential_reverse"
+                - label: "Random"
+                  value: "random"
+                - label: "Ping pong"
+                  value: "ping_pong"
+                - label: "Center out"
+                  value: "center_out"
+                - label: "Edges in"
+                  value: "edges_in"
+                - label: "Paired"
+                  value: "paired"
+        step_9_segments:
+          name: "Step 9: Segments"
+          description: Segment range to control (e.g., "1-20", "odd", "even", "1,5,10", "all").
+          required: false
+          selector:
+            text:
+        step_9_mode:
+          name: "Step 9: Color mode"
+          description: How to apply colors to segments.
+          required: false
+          selector:
+            select:
+              options:
+                - label: "Blocks (repeat)"
+                  value: "blocks_repeat"
+                - label: "Blocks (expand)"
+                  value: "blocks_expand"
+                - label: "Gradient"
+                  value: "gradient"
+        step_9_color_1:
+          name: "Step 9: Color 1"
+          description: First color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_9_color_2:
+          name: "Step 9: Color 2"
+          description: Second color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_9_color_3:
+          name: "Step 9: Color 3"
+          description: Third color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_9_color_4:
+          name: "Step 9: Color 4"
+          description: Fourth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_9_color_5:
+          name: "Step 9: Color 5"
+          description: Fifth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_9_color_6:
+          name: "Step 9: Color 6"
+          description: Sixth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_9_duration:
+          name: "Step 9: Duration"
+          description: Total time to activate all segments in this step (0-3600 seconds).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_9_hold:
+          name: "Step 9: Hold time"
+          description: Time to hold after activation completes before next step (0-3600 seconds).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_9_activation_pattern:
+          name: "Step 9: Activation pattern"
+          description: How segments activate during the duration time.
+          required: false
+          selector:
+            select:
+              options:
+                - label: "All at once"
+                  value: "all"
+                - label: "Sequential forward"
+                  value: "sequential_forward"
+                - label: "Sequential reverse"
+                  value: "sequential_reverse"
+                - label: "Random"
+                  value: "random"
+                - label: "Ping pong"
+                  value: "ping_pong"
+                - label: "Center out"
+                  value: "center_out"
+                - label: "Edges in"
+                  value: "edges_in"
+                - label: "Paired"
+                  value: "paired"
+        step_10_segments:
+          name: "Step 10: Segments"
+          description: Segment range to control (e.g., "1-20", "odd", "even", "1,5,10", "all").
+          required: false
+          selector:
+            text:
+        step_10_mode:
+          name: "Step 10: Color mode"
+          description: How to apply colors to segments.
+          required: false
+          selector:
+            select:
+              options:
+                - label: "Blocks (repeat)"
+                  value: "blocks_repeat"
+                - label: "Blocks (expand)"
+                  value: "blocks_expand"
+                - label: "Gradient"
+                  value: "gradient"
+        step_10_color_1:
+          name: "Step 10: Color 1"
+          description: First color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_10_color_2:
+          name: "Step 10: Color 2"
+          description: Second color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_10_color_3:
+          name: "Step 10: Color 3"
+          description: Third color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_10_color_4:
+          name: "Step 10: Color 4"
+          description: Fourth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_10_color_5:
+          name: "Step 10: Color 5"
+          description: Fifth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_10_color_6:
+          name: "Step 10: Color 6"
+          description: Sixth color for this step.
+          required: false
+          selector:
+            color_rgb:
+        step_10_duration:
+          name: "Step 10: Duration"
+          description: Total time to activate all segments in this step (0-3600 seconds).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_10_hold:
+          name: "Step 10: Hold time"
+          description: Time to hold after activation completes before next step (0-3600 seconds).
+          required: false
+          selector:
+            number:
+              min: 0
+              max: 3600
+              step: 0.1
+              unit_of_measurement: "s"
+              mode: box
+        step_10_activation_pattern:
+          name: "Step 10: Activation pattern"
+          description: How segments activate during the duration time.
+          required: false
+          selector:
+            select:
+              options:
+                - label: "All at once"
+                  value: "all"
+                - label: "Sequential forward"
+                  value: "sequential_forward"
+                - label: "Sequential reverse"
+                  value: "sequential_reverse"
+                - label: "Random"
+                  value: "random"
+                - label: "Ping pong"
+                  value: "ping_pong"
+                - label: "Center out"
+                  value: "center_out"
+                - label: "Edges in"
+                  value: "edges_in"
+                - label: "Paired"
+                  value: "paired"
+    loop_mode:
+      name: Loop mode
+      description: How the sequence should loop.
+      required: false
+      default: "once"
+      selector:
+        select:
+          options:
+            - label: "Run once"
+              value: "once"
+            - label: "Loop X times"
+              value: "count"
+            - label: "Continuous loop"
+              value: "continuous"
+    loop_count:
+      name: Loop count
+      description: Number of times to loop the sequence (required when loop mode is 'Loop X times').
+      required: false
+      example: 5
+      selector:
+        number:
+          min: 1
+          max: 1000
+          mode: box
+    end_behavior:
+      name: End behavior
+      description: What to do when the sequence completes.
+      required: false
+      default: "maintain"
+      selector:
+        select:
+          options:
+            - label: "Maintain last state"
+              value: "maintain"
+            - label: "Turn off light"
+              value: "turn_off"
+
+stop_segment_sequence:
+  name: Stop RGB segment sequence
+  description: Stop a running RGB segment sequence on T1M/T1 Strip lights.
+  target:
+    entity:
+      domain: light
+      integration: mqtt
+
+pause_segment_sequence:
+  name: Pause RGB segment sequence
+  description: Pause a running RGB segment sequence on T1M/T1 Strip lights. The sequence will stop at its current state until resumed.
+  target:
+    entity:
+      domain: light
+      integration: mqtt
+
+resume_segment_sequence:
+  name: Resume RGB segment sequence
+  description: Resume a paused RGB segment sequence on T1M/T1 Strip lights. The sequence will continue from where it was paused.
   target:
     entity:
       domain: light

@@ -15,11 +15,14 @@ from .cct_sequence_manager import CCTSequenceManager
 from .const import (
     CONF_Z2M_BASE_TOPIC,
     DATA_CCT_SEQUENCE_MANAGER,
+    DATA_SEGMENT_SEQUENCE_MANAGER,
     DEFAULT_Z2M_BASE_TOPIC,
     DOMAIN,
 )
+from .segment_sequence_manager import SegmentSequenceManager
 from .models import AqaraLightingConfigEntry, AqaraLightingRuntimeData
 from .mqtt_client import MQTTClient
+from .panel import async_register_panel
 from .services import async_setup_services, async_unload_services
 from .state_manager import StateManager
 
@@ -37,6 +40,9 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
     # Register services
     await async_setup_services(hass)
+
+    # Register sidebar panel
+    await async_register_panel(hass)
 
     return True
 
@@ -80,6 +86,9 @@ async def async_setup_entry(
     # Initialize CCT sequence manager (needs mqtt_client for direct Z2M communication)
     cct_sequence_manager = CCTSequenceManager(hass, mqtt_client)
 
+    # Initialize segment sequence manager (needs mqtt_client for direct Z2M communication)
+    segment_sequence_manager = SegmentSequenceManager(hass, mqtt_client)
+
     # Store components in hass.data for service access
     # Ensure DOMAIN key exists in hass.data
     if DOMAIN not in hass.data:
@@ -88,6 +97,7 @@ async def async_setup_entry(
     hass.data[DOMAIN]["mqtt_client"] = mqtt_client
     hass.data[DOMAIN]["state_manager"] = state_manager
     hass.data[DOMAIN][DATA_CCT_SEQUENCE_MANAGER] = cct_sequence_manager
+    hass.data[DOMAIN][DATA_SEGMENT_SEQUENCE_MANAGER] = segment_sequence_manager
 
     _LOGGER.info("Aqara Advanced Lighting integration setup complete")
 
@@ -99,6 +109,21 @@ async def async_unload_entry(
 ) -> bool:
     """Unload a config entry."""
     _LOGGER.info("Unloading Aqara Advanced Lighting integration")
+
+    # Get managers from hass.data and cleanup
+    cct_manager = hass.data[DOMAIN].get(DATA_CCT_SEQUENCE_MANAGER)
+    if cct_manager:
+        # Stop all running sequences
+        await cct_manager.stop_all_sequences()
+        # Cleanup state listeners
+        cct_manager.cleanup()
+
+    segment_manager = hass.data[DOMAIN].get(DATA_SEGMENT_SEQUENCE_MANAGER)
+    if segment_manager:
+        # Stop all running sequences
+        await segment_manager.stop_all_sequences()
+        # Cleanup state listeners
+        segment_manager.cleanup()
 
     # Get MQTT client from hass.data
     mqtt_client = hass.data[DOMAIN].get("mqtt_client")
@@ -112,6 +137,8 @@ async def async_unload_entry(
         del hass.data[DOMAIN]["state_manager"]
     if DATA_CCT_SEQUENCE_MANAGER in hass.data[DOMAIN]:
         del hass.data[DOMAIN][DATA_CCT_SEQUENCE_MANAGER]
+    if DATA_SEGMENT_SEQUENCE_MANAGER in hass.data[DOMAIN]:
+        del hass.data[DOMAIN][DATA_SEGMENT_SEQUENCE_MANAGER]
 
     # Check if this is the last config entry
     remaining_entries = [

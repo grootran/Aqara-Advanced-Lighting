@@ -41,6 +41,46 @@ class CCTSequenceManager:
         self._sequence_ids: dict[str, str] = {}  # entity_id -> sequence_id
         self._pause_flags: dict[str, asyncio.Event] = {}  # entity_id -> pause event
         self._sequence_state: dict[str, dict] = {}  # entity_id -> state info
+        self._state_listener_remove = None  # State change listener cleanup function
+
+        # Setup state change listener to stop sequences when lights turn off
+        self._setup_state_listener()
+
+    def _setup_state_listener(self) -> None:
+        """Setup state change listener to monitor light entities."""
+        from homeassistant.core import callback
+        from homeassistant.const import STATE_OFF
+
+        @callback
+        def _async_state_changed_listener(event):
+            """Handle state changes for light entities."""
+            entity_id = event.data.get("entity_id")
+            new_state = event.data.get("new_state")
+
+            # Check if entity has a running sequence and is now off
+            if (
+                entity_id
+                and new_state
+                and new_state.state == STATE_OFF
+                and self.is_sequence_running(entity_id)
+            ):
+                _LOGGER.debug(
+                    "Light %s turned off, stopping CCT sequence", entity_id
+                )
+                # Stop sequence asynchronously
+                self.hass.async_create_task(self.stop_sequence(entity_id))
+
+        # Register the listener for state changes
+        self._state_listener_remove = self.hass.bus.async_listen(
+            "state_changed", _async_state_changed_listener
+        )
+
+    def cleanup(self) -> None:
+        """Cleanup resources and remove listeners."""
+        # Remove state change listener
+        if self._state_listener_remove:
+            self._state_listener_remove()
+            self._state_listener_remove = None
 
     async def start_sequence(
         self, entity_id: str, sequence: CCTSequence

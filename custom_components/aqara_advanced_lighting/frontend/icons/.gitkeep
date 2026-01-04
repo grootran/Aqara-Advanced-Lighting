@@ -1,0 +1,2 @@
+# This directory contains preset icons (SVG, PNG, etc.)
+# Icons are served via /api/aqara_advanced_lighting/icons/{filename}

@@ -14,6 +14,15 @@ from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
 from .const import (
+    ACTIVATION_ALL,
+    ACTIVATION_CENTER_OUT,
+    ACTIVATION_EDGES_IN,
+    ACTIVATION_PAIRED,
+    ACTIVATION_PING_PONG,
+    ACTIVATION_RANDOM,
+    ACTIVATION_SEQUENTIAL_FORWARD,
+    ACTIVATION_SEQUENTIAL_REVERSE,
+    ATTR_ACTIVATION_PATTERN,
     ATTR_BRIGHTNESS,
     ATTR_COLOR_1,
     ATTR_COLOR_2,
@@ -24,12 +33,14 @@ from .const import (
     ATTR_COLOR_7,
     ATTR_COLOR_8,
     ATTR_COLOR_TEMP,
+    ATTR_DURATION,
     ATTR_EFFECT,
     ATTR_END_BEHAVIOR,
     ATTR_EXPAND,
     ATTR_HOLD,
     ATTR_LOOP_COUNT,
     ATTR_LOOP_MODE,
+    ATTR_MODE,
     ATTR_PRESET,
     ATTR_RESTORE_STATE,
     ATTR_SEGMENT_COLORS,
@@ -42,9 +53,9 @@ from .const import (
     ATTR_TURN_ON,
     CCT_SEQUENCE_PRESETS,
     DATA_CCT_SEQUENCE_MANAGER,
+    DATA_SEGMENT_SEQUENCE_MANAGER,
     DOMAIN,
     EFFECT_PRESETS,
-    SEGMENT_PATTERN_PRESETS,
     END_BEHAVIOR_MAINTAIN,
     END_BEHAVIOR_TURN_OFF,
     EVENT_ATTR_EFFECT_TYPE,
@@ -57,35 +68,47 @@ from .const import (
     LOOP_MODE_ONCE,
     MAX_BRIGHTNESS_PERCENT,
     MAX_COLOR_TEMP_KELVIN,
+    MAX_DURATION,
     MAX_EFFECT_COLORS,
     MAX_GRADIENT_COLORS,
     MAX_HOLD_TIME,
     MAX_LOOP_COUNT,
     MAX_RGB_VALUE,
+    MAX_SEGMENT_COLORS,
     MAX_SEQUENCE_STEPS,
     MAX_SPEED,
     MAX_TRANSITION_TIME,
     MIN_BRIGHTNESS_PERCENT,
     MIN_COLOR_TEMP_KELVIN,
+    MIN_DURATION,
     MIN_EFFECT_COLORS,
     MIN_GRADIENT_COLORS,
     MIN_HOLD_TIME,
     MIN_LOOP_COUNT,
     MIN_RGB_VALUE,
+    MIN_SEGMENT_COLORS,
     MIN_SEQUENCE_STEPS,
     MIN_SPEED,
     MIN_TRANSITION_TIME,
     MODEL_T1_STRIP,
+    SEGMENT_MODE_BLOCKS_EXPAND,
+    SEGMENT_MODE_BLOCKS_REPEAT,
+    SEGMENT_MODE_GRADIENT,
     SEGMENT_PATTERN_PRESETS,
+    SEGMENT_SEQUENCE_PRESETS,
     SERVICE_CREATE_BLOCKS,
     SERVICE_CREATE_GRADIENT,
     SERVICE_PAUSE_CCT_SEQUENCE,
+    SERVICE_PAUSE_SEGMENT_SEQUENCE,
     SERVICE_RESUME_CCT_SEQUENCE,
+    SERVICE_RESUME_SEGMENT_SEQUENCE,
     SERVICE_SET_DYNAMIC_EFFECT,
     SERVICE_SET_SEGMENT_PATTERN,
     SERVICE_START_CCT_SEQUENCE,
+    SERVICE_START_SEGMENT_SEQUENCE,
     SERVICE_STOP_CCT_SEQUENCE,
     SERVICE_STOP_EFFECT,
+    SERVICE_STOP_SEGMENT_SEQUENCE,
     brightness_percent_to_device,
 )
 from .light_capabilities import (
@@ -95,7 +118,16 @@ from .light_capabilities import (
     supports_segment_addressing,
     validate_effect_for_model,
 )
-from .models import CCTSequence, CCTSequenceStep, DynamicEffect, EffectType, RGBColor, SegmentColor
+from .models import (
+    CCTSequence,
+    CCTSequenceStep,
+    DynamicEffect,
+    EffectType,
+    RGBColor,
+    SegmentColor,
+    SegmentSequence,
+    SegmentSequenceStep,
+)
 from .mqtt_client import MQTTClient
 from .segment_utils import (
     expand_segment_colors,
@@ -282,6 +314,106 @@ SERVICE_PAUSE_CCT_SEQUENCE_SCHEMA = vol.Schema(
 )
 
 SERVICE_RESUME_CCT_SEQUENCE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+    }
+)
+
+# Build segment sequence service schema with individual step fields
+_segment_sequence_schema_dict = {
+    vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+    vol.Optional(ATTR_PRESET): cv.string,  # Preset name (optional)
+    vol.Optional(ATTR_TURN_ON, default=False): cv.boolean,
+    vol.Optional(ATTR_SYNC, default=True): cv.boolean,
+}
+
+# Add step 1 fields (optional - required only when not using a preset)
+_segment_sequence_schema_dict["step_1_segments"] = vol.Optional(cv.string)
+_segment_sequence_schema_dict["step_1_mode"] = vol.Optional(
+    vol.In([SEGMENT_MODE_BLOCKS_REPEAT, SEGMENT_MODE_BLOCKS_EXPAND, SEGMENT_MODE_GRADIENT])
+)
+_segment_sequence_schema_dict["step_1_color_1"] = vol.Optional(RGB_COLOR_LIST_SCHEMA)
+_segment_sequence_schema_dict["step_1_color_2"] = vol.Optional(RGB_COLOR_LIST_SCHEMA)
+_segment_sequence_schema_dict["step_1_color_3"] = vol.Optional(RGB_COLOR_LIST_SCHEMA)
+_segment_sequence_schema_dict["step_1_color_4"] = vol.Optional(RGB_COLOR_LIST_SCHEMA)
+_segment_sequence_schema_dict["step_1_color_5"] = vol.Optional(RGB_COLOR_LIST_SCHEMA)
+_segment_sequence_schema_dict["step_1_color_6"] = vol.Optional(RGB_COLOR_LIST_SCHEMA)
+_segment_sequence_schema_dict["step_1_duration"] = vol.Optional(
+    vol.All(vol.Coerce(float), vol.Range(min=MIN_DURATION, max=MAX_DURATION))
+)
+_segment_sequence_schema_dict["step_1_hold"] = vol.Optional(
+    vol.All(vol.Coerce(float), vol.Range(min=MIN_HOLD_TIME, max=MAX_HOLD_TIME))
+)
+_segment_sequence_schema_dict["step_1_activation_pattern"] = vol.Optional(
+    vol.In([
+        ACTIVATION_ALL,
+        ACTIVATION_SEQUENTIAL_FORWARD,
+        ACTIVATION_SEQUENTIAL_REVERSE,
+        ACTIVATION_RANDOM,
+        ACTIVATION_PING_PONG,
+        ACTIVATION_CENTER_OUT,
+        ACTIVATION_EDGES_IN,
+        ACTIVATION_PAIRED,
+    ])
+)
+
+# Add steps 2-20 fields (optional)
+for step_num in range(2, 21):
+    _segment_sequence_schema_dict[f"step_{step_num}_segments"] = vol.Optional(cv.string)
+    _segment_sequence_schema_dict[f"step_{step_num}_mode"] = vol.Optional(
+        vol.In([SEGMENT_MODE_BLOCKS_REPEAT, SEGMENT_MODE_BLOCKS_EXPAND, SEGMENT_MODE_GRADIENT])
+    )
+    _segment_sequence_schema_dict[f"step_{step_num}_color_1"] = vol.Optional(RGB_COLOR_LIST_SCHEMA)
+    _segment_sequence_schema_dict[f"step_{step_num}_color_2"] = vol.Optional(RGB_COLOR_LIST_SCHEMA)
+    _segment_sequence_schema_dict[f"step_{step_num}_color_3"] = vol.Optional(RGB_COLOR_LIST_SCHEMA)
+    _segment_sequence_schema_dict[f"step_{step_num}_color_4"] = vol.Optional(RGB_COLOR_LIST_SCHEMA)
+    _segment_sequence_schema_dict[f"step_{step_num}_color_5"] = vol.Optional(RGB_COLOR_LIST_SCHEMA)
+    _segment_sequence_schema_dict[f"step_{step_num}_color_6"] = vol.Optional(RGB_COLOR_LIST_SCHEMA)
+    _segment_sequence_schema_dict[f"step_{step_num}_duration"] = vol.Optional(
+        vol.All(vol.Coerce(float), vol.Range(min=MIN_DURATION, max=MAX_DURATION))
+    )
+    _segment_sequence_schema_dict[f"step_{step_num}_hold"] = vol.Optional(
+        vol.All(vol.Coerce(float), vol.Range(min=MIN_HOLD_TIME, max=MAX_HOLD_TIME))
+    )
+    _segment_sequence_schema_dict[f"step_{step_num}_activation_pattern"] = vol.Optional(
+        vol.In([
+            ACTIVATION_ALL,
+            ACTIVATION_SEQUENTIAL_FORWARD,
+            ACTIVATION_SEQUENTIAL_REVERSE,
+            ACTIVATION_RANDOM,
+            ACTIVATION_PING_PONG,
+            ACTIVATION_CENTER_OUT,
+            ACTIVATION_EDGES_IN,
+            ACTIVATION_PAIRED,
+        ])
+    )
+
+# Add loop/end behavior fields
+_segment_sequence_schema_dict[vol.Optional(ATTR_LOOP_MODE, default=LOOP_MODE_ONCE)] = vol.In(
+    [LOOP_MODE_ONCE, LOOP_MODE_COUNT, LOOP_MODE_CONTINUOUS]
+)
+_segment_sequence_schema_dict[vol.Optional(ATTR_LOOP_COUNT)] = vol.All(
+    vol.Coerce(int), vol.Range(min=MIN_LOOP_COUNT, max=MAX_LOOP_COUNT)
+)
+_segment_sequence_schema_dict[vol.Optional(ATTR_END_BEHAVIOR, default=END_BEHAVIOR_MAINTAIN)] = vol.In(
+    [END_BEHAVIOR_MAINTAIN, END_BEHAVIOR_TURN_OFF]
+)
+
+SERVICE_START_SEGMENT_SEQUENCE_SCHEMA = vol.Schema(_segment_sequence_schema_dict)
+
+SERVICE_STOP_SEGMENT_SEQUENCE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+    }
+)
+
+SERVICE_PAUSE_SEGMENT_SEQUENCE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+    }
+)
+
+SERVICE_RESUME_SEGMENT_SEQUENCE_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
     }
@@ -567,7 +699,14 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             preset_data = EFFECT_PRESETS[preset]
             effect_str: str = preset_data["effect"]
             speed: int = preset_data["speed"]
-            brightness: int | None = preset_data.get("brightness")
+
+            # Use slider brightness if provided, otherwise use preset brightness
+            brightness_percent: int | None = call.data.get(ATTR_BRIGHTNESS)
+            brightness: int | None
+            if brightness_percent is not None:
+                brightness = brightness_percent_to_device(brightness_percent)
+            else:
+                brightness = preset_data.get("brightness")
 
             # Convert preset colors to expected format
             colors_data: list[dict[str, int]] = [
@@ -703,8 +842,33 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             # Ensure light is on if requested
             await _ensure_light_on(hass, mqtt_client, entity_id, z2m_name, turn_on)
 
+            # Check and pause any running sequences before applying effect
+            cct_manager = hass.data[DOMAIN].get(DATA_CCT_SEQUENCE_MANAGER)
+            segment_manager = hass.data[DOMAIN].get(DATA_SEGMENT_SEQUENCE_MANAGER)
+
+            paused_cct = False
+            paused_segment = False
+
+            # Pause CCT sequence if running
+            if cct_manager and cct_manager.is_sequence_running(entity_id):
+                _LOGGER.debug("Pausing CCT sequence on %s before applying effect", entity_id)
+                cct_manager.pause_sequence(entity_id)
+                paused_cct = True
+
+            # Pause segment sequence if running
+            if segment_manager and segment_manager.is_sequence_running(entity_id):
+                _LOGGER.debug("Pausing segment sequence on %s before applying effect", entity_id)
+                segment_manager.pause_sequence(entity_id)
+                paused_segment = True
+
             # Capture current state before applying effect
             state_manager.capture_state(entity_id, z2m_name)
+
+            # Mark which sequences were paused so we can resume them later
+            device_state = state_manager.get_device_state(entity_id)
+            if device_state:
+                device_state.paused_cct_sequence = paused_cct
+                device_state.paused_segment_sequence = paused_segment
 
             # Create dynamic effect
             dynamic_effect = DynamicEffect(
@@ -847,6 +1011,22 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
                 # Mark effect as inactive
                 state_manager.mark_effect_inactive(entity_id)
+
+                # Resume any sequences that were paused when effect started
+                device_state = state_manager.get_device_state(entity_id)
+                if device_state:
+                    cct_manager = hass.data[DOMAIN].get(DATA_CCT_SEQUENCE_MANAGER)
+                    segment_manager = hass.data[DOMAIN].get(DATA_SEGMENT_SEQUENCE_MANAGER)
+
+                    if device_state.paused_cct_sequence and cct_manager:
+                        _LOGGER.debug("Resuming paused CCT sequence on %s", entity_id)
+                        cct_manager.resume_sequence(entity_id)
+                        device_state.paused_cct_sequence = False
+
+                    if device_state.paused_segment_sequence and segment_manager:
+                        _LOGGER.debug("Resuming paused segment sequence on %s", entity_id)
+                        segment_manager.resume_sequence(entity_id)
+                        device_state.paused_segment_sequence = False
 
                 # Fire effect stopped event
                 hass.bus.async_fire(
@@ -995,8 +1175,33 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 for sc in expanded_data
             ]
 
+            # Check and pause any running sequences before applying segment pattern
+            cct_manager = hass.data[DOMAIN].get(DATA_CCT_SEQUENCE_MANAGER)
+            segment_manager = hass.data[DOMAIN].get(DATA_SEGMENT_SEQUENCE_MANAGER)
+
+            paused_cct = False
+            paused_segment = False
+
+            # Pause CCT sequence if running
+            if cct_manager and cct_manager.is_sequence_running(entity_id):
+                _LOGGER.debug("Pausing CCT sequence on %s before applying segment pattern", entity_id)
+                cct_manager.pause_sequence(entity_id)
+                paused_cct = True
+
+            # Pause segment sequence if running
+            if segment_manager and segment_manager.is_sequence_running(entity_id):
+                _LOGGER.debug("Pausing segment sequence on %s before applying segment pattern", entity_id)
+                segment_manager.pause_sequence(entity_id)
+                paused_segment = True
+
             # Capture state and publish pattern
             state_manager.capture_state(entity_id, z2m_name)
+
+            # Mark which sequences were paused so we can resume them later
+            device_state = state_manager.get_device_state(entity_id)
+            if device_state:
+                device_state.paused_cct_sequence = paused_cct
+                device_state.paused_segment_sequence = paused_segment
 
             try:
                 await mqtt_client.async_publish_segment_pattern(z2m_name, segment_colors)
@@ -1617,8 +1822,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
 
+        # Resolve groups to individual entities
+        resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
+
         # Validate all entities are supported Aqara devices
-        _validate_supported_entities(mqtt_client, entity_ids)
+        _validate_supported_entities(mqtt_client, resolved_entity_ids)
 
         # Resume sequence for each entity
         for entity_id in resolved_entity_ids:
@@ -1631,6 +1839,300 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 _LOGGER.info("Resumed CCT sequence for %s", entity_id)
             else:
                 _LOGGER.warning("Failed to resume CCT sequence for %s", entity_id)
+
+    async def handle_start_segment_sequence(call: ServiceCall) -> None:
+        """Handle start_segment_sequence service call."""
+        # Get segment sequence manager and MQTT client
+        segment_manager = hass.data[DOMAIN].get(DATA_SEGMENT_SEQUENCE_MANAGER)
+        if not segment_manager:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="segment_manager_not_initialized",
+            )
+
+        mqtt_client = hass.data[DOMAIN].get("mqtt_client")
+        if not mqtt_client:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="mqtt_client_not_initialized",
+            )
+
+        entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+
+        # Resolve groups to individual entities
+        resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
+
+        turn_on: bool = call.data.get(ATTR_TURN_ON, False)
+        preset: str | None = call.data.get(ATTR_PRESET)
+
+        # Handle preset or manual configuration
+        if preset:
+            # Using a preset - load preset data
+            if preset not in SEGMENT_SEQUENCE_PRESETS:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="invalid_preset",
+                    translation_placeholders={"preset": preset},
+                )
+
+            preset_data = SEGMENT_SEQUENCE_PRESETS[preset]
+
+            # Create SegmentSequenceStep objects from preset step data
+            sequence_steps = []
+            for step_data in preset_data["steps"]:
+                try:
+                    colors = [RGBColor(**color) if isinstance(color, dict) else RGBColor(r=color[0], g=color[1], b=color[2]) for color in step_data["colors"]]
+                    step = SegmentSequenceStep(
+                        segments=step_data["segments"],
+                        colors=colors,
+                        mode=step_data["mode"],
+                        duration=step_data["duration"],
+                        hold=step_data["hold"],
+                        activation_pattern=step_data["activation_pattern"],
+                    )
+                    sequence_steps.append(step)
+                except (ValueError, KeyError) as ex:
+                    raise ServiceValidationError(
+                        translation_domain=DOMAIN,
+                        translation_key="invalid_sequence_configuration",
+                        translation_placeholders={"error": str(ex)},
+                    ) from ex
+
+            # Get loop and end behavior from preset
+            loop_mode: str = preset_data["loop_mode"]
+            loop_count: int | None = preset_data.get("loop_count")
+            end_behavior: str = preset_data["end_behavior"]
+        else:
+            # Manual configuration - extract from service call parameters
+            loop_mode = call.data.get(ATTR_LOOP_MODE, LOOP_MODE_ONCE)
+            loop_count = call.data.get(ATTR_LOOP_COUNT)
+            end_behavior = call.data.get(ATTR_END_BEHAVIOR, END_BEHAVIOR_MAINTAIN)
+
+            # Validate loop_count is provided when loop_mode is "count"
+            if loop_mode == LOOP_MODE_COUNT and loop_count is None:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="loop_count_required",
+                )
+
+            # Extract steps from individual field inputs
+            sequence_steps = []
+            for step_num in range(1, 21):
+                segments_key = f"step_{step_num}_segments"
+                mode_key = f"step_{step_num}_mode"
+
+                # Check if this step is provided
+                if segments_key in call.data and mode_key in call.data:
+                    # Extract colors for this step
+                    step_colors = []
+                    for color_num in range(1, 7):
+                        color_key = f"step_{step_num}_color_{color_num}"
+                        if color_key in call.data:
+                            color_list = call.data[color_key]
+                            step_colors.append(RGBColor(r=color_list[0], g=color_list[1], b=color_list[2]))
+
+                    if not step_colors:
+                        raise ServiceValidationError(
+                            translation_domain=DOMAIN,
+                            translation_key="step_requires_colors",
+                            translation_placeholders={"step": str(step_num)},
+                        )
+
+                    duration = call.data.get(f"step_{step_num}_duration", 0.0)
+                    hold = call.data.get(f"step_{step_num}_hold", 0.0)
+                    activation_pattern = call.data.get(f"step_{step_num}_activation_pattern", ACTIVATION_ALL)
+
+                    try:
+                        step = SegmentSequenceStep(
+                            segments=call.data[segments_key],
+                            colors=step_colors,
+                            mode=call.data[mode_key],
+                            duration=duration,
+                            hold=hold,
+                            activation_pattern=activation_pattern,
+                        )
+                        sequence_steps.append(step)
+                    except ValueError as ex:
+                        raise ServiceValidationError(
+                            translation_domain=DOMAIN,
+                            translation_key="invalid_sequence_configuration",
+                            translation_placeholders={"error": str(ex)},
+                        ) from ex
+
+            # Validate we have at least one step
+            if not sequence_steps:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="step_required",
+                )
+
+        # Create segment sequence
+        try:
+            sequence = SegmentSequence(
+                steps=sequence_steps,
+                loop_mode=loop_mode,
+                loop_count=loop_count,
+                end_behavior=end_behavior,
+            )
+        except ValueError as ex:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_sequence_configuration",
+                translation_placeholders={"error": str(ex)},
+            ) from ex
+
+        # Start sequence for each entity
+        for entity_id in resolved_entity_ids:
+            # Get Z2M friendly name
+            z2m_name = mqtt_client.get_z2m_friendly_name(entity_id)
+            if not z2m_name:
+                _LOGGER.warning(
+                    "Entity %s not mapped to Z2M device, skipping", entity_id
+                )
+                continue
+
+            # Get device and check if it supports segment addressing
+            device = next(
+                (
+                    d
+                    for d in mqtt_client.entry.runtime_data.devices.values()
+                    if d.friendly_name == z2m_name
+                ),
+                None,
+            )
+            if not device:
+                _LOGGER.warning(
+                    "Z2M device %s not found in registry, skipping", z2m_name
+                )
+                continue
+
+            if not supports_segment_addressing(device.model_id):
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="device_no_segment_support",
+                    translation_placeholders={"entity_id": entity_id},
+                )
+
+            # Ensure light is on if requested
+            await _ensure_light_on(hass, mqtt_client, entity_id, z2m_name, turn_on)
+
+            try:
+                sequence_id = await segment_manager.start_sequence(entity_id, sequence)
+                _LOGGER.info("Started segment sequence for %s (sequence_id=%s)", entity_id, sequence_id)
+            except Exception as ex:
+                _LOGGER.error(
+                    "Failed to start segment sequence for %s: %s", entity_id, ex
+                )
+                raise HomeAssistantError(
+                    f"Failed to start segment sequence for {entity_id}: {ex}"
+                ) from ex
+
+    async def handle_stop_segment_sequence(call: ServiceCall) -> None:
+        """Handle stop_segment_sequence service call."""
+        # Get segment sequence manager
+        segment_manager = hass.data[DOMAIN].get(DATA_SEGMENT_SEQUENCE_MANAGER)
+        if not segment_manager:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="segment_manager_not_initialized",
+            )
+
+        mqtt_client = hass.data[DOMAIN].get("mqtt_client")
+        if not mqtt_client:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="mqtt_client_not_initialized",
+            )
+
+        entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+
+        # Resolve groups to individual entities
+        resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
+
+        # Validate all entities are supported Aqara devices
+        _validate_supported_entities(mqtt_client, resolved_entity_ids)
+
+        # Stop sequence for each entity
+        for entity_id in resolved_entity_ids:
+            try:
+                await segment_manager.stop_sequence(entity_id)
+                _LOGGER.info("Stopped segment sequence for %s", entity_id)
+            except Exception as ex:
+                _LOGGER.warning("Failed to stop segment sequence for %s: %s", entity_id, ex)
+
+    async def handle_pause_segment_sequence(call: ServiceCall) -> None:
+        """Handle pause_segment_sequence service call."""
+        # Get segment sequence manager
+        segment_manager = hass.data[DOMAIN].get(DATA_SEGMENT_SEQUENCE_MANAGER)
+        if not segment_manager:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="segment_manager_not_initialized",
+            )
+
+        mqtt_client = hass.data[DOMAIN].get("mqtt_client")
+        if not mqtt_client:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="mqtt_client_not_initialized",
+            )
+
+        entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+
+        # Resolve groups to individual entities
+        resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
+
+        # Validate all entities are supported Aqara devices
+        _validate_supported_entities(mqtt_client, resolved_entity_ids)
+
+        # Pause sequence for each entity
+        for entity_id in resolved_entity_ids:
+            if not segment_manager.is_sequence_running(entity_id):
+                _LOGGER.warning("No active segment sequence for %s to pause", entity_id)
+                continue
+
+            success = segment_manager.pause_sequence(entity_id)
+            if success:
+                _LOGGER.info("Paused segment sequence for %s", entity_id)
+            else:
+                _LOGGER.warning("Failed to pause segment sequence for %s", entity_id)
+
+    async def handle_resume_segment_sequence(call: ServiceCall) -> None:
+        """Handle resume_segment_sequence service call."""
+        # Get segment sequence manager
+        segment_manager = hass.data[DOMAIN].get(DATA_SEGMENT_SEQUENCE_MANAGER)
+        if not segment_manager:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="segment_manager_not_initialized",
+            )
+
+        mqtt_client = hass.data[DOMAIN].get("mqtt_client")
+        if not mqtt_client:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="mqtt_client_not_initialized",
+            )
+
+        entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+
+        # Resolve groups to individual entities
+        resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
+
+        # Validate all entities are supported Aqara devices
+        _validate_supported_entities(mqtt_client, resolved_entity_ids)
+
+        # Resume sequence for each entity
+        for entity_id in resolved_entity_ids:
+            if not segment_manager.is_sequence_running(entity_id):
+                _LOGGER.warning("No active segment sequence for %s to resume", entity_id)
+                continue
+
+            success = segment_manager.resume_sequence(entity_id)
+            if success:
+                _LOGGER.info("Resumed segment sequence for %s", entity_id)
+            else:
+                _LOGGER.warning("Failed to resume segment sequence for %s", entity_id)
 
     # Register services
     hass.services.async_register(
@@ -1696,6 +2198,34 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         schema=SERVICE_RESUME_CCT_SEQUENCE_SCHEMA,
     )
 
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_START_SEGMENT_SEQUENCE,
+        handle_start_segment_sequence,
+        schema=SERVICE_START_SEGMENT_SEQUENCE_SCHEMA,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_STOP_SEGMENT_SEQUENCE,
+        handle_stop_segment_sequence,
+        schema=SERVICE_STOP_SEGMENT_SEQUENCE_SCHEMA,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_PAUSE_SEGMENT_SEQUENCE,
+        handle_pause_segment_sequence,
+        schema=SERVICE_PAUSE_SEGMENT_SEQUENCE_SCHEMA,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_RESUME_SEGMENT_SEQUENCE,
+        handle_resume_segment_sequence,
+        schema=SERVICE_RESUME_SEGMENT_SEQUENCE_SCHEMA,
+    )
+
     _LOGGER.info("Aqara Advanced Lighting services registered")
 
 
@@ -1710,10 +2240,19 @@ async def async_unload_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(DOMAIN, SERVICE_STOP_CCT_SEQUENCE)
     hass.services.async_remove(DOMAIN, SERVICE_PAUSE_CCT_SEQUENCE)
     hass.services.async_remove(DOMAIN, SERVICE_RESUME_CCT_SEQUENCE)
+    hass.services.async_remove(DOMAIN, SERVICE_START_SEGMENT_SEQUENCE)
+    hass.services.async_remove(DOMAIN, SERVICE_STOP_SEGMENT_SEQUENCE)
+    hass.services.async_remove(DOMAIN, SERVICE_PAUSE_SEGMENT_SEQUENCE)
+    hass.services.async_remove(DOMAIN, SERVICE_RESUME_SEGMENT_SEQUENCE)
 
     # Stop all running CCT sequences
     cct_manager = hass.data[DOMAIN].get(DATA_CCT_SEQUENCE_MANAGER)
     if cct_manager:
         await cct_manager.stop_all_sequences()
+
+    # Stop all running segment sequences
+    segment_manager = hass.data[DOMAIN].get(DATA_SEGMENT_SEQUENCE_MANAGER)
+    if segment_manager:
+        await segment_manager.stop_all_sequences()
 
     _LOGGER.info("Aqara Advanced Lighting services unloaded")

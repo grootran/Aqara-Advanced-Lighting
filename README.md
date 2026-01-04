@@ -4,7 +4,7 @@ Home Assistant HACS integration for advanced control of Aqara lights via Zigbee2
 
 ## Overview
 
-Control Aqara lights with advanced RGB dynamic effects, individual segment patterns, gradients, and state restoration.
+Easily control the more advanced features of Aqara lights, with RGB dynamic effects, individual segment patterns, gradients, CCT sequences, and state restoration.
 
 ### Supported Devices
 
@@ -18,19 +18,26 @@ Control Aqara lights with advanced RGB dynamic effects, individual segment patte
 
 ### Features
 
-- **Aqara App Effect Presets** - Quick access to 24 preset effects from the Aqara mobile app
+- **Sidebar Panel** - UI control panel for managing lights, effects, and sequences from the Home Assistant sidebar. Cuurently supports presets, with more features to come.
+- **Aqara App Effect Presets** - Quick access to 24 preset effects from the Aqara Home app
   - 4 T2 Bulb presets (Candlelight, Breath, Colorful, Security)
   - 9 T1M presets (Dinner, Sunset, Autumn, Galaxy, Daydream, Holiday, Party, Meteor, Alert)
   - 7 T1 Strip presets (Rainbow, Heartbeat, Gala, Sea of Flowers, Rhythmic, Exciting, Colorful)
-- **Segment Pattern Presets** - 12 T1M/T1 Strip segment color patterns from the Aqara app
-- **Dynamic RGB Effects** - 13 different manual effects including breathing, fading, flowing, chasing, rainbow, and more
-- **Effect Dropdown Selector** - Easy-to-use UI dropdown showing all available effects and presets
+- **Segment Pattern Presets** - 12 T1M/T1 Strip segment color patterns from the Aqara Home app
+- **Dynamic RGB Effects** - 13 different effects including breathing, fading, flowing, chasing, rainbow, and more
+- **Effect Dropdown Selector** - UI dropdown showing all available effects and presets
 - **RGB Color Pickers** - Color picker UI for all services (up to 8 colors for effects, 6 for gradients)
 - **Individual Segment Control** - Set custom colors for each segment on T1M and T1 Strip lights
-- **Smooth Color Gradients** - Create color transitions across segments with 2-6 colors
+- **Smooth Color Gradients** - Create color gradients across segments with 2-6 colors
 - **Color Block Patterns** - Generate evenly spaced or alternating color blocks
-- **Flexible Segment Selection** - Support for ranges ("1-20"), individual segments, and special selectors ("odd", "even")
+- **Flexible Segment Selection** - Support for ranges ("1-20"), individual segments, and special selectors ("odd", "even", "firs-half", "last-third" etc)
+- **RGB Segment Sequences** - Create animated segment patterns with up to 20 customizable steps
+  - Multiple activation patterns (sequential forward/reverse, random, simultaneous)
+  - Support for gradients, blocks, and individual colors
+  - Built-in presets: Loading bar, Wave, Sparkle and more
+  - Pause and resume capability
 - **CCT Dynamic Sequences** - Create multi-step color temperature and brightness sequences with smooth transitions
+  - Enhanced with pause and resume functionality
 - **T1 Strip Variable Length Support** - Automatically detects and adapts to T1 Strip's length (1-10 meters)
 - **Light Group Support** - All services work with Home Assistant light groups for synchronized multi-light control
 - **Auto Turn-On Option** - Optionally turn lights on automatically before applying effects or sequences
@@ -84,6 +91,8 @@ To change the Z2M base topic:
 ## Usage
 
 All features are available as Home Assistant services. Call these services from automations, scripts, or the Developer Tools.
+
+A UI sidebar panel "Aqara Lighting" is provided for easy access to presets and effect/sequence state management.
 
 ### Working with Light Groups
 
@@ -338,6 +347,164 @@ target:
 **Parameters:**
 - `entity_id` (required): Light entity or group to stop sequence on
 
+#### 7. Pause CCT Sequence
+
+Pause a running CCT sequence while maintaining its current state.
+
+**Service:** `aqara_advanced_lighting.pause_cct_sequence`
+
+**Example:**
+```yaml
+service: aqara_advanced_lighting.pause_cct_sequence
+target:
+  entity_id: light.aqara_ceiling_light
+```
+
+**Parameters:**
+- `entity_id` (required): Light entity or group to pause sequence on
+
+#### 8. Resume CCT Sequence
+
+Resume a paused CCT sequence from where it was paused.
+
+**Service:** `aqara_advanced_lighting.resume_cct_sequence`
+
+**Example:**
+```yaml
+service: aqara_advanced_lighting.resume_cct_sequence
+target:
+  entity_id: light.aqara_ceiling_light
+```
+
+**Parameters:**
+- `entity_id` (required): Light entity or group to resume sequence on
+
+#### 9. Start RGB Segment Sequence
+
+Create and run dynamic RGB segment sequences with up to 20 customizable steps on T1M and T1 Strip lights. Each step can have custom colors, activation patterns, and timing.
+
+**Service:** `aqara_advanced_lighting.start_segment_sequence`
+
+**Usage:** Choose a preset from the dropdown, or use the Home Assistant UI to configure each step individually. Step 1 is required, steps 2-20 are optional and collapsed by default (click "Show advanced fields" to access them).
+
+**Available Presets:**
+- **Loading bar**: Sequential segment activation creating a loading bar effect
+- **Wave**: Smooth color gradient wave flowing back and forth
+- **Sparkle**: Random twinkling segments creating a sparkle effect
+
+**Example YAML - Using a preset:**
+```yaml
+service: aqara_advanced_lighting.start_segment_sequence
+target:
+  entity_id: light.aqara_ceiling_light
+data:
+  preset: "wave"
+  turn_on: true
+```
+
+**Example YAML - Custom sequence:**
+```yaml
+service: aqara_advanced_lighting.start_segment_sequence
+target:
+  entity_id: light.aqara_ceiling_light
+data:
+  turn_on: true
+  step_1_segments: "all"
+  step_1_colors:
+    - r: 255
+      g: 0
+      b: 0
+    - r: 0
+      g: 0
+      b: 255
+  step_1_mode: "gradient"
+  step_1_duration: 3.0
+  step_1_hold: 2.0
+  step_1_activation_pattern: "sequential_forward"
+  step_2_segments: "all"
+  step_2_colors:
+    - r: 0
+      g: 255
+      b: 0
+  step_2_mode: "blocks_repeat"
+  step_2_duration: 2.0
+  step_2_hold: 1.0
+  step_2_activation_pattern: "random"
+  loop_mode: "continuous"
+  end_behavior: "maintain"
+```
+
+**Parameters:**
+- `entity_id` (required): Light entity with segment support (T1M or T1 Strip)
+- `preset` (optional): Use a built-in preset ("loading_bar", "wave", "sparkle"). When preset is selected, manual step parameters are ignored
+- `turn_on` (optional): Turn light on before starting sequence (default: false)
+- **Step 1 fields** (required if not using preset):
+  - `step_1_segments`: Segments to apply pattern to (e.g., "all", "1-20", "odd", "even")
+  - `step_1_colors`: List of RGB colors (1-6 colors)
+  - `step_1_mode`: Pattern mode ("gradient", "blocks_repeat", "blocks_expand", "individual")
+  - `step_1_duration`: Time to complete the activation pattern (0-3600 seconds)
+  - `step_1_hold`: Time to hold after activation completes (0-3600 seconds)
+  - `step_1_activation_pattern`: How segments activate ("sequential_forward", "sequential_reverse", "random", "simultaneous")
+- **Steps 2-20 fields** (optional): Same format as step 1, access via "Show advanced fields" in UI
+- `loop_mode` (optional): How to loop the sequence (default: "once", ignored when using preset)
+  - `"once"`: Run sequence one time
+  - `"count"`: Loop X times (requires loop_count)
+  - `"continuous"`: Loop indefinitely until stopped
+- `loop_count` (optional): Number of times to repeat (1-1000, required when loop_mode is "count", ignored when using preset)
+- `end_behavior` (optional): Action when sequence completes (default: "maintain", ignored when using preset)
+  - `"maintain"`: Keep light at last step's settings
+  - `"turn_off"`: Turn off the light
+
+**Note:** Each step consists of an activation period (duration) followed by a hold period. Activation patterns determine how segments light up during the duration phase.
+
+#### 10. Stop RGB Segment Sequence
+
+Stop a running RGB segment sequence on a light.
+
+**Service:** `aqara_advanced_lighting.stop_segment_sequence`
+
+**Example:**
+```yaml
+service: aqara_advanced_lighting.stop_segment_sequence
+target:
+  entity_id: light.aqara_ceiling_light
+```
+
+**Parameters:**
+- `entity_id` (required): Light entity to stop sequence on
+
+#### 11. Pause RGB Segment Sequence
+
+Pause a running RGB segment sequence while maintaining its current state.
+
+**Service:** `aqara_advanced_lighting.pause_segment_sequence`
+
+**Example:**
+```yaml
+service: aqara_advanced_lighting.pause_segment_sequence
+target:
+  entity_id: light.aqara_ceiling_light
+```
+
+**Parameters:**
+- `entity_id` (required): Light entity to pause sequence on
+
+#### 12. Resume RGB Segment Sequence
+
+Resume a paused RGB segment sequence from where it was paused.
+
+**Service:** `aqara_advanced_lighting.resume_segment_sequence`
+
+**Example:**
+```yaml
+service: aqara_advanced_lighting.resume_segment_sequence
+target:
+  entity_id: light.aqara_ceiling_light
+```
+
+**Parameters:**
+- `entity_id` (required): Light entity to resume sequence on
+
 ### Available Effects
 
 #### T1M Ceiling Light (ACN031/ACN032)
@@ -553,6 +720,139 @@ script:
           step_3_transition: 3.0
           step_3_hold: 900.0           # Hold for 15 minutes
           loop_mode: "once"
+          end_behavior: "maintain"
+```
+
+### RGB Segment Sequence Examples
+
+**Wave Preset**
+```yaml
+automation:
+  - alias: "Party mode wave effect"
+    trigger:
+      - platform: state
+        entity_id: input_boolean.party_mode
+        to: "on"
+    action:
+      - service: aqara_advanced_lighting.start_segment_sequence
+        target:
+          entity_id: light.living_room_ceiling
+        data:
+          preset: "wave"
+          turn_on: true
+```
+
+**Loading Bar Preset**
+```yaml
+script:
+  startup_sequence:
+    alias: "Startup Loading Bar"
+    sequence:
+      - service: aqara_advanced_lighting.start_segment_sequence
+        target:
+          entity_id: light.led_strip
+        data:
+          preset: "loading_bar"
+          turn_on: true
+```
+
+**Custom Alert Sequence**
+```yaml
+automation:
+  - alias: "Security alert sequence"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.front_door
+        to: "on"
+    action:
+      - service: aqara_advanced_lighting.start_segment_sequence
+        target:
+          entity_id: light.entrance_ceiling
+        data:
+          turn_on: true
+          step_1_segments: "all"
+          step_1_colors:
+            - r: 255
+              g: 0
+              b: 0
+          step_1_mode: "blocks_repeat"
+          step_1_duration: 0.5
+          step_1_hold: 0.5
+          step_1_activation_pattern: "simultaneous"
+          step_2_segments: "all"
+          step_2_colors:
+            - r: 0
+              g: 0
+              b: 0
+          step_2_mode: "blocks_repeat"
+          step_2_duration: 0.5
+          step_2_hold: 0.5
+          step_2_activation_pattern: "simultaneous"
+          loop_mode: "count"
+          loop_count: 5
+          end_behavior: "turn_off"
+```
+
+**Custom Chase Sequence**
+```yaml
+script:
+  rainbow_chase:
+    alias: "Rainbow Chase Effect"
+    sequence:
+      - service: aqara_advanced_lighting.start_segment_sequence
+        target:
+          entity_id: light.led_strip
+        data:
+          turn_on: true
+          step_1_segments: "all"
+          step_1_colors:
+            - r: 255
+              g: 0
+              b: 0
+            - r: 255
+              g: 127
+              b: 0
+            - r: 255
+              g: 255
+              b: 0
+            - r: 0
+              g: 255
+              b: 0
+            - r: 0
+              g: 0
+              b: 255
+            - r: 148
+              g: 0
+              b: 211
+          step_1_mode: "gradient"
+          step_1_duration: 5.0
+          step_1_hold: 0.0
+          step_1_activation_pattern: "sequential_forward"
+          step_2_segments: "all"
+          step_2_colors:
+            - r: 148
+              g: 0
+              b: 211
+            - r: 0
+              g: 0
+              b: 255
+            - r: 0
+              g: 255
+              b: 0
+            - r: 255
+              g: 255
+              b: 0
+            - r: 255
+              g: 127
+              b: 0
+            - r: 255
+              g: 0
+              b: 0
+          step_2_mode: "gradient"
+          step_2_duration: 5.0
+          step_2_hold: 0.0
+          step_2_activation_pattern: "sequential_reverse"
+          loop_mode: "continuous"
           end_behavior: "maintain"
 ```
 
