@@ -188,6 +188,7 @@ DATA_DEVICE_REGISTRY: Final = "device_registry"
 DATA_UNSUB: Final = "unsub"
 DATA_CCT_SEQUENCE_MANAGER: Final = "cct_sequence_manager"
 DATA_SEGMENT_SEQUENCE_MANAGER: Final = "segment_sequence_manager"
+DATA_FAVORITES_STORE: Final = "favorites_store"
 
 # Event types for automation triggers
 EVENT_SEQUENCE_STARTED: Final = f"{DOMAIN}_sequence_started"

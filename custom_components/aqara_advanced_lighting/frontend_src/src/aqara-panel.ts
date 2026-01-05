@@ -1,5 +1,6 @@
 import { LitElement, html, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { ref, createRef, Ref } from 'lit/directives/ref.js';
 import { panelStyles } from './styles';
 import {
   HomeAssistant,
@@ -9,6 +10,7 @@ import {
   SegmentPatternPreset,
   CCTSequencePreset,
   SegmentSequencePreset,
+  Favorite,
 } from './types';
 
 @customElement('aqara-advanced-lighting-panel')
@@ -24,11 +26,18 @@ export class AqaraPanel extends LitElement {
   @state() private _useCustomBrightness = false;
   @state() private _collapsed: Record<string, boolean> = {};
   @state() private _hasIncompatibleLights = false;
+  @state() private _favorites: Favorite[] = [];
+  @state() private _showFavoriteInput = false;
+  @state() private _favoriteInputName = '';
+
+  private _tileCardRef: Ref<HTMLElement> = createRef();
+  private _tileCards: Map<string, any> = new Map();
 
   static styles = panelStyles;
 
   protected firstUpdated(): void {
     this._loadPresets();
+    this._loadFavorites();
   }
 
   protected updated(changedProps: PropertyValues): void {
@@ -37,6 +46,62 @@ export class AqaraPanel extends LitElement {
     if (changedProps.has('hass') && changedProps.get('hass') === undefined) {
       // Initial hass load
       this._loadPresets();
+      this._loadFavorites();
+    }
+
+    // Update tile card when selection or hass changes
+    this._updateTileCard();
+  }
+
+  private async _updateTileCard(): Promise<void> {
+    const container = this._tileCardRef.value;
+    if (!container || !this.hass) {
+      return;
+    }
+
+    // If no entities selected, clear all cards
+    if (!this._selectedEntities.length) {
+      this._tileCards.forEach((card) => card.remove());
+      this._tileCards.clear();
+      return;
+    }
+
+    // Wait for hui-tile-card to be defined
+    await customElements.whenDefined('hui-tile-card');
+
+    // Track which entities are currently selected
+    const selectedSet = new Set(this._selectedEntities);
+
+    // Remove cards for entities that are no longer selected
+    for (const [entityId, card] of this._tileCards.entries()) {
+      if (!selectedSet.has(entityId)) {
+        card.remove();
+        this._tileCards.delete(entityId);
+      }
+    }
+
+    // Create or update cards for each selected entity
+    for (const entityId of this._selectedEntities) {
+      let card = this._tileCards.get(entityId);
+
+      if (!card) {
+        // Create new card for this entity
+        card = document.createElement('hui-tile-card');
+        container.appendChild(card);
+        this._tileCards.set(entityId, card);
+      }
+
+      // Update the card config and hass
+      try {
+        card.setConfig({
+          type: 'tile',
+          entity: entityId,
+          features: [{ type: 'light-brightness' }],
+        });
+        card.hass = this.hass;
+      } catch (e) {
+        console.warn('Failed to configure tile card for', entityId, ':', e);
+      }
     }
   }
 
@@ -52,6 +117,133 @@ export class AqaraPanel extends LitElement {
       this._error = err instanceof Error ? err.message : 'Failed to load presets';
       this._loading = false;
     }
+  }
+
+  private async _loadFavorites(): Promise<void> {
+    if (!this.hass?.auth?.data?.access_token) {
+      console.warn('No auth token available, skipping favorites load');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/aqara_advanced_lighting/favorites', {
+        credentials: 'same-origin',
+        headers: {
+          Authorization: `Bearer ${this.hass.auth.data.access_token}`,
+        },
+      });
+      if (!response.ok) {
+        console.warn('Failed to load favorites:', response.status);
+        return;
+      }
+      const data = await response.json();
+      this._favorites = data.favorites || [];
+    } catch (err) {
+      console.warn('Failed to load favorites:', err);
+    }
+  }
+
+  private _addFavorite(): void {
+    if (!this._selectedEntities.length) return;
+
+    // Set default name and show inline input
+    const firstEntity = this._selectedEntities[0];
+    const defaultName = this._selectedEntities.length === 1 && firstEntity
+      ? this._getEntityFriendlyName(firstEntity)
+      : `${this._selectedEntities.length} lights`;
+
+    this._favoriteInputName = defaultName;
+    this._showFavoriteInput = true;
+  }
+
+  private async _saveFavorite(): Promise<void> {
+    if (!this._selectedEntities.length || !this.hass?.auth?.data?.access_token) {
+      this._cancelFavoriteInput();
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/aqara_advanced_lighting/favorites', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.hass.auth.data.access_token}`,
+        },
+        body: JSON.stringify({
+          entities: this._selectedEntities,
+          name: this._favoriteInputName || undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}`);
+      }
+
+      const data = await response.json();
+      this._favorites = [...this._favorites, data.favorite];
+    } catch (err) {
+      console.error('Failed to add favorite:', err);
+    }
+
+    this._cancelFavoriteInput();
+  }
+
+  private _cancelFavoriteInput(): void {
+    this._showFavoriteInput = false;
+    this._favoriteInputName = '';
+  }
+
+  private _handleFavoriteNameChange(e: CustomEvent): void {
+    this._favoriteInputName = e.detail.value || '';
+  }
+
+  private _handleFavoriteNameKeydown(e: KeyboardEvent): void {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      this._saveFavorite();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      this._cancelFavoriteInput();
+    }
+  }
+
+  private async _removeFavorite(favoriteId: string): Promise<void> {
+    if (!this.hass?.auth?.data?.access_token) {
+      console.error('No auth token available');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/aqara_advanced_lighting/favorites/${favoriteId}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+        headers: {
+          Authorization: `Bearer ${this.hass.auth.data.access_token}`,
+        },
+      });
+
+      if (!response.ok && response.status !== 204) {
+        throw new Error(`HTTP error ${response.status}`);
+      }
+
+      this._favorites = this._favorites.filter((f) => f.id !== favoriteId);
+    } catch (err) {
+      console.error('Failed to remove favorite:', err);
+    }
+  }
+
+  private _selectFavorite(favorite: Favorite): void {
+    this._selectedEntities = [...favorite.entities];
+  }
+
+  private _getEntityFriendlyName(entityId: string): string {
+    if (!this.hass) return entityId;
+    const state = this.hass.states[entityId];
+    if (state && state.attributes.friendly_name) {
+      return state.attributes.friendly_name as string;
+    }
+    return entityId.split('.')[1]?.replace(/_/g, ' ') || entityId;
   }
 
   private _getSelectedDeviceTypes(): string[] {
@@ -292,7 +484,7 @@ export class AqaraPanel extends LitElement {
       <div class="controls">
         <div class="control-row">
           <span class="control-label">Target</span>
-          <div class="control-input">
+          <div class="control-input target-input">
             <ha-selector
               .hass=${this.hass}
               .selector=${{
@@ -304,41 +496,68 @@ export class AqaraPanel extends LitElement {
               .value=${this._selectedEntities}
               @value-changed=${this._handleEntityChange}
             ></ha-selector>
+            ${hasSelection && !this._showFavoriteInput
+              ? html`
+                  <ha-icon-button
+                    class="add-favorite-btn"
+                    @click=${this._addFavorite}
+                    title="Save as favorite"
+                  >
+                    <ha-icon icon="mdi:star-plus"></ha-icon>
+                  </ha-icon-button>
+                `
+              : ''}
           </div>
         </div>
 
-        <div class="control-row">
-          <span class="control-label">Custom Brightness</span>
-          <div class="control-input">
-            <ha-selector
-              .hass=${this.hass}
-              .selector=${{
-                boolean: {},
-              }}
-              .value=${this._useCustomBrightness}
-              @value-changed=${this._handleCustomBrightnessToggle}
-            ></ha-selector>
-          </div>
-        </div>
-
-        ${this._useCustomBrightness
+        ${this._showFavoriteInput
           ? html`
               <div class="control-row">
-                <span class="control-label">Brightness</span>
-                <div class="control-input">
+                <span class="control-label">Favorite Name</span>
+                <div class="control-input favorite-input-container">
                   <ha-selector
                     .hass=${this.hass}
-                    .selector=${{
-                      number: {
-                        min: 1,
-                        max: 100,
-                        mode: 'slider',
-                        unit_of_measurement: '%',
-                      },
-                    }}
-                    .value=${this._brightness}
-                    @value-changed=${this._handleBrightnessChange}
+                    .selector=${{ text: {} }}
+                    .value=${this._favoriteInputName}
+                    @value-changed=${this._handleFavoriteNameChange}
+                    @keydown=${this._handleFavoriteNameKeydown}
                   ></ha-selector>
+                  <ha-button @click=${this._saveFavorite}>
+                    <ha-icon icon="mdi:check"></ha-icon>
+                    Save
+                  </ha-button>
+                  <ha-button @click=${this._cancelFavoriteInput}>
+                    <ha-icon icon="mdi:close"></ha-icon>
+                    Cancel
+                  </ha-button>
+                </div>
+              </div>
+            `
+          : ''}
+
+        ${this._favorites.length > 0
+          ? html`
+              <div class="control-row">
+                <span class="control-label">Favorites</span>
+                <div class="control-input favorites-container">
+                  ${this._favorites.map(
+                    (favorite) => html`
+                      <div class="favorite-chip" @click=${() => this._selectFavorite(favorite)}>
+                        <ha-icon icon="mdi:star" class="favorite-icon"></ha-icon>
+                        <span class="favorite-name">${favorite.name}</span>
+                        <ha-icon-button
+                          class="remove-favorite-btn"
+                          @click=${(e: Event) => {
+                            e.stopPropagation();
+                            this._removeFavorite(favorite.id);
+                          }}
+                          title="Remove favorite"
+                        >
+                          <ha-icon icon="mdi:close"></ha-icon>
+                        </ha-icon-button>
+                      </div>
+                    `
+                  )}
                 </div>
               </div>
             `
@@ -347,38 +566,89 @@ export class AqaraPanel extends LitElement {
         ${hasSelection
           ? html`
               <div class="control-row">
+                <span class="control-label">Light Control</span>
+                <div class="control-input light-tile-container" ${ref(this._tileCardRef)}>
+                </div>
+              </div>
+
+              <div class="control-row">
                 <span class="control-label">Quick Controls</span>
                 <div class="control-input control-buttons">
-                  <ha-button @click=${this._stopEffect}>
-                    <ha-icon icon="mdi:stop"></ha-icon>
-                    Stop Effect
-                  </ha-button>
+                  ${filtered.showDynamicEffects
+                    ? html`
+                        <ha-button @click=${this._stopEffect}>
+                          <ha-icon icon="mdi:stop"></ha-icon>
+                          Effect
+                        </ha-button>
+                      `
+                    : ''}
                   <ha-button @click=${this._pauseCCTSequence}>
                     <ha-icon icon="mdi:pause"></ha-icon>
-                    Pause CCT
+                    CCT
                   </ha-button>
                   <ha-button @click=${this._resumeCCTSequence}>
                     <ha-icon icon="mdi:play"></ha-icon>
-                    Resume CCT
+                    CCT
                   </ha-button>
                   <ha-button @click=${this._stopCCTSequence}>
                     <ha-icon icon="mdi:stop"></ha-icon>
-                    Stop CCT
+                    CCT
                   </ha-button>
-                  <ha-button @click=${this._pauseSegmentSequence}>
-                    <ha-icon icon="mdi:pause"></ha-icon>
-                    Pause Segment
-                  </ha-button>
-                  <ha-button @click=${this._resumeSegmentSequence}>
-                    <ha-icon icon="mdi:play"></ha-icon>
-                    Resume Segment
-                  </ha-button>
-                  <ha-button @click=${this._stopSegmentSequence}>
-                    <ha-icon icon="mdi:stop"></ha-icon>
-                    Stop Segment
-                  </ha-button>
+                  ${filtered.showSegmentSequences
+                    ? html`
+                        <ha-button @click=${this._pauseSegmentSequence}>
+                          <ha-icon icon="mdi:pause"></ha-icon>
+                          Segment
+                        </ha-button>
+                        <ha-button @click=${this._resumeSegmentSequence}>
+                          <ha-icon icon="mdi:play"></ha-icon>
+                          Segment
+                        </ha-button>
+                        <ha-button @click=${this._stopSegmentSequence}>
+                          <ha-icon icon="mdi:stop"></ha-icon>
+                          Segment
+                        </ha-button>
+                      `
+                    : ''}
                 </div>
               </div>
+
+              <div class="control-row">
+                <span class="control-label">Custom Brightness</span>
+                <div class="control-input">
+                  <ha-selector
+                    .hass=${this.hass}
+                    .selector=${{
+                      boolean: {},
+                    }}
+                    .value=${this._useCustomBrightness}
+                    @value-changed=${this._handleCustomBrightnessToggle}
+                  ></ha-selector>
+                </div>
+              </div>
+
+              ${this._useCustomBrightness
+                ? html`
+                    <div class="control-row">
+                      <span class="control-label">Brightness</span>
+                      <div class="control-input">
+                        <ha-selector
+                          .hass=${this.hass}
+                          .selector=${{
+                            number: {
+                              min: 1,
+                              max: 100,
+                              mode: 'slider',
+                              unit_of_measurement: '%',
+                            },
+                          }}
+                          .value=${this._brightness}
+                          @value-changed=${this._handleBrightnessChange}
+                        ></ha-selector>
+                      </div>
+                    </div>
+                  `
+                : ''}
             `
           : ''}
       </div>

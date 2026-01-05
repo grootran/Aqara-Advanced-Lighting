@@ -8,10 +8,20 @@ export interface HomeAssistant {
     service: string,
     serviceData?: Record<string, unknown>
   ) => Promise<void>;
+  callApi: <T>(
+    method: string,
+    path: string,
+    data?: Record<string, unknown>
+  ) => Promise<T>;
   states: Record<string, HassEntity>;
   localize: (key: string) => string;
   user?: {
     is_admin?: boolean;
+  };
+  auth: {
+    data: {
+      access_token: string;
+    };
   };
 }
 
@@ -103,6 +113,12 @@ export interface FilteredPresets {
   t2Presets: DynamicEffectPreset[];
   t1mPresets: DynamicEffectPreset[];
   t1StripPresets: DynamicEffectPreset[];
+}
+
+export interface Favorite {
+  id: string;
+  name: string;
+  entities: string[];
 }
 
 export const SUPPORTED_MODELS = {

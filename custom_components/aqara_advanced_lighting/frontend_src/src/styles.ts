@@ -66,6 +66,116 @@ export const panelStyles = css`
     margin-right: 4px;
   }
 
+  /* Target input with add favorite button */
+  .target-input {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .target-input ha-selector {
+    flex: 1;
+  }
+
+  .add-favorite-btn {
+    --mdc-icon-button-size: 40px;
+    color: var(--primary-color);
+  }
+
+  .add-favorite-btn:hover {
+    color: var(--accent-color);
+  }
+
+  /* Favorite inline input */
+  .favorite-input-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .favorite-input-container ha-selector {
+    flex: 1;
+  }
+
+  .favorite-input-container ha-button {
+    flex-shrink: 0;
+  }
+
+  /* Light tile card container */
+  .light-tile-container {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+  }
+
+  .light-tile-container hui-tile-card {
+    --ha-card-background: var(--card-background-color);
+    --ha-card-border-radius: 12px;
+    display: block;
+    width: 100%;
+  }
+
+  @media (max-width: 600px) {
+    .light-tile-container {
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 8px;
+    }
+  }
+
+  /* Favorites container and chips */
+  .favorites-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .favorite-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px 6px 12px;
+    background: var(--card-background-color);
+    border: 1px solid var(--divider-color);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 13px;
+  }
+
+  .favorite-chip:hover {
+    background: var(--primary-color);
+    color: var(--text-primary-color);
+    border-color: var(--primary-color);
+  }
+
+  .favorite-icon {
+    --mdc-icon-size: 16px;
+    color: var(--warning-color);
+  }
+
+  .favorite-chip:hover .favorite-icon {
+    color: var(--text-primary-color);
+  }
+
+  .favorite-name {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .remove-favorite-btn {
+    --mdc-icon-button-size: 24px;
+    --mdc-icon-size: 16px;
+    margin: -4px -4px -4px 0;
+    opacity: 0.7;
+  }
+
+  .remove-favorite-btn:hover {
+    opacity: 1;
+  }
+
   .section {
     background: var(--primary-background-color);
     border-radius: 8px;

@@ -1,4 +1,4 @@
-!function(){"use strict";function t(t,e,s,i){var n,o=arguments.length,r=o<3?e:null===i?i=Object.getOwnPropertyDescriptor(e,s):i;if("object"==typeof Reflect&&"function"==typeof Reflect.decorate)r=Reflect.decorate(t,e,s,i);else for(var a=t.length-1;a>=0;a--)(n=t[a])&&(r=(o<3?n(r):o>3?n(e,s,r):n(e,s))||r);return o>3&&r&&Object.defineProperty(e,s,r),r}"function"==typeof SuppressedError&&SuppressedError;const e=globalThis,s=e.ShadowRoot&&(void 0===e.ShadyCSS||e.ShadyCSS.nativeShadow)&&"adoptedStyleSheets"in Document.prototype&&"replace"in CSSStyleSheet.prototype,i=Symbol(),n=new WeakMap;let o=class{constructor(t,e,s){if(this._$cssResult$=!0,s!==i)throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");this.cssText=t,this.t=e}get styleSheet(){let t=this.o;const e=this.t;if(s&&void 0===t){const s=void 0!==e&&1===e.length;s&&(t=n.get(e)),void 0===t&&((this.o=t=new CSSStyleSheet).replaceSync(this.cssText),s&&n.set(e,t))}return t}toString(){return this.cssText}};const r=s?t=>t:t=>t instanceof CSSStyleSheet?(t=>{let e="";for(const s of t.cssRules)e+=s.cssText;return(t=>new o("string"==typeof t?t:t+"",void 0,i))(e)})(t):t,{is:a,defineProperty:c,getOwnPropertyDescriptor:l,getOwnPropertyNames:h,getOwnPropertySymbols:d,getPrototypeOf:p}=Object,u=globalThis,_=u.trustedTypes,g=_?_.emptyScript:"",m=u.reactiveElementPolyfillSupport,v=(t,e)=>t,$={toAttribute(t,e){switch(e){case Boolean:t=t?g:null;break;case Object:case Array:t=null==t?t:JSON.stringify(t)}return t},fromAttribute(t,e){let s=t;switch(e){case Boolean:s=null!==t;break;case Number:s=null===t?null:Number(t);break;case Object:case Array:try{s=JSON.parse(t)}catch(t){s=null}}return s}},f=(t,e)=>!a(t,e),y={attribute:!0,type:String,converter:$,reflect:!1,useDefault:!1,hasChanged:f};Symbol.metadata??=Symbol("metadata"),u.litPropertyMetadata??=new WeakMap;let b=class extends HTMLElement{static addInitializer(t){this._$Ei(),(this.l??=[]).push(t)}static get observedAttributes(){return this.finalize(),this._$Eh&&[...this._$Eh.keys()]}static createProperty(t,e=y){if(e.state&&(e.attribute=!1),this._$Ei(),this.prototype.hasOwnProperty(t)&&((e=Object.create(e)).wrapped=!0),this.elementProperties.set(t,e),!e.noAccessor){const s=Symbol(),i=this.getPropertyDescriptor(t,s,e);void 0!==i&&c(this.prototype,t,i)}}static getPropertyDescriptor(t,e,s){const{get:i,set:n}=l(this.prototype,t)??{get(){return this[e]},set(t){this[e]=t}};return{get:i,set(e){const o=i?.call(this);n?.call(this,e),this.requestUpdate(t,o,s)},configurable:!0,enumerable:!0}}static getPropertyOptions(t){return this.elementProperties.get(t)??y}static _$Ei(){if(this.hasOwnProperty(v("elementProperties")))return;const t=p(this);t.finalize(),void 0!==t.l&&(this.l=[...t.l]),this.elementProperties=new Map(t.elementProperties)}static finalize(){if(this.hasOwnProperty(v("finalized")))return;if(this.finalized=!0,this._$Ei(),this.hasOwnProperty(v("properties"))){const t=this.properties,e=[...h(t),...d(t)];for(const s of e)this.createProperty(s,t[s])}const t=this[Symbol.metadata];if(null!==t){const e=litPropertyMetadata.get(t);if(void 0!==e)for(const[t,s]of e)this.elementProperties.set(t,s)}this._$Eh=new Map;for(const[t,e]of this.elementProperties){const s=this._$Eu(t,e);void 0!==s&&this._$Eh.set(s,t)}this.elementStyles=this.finalizeStyles(this.styles)}static finalizeStyles(t){const e=[];if(Array.isArray(t)){const s=new Set(t.flat(1/0).reverse());for(const t of s)e.unshift(r(t))}else void 0!==t&&e.push(r(t));return e}static _$Eu(t,e){const s=e.attribute;return!1===s?void 0:"string"==typeof s?s:"string"==typeof t?t.toLowerCase():void 0}constructor(){super(),this._$Ep=void 0,this.isUpdatePending=!1,this.hasUpdated=!1,this._$Em=null,this._$Ev()}_$Ev(){this._$ES=new Promise(t=>this.enableUpdating=t),this._$AL=new Map,this._$E_(),this.requestUpdate(),this.constructor.l?.forEach(t=>t(this))}addController(t){(this._$EO??=new Set).add(t),void 0!==this.renderRoot&&this.isConnected&&t.hostConnected?.()}removeController(t){this._$EO?.delete(t)}_$E_(){const t=new Map,e=this.constructor.elementProperties;for(const s of e.keys())this.hasOwnProperty(s)&&(t.set(s,this[s]),delete this[s]);t.size>0&&(this._$Ep=t)}createRenderRoot(){const t=this.shadowRoot??this.attachShadow(this.constructor.shadowRootOptions);return((t,i)=>{if(s)t.adoptedStyleSheets=i.map(t=>t instanceof CSSStyleSheet?t:t.styleSheet);else for(const s of i){const i=document.createElement("style"),n=e.litNonce;void 0!==n&&i.setAttribute("nonce",n),i.textContent=s.cssText,t.appendChild(i)}})(t,this.constructor.elementStyles),t}connectedCallback(){this.renderRoot??=this.createRenderRoot(),this.enableUpdating(!0),this._$EO?.forEach(t=>t.hostConnected?.())}enableUpdating(t){}disconnectedCallback(){this._$EO?.forEach(t=>t.hostDisconnected?.())}attributeChangedCallback(t,e,s){this._$AK(t,s)}_$ET(t,e){const s=this.constructor.elementProperties.get(t),i=this.constructor._$Eu(t,s);if(void 0!==i&&!0===s.reflect){const n=(void 0!==s.converter?.toAttribute?s.converter:$).toAttribute(e,s.type);this._$Em=t,null==n?this.removeAttribute(i):this.setAttribute(i,n),this._$Em=null}}_$AK(t,e){const s=this.constructor,i=s._$Eh.get(t);if(void 0!==i&&this._$Em!==i){const t=s.getPropertyOptions(i),n="function"==typeof t.converter?{fromAttribute:t.converter}:void 0!==t.converter?.fromAttribute?t.converter:$;this._$Em=i;const o=n.fromAttribute(e,t.type);this[i]=o??this._$Ej?.get(i)??o,this._$Em=null}}requestUpdate(t,e,s,i=!1,n){if(void 0!==t){const o=this.constructor;if(!1===i&&(n=this[t]),s??=o.getPropertyOptions(t),!((s.hasChanged??f)(n,e)||s.useDefault&&s.reflect&&n===this._$Ej?.get(t)&&!this.hasAttribute(o._$Eu(t,s))))return;this.C(t,e,s)}!1===this.isUpdatePending&&(this._$ES=this._$EP())}C(t,e,{useDefault:s,reflect:i,wrapped:n},o){s&&!(this._$Ej??=new Map).has(t)&&(this._$Ej.set(t,o??e??this[t]),!0!==n||void 0!==o)||(this._$AL.has(t)||(this.hasUpdated||s||(e=void 0),this._$AL.set(t,e)),!0===i&&this._$Em!==t&&(this._$Eq??=new Set).add(t))}async _$EP(){this.isUpdatePending=!0;try{await this._$ES}catch(t){Promise.reject(t)}const t=this.scheduleUpdate();return null!=t&&await t,!this.isUpdatePending}scheduleUpdate(){return this.performUpdate()}performUpdate(){if(!this.isUpdatePending)return;if(!this.hasUpdated){if(this.renderRoot??=this.createRenderRoot(),this._$Ep){for(const[t,e]of this._$Ep)this[t]=e;this._$Ep=void 0}const t=this.constructor.elementProperties;if(t.size>0)for(const[e,s]of t){const{wrapped:t}=s,i=this[e];!0!==t||this._$AL.has(e)||void 0===i||this.C(e,void 0,s,i)}}let t=!1;const e=this._$AL;try{t=this.shouldUpdate(e),t?(this.willUpdate(e),this._$EO?.forEach(t=>t.hostUpdate?.()),this.update(e)):this._$EM()}catch(e){throw t=!1,this._$EM(),e}t&&this._$AE(e)}willUpdate(t){}_$AE(t){this._$EO?.forEach(t=>t.hostUpdated?.()),this.hasUpdated||(this.hasUpdated=!0,this.firstUpdated(t)),this.updated(t)}_$EM(){this._$AL=new Map,this.isUpdatePending=!1}get updateComplete(){return this.getUpdateComplete()}getUpdateComplete(){return this._$ES}shouldUpdate(t){return!0}update(t){this._$Eq&&=this._$Eq.forEach(t=>this._$ET(t,this[t])),this._$EM()}updated(t){}firstUpdated(t){}};b.elementStyles=[],b.shadowRootOptions={mode:"open"},b[v("elementProperties")]=new Map,b[v("finalized")]=new Map,m?.({ReactiveElement:b}),(u.reactiveElementVersions??=[]).push("2.1.2");const S=globalThis,A=t=>t,E=S.trustedTypes,w=E?E.createPolicy("lit-html",{createHTML:t=>t}):void 0,x="$lit$",C=`lit$${Math.random().toFixed(9).slice(2)}$`,P="?"+C,q=`<${P}>`,T=document,k=()=>T.createComment(""),U=t=>null===t||"object"!=typeof t&&"function"!=typeof t,O=Array.isArray,M="[ \t\n\f\r]",H=/<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g,R=/-->/g,N=/>/g,D=RegExp(`>|${M}(?:([^\\s"'>=/]+)(${M}*=${M}*(?:[^ \t\n\f\r"'\`<>=]|("|')|))|$)`,"g"),B=/'/g,I=/"/g,L=/^(?:script|style|textarea|title)$/i,j=(t=>(e,...s)=>({_$litType$:t,strings:e,values:s}))(1),z=Symbol.for("lit-noChange"),W=Symbol.for("lit-nothing"),V=new WeakMap,F=T.createTreeWalker(T,129);function J(t,e){if(!O(t)||!t.hasOwnProperty("raw"))throw Error("invalid template strings array");return void 0!==w?w.createHTML(e):e}const K=(t,e)=>{const s=t.length-1,i=[];let n,o=2===e?"<svg>":3===e?"<math>":"",r=H;for(let e=0;e<s;e++){const s=t[e];let a,c,l=-1,h=0;for(;h<s.length&&(r.lastIndex=h,c=r.exec(s),null!==c);)h=r.lastIndex,r===H?"!--"===c[1]?r=R:void 0!==c[1]?r=N:void 0!==c[2]?(L.test(c[2])&&(n=RegExp("</"+c[2],"g")),r=D):void 0!==c[3]&&(r=D):r===D?">"===c[0]?(r=n??H,l=-1):void 0===c[1]?l=-2:(l=r.lastIndex-c[2].length,a=c[1],r=void 0===c[3]?D:'"'===c[3]?I:B):r===I||r===B?r=D:r===R||r===N?r=H:(r=D,n=void 0);const d=r===D&&t[e+1].startsWith("/>")?" ":"";o+=r===H?s+q:l>=0?(i.push(a),s.slice(0,l)+x+s.slice(l)+C+d):s+C+(-2===l?e:d)}return[J(t,o+(t[s]||"<?>")+(2===e?"</svg>":3===e?"</math>":"")),i]};class Y{constructor({strings:t,_$litType$:e},s){let i;this.parts=[];let n=0,o=0;const r=t.length-1,a=this.parts,[c,l]=K(t,e);if(this.el=Y.createElement(c,s),F.currentNode=this.el.content,2===e||3===e){const t=this.el.content.firstChild;t.replaceWith(...t.childNodes)}for(;null!==(i=F.nextNode())&&a.length<r;){if(1===i.nodeType){if(i.hasAttributes())for(const t of i.getAttributeNames())if(t.endsWith(x)){const e=l[o++],s=i.getAttribute(t).split(C),r=/([.?@])?(.*)/.exec(e);a.push({type:1,index:n,name:r[2],strings:s,ctor:"."===r[1]?tt:"?"===r[1]?et:"@"===r[1]?st:X}),i.removeAttribute(t)}else t.startsWith(C)&&(a.push({type:6,index:n}),i.removeAttribute(t));if(L.test(i.tagName)){const t=i.textContent.split(C),e=t.length-1;if(e>0){i.textContent=E?E.emptyScript:"";for(let s=0;s<e;s++)i.append(t[s],k()),F.nextNode(),a.push({type:2,index:++n});i.append(t[e],k())}}}else if(8===i.nodeType)if(i.data===P)a.push({type:2,index:n});else{let t=-1;for(;-1!==(t=i.data.indexOf(C,t+1));)a.push({type:7,index:n}),t+=C.length-1}n++}}static createElement(t,e){const s=T.createElement("template");return s.innerHTML=t,s}}function Z(t,e,s=t,i){if(e===z)return e;let n=void 0!==i?s._$Co?.[i]:s._$Cl;const o=U(e)?void 0:e._$litDirective$;return n?.constructor!==o&&(n?._$AO?.(!1),void 0===o?n=void 0:(n=new o(t),n._$AT(t,s,i)),void 0!==i?(s._$Co??=[])[i]=n:s._$Cl=n),void 0!==n&&(e=Z(t,n._$AS(t,e.values),n,i)),e}class Q{constructor(t,e){this._$AV=[],this._$AN=void 0,this._$AD=t,this._$AM=e}get parentNode(){return this._$AM.parentNode}get _$AU(){return this._$AM._$AU}u(t){const{el:{content:e},parts:s}=this._$AD,i=(t?.creationScope??T).importNode(e,!0);F.currentNode=i;let n=F.nextNode(),o=0,r=0,a=s[0];for(;void 0!==a;){if(o===a.index){let e;2===a.type?e=new G(n,n.nextSibling,this,t):1===a.type?e=new a.ctor(n,a.name,a.strings,this,t):6===a.type&&(e=new it(n,this,t)),this._$AV.push(e),a=s[++r]}o!==a?.index&&(n=F.nextNode(),o++)}return F.currentNode=T,i}p(t){let e=0;for(const s of this._$AV)void 0!==s&&(void 0!==s.strings?(s._$AI(t,s,e),e+=s.strings.length-2):s._$AI(t[e])),e++}}class G{get _$AU(){return this._$AM?._$AU??this._$Cv}constructor(t,e,s,i){this.type=2,this._$AH=W,this._$AN=void 0,this._$AA=t,this._$AB=e,this._$AM=s,this.options=i,this._$Cv=i?.isConnected??!0}get parentNode(){let t=this._$AA.parentNode;const e=this._$AM;return void 0!==e&&11===t?.nodeType&&(t=e.parentNode),t}get startNode(){return this._$AA}get endNode(){return this._$AB}_$AI(t,e=this){t=Z(this,t,e),U(t)?t===W||null==t||""===t?(this._$AH!==W&&this._$AR(),this._$AH=W):t!==this._$AH&&t!==z&&this._(t):void 0!==t._$litType$?this.$(t):void 0!==t.nodeType?this.T(t):(t=>O(t)||"function"==typeof t?.[Symbol.iterator])(t)?this.k(t):this._(t)}O(t){return this._$AA.parentNode.insertBefore(t,this._$AB)}T(t){this._$AH!==t&&(this._$AR(),this._$AH=this.O(t))}_(t){this._$AH!==W&&U(this._$AH)?this._$AA.nextSibling.data=t:this.T(T.createTextNode(t)),this._$AH=t}$(t){const{values:e,_$litType$:s}=t,i="number"==typeof s?this._$AC(t):(void 0===s.el&&(s.el=Y.createElement(J(s.h,s.h[0]),this.options)),s);if(this._$AH?._$AD===i)this._$AH.p(e);else{const t=new Q(i,this),s=t.u(this.options);t.p(e),this.T(s),this._$AH=t}}_$AC(t){let e=V.get(t.strings);return void 0===e&&V.set(t.strings,e=new Y(t)),e}k(t){O(this._$AH)||(this._$AH=[],this._$AR());const e=this._$AH;let s,i=0;for(const n of t)i===e.length?e.push(s=new G(this.O(k()),this.O(k()),this,this.options)):s=e[i],s._$AI(n),i++;i<e.length&&(this._$AR(s&&s._$AB.nextSibling,i),e.length=i)}_$AR(t=this._$AA.nextSibling,e){for(this._$AP?.(!1,!0,e);t!==this._$AB;){const e=A(t).nextSibling;A(t).remove(),t=e}}setConnected(t){void 0===this._$AM&&(this._$Cv=t,this._$AP?.(t))}}class X{get tagName(){return this.element.tagName}get _$AU(){return this._$AM._$AU}constructor(t,e,s,i,n){this.type=1,this._$AH=W,this._$AN=void 0,this.element=t,this.name=e,this._$AM=i,this.options=n,s.length>2||""!==s[0]||""!==s[1]?(this._$AH=Array(s.length-1).fill(new String),this.strings=s):this._$AH=W}_$AI(t,e=this,s,i){const n=this.strings;let o=!1;if(void 0===n)t=Z(this,t,e,0),o=!U(t)||t!==this._$AH&&t!==z,o&&(this._$AH=t);else{const i=t;let r,a;for(t=n[0],r=0;r<n.length-1;r++)a=Z(this,i[s+r],e,r),a===z&&(a=this._$AH[r]),o||=!U(a)||a!==this._$AH[r],a===W?t=W:t!==W&&(t+=(a??"")+n[r+1]),this._$AH[r]=a}o&&!i&&this.j(t)}j(t){t===W?this.element.removeAttribute(this.name):this.element.setAttribute(this.name,t??"")}}class tt extends X{constructor(){super(...arguments),this.type=3}j(t){this.element[this.name]=t===W?void 0:t}}class et extends X{constructor(){super(...arguments),this.type=4}j(t){this.element.toggleAttribute(this.name,!!t&&t!==W)}}class st extends X{constructor(t,e,s,i,n){super(t,e,s,i,n),this.type=5}_$AI(t,e=this){if((t=Z(this,t,e,0)??W)===z)return;const s=this._$AH,i=t===W&&s!==W||t.capture!==s.capture||t.once!==s.once||t.passive!==s.passive,n=t!==W&&(s===W||i);i&&this.element.removeEventListener(this.name,this,s),n&&this.element.addEventListener(this.name,this,t),this._$AH=t}handleEvent(t){"function"==typeof this._$AH?this._$AH.call(this.options?.host??this.element,t):this._$AH.handleEvent(t)}}class it{constructor(t,e,s){this.element=t,this.type=6,this._$AN=void 0,this._$AM=e,this.options=s}get _$AU(){return this._$AM._$AU}_$AI(t){Z(this,t)}}const nt=S.litHtmlPolyfillSupport;nt?.(Y,G),(S.litHtmlVersions??=[]).push("3.3.2");const ot=globalThis;class rt extends b{constructor(){super(...arguments),this.renderOptions={host:this},this._$Do=void 0}createRenderRoot(){const t=super.createRenderRoot();return this.renderOptions.renderBefore??=t.firstChild,t}update(t){const e=this.render();this.hasUpdated||(this.renderOptions.isConnected=this.isConnected),super.update(t),this._$Do=((t,e,s)=>{const i=s?.renderBefore??e;let n=i._$litPart$;if(void 0===n){const t=s?.renderBefore??null;i._$litPart$=n=new G(e.insertBefore(k(),t),t,void 0,s??{})}return n._$AI(t),n})(e,this.renderRoot,this.renderOptions)}connectedCallback(){super.connectedCallback(),this._$Do?.setConnected(!0)}disconnectedCallback(){super.disconnectedCallback(),this._$Do?.setConnected(!1)}render(){return z}}rt._$litElement$=!0,rt.finalized=!0,ot.litElementHydrateSupport?.({LitElement:rt});const at=ot.litElementPolyfillSupport;at?.({LitElement:rt}),(ot.litElementVersions??=[]).push("4.2.2");const ct={attribute:!0,type:String,converter:$,reflect:!1,hasChanged:f},lt=(t=ct,e,s)=>{const{kind:i,metadata:n}=s;let o=globalThis.litPropertyMetadata.get(n);if(void 0===o&&globalThis.litPropertyMetadata.set(n,o=new Map),"setter"===i&&((t=Object.create(t)).wrapped=!0),o.set(s.name,t),"accessor"===i){const{name:i}=s;return{set(s){const n=e.get.call(this);e.set.call(this,s),this.requestUpdate(i,n,t,!0,s)},init(e){return void 0!==e&&this.C(i,void 0,t,e),e}}}if("setter"===i){const{name:i}=s;return function(s){const n=this[i];e.call(this,s),this.requestUpdate(i,n,t,!0,s)}}throw Error("Unsupported decorator location: "+i)};function ht(t){return(e,s)=>"object"==typeof s?lt(t,e,s):((t,e,s)=>{const i=e.hasOwnProperty(s);return e.constructor.createProperty(s,t),i?Object.getOwnPropertyDescriptor(e,s):void 0})(t,e,s)}function dt(t){return ht({...t,state:!0,attribute:!1})}const pt=((t,...e)=>{const s=1===t.length?t[0]:e.reduce((e,s,i)=>e+(t=>{if(!0===t._$cssResult$)return t.cssText;if("number"==typeof t)return t;throw Error("Value passed to 'css' function must be a 'css' function result: "+t+". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.")})(s)+t[i+1],t[0]);return new o(s,t,i)})`
+!function(){"use strict";function t(t,e,s,i){var n,o=arguments.length,r=o<3?e:null===i?i=Object.getOwnPropertyDescriptor(e,s):i;if("object"==typeof Reflect&&"function"==typeof Reflect.decorate)r=Reflect.decorate(t,e,s,i);else for(var a=t.length-1;a>=0;a--)(n=t[a])&&(r=(o<3?n(r):o>3?n(e,s,r):n(e,s))||r);return o>3&&r&&Object.defineProperty(e,s,r),r}"function"==typeof SuppressedError&&SuppressedError;const e=globalThis,s=e.ShadowRoot&&(void 0===e.ShadyCSS||e.ShadyCSS.nativeShadow)&&"adoptedStyleSheets"in Document.prototype&&"replace"in CSSStyleSheet.prototype,i=Symbol(),n=new WeakMap;let o=class{constructor(t,e,s){if(this._$cssResult$=!0,s!==i)throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");this.cssText=t,this.t=e}get styleSheet(){let t=this.o;const e=this.t;if(s&&void 0===t){const s=void 0!==e&&1===e.length;s&&(t=n.get(e)),void 0===t&&((this.o=t=new CSSStyleSheet).replaceSync(this.cssText),s&&n.set(e,t))}return t}toString(){return this.cssText}};const r=s?t=>t:t=>t instanceof CSSStyleSheet?(t=>{let e="";for(const s of t.cssRules)e+=s.cssText;return(t=>new o("string"==typeof t?t:t+"",void 0,i))(e)})(t):t,{is:a,defineProperty:c,getOwnPropertyDescriptor:h,getOwnPropertyNames:l,getOwnPropertySymbols:d,getPrototypeOf:p}=Object,u=globalThis,_=u.trustedTypes,v=_?_.emptyScript:"",g=u.reactiveElementPolyfillSupport,m=(t,e)=>t,f={toAttribute(t,e){switch(e){case Boolean:t=t?v:null;break;case Object:case Array:t=null==t?t:JSON.stringify(t)}return t},fromAttribute(t,e){let s=t;switch(e){case Boolean:s=null!==t;break;case Number:s=null===t?null:Number(t);break;case Object:case Array:try{s=JSON.parse(t)}catch(t){s=null}}return s}},$=(t,e)=>!a(t,e),y={attribute:!0,type:String,converter:f,reflect:!1,useDefault:!1,hasChanged:$};Symbol.metadata??=Symbol("metadata"),u.litPropertyMetadata??=new WeakMap;let b=class extends HTMLElement{static addInitializer(t){this._$Ei(),(this.l??=[]).push(t)}static get observedAttributes(){return this.finalize(),this._$Eh&&[...this._$Eh.keys()]}static createProperty(t,e=y){if(e.state&&(e.attribute=!1),this._$Ei(),this.prototype.hasOwnProperty(t)&&((e=Object.create(e)).wrapped=!0),this.elementProperties.set(t,e),!e.noAccessor){const s=Symbol(),i=this.getPropertyDescriptor(t,s,e);void 0!==i&&c(this.prototype,t,i)}}static getPropertyDescriptor(t,e,s){const{get:i,set:n}=h(this.prototype,t)??{get(){return this[e]},set(t){this[e]=t}};return{get:i,set(e){const o=i?.call(this);n?.call(this,e),this.requestUpdate(t,o,s)},configurable:!0,enumerable:!0}}static getPropertyOptions(t){return this.elementProperties.get(t)??y}static _$Ei(){if(this.hasOwnProperty(m("elementProperties")))return;const t=p(this);t.finalize(),void 0!==t.l&&(this.l=[...t.l]),this.elementProperties=new Map(t.elementProperties)}static finalize(){if(this.hasOwnProperty(m("finalized")))return;if(this.finalized=!0,this._$Ei(),this.hasOwnProperty(m("properties"))){const t=this.properties,e=[...l(t),...d(t)];for(const s of e)this.createProperty(s,t[s])}const t=this[Symbol.metadata];if(null!==t){const e=litPropertyMetadata.get(t);if(void 0!==e)for(const[t,s]of e)this.elementProperties.set(t,s)}this._$Eh=new Map;for(const[t,e]of this.elementProperties){const s=this._$Eu(t,e);void 0!==s&&this._$Eh.set(s,t)}this.elementStyles=this.finalizeStyles(this.styles)}static finalizeStyles(t){const e=[];if(Array.isArray(t)){const s=new Set(t.flat(1/0).reverse());for(const t of s)e.unshift(r(t))}else void 0!==t&&e.push(r(t));return e}static _$Eu(t,e){const s=e.attribute;return!1===s?void 0:"string"==typeof s?s:"string"==typeof t?t.toLowerCase():void 0}constructor(){super(),this._$Ep=void 0,this.isUpdatePending=!1,this.hasUpdated=!1,this._$Em=null,this._$Ev()}_$Ev(){this._$ES=new Promise(t=>this.enableUpdating=t),this._$AL=new Map,this._$E_(),this.requestUpdate(),this.constructor.l?.forEach(t=>t(this))}addController(t){(this._$EO??=new Set).add(t),void 0!==this.renderRoot&&this.isConnected&&t.hostConnected?.()}removeController(t){this._$EO?.delete(t)}_$E_(){const t=new Map,e=this.constructor.elementProperties;for(const s of e.keys())this.hasOwnProperty(s)&&(t.set(s,this[s]),delete this[s]);t.size>0&&(this._$Ep=t)}createRenderRoot(){const t=this.shadowRoot??this.attachShadow(this.constructor.shadowRootOptions);return((t,i)=>{if(s)t.adoptedStyleSheets=i.map(t=>t instanceof CSSStyleSheet?t:t.styleSheet);else for(const s of i){const i=document.createElement("style"),n=e.litNonce;void 0!==n&&i.setAttribute("nonce",n),i.textContent=s.cssText,t.appendChild(i)}})(t,this.constructor.elementStyles),t}connectedCallback(){this.renderRoot??=this.createRenderRoot(),this.enableUpdating(!0),this._$EO?.forEach(t=>t.hostConnected?.())}enableUpdating(t){}disconnectedCallback(){this._$EO?.forEach(t=>t.hostDisconnected?.())}attributeChangedCallback(t,e,s){this._$AK(t,s)}_$ET(t,e){const s=this.constructor.elementProperties.get(t),i=this.constructor._$Eu(t,s);if(void 0!==i&&!0===s.reflect){const n=(void 0!==s.converter?.toAttribute?s.converter:f).toAttribute(e,s.type);this._$Em=t,null==n?this.removeAttribute(i):this.setAttribute(i,n),this._$Em=null}}_$AK(t,e){const s=this.constructor,i=s._$Eh.get(t);if(void 0!==i&&this._$Em!==i){const t=s.getPropertyOptions(i),n="function"==typeof t.converter?{fromAttribute:t.converter}:void 0!==t.converter?.fromAttribute?t.converter:f;this._$Em=i;const o=n.fromAttribute(e,t.type);this[i]=o??this._$Ej?.get(i)??o,this._$Em=null}}requestUpdate(t,e,s,i=!1,n){if(void 0!==t){const o=this.constructor;if(!1===i&&(n=this[t]),s??=o.getPropertyOptions(t),!((s.hasChanged??$)(n,e)||s.useDefault&&s.reflect&&n===this._$Ej?.get(t)&&!this.hasAttribute(o._$Eu(t,s))))return;this.C(t,e,s)}!1===this.isUpdatePending&&(this._$ES=this._$EP())}C(t,e,{useDefault:s,reflect:i,wrapped:n},o){s&&!(this._$Ej??=new Map).has(t)&&(this._$Ej.set(t,o??e??this[t]),!0!==n||void 0!==o)||(this._$AL.has(t)||(this.hasUpdated||s||(e=void 0),this._$AL.set(t,e)),!0===i&&this._$Em!==t&&(this._$Eq??=new Set).add(t))}async _$EP(){this.isUpdatePending=!0;try{await this._$ES}catch(t){Promise.reject(t)}const t=this.scheduleUpdate();return null!=t&&await t,!this.isUpdatePending}scheduleUpdate(){return this.performUpdate()}performUpdate(){if(!this.isUpdatePending)return;if(!this.hasUpdated){if(this.renderRoot??=this.createRenderRoot(),this._$Ep){for(const[t,e]of this._$Ep)this[t]=e;this._$Ep=void 0}const t=this.constructor.elementProperties;if(t.size>0)for(const[e,s]of t){const{wrapped:t}=s,i=this[e];!0!==t||this._$AL.has(e)||void 0===i||this.C(e,void 0,s,i)}}let t=!1;const e=this._$AL;try{t=this.shouldUpdate(e),t?(this.willUpdate(e),this._$EO?.forEach(t=>t.hostUpdate?.()),this.update(e)):this._$EM()}catch(e){throw t=!1,this._$EM(),e}t&&this._$AE(e)}willUpdate(t){}_$AE(t){this._$EO?.forEach(t=>t.hostUpdated?.()),this.hasUpdated||(this.hasUpdated=!0,this.firstUpdated(t)),this.updated(t)}_$EM(){this._$AL=new Map,this.isUpdatePending=!1}get updateComplete(){return this.getUpdateComplete()}getUpdateComplete(){return this._$ES}shouldUpdate(t){return!0}update(t){this._$Eq&&=this._$Eq.forEach(t=>this._$ET(t,this[t])),this._$EM()}updated(t){}firstUpdated(t){}};b.elementStyles=[],b.shadowRootOptions={mode:"open"},b[m("elementProperties")]=new Map,b[m("finalized")]=new Map,g?.({ReactiveElement:b}),(u.reactiveElementVersions??=[]).push("2.1.2");const w=globalThis,A=t=>t,S=w.trustedTypes,x=S?S.createPolicy("lit-html",{createHTML:t=>t}):void 0,E="$lit$",C=`lit$${Math.random().toFixed(9).slice(2)}$`,P="?"+C,k=`<${P}>`,T=document,q=()=>T.createComment(""),N=t=>null===t||"object"!=typeof t&&"function"!=typeof t,U=Array.isArray,I="[ \t\n\f\r]",O=/<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g,M=/-->/g,F=/>/g,H=RegExp(`>|${I}(?:([^\\s"'>=/]+)(${I}*=${I}*(?:[^ \t\n\f\r"'\`<>=]|("|')|))|$)`,"g"),R=/'/g,D=/"/g,z=/^(?:script|style|textarea|title)$/i,B=(t=>(e,...s)=>({_$litType$:t,strings:e,values:s}))(1),L=Symbol.for("lit-noChange"),j=Symbol.for("lit-nothing"),G=new WeakMap,W=T.createTreeWalker(T,129);function V(t,e){if(!U(t)||!t.hasOwnProperty("raw"))throw Error("invalid template strings array");return void 0!==x?x.createHTML(e):e}const K=(t,e)=>{const s=t.length-1,i=[];let n,o=2===e?"<svg>":3===e?"<math>":"",r=O;for(let e=0;e<s;e++){const s=t[e];let a,c,h=-1,l=0;for(;l<s.length&&(r.lastIndex=l,c=r.exec(s),null!==c);)l=r.lastIndex,r===O?"!--"===c[1]?r=M:void 0!==c[1]?r=F:void 0!==c[2]?(z.test(c[2])&&(n=RegExp("</"+c[2],"g")),r=H):void 0!==c[3]&&(r=H):r===H?">"===c[0]?(r=n??O,h=-1):void 0===c[1]?h=-2:(h=r.lastIndex-c[2].length,a=c[1],r=void 0===c[3]?H:'"'===c[3]?D:R):r===D||r===R?r=H:r===M||r===F?r=O:(r=H,n=void 0);const d=r===H&&t[e+1].startsWith("/>")?" ":"";o+=r===O?s+k:h>=0?(i.push(a),s.slice(0,h)+E+s.slice(h)+C+d):s+C+(-2===h?e:d)}return[V(t,o+(t[s]||"<?>")+(2===e?"</svg>":3===e?"</math>":"")),i]};class J{constructor({strings:t,_$litType$:e},s){let i;this.parts=[];let n=0,o=0;const r=t.length-1,a=this.parts,[c,h]=K(t,e);if(this.el=J.createElement(c,s),W.currentNode=this.el.content,2===e||3===e){const t=this.el.content.firstChild;t.replaceWith(...t.childNodes)}for(;null!==(i=W.nextNode())&&a.length<r;){if(1===i.nodeType){if(i.hasAttributes())for(const t of i.getAttributeNames())if(t.endsWith(E)){const e=h[o++],s=i.getAttribute(t).split(C),r=/([.?@])?(.*)/.exec(e);a.push({type:1,index:n,name:r[2],strings:s,ctor:"."===r[1]?tt:"?"===r[1]?et:"@"===r[1]?st:X}),i.removeAttribute(t)}else t.startsWith(C)&&(a.push({type:6,index:n}),i.removeAttribute(t));if(z.test(i.tagName)){const t=i.textContent.split(C),e=t.length-1;if(e>0){i.textContent=S?S.emptyScript:"";for(let s=0;s<e;s++)i.append(t[s],q()),W.nextNode(),a.push({type:2,index:++n});i.append(t[e],q())}}}else if(8===i.nodeType)if(i.data===P)a.push({type:2,index:n});else{let t=-1;for(;-1!==(t=i.data.indexOf(C,t+1));)a.push({type:7,index:n}),t+=C.length-1}n++}}static createElement(t,e){const s=T.createElement("template");return s.innerHTML=t,s}}function Q(t,e,s=t,i){if(e===L)return e;let n=void 0!==i?s._$Co?.[i]:s._$Cl;const o=N(e)?void 0:e._$litDirective$;return n?.constructor!==o&&(n?._$AO?.(!1),void 0===o?n=void 0:(n=new o(t),n._$AT(t,s,i)),void 0!==i?(s._$Co??=[])[i]=n:s._$Cl=n),void 0!==n&&(e=Q(t,n._$AS(t,e.values),n,i)),e}class Y{constructor(t,e){this._$AV=[],this._$AN=void 0,this._$AD=t,this._$AM=e}get parentNode(){return this._$AM.parentNode}get _$AU(){return this._$AM._$AU}u(t){const{el:{content:e},parts:s}=this._$AD,i=(t?.creationScope??T).importNode(e,!0);W.currentNode=i;let n=W.nextNode(),o=0,r=0,a=s[0];for(;void 0!==a;){if(o===a.index){let e;2===a.type?e=new Z(n,n.nextSibling,this,t):1===a.type?e=new a.ctor(n,a.name,a.strings,this,t):6===a.type&&(e=new it(n,this,t)),this._$AV.push(e),a=s[++r]}o!==a?.index&&(n=W.nextNode(),o++)}return W.currentNode=T,i}p(t){let e=0;for(const s of this._$AV)void 0!==s&&(void 0!==s.strings?(s._$AI(t,s,e),e+=s.strings.length-2):s._$AI(t[e])),e++}}class Z{get _$AU(){return this._$AM?._$AU??this._$Cv}constructor(t,e,s,i){this.type=2,this._$AH=j,this._$AN=void 0,this._$AA=t,this._$AB=e,this._$AM=s,this.options=i,this._$Cv=i?.isConnected??!0}get parentNode(){let t=this._$AA.parentNode;const e=this._$AM;return void 0!==e&&11===t?.nodeType&&(t=e.parentNode),t}get startNode(){return this._$AA}get endNode(){return this._$AB}_$AI(t,e=this){t=Q(this,t,e),N(t)?t===j||null==t||""===t?(this._$AH!==j&&this._$AR(),this._$AH=j):t!==this._$AH&&t!==L&&this._(t):void 0!==t._$litType$?this.$(t):void 0!==t.nodeType?this.T(t):(t=>U(t)||"function"==typeof t?.[Symbol.iterator])(t)?this.k(t):this._(t)}O(t){return this._$AA.parentNode.insertBefore(t,this._$AB)}T(t){this._$AH!==t&&(this._$AR(),this._$AH=this.O(t))}_(t){this._$AH!==j&&N(this._$AH)?this._$AA.nextSibling.data=t:this.T(T.createTextNode(t)),this._$AH=t}$(t){const{values:e,_$litType$:s}=t,i="number"==typeof s?this._$AC(t):(void 0===s.el&&(s.el=J.createElement(V(s.h,s.h[0]),this.options)),s);if(this._$AH?._$AD===i)this._$AH.p(e);else{const t=new Y(i,this),s=t.u(this.options);t.p(e),this.T(s),this._$AH=t}}_$AC(t){let e=G.get(t.strings);return void 0===e&&G.set(t.strings,e=new J(t)),e}k(t){U(this._$AH)||(this._$AH=[],this._$AR());const e=this._$AH;let s,i=0;for(const n of t)i===e.length?e.push(s=new Z(this.O(q()),this.O(q()),this,this.options)):s=e[i],s._$AI(n),i++;i<e.length&&(this._$AR(s&&s._$AB.nextSibling,i),e.length=i)}_$AR(t=this._$AA.nextSibling,e){for(this._$AP?.(!1,!0,e);t!==this._$AB;){const e=A(t).nextSibling;A(t).remove(),t=e}}setConnected(t){void 0===this._$AM&&(this._$Cv=t,this._$AP?.(t))}}class X{get tagName(){return this.element.tagName}get _$AU(){return this._$AM._$AU}constructor(t,e,s,i,n){this.type=1,this._$AH=j,this._$AN=void 0,this.element=t,this.name=e,this._$AM=i,this.options=n,s.length>2||""!==s[0]||""!==s[1]?(this._$AH=Array(s.length-1).fill(new String),this.strings=s):this._$AH=j}_$AI(t,e=this,s,i){const n=this.strings;let o=!1;if(void 0===n)t=Q(this,t,e,0),o=!N(t)||t!==this._$AH&&t!==L,o&&(this._$AH=t);else{const i=t;let r,a;for(t=n[0],r=0;r<n.length-1;r++)a=Q(this,i[s+r],e,r),a===L&&(a=this._$AH[r]),o||=!N(a)||a!==this._$AH[r],a===j?t=j:t!==j&&(t+=(a??"")+n[r+1]),this._$AH[r]=a}o&&!i&&this.j(t)}j(t){t===j?this.element.removeAttribute(this.name):this.element.setAttribute(this.name,t??"")}}class tt extends X{constructor(){super(...arguments),this.type=3}j(t){this.element[this.name]=t===j?void 0:t}}class et extends X{constructor(){super(...arguments),this.type=4}j(t){this.element.toggleAttribute(this.name,!!t&&t!==j)}}class st extends X{constructor(t,e,s,i,n){super(t,e,s,i,n),this.type=5}_$AI(t,e=this){if((t=Q(this,t,e,0)??j)===L)return;const s=this._$AH,i=t===j&&s!==j||t.capture!==s.capture||t.once!==s.once||t.passive!==s.passive,n=t!==j&&(s===j||i);i&&this.element.removeEventListener(this.name,this,s),n&&this.element.addEventListener(this.name,this,t),this._$AH=t}handleEvent(t){"function"==typeof this._$AH?this._$AH.call(this.options?.host??this.element,t):this._$AH.handleEvent(t)}}class it{constructor(t,e,s){this.element=t,this.type=6,this._$AN=void 0,this._$AM=e,this.options=s}get _$AU(){return this._$AM._$AU}_$AI(t){Q(this,t)}}const nt=w.litHtmlPolyfillSupport;nt?.(J,Z),(w.litHtmlVersions??=[]).push("3.3.2");const ot=globalThis;let rt=class extends b{constructor(){super(...arguments),this.renderOptions={host:this},this._$Do=void 0}createRenderRoot(){const t=super.createRenderRoot();return this.renderOptions.renderBefore??=t.firstChild,t}update(t){const e=this.render();this.hasUpdated||(this.renderOptions.isConnected=this.isConnected),super.update(t),this._$Do=((t,e,s)=>{const i=s?.renderBefore??e;let n=i._$litPart$;if(void 0===n){const t=s?.renderBefore??null;i._$litPart$=n=new Z(e.insertBefore(q(),t),t,void 0,s??{})}return n._$AI(t),n})(e,this.renderRoot,this.renderOptions)}connectedCallback(){super.connectedCallback(),this._$Do?.setConnected(!0)}disconnectedCallback(){super.disconnectedCallback(),this._$Do?.setConnected(!1)}render(){return L}};rt._$litElement$=!0,rt.finalized=!0,ot.litElementHydrateSupport?.({LitElement:rt});const at=ot.litElementPolyfillSupport;at?.({LitElement:rt}),(ot.litElementVersions??=[]).push("4.2.2");const ct={attribute:!0,type:String,converter:f,reflect:!1,hasChanged:$},ht=(t=ct,e,s)=>{const{kind:i,metadata:n}=s;let o=globalThis.litPropertyMetadata.get(n);if(void 0===o&&globalThis.litPropertyMetadata.set(n,o=new Map),"setter"===i&&((t=Object.create(t)).wrapped=!0),o.set(s.name,t),"accessor"===i){const{name:i}=s;return{set(s){const n=e.get.call(this);e.set.call(this,s),this.requestUpdate(i,n,t,!0,s)},init(e){return void 0!==e&&this.C(i,void 0,t,e),e}}}if("setter"===i){const{name:i}=s;return function(s){const n=this[i];e.call(this,s),this.requestUpdate(i,n,t,!0,s)}}throw Error("Unsupported decorator location: "+i)};function lt(t){return(e,s)=>"object"==typeof s?ht(t,e,s):((t,e,s)=>{const i=e.hasOwnProperty(s);return e.constructor.createProperty(s,t),i?Object.getOwnPropertyDescriptor(e,s):void 0})(t,e,s)}function dt(t){return lt({...t,state:!0,attribute:!1})}const pt=2;class ut{constructor(t){}get _$AU(){return this._$AM._$AU}_$AT(t,e,s){this._$Ct=t,this._$AM=e,this._$Ci=s}_$AS(t,e){return this.update(t,e)}update(t,e){return this.render(...e)}}const _t=(t,e)=>{const s=t._$AN;if(void 0===s)return!1;for(const t of s)t._$AO?.(e,!1),_t(t,e);return!0},vt=t=>{let e,s;do{if(void 0===(e=t._$AM))break;s=e._$AN,s.delete(t),t=e}while(0===s?.size)},gt=t=>{for(let e;e=t._$AM;t=e){let s=e._$AN;if(void 0===s)e._$AN=s=new Set;else if(s.has(t))break;s.add(t),$t(e)}};function mt(t){void 0!==this._$AN?(vt(this),this._$AM=t,gt(this)):this._$AM=t}function ft(t,e=!1,s=0){const i=this._$AH,n=this._$AN;if(void 0!==n&&0!==n.size)if(e)if(Array.isArray(i))for(let t=s;t<i.length;t++)_t(i[t],!1),vt(i[t]);else null!=i&&(_t(i,!1),vt(i));else _t(this,t)}const $t=t=>{t.type==pt&&(t._$AP??=ft,t._$AQ??=mt)};class yt extends ut{constructor(){super(...arguments),this._$AN=void 0}_$AT(t,e,s){super._$AT(t,e,s),gt(this),this.isConnected=t._$AU}_$AO(t,e=!0){t!==this.isConnected&&(this.isConnected=t,t?this.reconnected?.():this.disconnected?.()),e&&(_t(this,t),vt(this))}setValue(t){if((t=>void 0===t.strings)(this._$Ct))this._$Ct._$AI(t,this);else{const e=[...this._$Ct._$AH];e[this._$Ci]=t,this._$Ct._$AI(e,this,0)}}disconnected(){}reconnected(){}}class bt{}const wt=new WeakMap,At=(t=>(...e)=>({_$litDirective$:t,values:e}))(class extends yt{render(t){return j}update(t,[e]){const s=e!==this.G;return s&&void 0!==this.G&&this.rt(void 0),(s||this.lt!==this.ct)&&(this.G=e,this.ht=t.options?.host,this.rt(this.ct=t.element)),j}rt(t){if(this.isConnected||(t=void 0),"function"==typeof this.G){const e=this.ht??globalThis;let s=wt.get(e);void 0===s&&(s=new WeakMap,wt.set(e,s)),void 0!==s.get(this.G)&&this.G.call(this.ht,void 0),s.set(this.G,t),void 0!==t&&this.G.call(this.ht,t)}else this.G.value=t}get lt(){return"function"==typeof this.G?wt.get(this.ht??globalThis)?.get(this.G):this.G?.value}disconnected(){this.lt===this.ct&&this.rt(void 0)}reconnected(){this.rt(this.ct)}}),St=((t,...e)=>{const s=1===t.length?t[0]:e.reduce((e,s,i)=>e+(t=>{if(!0===t._$cssResult$)return t.cssText;if("number"==typeof t)return t;throw Error("Value passed to 'css' function must be a 'css' function result: "+t+". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.")})(s)+t[i+1],t[0]);return new o(s,t,i)})`
   :host {
     display: block;
     padding: 16px;
@@ -62,6 +62,116 @@
 
   .control-buttons ha-icon {
     margin-right: 4px;
+  }
+
+  /* Target input with add favorite button */
+  .target-input {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .target-input ha-selector {
+    flex: 1;
+  }
+
+  .add-favorite-btn {
+    --mdc-icon-button-size: 40px;
+    color: var(--primary-color);
+  }
+
+  .add-favorite-btn:hover {
+    color: var(--accent-color);
+  }
+
+  /* Favorite inline input */
+  .favorite-input-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .favorite-input-container ha-selector {
+    flex: 1;
+  }
+
+  .favorite-input-container ha-button {
+    flex-shrink: 0;
+  }
+
+  /* Light tile card container */
+  .light-tile-container {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+  }
+
+  .light-tile-container hui-tile-card {
+    --ha-card-background: var(--card-background-color);
+    --ha-card-border-radius: 12px;
+    display: block;
+    width: 100%;
+  }
+
+  @media (max-width: 600px) {
+    .light-tile-container {
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 8px;
+    }
+  }
+
+  /* Favorites container and chips */
+  .favorites-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .favorite-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px 6px 12px;
+    background: var(--card-background-color);
+    border: 1px solid var(--divider-color);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 13px;
+  }
+
+  .favorite-chip:hover {
+    background: var(--primary-color);
+    color: var(--text-primary-color);
+    border-color: var(--primary-color);
+  }
+
+  .favorite-icon {
+    --mdc-icon-size: 16px;
+    color: var(--warning-color);
+  }
+
+  .favorite-chip:hover .favorite-icon {
+    color: var(--text-primary-color);
+  }
+
+  .favorite-name {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .remove-favorite-btn {
+    --mdc-icon-button-size: 24px;
+    --mdc-icon-size: 16px;
+    margin: -4px -4px -4px 0;
+    opacity: 0.7;
+  }
+
+  .remove-favorite-btn:hover {
+    opacity: 1;
   }
 
   .section {
@@ -219,7 +329,7 @@
       font-size: 11px;
     }
   }
-`;let ut=class extends rt{constructor(){super(...arguments),this.narrow=!1,this._loading=!0,this._selectedEntities=[],this._brightness=100,this._useCustomBrightness=!1,this._collapsed={},this._hasIncompatibleLights=!1}firstUpdated(){this._loadPresets()}updated(t){super.updated(t),t.has("hass")&&void 0===t.get("hass")&&this._loadPresets()}async _loadPresets(){try{const t=await fetch("/api/aqara_advanced_lighting/presets");if(!t.ok)throw new Error(`HTTP error ${t.status}`);this._presets=await t.json(),this._loading=!1}catch(t){this._error=t instanceof Error?t.message:"Failed to load presets",this._loading=!1}}_getSelectedDeviceTypes(){if(!this._selectedEntities.length||!this.hass)return this._hasIncompatibleLights=!1,[];const t=new Set;let e=!1;for(const s of this._selectedEntities){const i=this.hass.states[s];if(!i)continue;const n=i.attributes.effect_list;n&&Array.isArray(n)?n.includes("flow1")||n.includes("flow2")||n.includes("rolling")?t.add("t1m"):n.includes("rainbow1")||n.includes("rainbow2")||n.includes("chasing")||n.includes("flicker")||n.includes("dash")?t.add("t1_strip"):n.includes("candlelight")?t.add("t2_bulb"):e=!0:n||void 0===i.attributes.color_temp?e=!0:t.add("t2_cct")}return this._hasIncompatibleLights=e,Array.from(t)}_filterPresets(){const t=this._getSelectedDeviceTypes(),e=t.length>0,s=t.includes("t2_bulb"),i=t.includes("t1m"),n=t.includes("t1_strip");return{showDynamicEffects:e&&(s||i||n),showSegmentPatterns:e&&(i||n),showCCTSequences:e,showSegmentSequences:e&&(i||n),t2Presets:s&&this._presets?.dynamic_effects.t2_bulb||[],t1mPresets:i&&this._presets?.dynamic_effects.t1m||[],t1StripPresets:n&&this._presets?.dynamic_effects.t1_strip||[]}}_handleEntityChange(t){const e=t.detail.value;"string"==typeof e?this._selectedEntities=e?[e]:[]:Array.isArray(e)?this._selectedEntities=e:this._selectedEntities=[]}_handleBrightnessChange(t){this._brightness=t.detail.value}_handleCustomBrightnessToggle(t){this._useCustomBrightness=t.detail.value}_toggleSection(t){this._collapsed={...this._collapsed,[t]:!this._collapsed[t]}}async _activateDynamicEffect(t){if(!this._selectedEntities.length)return;const e={entity_id:this._selectedEntities,preset:t.id,turn_on:!0,sync:!0};this._useCustomBrightness&&(e.brightness=this._brightness),await this.hass.callService("aqara_advanced_lighting","set_dynamic_effect",e)}async _activateSegmentPattern(t){if(!this._selectedEntities.length)return;const e={entity_id:this._selectedEntities,preset:t.id,turn_on:!0,sync:!0};this._useCustomBrightness&&(e.brightness=this._brightness),await this.hass.callService("aqara_advanced_lighting","set_segment_pattern",e)}async _activateCCTSequence(t){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","start_cct_sequence",{entity_id:this._selectedEntities,preset:t.id,turn_on:!0,sync:!0})}async _activateSegmentSequence(t){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","start_segment_sequence",{entity_id:this._selectedEntities,preset:t.id,turn_on:!0,sync:!0})}async _stopEffect(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","stop_effect",{entity_id:this._selectedEntities,restore_state:!0})}async _pauseCCTSequence(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","pause_cct_sequence",{entity_id:this._selectedEntities})}async _resumeCCTSequence(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","resume_cct_sequence",{entity_id:this._selectedEntities})}async _stopCCTSequence(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","stop_cct_sequence",{entity_id:this._selectedEntities})}async _pauseSegmentSequence(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","pause_segment_sequence",{entity_id:this._selectedEntities})}async _resumeSegmentSequence(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","resume_segment_sequence",{entity_id:this._selectedEntities})}async _stopSegmentSequence(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","stop_segment_sequence",{entity_id:this._selectedEntities})}render(){if(this._loading)return j`<div class="loading">Loading presets...</div>`;if(this._error)return j`<div class="error">Error: ${this._error}</div>`;if(!this._presets)return j`<div class="error">No presets available</div>`;const t=this._filterPresets(),e=this._selectedEntities.length>0;return j`
+`;let xt=class extends rt{constructor(){super(...arguments),this.narrow=!1,this._loading=!0,this._selectedEntities=[],this._brightness=100,this._useCustomBrightness=!1,this._collapsed={},this._hasIncompatibleLights=!1,this._favorites=[],this._showFavoriteInput=!1,this._favoriteInputName="",this._tileCardRef=new bt,this._tileCards=new Map}firstUpdated(){this._loadPresets(),this._loadFavorites()}updated(t){super.updated(t),t.has("hass")&&void 0===t.get("hass")&&(this._loadPresets(),this._loadFavorites()),this._updateTileCard()}async _updateTileCard(){const t=this._tileCardRef.value;if(!t||!this.hass)return;if(!this._selectedEntities.length)return this._tileCards.forEach(t=>t.remove()),void this._tileCards.clear();await customElements.whenDefined("hui-tile-card");const e=new Set(this._selectedEntities);for(const[t,s]of this._tileCards.entries())e.has(t)||(s.remove(),this._tileCards.delete(t));for(const e of this._selectedEntities){let s=this._tileCards.get(e);s||(s=document.createElement("hui-tile-card"),t.appendChild(s),this._tileCards.set(e,s));try{s.setConfig({type:"tile",entity:e,features:[{type:"light-brightness"}]}),s.hass=this.hass}catch(t){console.warn("Failed to configure tile card for",e,":",t)}}}async _loadPresets(){try{const t=await fetch("/api/aqara_advanced_lighting/presets");if(!t.ok)throw new Error(`HTTP error ${t.status}`);this._presets=await t.json(),this._loading=!1}catch(t){this._error=t instanceof Error?t.message:"Failed to load presets",this._loading=!1}}async _loadFavorites(){if(this.hass?.auth?.data?.access_token)try{const t=await fetch("/api/aqara_advanced_lighting/favorites",{credentials:"same-origin",headers:{Authorization:`Bearer ${this.hass.auth.data.access_token}`}});if(!t.ok)return void console.warn("Failed to load favorites:",t.status);const e=await t.json();this._favorites=e.favorites||[]}catch(t){console.warn("Failed to load favorites:",t)}else console.warn("No auth token available, skipping favorites load")}_addFavorite(){if(!this._selectedEntities.length)return;const t=this._selectedEntities[0],e=1===this._selectedEntities.length&&t?this._getEntityFriendlyName(t):`${this._selectedEntities.length} lights`;this._favoriteInputName=e,this._showFavoriteInput=!0}async _saveFavorite(){if(this._selectedEntities.length&&this.hass?.auth?.data?.access_token){try{const t=await fetch("/api/aqara_advanced_lighting/favorites",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json",Authorization:`Bearer ${this.hass.auth.data.access_token}`},body:JSON.stringify({entities:this._selectedEntities,name:this._favoriteInputName||void 0})});if(!t.ok)throw new Error(`HTTP error ${t.status}`);const e=await t.json();this._favorites=[...this._favorites,e.favorite]}catch(t){console.error("Failed to add favorite:",t)}this._cancelFavoriteInput()}else this._cancelFavoriteInput()}_cancelFavoriteInput(){this._showFavoriteInput=!1,this._favoriteInputName=""}_handleFavoriteNameChange(t){this._favoriteInputName=t.detail.value||""}_handleFavoriteNameKeydown(t){"Enter"===t.key?(t.preventDefault(),this._saveFavorite()):"Escape"===t.key&&(t.preventDefault(),this._cancelFavoriteInput())}async _removeFavorite(t){if(this.hass?.auth?.data?.access_token)try{const e=await fetch(`/api/aqara_advanced_lighting/favorites/${t}`,{method:"DELETE",credentials:"same-origin",headers:{Authorization:`Bearer ${this.hass.auth.data.access_token}`}});if(!e.ok&&204!==e.status)throw new Error(`HTTP error ${e.status}`);this._favorites=this._favorites.filter(e=>e.id!==t)}catch(t){console.error("Failed to remove favorite:",t)}else console.error("No auth token available")}_selectFavorite(t){this._selectedEntities=[...t.entities]}_getEntityFriendlyName(t){if(!this.hass)return t;const e=this.hass.states[t];return e&&e.attributes.friendly_name?e.attributes.friendly_name:t.split(".")[1]?.replace(/_/g," ")||t}_getSelectedDeviceTypes(){if(!this._selectedEntities.length||!this.hass)return this._hasIncompatibleLights=!1,[];const t=new Set;let e=!1;for(const s of this._selectedEntities){const i=this.hass.states[s];if(!i)continue;const n=i.attributes.effect_list;n&&Array.isArray(n)?n.includes("flow1")||n.includes("flow2")||n.includes("rolling")?t.add("t1m"):n.includes("rainbow1")||n.includes("rainbow2")||n.includes("chasing")||n.includes("flicker")||n.includes("dash")?t.add("t1_strip"):n.includes("candlelight")?t.add("t2_bulb"):e=!0:n||void 0===i.attributes.color_temp?e=!0:t.add("t2_cct")}return this._hasIncompatibleLights=e,Array.from(t)}_filterPresets(){const t=this._getSelectedDeviceTypes(),e=t.length>0,s=t.includes("t2_bulb"),i=t.includes("t1m"),n=t.includes("t1_strip");return{showDynamicEffects:e&&(s||i||n),showSegmentPatterns:e&&(i||n),showCCTSequences:e,showSegmentSequences:e&&(i||n),t2Presets:s&&this._presets?.dynamic_effects.t2_bulb||[],t1mPresets:i&&this._presets?.dynamic_effects.t1m||[],t1StripPresets:n&&this._presets?.dynamic_effects.t1_strip||[]}}_handleEntityChange(t){const e=t.detail.value;"string"==typeof e?this._selectedEntities=e?[e]:[]:Array.isArray(e)?this._selectedEntities=e:this._selectedEntities=[]}_handleBrightnessChange(t){this._brightness=t.detail.value}_handleCustomBrightnessToggle(t){this._useCustomBrightness=t.detail.value}_toggleSection(t){this._collapsed={...this._collapsed,[t]:!this._collapsed[t]}}async _activateDynamicEffect(t){if(!this._selectedEntities.length)return;const e={entity_id:this._selectedEntities,preset:t.id,turn_on:!0,sync:!0};this._useCustomBrightness&&(e.brightness=this._brightness),await this.hass.callService("aqara_advanced_lighting","set_dynamic_effect",e)}async _activateSegmentPattern(t){if(!this._selectedEntities.length)return;const e={entity_id:this._selectedEntities,preset:t.id,turn_on:!0,sync:!0};this._useCustomBrightness&&(e.brightness=this._brightness),await this.hass.callService("aqara_advanced_lighting","set_segment_pattern",e)}async _activateCCTSequence(t){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","start_cct_sequence",{entity_id:this._selectedEntities,preset:t.id,turn_on:!0,sync:!0})}async _activateSegmentSequence(t){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","start_segment_sequence",{entity_id:this._selectedEntities,preset:t.id,turn_on:!0,sync:!0})}async _stopEffect(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","stop_effect",{entity_id:this._selectedEntities,restore_state:!0})}async _pauseCCTSequence(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","pause_cct_sequence",{entity_id:this._selectedEntities})}async _resumeCCTSequence(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","resume_cct_sequence",{entity_id:this._selectedEntities})}async _stopCCTSequence(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","stop_cct_sequence",{entity_id:this._selectedEntities})}async _pauseSegmentSequence(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","pause_segment_sequence",{entity_id:this._selectedEntities})}async _resumeSegmentSequence(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","resume_segment_sequence",{entity_id:this._selectedEntities})}async _stopSegmentSequence(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","stop_segment_sequence",{entity_id:this._selectedEntities})}render(){if(this._loading)return B`<div class="loading">Loading presets...</div>`;if(this._error)return B`<div class="error">Error: ${this._error}</div>`;if(!this._presets)return B`<div class="error">No presets available</div>`;const t=this._filterPresets(),e=this._selectedEntities.length>0;return B`
       <div class="panel-header">
         <h1 class="panel-title">Aqara Advanced Lighting</h1>
       </div>
@@ -227,84 +337,147 @@
       <div class="controls">
         <div class="control-row">
           <span class="control-label">Target</span>
-          <div class="control-input">
+          <div class="control-input target-input">
             <ha-selector
               .hass=${this.hass}
               .selector=${{entity:{multiple:!0,filter:{domain:"light"}}}}
               .value=${this._selectedEntities}
               @value-changed=${this._handleEntityChange}
             ></ha-selector>
+            ${e&&!this._showFavoriteInput?B`
+                  <ha-icon-button
+                    class="add-favorite-btn"
+                    @click=${this._addFavorite}
+                    title="Save as favorite"
+                  >
+                    <ha-icon icon="mdi:star-plus"></ha-icon>
+                  </ha-icon-button>
+                `:""}
           </div>
         </div>
 
-        <div class="control-row">
-          <span class="control-label">Custom Brightness</span>
-          <div class="control-input">
-            <ha-selector
-              .hass=${this.hass}
-              .selector=${{boolean:{}}}
-              .value=${this._useCustomBrightness}
-              @value-changed=${this._handleCustomBrightnessToggle}
-            ></ha-selector>
-          </div>
-        </div>
-
-        ${this._useCustomBrightness?j`
+        ${this._showFavoriteInput?B`
               <div class="control-row">
-                <span class="control-label">Brightness</span>
-                <div class="control-input">
+                <span class="control-label">Favorite Name</span>
+                <div class="control-input favorite-input-container">
                   <ha-selector
                     .hass=${this.hass}
-                    .selector=${{number:{min:1,max:100,mode:"slider",unit_of_measurement:"%"}}}
-                    .value=${this._brightness}
-                    @value-changed=${this._handleBrightnessChange}
+                    .selector=${{text:{}}}
+                    .value=${this._favoriteInputName}
+                    @value-changed=${this._handleFavoriteNameChange}
+                    @keydown=${this._handleFavoriteNameKeydown}
                   ></ha-selector>
+                  <ha-button @click=${this._saveFavorite}>
+                    <ha-icon icon="mdi:check"></ha-icon>
+                    Save
+                  </ha-button>
+                  <ha-button @click=${this._cancelFavoriteInput}>
+                    <ha-icon icon="mdi:close"></ha-icon>
+                    Cancel
+                  </ha-button>
                 </div>
               </div>
             `:""}
 
-        ${e?j`
+        ${this._favorites.length>0?B`
+              <div class="control-row">
+                <span class="control-label">Favorites</span>
+                <div class="control-input favorites-container">
+                  ${this._favorites.map(t=>B`
+                      <div class="favorite-chip" @click=${()=>this._selectFavorite(t)}>
+                        <ha-icon icon="mdi:star" class="favorite-icon"></ha-icon>
+                        <span class="favorite-name">${t.name}</span>
+                        <ha-icon-button
+                          class="remove-favorite-btn"
+                          @click=${e=>{e.stopPropagation(),this._removeFavorite(t.id)}}
+                          title="Remove favorite"
+                        >
+                          <ha-icon icon="mdi:close"></ha-icon>
+                        </ha-icon-button>
+                      </div>
+                    `)}
+                </div>
+              </div>
+            `:""}
+
+        ${e?B`
+              <div class="control-row">
+                <span class="control-label">Light Control</span>
+                <div class="control-input light-tile-container" ${At(this._tileCardRef)}>
+                </div>
+              </div>
+
               <div class="control-row">
                 <span class="control-label">Quick Controls</span>
                 <div class="control-input control-buttons">
-                  <ha-button @click=${this._stopEffect}>
-                    <ha-icon icon="mdi:stop"></ha-icon>
-                    Stop Effect
-                  </ha-button>
+                  ${t.showDynamicEffects?B`
+                        <ha-button @click=${this._stopEffect}>
+                          <ha-icon icon="mdi:stop"></ha-icon>
+                          Effect
+                        </ha-button>
+                      `:""}
                   <ha-button @click=${this._pauseCCTSequence}>
                     <ha-icon icon="mdi:pause"></ha-icon>
-                    Pause CCT
+                    CCT
                   </ha-button>
                   <ha-button @click=${this._resumeCCTSequence}>
                     <ha-icon icon="mdi:play"></ha-icon>
-                    Resume CCT
+                    CCT
                   </ha-button>
                   <ha-button @click=${this._stopCCTSequence}>
                     <ha-icon icon="mdi:stop"></ha-icon>
-                    Stop CCT
+                    CCT
                   </ha-button>
-                  <ha-button @click=${this._pauseSegmentSequence}>
-                    <ha-icon icon="mdi:pause"></ha-icon>
-                    Pause Segment
-                  </ha-button>
-                  <ha-button @click=${this._resumeSegmentSequence}>
-                    <ha-icon icon="mdi:play"></ha-icon>
-                    Resume Segment
-                  </ha-button>
-                  <ha-button @click=${this._stopSegmentSequence}>
-                    <ha-icon icon="mdi:stop"></ha-icon>
-                    Stop Segment
-                  </ha-button>
+                  ${t.showSegmentSequences?B`
+                        <ha-button @click=${this._pauseSegmentSequence}>
+                          <ha-icon icon="mdi:pause"></ha-icon>
+                          Segment
+                        </ha-button>
+                        <ha-button @click=${this._resumeSegmentSequence}>
+                          <ha-icon icon="mdi:play"></ha-icon>
+                          Segment
+                        </ha-button>
+                        <ha-button @click=${this._stopSegmentSequence}>
+                          <ha-icon icon="mdi:stop"></ha-icon>
+                          Segment
+                        </ha-button>
+                      `:""}
                 </div>
               </div>
+
+              <div class="control-row">
+                <span class="control-label">Custom Brightness</span>
+                <div class="control-input">
+                  <ha-selector
+                    .hass=${this.hass}
+                    .selector=${{boolean:{}}}
+                    .value=${this._useCustomBrightness}
+                    @value-changed=${this._handleCustomBrightnessToggle}
+                  ></ha-selector>
+                </div>
+              </div>
+
+              ${this._useCustomBrightness?B`
+                    <div class="control-row">
+                      <span class="control-label">Brightness</span>
+                      <div class="control-input">
+                        <ha-selector
+                          .hass=${this.hass}
+                          .selector=${{number:{min:1,max:100,mode:"slider",unit_of_measurement:"%"}}}
+                          .value=${this._brightness}
+                          @value-changed=${this._handleBrightnessChange}
+                        ></ha-selector>
+                      </div>
+                    </div>
+                  `:""}
             `:""}
       </div>
 
-      ${e?"":j`<div class="no-lights">Please select one or more lights to view available presets</div>`}
+      ${e?"":B`<div class="no-lights">Please select one or more lights to view available presets</div>`}
 
-      ${this._hasIncompatibleLights?j`<div class="error">Incompatible light selected. Please select a compatible Aqara light (T1, T1M, T1 Strip, or T2 Bulb).</div>`:""}
+      ${this._hasIncompatibleLights?B`<div class="error">Incompatible light selected. Please select a compatible Aqara light (T1, T1M, T1 Strip, or T2 Bulb).</div>`:""}
 
-      ${t.showDynamicEffects&&!this._hasIncompatibleLights?j`
+      ${t.showDynamicEffects&&!this._hasIncompatibleLights?B`
             ${t.t2Presets.length>0?this._renderDynamicEffectsSection("T2 Bulb",t.t2Presets):""}
             ${t.t1mPresets.length>0?this._renderDynamicEffectsSection("T1M",t.t1mPresets):""}
             ${t.t1StripPresets.length>0?this._renderDynamicEffectsSection("T1 Strip",t.t1StripPresets):""}
@@ -315,7 +488,7 @@
       ${t.showCCTSequences&&this._presets.cct_sequences.length>0&&!this._hasIncompatibleLights?this._renderCCTSequencesSection():""}
 
       ${t.showSegmentSequences&&this._presets.segment_sequences.length>0&&!this._hasIncompatibleLights?this._renderSegmentSequencesSection():""}
-    `}_renderDynamicEffectsSection(t,e){const s=`dynamic_${t.toLowerCase().replace(/\s+/g,"_")}`,i=this._collapsed[s];return j`
+    `}_renderDynamicEffectsSection(t,e){const s=`dynamic_${t.toLowerCase().replace(/\s+/g,"_")}`,i=this._collapsed[s];return B`
       <div class="section">
         <div class="section-header" @click=${()=>this._toggleSection(s)}>
           <div>
@@ -325,7 +498,7 @@
           <ha-icon .icon=${i?"mdi:chevron-down":"mdi:chevron-up"}></ha-icon>
         </div>
         <div class="section-content ${i?"collapsed":""}">
-          ${e.map(t=>j`
+          ${e.map(t=>B`
               <div class="preset-button" @click=${()=>this._activateDynamicEffect(t)}>
                 <div class="preset-icon">
                   ${this._renderPresetIcon(t.icon,"mdi:lightbulb-on")}
@@ -335,7 +508,7 @@
             `)}
         </div>
       </div>
-    `}_renderSegmentPatternsSection(){const t="segment_patterns",e=this._collapsed[t];return j`
+    `}_renderSegmentPatternsSection(){const t="segment_patterns",e=this._collapsed[t];return B`
       <div class="section">
         <div class="section-header" @click=${()=>this._toggleSection(t)}>
           <div>
@@ -345,7 +518,7 @@
           <ha-icon .icon=${e?"mdi:chevron-down":"mdi:chevron-up"}></ha-icon>
         </div>
         <div class="section-content ${e?"collapsed":""}">
-          ${this._presets.segment_patterns.map(t=>j`
+          ${this._presets.segment_patterns.map(t=>B`
               <div class="preset-button" @click=${()=>this._activateSegmentPattern(t)}>
                 <div class="preset-icon">
                   ${this._renderPresetIcon(t.icon,"mdi:palette")}
@@ -355,7 +528,7 @@
             `)}
         </div>
       </div>
-    `}_renderPresetIcon(t,e){return t?t.includes(".")?j`<img src="/api/aqara_advanced_lighting/icons/${t}" alt="preset icon" />`:j`<ha-icon icon="${t}"></ha-icon>`:j`<ha-icon icon="${e}"></ha-icon>`}_renderCCTSequencesSection(){const t="cct_sequences",e=this._collapsed[t];return j`
+    `}_renderPresetIcon(t,e){return t?t.includes(".")?B`<img src="/api/aqara_advanced_lighting/icons/${t}" alt="preset icon" />`:B`<ha-icon icon="${t}"></ha-icon>`:B`<ha-icon icon="${e}"></ha-icon>`}_renderCCTSequencesSection(){const t="cct_sequences",e=this._collapsed[t];return B`
       <div class="section">
         <div class="section-header" @click=${()=>this._toggleSection(t)}>
           <div>
@@ -365,7 +538,7 @@
           <ha-icon .icon=${e?"mdi:chevron-down":"mdi:chevron-up"}></ha-icon>
         </div>
         <div class="section-content ${e?"collapsed":""}">
-          ${this._presets.cct_sequences.map(t=>j`
+          ${this._presets.cct_sequences.map(t=>B`
               <div class="preset-button" @click=${()=>this._activateCCTSequence(t)}>
                 <div class="preset-icon">
                   ${this._renderPresetIcon(t.icon,"mdi:temperature-kelvin")}
@@ -375,7 +548,7 @@
             `)}
         </div>
       </div>
-    `}_renderSegmentSequencesSection(){const t="segment_sequences",e=this._collapsed[t];return j`
+    `}_renderSegmentSequencesSection(){const t="segment_sequences",e=this._collapsed[t];return B`
       <div class="section">
         <div class="section-header" @click=${()=>this._toggleSection(t)}>
           <div>
@@ -385,7 +558,7 @@
           <ha-icon .icon=${e?"mdi:chevron-down":"mdi:chevron-up"}></ha-icon>
         </div>
         <div class="section-content ${e?"collapsed":""}">
-          ${this._presets.segment_sequences.map(t=>j`
+          ${this._presets.segment_sequences.map(t=>B`
               <div class="preset-button" @click=${()=>this._activateSegmentSequence(t)}>
                 <div class="preset-icon">
                   ${this._renderPresetIcon(t.icon,"mdi:animation-play")}
@@ -395,4 +568,4 @@
             `)}
         </div>
       </div>
-    `}};ut.styles=pt,t([ht({attribute:!1})],ut.prototype,"hass",void 0),t([ht({type:Boolean})],ut.prototype,"narrow",void 0),t([dt()],ut.prototype,"_presets",void 0),t([dt()],ut.prototype,"_loading",void 0),t([dt()],ut.prototype,"_error",void 0),t([dt()],ut.prototype,"_selectedEntities",void 0),t([dt()],ut.prototype,"_brightness",void 0),t([dt()],ut.prototype,"_useCustomBrightness",void 0),t([dt()],ut.prototype,"_collapsed",void 0),t([dt()],ut.prototype,"_hasIncompatibleLights",void 0),ut=t([(t=>(e,s)=>{void 0!==s?s.addInitializer(()=>{customElements.define(t,e)}):customElements.define(t,e)})("aqara-advanced-lighting-panel")],ut);const _t="aqara-advanced-lighting-panel";customElements.get(_t)?console.log(`${_t} already registered`):console.log(`Registering ${_t}`),window.customPanel&&window.customPanel(_t)}();
+    `}};xt.styles=St,t([lt({attribute:!1})],xt.prototype,"hass",void 0),t([lt({type:Boolean})],xt.prototype,"narrow",void 0),t([dt()],xt.prototype,"_presets",void 0),t([dt()],xt.prototype,"_loading",void 0),t([dt()],xt.prototype,"_error",void 0),t([dt()],xt.prototype,"_selectedEntities",void 0),t([dt()],xt.prototype,"_brightness",void 0),t([dt()],xt.prototype,"_useCustomBrightness",void 0),t([dt()],xt.prototype,"_collapsed",void 0),t([dt()],xt.prototype,"_hasIncompatibleLights",void 0),t([dt()],xt.prototype,"_favorites",void 0),t([dt()],xt.prototype,"_showFavoriteInput",void 0),t([dt()],xt.prototype,"_favoriteInputName",void 0),xt=t([(t=>(e,s)=>{void 0!==s?s.addInitializer(()=>{customElements.define(t,e)}):customElements.define(t,e)})("aqara-advanced-lighting-panel")],xt);const Et="aqara-advanced-lighting-panel";customElements.get(Et)?console.log(`${Et} already registered`):console.log(`Registering ${Et}`),window.customPanel&&window.customPanel(Et)}();

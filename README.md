@@ -18,7 +18,10 @@ Easily control the more advanced features of Aqara lights, with RGB dynamic effe
 
 ### Features
 
-- **Sidebar Panel** - UI control panel for managing lights, effects, and sequences from the Home Assistant sidebar. Cuurently supports presets, with more features to come.
+- **Sidebar Panel** - UI control panel for managing lights, effects, and sequences from the Home Assistant sidebar
+  - Save favorite light targets for quick access
+  - Light control tiles for turning lights on/off and adjusting brightness
+  - Access to all effect and sequence presets
 - **Aqara App Effect Presets** - Quick access to 24 preset effects from the Aqara Home app
   - 4 T2 Bulb presets (Candlelight, Breath, Colorful, Security)
   - 9 T1M presets (Dinner, Sunset, Autumn, Galaxy, Daydream, Holiday, Party, Meteor, Alert)

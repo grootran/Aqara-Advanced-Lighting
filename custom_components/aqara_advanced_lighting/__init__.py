@@ -15,10 +15,12 @@ from .cct_sequence_manager import CCTSequenceManager
 from .const import (
     CONF_Z2M_BASE_TOPIC,
     DATA_CCT_SEQUENCE_MANAGER,
+    DATA_FAVORITES_STORE,
     DATA_SEGMENT_SEQUENCE_MANAGER,
     DEFAULT_Z2M_BASE_TOPIC,
     DOMAIN,
 )
+from .favorites_store import FavoritesStore
 from .segment_sequence_manager import SegmentSequenceManager
 from .models import AqaraLightingConfigEntry, AqaraLightingRuntimeData
 from .mqtt_client import MQTTClient
@@ -37,6 +39,11 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the Aqara Advanced Lighting integration."""
     # Initialize domain data storage
     hass.data.setdefault(DOMAIN, {})
+
+    # Initialize favorites store (per-user favorites for the panel)
+    favorites_store = FavoritesStore(hass)
+    await favorites_store.async_load()
+    hass.data[DOMAIN][DATA_FAVORITES_STORE] = favorites_store
 
     # Register services
     await async_setup_services(hass)

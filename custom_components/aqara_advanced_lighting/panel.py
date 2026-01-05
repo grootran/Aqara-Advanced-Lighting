@@ -2,18 +2,21 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from aiohttp import web
 
 from homeassistant.components import frontend
 from homeassistant.components.http import HomeAssistantView
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
+
+if TYPE_CHECKING:
+    from .favorites_store import FavoritesStore
 
 from .const import (
+    DATA_FAVORITES_STORE,
     CCT_SEQUENCE_PRESETS,
     DOMAIN,
     EFFECT_PRESETS,
@@ -64,6 +67,10 @@ async def async_register_panel(hass: HomeAssistant) -> None:
 
     # Register the icon files endpoint
     hass.http.register_view(IconView)
+
+    # Register favorites endpoints
+    hass.http.register_view(FavoritesView)
+    hass.http.register_view(FavoriteView)
 
     _LOGGER.info("Aqara Advanced Lighting panel registered")
 
@@ -257,3 +264,115 @@ def _build_presets_data() -> dict[str, Any]:
         "cct_sequences": cct_sequences,
         "segment_sequences": segment_sequences,
     }
+
+
+def _get_favorites_store(hass: HomeAssistant) -> FavoritesStore | None:
+    """Get the favorites store from hass.data."""
+    if DOMAIN not in hass.data:
+        return None
+    return hass.data[DOMAIN].get(DATA_FAVORITES_STORE)
+
+
+class FavoritesView(HomeAssistantView):
+    """View to manage user favorites (list and create)."""
+
+    url = f"/api/{DOMAIN}/favorites"
+    name = f"api:{DOMAIN}:favorites"
+    requires_auth = True
+
+    async def get(self, request: web.Request) -> web.Response:
+        """Get all favorites for the current user."""
+        hass = request.app["hass"]
+        user = request["hass_user"]
+
+        if not user:
+            return web.Response(status=401, text="Unauthorized")
+
+        favorites_store = _get_favorites_store(hass)
+        if not favorites_store:
+            return web.Response(status=503, text="Favorites store not initialized")
+
+        favorites = favorites_store.get_favorites(user.id)
+        return web.json_response({"favorites": favorites})
+
+    async def post(self, request: web.Request) -> web.Response:
+        """Add a new favorite for the current user."""
+        hass = request.app["hass"]
+        user = request["hass_user"]
+
+        if not user:
+            return web.Response(status=401, text="Unauthorized")
+
+        favorites_store = _get_favorites_store(hass)
+        if not favorites_store:
+            return web.Response(status=503, text="Favorites store not initialized")
+
+        try:
+            data = await request.json()
+        except ValueError:
+            return web.Response(status=400, text="Invalid JSON")
+
+        entities = data.get("entities")
+        if not entities or not isinstance(entities, list):
+            return web.Response(status=400, text="entities list is required")
+
+        name = data.get("name")  # Optional custom name
+
+        favorite = await favorites_store.add_favorite(user.id, entities, name)
+        return web.json_response({"favorite": favorite}, status=201)
+
+
+class FavoriteView(HomeAssistantView):
+    """View to manage a single favorite (update and delete)."""
+
+    url = f"/api/{DOMAIN}/favorites/{{favorite_id}}"
+    name = f"api:{DOMAIN}:favorite"
+    requires_auth = True
+
+    async def put(self, request: web.Request, favorite_id: str) -> web.Response:
+        """Update a favorite for the current user."""
+        hass = request.app["hass"]
+        user = request["hass_user"]
+
+        if not user:
+            return web.Response(status=401, text="Unauthorized")
+
+        favorites_store = _get_favorites_store(hass)
+        if not favorites_store:
+            return web.Response(status=503, text="Favorites store not initialized")
+
+        try:
+            data = await request.json()
+        except ValueError:
+            return web.Response(status=400, text="Invalid JSON")
+
+        name = data.get("name")
+        entities = data.get("entities")
+
+        favorite = await favorites_store.update_favorite(
+            user.id, favorite_id, name=name, entities=entities
+        )
+
+        if not favorite:
+            return web.Response(status=404, text="Favorite not found")
+
+        return web.json_response({"favorite": favorite})
+
+    async def delete(self, request: web.Request, favorite_id: str) -> web.Response:
+        """Delete a favorite for the current user."""
+        hass = request.app["hass"]
+        user = request["hass_user"]
+
+        if not user:
+            return web.Response(status=401, text="Unauthorized")
+
+        favorites_store = _get_favorites_store(hass)
+        if not favorites_store:
+            return web.Response(status=503, text="Favorites store not initialized")
+
+        removed = await favorites_store.remove_favorite(user.id, favorite_id)
+
+        if not removed:
+            return web.Response(status=404, text="Favorite not found")
+
+        return web.Response(status=204)
