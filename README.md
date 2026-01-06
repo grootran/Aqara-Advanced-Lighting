@@ -1,6 +1,6 @@
 # Aqara Advanced Lighting
 
-Home Assistant HACS integration for advanced control of Aqara lights via Zigbee2MQTT.
+Home Assistant HACS integration for advanced control of the Aqara T1M Ceiling Light, T1 LED Strip, and T2 bulbs via Zigbee2MQTT.
 
 ## Overview
 
