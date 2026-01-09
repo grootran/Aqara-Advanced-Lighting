@@ -5,6 +5,158 @@ All notable changes to the Aqara Advanced Lighting integration will be documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-01-09
+
+## What's New
+
+Version 0.5.0 is a major feature release that transforms the Aqara Advanced Lighting integration with powerful visual editors, and a comprehensive preset management system. This release focuses on enhancing the user experience with intuitive creation tools while maintaining full backward compatibility.
+
+### User Preset System
+
+Create, save, and manage your own custom presets for all feature types:
+
+- **Preset Management** - Full CRUD operations for user-created presets
+  - Create unlimited custom presets
+  - Edit existing presets with full customization
+  - Duplicate presets to create variations
+  - Delete unwanted presets
+  - Search and filter presets by type
+- **Supported Preset Types** - Save presets for all features
+  - Effect presets (dynamic RGB effects with colors and settings)
+  - Segment pattern presets (custom segment color arrangements)
+  - CCT sequence presets (multi-step color temperature sequences)
+  - RGB segment sequence presets (animated segment patterns)
+- **Persistent Storage** - Presets stored across Home Assistant restarts
+  - Automatic save on creation/update/delete
+  - UUID-based preset IDs for reliable tracking
+  - Timestamps for created and modified dates
+
+### Enhanced Panel UI with Visual Editors
+
+The sidebar panel now includes interactive visual editors for creating custom effects, patterns, and sequences:
+
+- **Effect Editor** - Create custom dynamic RGB effects
+  - Effect type selector
+  - Up to 8 color pickers for effect colors
+  - Speed and brightness sliders
+  - Segment selector for T1 Strip effects
+  - Live preview of effect settings
+  - Save as custom preset
+- **Segment Pattern Editor** - Design custom segment color patterns
+  - Visual segment selector showing all available segments
+  - Color picker for each segment or range
+  - Gradient and block pattern generators
+  - Turn off unspecified segments option
+  - Save as custom preset
+- **CCT Sequence Editor** - Build multi-step CCT sequences
+  - Up to 20 steps with visual timeline
+  - Color temperature and brightness sliders for each step
+  - Transition and hold duration controls
+  - Loop mode and end behavior settings
+  - Live step preview
+  - Save as custom preset
+- **RGB Segment Sequence Editor** - Create animated segment sequences
+  - Up to 20 steps with animation patterns
+  - Multiple color modes (gradient, blocks, individual)
+  - Activation pattern selector with 8 options (all at once, sequential forward/reverse, random, ping pong, centre out, edges in, paired)
+  - Duration and hold controls
+  - Loop settings with skip first step option
+  - Clear segments before starting option
+  - Save as custom preset
+
+### API Enhancements
+
+Backend improvements to support new frontend features:
+
+- **Panel API Endpoints** - RESTful API for preset management
+  - GET /api/aqara_advanced_lighting/presets - List all presets
+  - GET /api/aqara_advanced_lighting/presets/{type}/{id} - Get single preset
+  - POST /api/aqara_advanced_lighting/presets/{type} - Create preset
+  - PUT /api/aqara_advanced_lighting/presets/{type}/{id} - Update preset
+  - DELETE /api/aqara_advanced_lighting/presets/{type}/{id} - Delete preset
+  - POST /api/aqara_advanced_lighting/presets/{type}/{id}/duplicate - Duplicate preset
+- **Color Format Support** - Services accept both RGB and XY formats
+  - Automatic conversion between formats
+  - XY format preferred for new presets
+  - RGB format maintained for backward compatibility
+- **Color Gamut Validation** - Server-side validation of color values
+  - Ensures colors are within device gamut
+  - Automatic clamping to valid range
+- **Z2M Topic Access** - Frontend can read Z2M base topic for light discovery
+
+## Technical Changes
+
+### New Files
+
+- **preset_store.py** - User preset storage and management
+  - PresetStore class for CRUD operations
+  - Automatic RGB to XY migration
+  - Persistent JSON storage
+- **Frontend Components** (TypeScript)
+  - effect-editor.ts - Effect creation interface
+  - pattern-editor.ts - Segment pattern builder
+  - cct-sequence-editor.ts - CCT sequence timeline
+  - segment-sequence-editor.ts - Segment sequence animator
+  - hs-color-picker.ts - Custom HS color picker component
+  - color-utils.ts - Color conversion utilities
+- **Effect Icons** (SVG) - 13 custom effect icons in frontend/icons/
+
+### Updated Files
+
+- **models.py** - Added XYColor class with RGB↔XY conversion methods
+- **const.py** - Added color gamut definitions and preset type constants
+- **services.py** - Enhanced color handling to support both RGB and XY formats
+- **panel.py** - Added API endpoints for preset management
+- **mqtt_client.py** - Color conversion for MQTT payloads
+- **__init__.py** - Initialize preset store on integration setup
+- **aqara-panel.ts** - Major UI overhaul with editors and preset management
+- **styles.ts** - Extensive style updates for new components
+- **types.ts** - Added XY color and gamut type definitions
+
+### Code Structure
+
+- Added DATA_PRESET_STORE constant in const.py
+- Added PRESET_TYPE_* constants for preset categorization
+- Added AQARA_COLOR_GAMUTS mapping models to color gamuts
+- Added ATTR_CLEAR_SEGMENTS and ATTR_SKIP_FIRST_IN_LOOP service attributes in const.py
+- PresetStore initialized in async_setup() in __init__.py
+- Presets stored in .storage/aqara_advanced_lighting.presets
+- Panel API uses HomeAssistant's web framework
+
+### RGB Segment Sequence Enhancements
+
+- **Clear Segments Toggle** - Option to clear existing segment patterns before starting sequence
+  - Ensures clean slate for new sequences
+  - Prevents interference from previous patterns
+  - Configurable per sequence via `clear_segments` parameter
+- **Skip First in Loop** - Option to skip first step when looping sequences
+  - Useful for initialization steps that should only run once
+  - First step runs on initial execution, then skipped in subsequent loops
+  - Configurable per sequence via `skip_first_in_loop` parameter
+
+## Breaking Changes
+
+None - This release is fully backward compatible with v0.4.1.
+
+- Existing RGB service calls continue to work (automatically converted to XY internally)
+- Old RGB presets automatically migrate to XY on first load
+- All existing automations and scripts remain compatible
+- Panel favorites from v0.4.1 are preserved
+
+## Requirements
+
+- Home Assistant 2025.12.0 or newer
+- MQTT integration configured
+- Zigbee2MQTT 2.7.2 or newer
+- Supported Aqara devices (see README for full list)
+
+## Upgrade from v0.4.1
+
+1. Update the integration through HACS
+2. Reload the integration (Settings > Devices & Services > Aqara Advanced Lighting > Three dots > Reload)
+3. RGB presets will automatically migrate to XY format
+4. No configuration changes required
+
 ## [0.4.1] - 2026-01-05
 
 ## New Features
@@ -354,3 +506,4 @@ One click HACS cutton
 [0.3.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.3.0
 [0.4.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.4.0
 [0.4.1]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.4.1
+[0.5.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.5.0

@@ -327,8 +327,22 @@ class MQTTClient:
 
         return True, ""
 
+    def _get_base_topic(self, z2m_base_topic: str | None = None) -> str:
+        """Get the Z2M base topic, using override if provided.
+
+        Args:
+            z2m_base_topic: Optional custom Z2M base topic override
+
+        Returns:
+            The Z2M base topic to use
+        """
+        return z2m_base_topic if z2m_base_topic else self.entry.runtime_data.z2m_base_topic
+
     async def async_publish_dynamic_effect(
-        self, z2m_friendly_name: str, effect: DynamicEffect
+        self,
+        z2m_friendly_name: str,
+        effect: DynamicEffect,
+        z2m_base_topic: str | None = None,
     ) -> None:
         """Publish dynamic effect to Z2M device.
 
@@ -337,8 +351,14 @@ class MQTTClient:
 
         Note: Brightness should be set using Home Assistant light.turn_on service,
         not via MQTT, as Z2M converters don't accept brightness with effect commands.
+
+        Args:
+            z2m_friendly_name: The Z2M device friendly name
+            effect: The dynamic effect to publish
+            z2m_base_topic: Optional custom Z2M base topic override
         """
-        topic = f"{self.entry.runtime_data.z2m_base_topic}/{z2m_friendly_name}/set"
+        base_topic = self._get_base_topic(z2m_base_topic)
+        topic = f"{base_topic}/{z2m_friendly_name}/set"
         payload = effect.to_mqtt_payload()
 
         _LOGGER.debug(
@@ -349,14 +369,23 @@ class MQTTClient:
         await mqtt.async_publish(self.hass, topic, json.dumps(payload))
 
     async def async_publish_segment_pattern(
-        self, z2m_friendly_name: str, segment_colors: list[SegmentColor]
+        self,
+        z2m_friendly_name: str,
+        segment_colors: list[SegmentColor],
+        z2m_base_topic: str | None = None,
     ) -> None:
         """Publish segment pattern to Z2M device.
 
         Note: Brightness should be set using Home Assistant light.turn_on service,
         not via MQTT. For T1 Strip, brightness is embedded in segment_colors.
+
+        Args:
+            z2m_friendly_name: The Z2M device friendly name
+            segment_colors: List of segment colors to set
+            z2m_base_topic: Optional custom Z2M base topic override
         """
-        topic = f"{self.entry.runtime_data.z2m_base_topic}/{z2m_friendly_name}/set"
+        base_topic = self._get_base_topic(z2m_base_topic)
+        topic = f"{base_topic}/{z2m_friendly_name}/set"
 
         # Build segment_colors payload
         payload = {
@@ -370,13 +399,22 @@ class MQTTClient:
         # Send segment pattern command
         await mqtt.async_publish(self.hass, topic, json.dumps(payload))
 
-    async def async_turn_off_effect(self, z2m_friendly_name: str) -> None:
+    async def async_turn_off_effect(
+        self,
+        z2m_friendly_name: str,
+        z2m_base_topic: str | None = None,
+    ) -> None:
         """Turn off effect on Z2M device.
 
         For Aqara RGB lights, effects are stopped by sending a solid RGB color
         to override the dynamic effect. We send a neutral warm white RGB color.
+
+        Args:
+            z2m_friendly_name: The Z2M device friendly name
+            z2m_base_topic: Optional custom Z2M base topic override
         """
-        topic = f"{self.entry.runtime_data.z2m_base_topic}/{z2m_friendly_name}/set"
+        base_topic = self._get_base_topic(z2m_base_topic)
+        topic = f"{base_topic}/{z2m_friendly_name}/set"
 
         # Send a neutral warm white RGB color to override the effect
         # This stops the dynamic effect and puts the light in solid color mode
@@ -388,10 +426,20 @@ class MQTTClient:
         await mqtt.async_publish(self.hass, topic, json.dumps(payload))
 
     async def async_restore_state(
-        self, z2m_friendly_name: str, state_data: dict[str, Any]
+        self,
+        z2m_friendly_name: str,
+        state_data: dict[str, Any],
+        z2m_base_topic: str | None = None,
     ) -> None:
-        """Restore previous state to Z2M device."""
-        topic = f"{self.entry.runtime_data.z2m_base_topic}/{z2m_friendly_name}/set"
+        """Restore previous state to Z2M device.
+
+        Args:
+            z2m_friendly_name: The Z2M device friendly name
+            state_data: The state data to restore
+            z2m_base_topic: Optional custom Z2M base topic override
+        """
+        base_topic = self._get_base_topic(z2m_base_topic)
+        topic = f"{base_topic}/{z2m_friendly_name}/set"
 
         _LOGGER.debug(
             "Restoring state for %s: %s", z2m_friendly_name, state_data
@@ -400,31 +448,37 @@ class MQTTClient:
         await mqtt.async_publish(self.hass, topic, json.dumps(state_data))
 
     async def async_publish_batch_effects(
-        self, entities_effects: list[tuple[str, DynamicEffect]]
+        self,
+        entities_effects: list[tuple[str, DynamicEffect]],
+        z2m_base_topic: str | None = None,
     ) -> None:
         """Publish dynamic effects to multiple devices in parallel.
 
         Args:
             entities_effects: List of (z2m_friendly_name, effect) tuples
+            z2m_base_topic: Optional custom Z2M base topic override
         """
         _LOGGER.debug(
             "Publishing effects to %d devices in parallel", len(entities_effects)
         )
 
         tasks = [
-            self.async_publish_dynamic_effect(z2m_name, effect)
+            self.async_publish_dynamic_effect(z2m_name, effect, z2m_base_topic)
             for z2m_name, effect in entities_effects
         ]
 
         await asyncio.gather(*tasks, return_exceptions=True)
 
     async def async_publish_batch_segments(
-        self, entities_segments: list[tuple[str, list[SegmentColor]]]
+        self,
+        entities_segments: list[tuple[str, list[SegmentColor]]],
+        z2m_base_topic: str | None = None,
     ) -> None:
         """Publish segment patterns to multiple devices in parallel.
 
         Args:
             entities_segments: List of (z2m_friendly_name, segment_colors) tuples
+            z2m_base_topic: Optional custom Z2M base topic override
         """
         _LOGGER.debug(
             "Publishing segment patterns to %d devices in parallel",
@@ -432,7 +486,7 @@ class MQTTClient:
         )
 
         tasks = [
-            self.async_publish_segment_pattern(z2m_name, segments)
+            self.async_publish_segment_pattern(z2m_name, segments, z2m_base_topic)
             for z2m_name, segments in entities_segments
         ]
 
@@ -445,6 +499,7 @@ class MQTTClient:
         brightness: int,
         transition: float,
         stop_event: asyncio.Event | None = None,
+        z2m_base_topic: str | None = None,
     ) -> bool:
         """Apply CCT step to light entity using Z2M's native hardware transitions.
 
@@ -458,6 +513,7 @@ class MQTTClient:
             brightness: Target brightness level (1-255)
             transition: Transition time in seconds
             stop_event: Optional event to signal transition should be interrupted
+            z2m_base_topic: Optional custom Z2M base topic override
 
         Returns:
             True if transition completed, False if interrupted by stop_event
@@ -480,7 +536,7 @@ class MQTTClient:
 
         # Send command directly to Z2M with hardware transition
         await self._apply_cct_values_via_z2m(
-            z2m_friendly_name, color_temp_kelvin, brightness, transition
+            z2m_friendly_name, color_temp_kelvin, brightness, transition, z2m_base_topic
         )
 
         # Wait for transition to complete (interruptible)
@@ -500,7 +556,10 @@ class MQTTClient:
         return True
 
     async def async_set_t2_transition_curve(
-        self, z2m_friendly_name: str, curvature: float = 2.5
+        self,
+        z2m_friendly_name: str,
+        curvature: float = 2.5,
+        z2m_base_topic: str | None = None,
     ) -> None:
         """Set transition curve curvature for T2 bulbs.
 
@@ -511,8 +570,10 @@ class MQTTClient:
         Args:
             z2m_friendly_name: Z2M friendly name for the T2 device
             curvature: Transition curve curvature (0.2-6, default 2.5 for natural easing)
+            z2m_base_topic: Optional custom Z2M base topic override
         """
-        topic = f"{self.entry.runtime_data.z2m_base_topic}/{z2m_friendly_name}/set"
+        base_topic = self._get_base_topic(z2m_base_topic)
+        topic = f"{base_topic}/{z2m_friendly_name}/set"
         payload = {"transition_curve_curvature": curvature}
 
         _LOGGER.debug(
@@ -529,6 +590,7 @@ class MQTTClient:
         color_temp_kelvin: int,
         brightness: int,
         transition: float,
+        z2m_base_topic: str | None = None,
     ) -> None:
         """Apply CCT values directly via Z2M MQTT with hardware transition.
 
@@ -540,9 +602,11 @@ class MQTTClient:
             color_temp_kelvin: Color temperature in kelvin (2700-6500)
             brightness: Brightness level (1-255)
             transition: Transition time in seconds
+            z2m_base_topic: Optional custom Z2M base topic override
         """
         # Build Z2M topic
-        topic = f"{self.entry.runtime_data.z2m_base_topic}/{z2m_friendly_name}/set"
+        base_topic = self._get_base_topic(z2m_base_topic)
+        topic = f"{base_topic}/{z2m_friendly_name}/set"
 
         # Convert kelvin to mireds for Z2M (mired = 1,000,000 / kelvin)
         color_temp_mired = int(1_000_000 / color_temp_kelvin)

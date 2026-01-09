@@ -195,6 +195,13 @@ set_dynamic_effect:
       default: true
       selector:
         boolean:
+    z2m_base_topic:
+      name: Z2M base topic
+      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      required: false
+      example: "zigbee2mqtt"
+      selector:
+        text:
 
 stop_effect:
   name: Stop effect
@@ -211,6 +218,13 @@ stop_effect:
       default: true
       selector:
         boolean:
+    z2m_base_topic:
+      name: Z2M base topic
+      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      required: false
+      example: "zigbee2mqtt"
+      selector:
+        text:
 
 set_segment_pattern:
   name: Set segment pattern
@@ -301,6 +315,13 @@ set_segment_pattern:
       default: true
       selector:
         boolean:
+    z2m_base_topic:
+      name: Z2M base topic
+      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      required: false
+      example: "zigbee2mqtt"
+      selector:
+        text:
 
 create_gradient:
   name: Create gradient
@@ -391,6 +412,13 @@ create_gradient:
       default: true
       selector:
         boolean:
+    z2m_base_topic:
+      name: Z2M base topic
+      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      required: false
+      example: "zigbee2mqtt"
+      selector:
+        text:
 
 create_blocks:
   name: Create blocks
@@ -488,6 +516,13 @@ create_blocks:
       default: true
       selector:
         boolean:
+    z2m_base_topic:
+      name: Z2M base topic
+      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      required: false
+      example: "zigbee2mqtt"
+      selector:
+        text:
 
 start_cct_sequence:
   name: Start CCT sequence
@@ -1009,6 +1044,13 @@ start_cct_sequence:
               value: "maintain"
             - label: "Turn off light"
               value: "turn_off"
+    z2m_base_topic:
+      name: Z2M base topic
+      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      required: false
+      example: "zigbee2mqtt"
+      selector:
+        text:
 
 stop_cct_sequence:
   name: Stop CCT sequence
@@ -1017,6 +1059,14 @@ stop_cct_sequence:
     entity:
       domain: light
       integration: mqtt
+  fields:
+    z2m_base_topic:
+      name: Z2M base topic
+      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      required: false
+      example: "zigbee2mqtt"
+      selector:
+        text:
 
 pause_cct_sequence:
   name: Pause CCT sequence
@@ -1025,6 +1075,14 @@ pause_cct_sequence:
     entity:
       domain: light
       integration: mqtt
+  fields:
+    z2m_base_topic:
+      name: Z2M base topic
+      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      required: false
+      example: "zigbee2mqtt"
+      selector:
+        text:
 
 resume_cct_sequence:
   name: Resume CCT sequence
@@ -1033,6 +1091,15 @@ resume_cct_sequence:
     entity:
       domain: light
       integration: mqtt
+  fields:
+    z2m_base_topic:
+      name: Z2M base topic
+      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      required: false
+      example: "zigbee2mqtt"
+      selector:
+        text:
+
 start_segment_sequence:
   name: Start RGB segment sequence
   description: Start a timed RGB segment sequence on T1M/T1 Strip lights. Create dynamic patterns with custom color activation over time. Use presets or build custom sequences with up to 10 steps. For 11-20 steps, use YAML mode.
@@ -2124,6 +2191,27 @@ start_segment_sequence:
               value: "maintain"
             - label: "Turn off light"
               value: "turn_off"
+    clear_segments:
+      name: Clear segments
+      description: Clear all segments (set to black) before starting the sequence.
+      required: false
+      default: false
+      selector:
+        boolean:
+    skip_first_in_loop:
+      name: Skip first step in loop
+      description: Skip the first step when looping. Useful for setting an initial pattern that should not repeat.
+      required: false
+      default: false
+      selector:
+        boolean:
+    z2m_base_topic:
+      name: Z2M base topic
+      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      required: false
+      example: "zigbee2mqtt"
+      selector:
+        text:
 
 stop_segment_sequence:
   name: Stop RGB segment sequence
@@ -2132,6 +2220,14 @@ stop_segment_sequence:
     entity:
       domain: light
       integration: mqtt
+  fields:
+    z2m_base_topic:
+      name: Z2M base topic
+      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      required: false
+      example: "zigbee2mqtt"
+      selector:
+        text:
 
 pause_segment_sequence:
   name: Pause RGB segment sequence
@@ -2140,6 +2236,14 @@ pause_segment_sequence:
     entity:
       domain: light
       integration: mqtt
+  fields:
+    z2m_base_topic:
+      name: Z2M base topic
+      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      required: false
+      example: "zigbee2mqtt"
+      selector:
+        text:
 
 resume_segment_sequence:
   name: Resume RGB segment sequence
@@ -2148,3 +2252,11 @@ resume_segment_sequence:
     entity:
       domain: light
       integration: mqtt
+  fields:
+    z2m_base_topic:
+      name: Z2M base topic
+      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      required: false
+      example: "zigbee2mqtt"
+      selector:
+        text:

@@ -84,13 +84,14 @@ class SegmentSequenceManager:
             self._state_listener_remove = None
 
     async def start_sequence(
-        self, entity_id: str, sequence: SegmentSequence
+        self, entity_id: str, sequence: SegmentSequence, z2m_base_topic: str | None = None
     ) -> str:
         """Start a segment sequence for an entity.
 
         Args:
             entity_id: The light entity ID to control
             sequence: The segment sequence configuration
+            z2m_base_topic: Optional custom Z2M base topic override
 
         Returns:
             The unique sequence ID for this sequence run
@@ -123,7 +124,9 @@ class SegmentSequenceManager:
 
         # Create and store task
         task = asyncio.create_task(
-            self._execute_sequence(entity_id, sequence, stop_event, pause_event, sequence_id)
+            self._execute_sequence(
+                entity_id, sequence, stop_event, pause_event, sequence_id, z2m_base_topic
+            )
         )
         self._active_sequences[entity_id] = task
 
@@ -498,6 +501,7 @@ class SegmentSequenceManager:
         stop_event: asyncio.Event,
         pause_event: asyncio.Event,
         sequence_id: str,
+        z2m_base_topic: str | None = None,
     ) -> None:
         """Execute a segment sequence.
 
@@ -507,6 +511,7 @@ class SegmentSequenceManager:
             stop_event: Event to signal sequence should stop
             pause_event: Event to signal sequence should pause
             sequence_id: Unique identifier for this sequence run
+            z2m_base_topic: Optional custom Z2M base topic override
         """
         _LOGGER.debug("Starting segment sequence for %s (sequence_id=%s)", entity_id, sequence_id)
         completed_naturally = False
@@ -514,9 +519,33 @@ class SegmentSequenceManager:
         try:
             # Get total segment count for this device
             total_segments = await self._get_device_segment_count(entity_id)
+            _LOGGER.info("Segment count for %s: %d", entity_id, total_segments)
             if total_segments == 0:
                 _LOGGER.error("Could not determine segment count for %s", entity_id)
                 return
+
+            # Clear all segments if requested (set all to black/off)
+            _LOGGER.info("Checking clear_segments flag: %s", sequence.clear_segments)
+            if sequence.clear_segments:
+                _LOGGER.info("Clearing all segments for %s before starting sequence", entity_id)
+                z2m_name = self.mqtt_client.get_z2m_friendly_name(entity_id)
+                if z2m_name:
+                    # Create black color for all segments
+                    black_color = RGBColor(r=0, g=0, b=0)
+                    clear_segments = [
+                        SegmentColor(segment=seg, color=black_color)
+                        for seg in range(1, total_segments + 1)
+                    ]
+                    try:
+                        await self.mqtt_client.async_publish_segment_pattern(
+                            z2m_name, clear_segments, z2m_base_topic
+                        )
+                        # Small delay to ensure segments are cleared before sequence starts
+                        await asyncio.sleep(0.1)
+                    except Exception as ex:
+                        _LOGGER.warning(
+                            "Failed to clear segments for %s: %s", entity_id, ex
+                        )
 
             loops_executed = 0
             max_loops = (
@@ -524,8 +553,19 @@ class SegmentSequenceManager:
             )
 
             while True:
-                # Execute all steps
-                for step_index, step in enumerate(sequence.steps):
+                # Determine starting step index
+                # Skip first step on loops after the first iteration if skip_first_in_loop is enabled
+                start_step = 0
+                if loops_executed > 0 and sequence.skip_first_in_loop and len(sequence.steps) > 1:
+                    start_step = 1
+                    _LOGGER.debug(
+                        "Skipping first step in loop %d for %s (skip_first_in_loop=True)",
+                        loops_executed + 1,
+                        entity_id
+                    )
+
+                # Execute steps (starting from start_step)
+                for step_index, step in enumerate(sequence.steps[start_step:], start=start_step):
                     # Check for stop
                     if stop_event.is_set():
                         _LOGGER.debug("Sequence stopped for %s", entity_id)
@@ -589,7 +629,7 @@ class SegmentSequenceManager:
                         # Activate all segments at once
                         try:
                             await self.mqtt_client.async_publish_segment_pattern(
-                                z2m_name, segment_colors
+                                z2m_name, segment_colors, z2m_base_topic
                             )
                         except Exception as ex:
                             _LOGGER.warning(
@@ -623,7 +663,7 @@ class SegmentSequenceManager:
                                 )
                                 try:
                                     await self.mqtt_client.async_publish_segment_pattern(
-                                        z2m_name, [segment_color]
+                                        z2m_name, [segment_color], z2m_base_topic
                                     )
                                 except Exception as ex:
                                     _LOGGER.warning(

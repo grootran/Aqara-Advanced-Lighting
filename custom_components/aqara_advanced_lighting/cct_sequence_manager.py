@@ -83,13 +83,14 @@ class CCTSequenceManager:
             self._state_listener_remove = None
 
     async def start_sequence(
-        self, entity_id: str, sequence: CCTSequence
+        self, entity_id: str, sequence: CCTSequence, z2m_base_topic: str | None = None
     ) -> str:
         """Start a CCT sequence for an entity.
 
         Args:
             entity_id: The light entity ID to control
             sequence: The CCT sequence configuration
+            z2m_base_topic: Optional custom Z2M base topic override
 
         Returns:
             The unique sequence ID for this sequence run
@@ -122,7 +123,9 @@ class CCTSequenceManager:
 
         # Create and store task
         task = asyncio.create_task(
-            self._execute_sequence(entity_id, sequence, stop_event, pause_event, sequence_id)
+            self._execute_sequence(
+                entity_id, sequence, stop_event, pause_event, sequence_id, z2m_base_topic
+            )
         )
         self._active_sequences[entity_id] = task
 
@@ -326,6 +329,7 @@ class CCTSequenceManager:
         stop_event: asyncio.Event,
         pause_event: asyncio.Event,
         sequence_id: str,
+        z2m_base_topic: str | None = None,
     ) -> None:
         """Execute a CCT sequence.
 
@@ -335,6 +339,7 @@ class CCTSequenceManager:
             stop_event: Event to signal sequence should stop
             pause_event: Event to signal sequence should pause
             sequence_id: Unique identifier for this sequence run
+            z2m_base_topic: Optional custom Z2M base topic override
         """
         _LOGGER.debug("Starting CCT sequence for %s (sequence_id=%s)", entity_id, sequence_id)
         completed_naturally = False
@@ -396,6 +401,7 @@ class CCTSequenceManager:
                             step.brightness,
                             step.transition,
                             stop_event,  # Pass stop_event for interruptible transitions
+                            z2m_base_topic,
                         )
                         if not transition_completed:
                             # Transition was interrupted by stop_event

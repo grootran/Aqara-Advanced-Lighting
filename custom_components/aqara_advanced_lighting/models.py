@@ -72,6 +72,60 @@ class RGBColor:
 
 
 @dataclass
+class XYColor:
+    """CIE 1931 XY color representation with brightness.
+
+    XY coordinates represent chromaticity (hue and saturation) without brightness.
+    This matches how Aqara lights actually work - color is separate from brightness.
+    """
+
+    x: float  # 0.0-1.0
+    y: float  # 0.0-1.0
+    brightness: int = 255  # 1-255 (optional, for display purposes)
+
+    def to_dict(self) -> dict[str, float]:
+        """Convert to dictionary for API/storage."""
+        return {"x": self.x, "y": self.y}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, float | int]) -> XYColor:
+        """Create from dictionary."""
+        return cls(x=data["x"], y=data["y"], brightness=data.get("brightness", 255))
+
+    def to_rgb(self) -> RGBColor:
+        """Convert XY to RGB using Home Assistant's built-in utilities.
+
+        Returns RGB at full brightness (0-255 range) suitable for MQTT.
+        """
+        from homeassistant.util.color import color_xy_to_RGB
+
+        r, g, b = color_xy_to_RGB(self.x, self.y, self.brightness)
+        return RGBColor(r=int(r), g=int(g), b=int(b))
+
+    @classmethod
+    def from_rgb(cls, rgb: RGBColor) -> XYColor:
+        """Convert RGB to XY using Home Assistant's built-in utilities."""
+        from homeassistant.util.color import color_RGB_to_xy
+
+        x, y = color_RGB_to_xy(rgb.r, rgb.g, rgb.b)
+        # Calculate brightness from RGB (max channel value)
+        brightness = max(rgb.r, rgb.g, rgb.b)
+        return cls(x=x, y=y, brightness=brightness)
+
+    def __post_init__(self) -> None:
+        """Validate XY values."""
+        if not (0.0 <= self.x <= 1.0):
+            msg = f"X value must be 0.0-1.0, got {self.x}"
+            raise ValueError(msg)
+        if not (0.0 <= self.y <= 1.0):
+            msg = f"Y value must be 0.0-1.0, got {self.y}"
+            raise ValueError(msg)
+        if not (1 <= self.brightness <= 255):
+            msg = f"Brightness must be 1-255, got {self.brightness}"
+            raise ValueError(msg)
+
+
+@dataclass
 class SegmentColor:
     """Segment color assignment for individual segment patterns."""
 
@@ -296,6 +350,8 @@ class SegmentSequence:
     loop_mode: str  # "once", "count", "continuous"
     loop_count: int | None = None  # Number of loops if mode is "count"
     end_behavior: str = "maintain"  # "maintain" or "turn_off"
+    clear_segments: bool = False  # Clear all segments (set to black) before starting
+    skip_first_in_loop: bool = False  # Skip first step when looping (after first iteration)
 
     def __post_init__(self) -> None:
         """Validate sequence parameters."""

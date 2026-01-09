@@ -14,10 +14,12 @@ from homeassistant.core import HomeAssistant
 
 if TYPE_CHECKING:
     from .favorites_store import FavoritesStore
+    from .preset_store import PresetStore
 
 from .const import (
-    DATA_FAVORITES_STORE,
     CCT_SEQUENCE_PRESETS,
+    DATA_FAVORITES_STORE,
+    DATA_PRESET_STORE,
     DOMAIN,
     EFFECT_PRESETS,
     MODEL_T1M_20_SEGMENT,
@@ -29,6 +31,7 @@ from .const import (
     MODEL_T2_BULB_GU10_230V,
     SEGMENT_PATTERN_PRESETS,
     SEGMENT_SEQUENCE_PRESETS,
+    VALID_PRESET_TYPES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -71,6 +74,11 @@ async def async_register_panel(hass: HomeAssistant) -> None:
     # Register favorites endpoints
     hass.http.register_view(FavoritesView)
     hass.http.register_view(FavoriteView)
+
+    # Register user presets endpoints
+    hass.http.register_view(UserPresetsView)
+    hass.http.register_view(UserPresetView)
+    hass.http.register_view(UserPresetDuplicateView)
 
     _LOGGER.info("Aqara Advanced Lighting panel registered")
 
@@ -376,3 +384,204 @@ class FavoriteView(HomeAssistantView):
             return web.Response(status=404, text="Favorite not found")
 
         return web.Response(status=204)
+
+
+def _get_preset_store(hass: HomeAssistant) -> PresetStore | None:
+    """Get the preset store from hass.data."""
+    if DOMAIN not in hass.data:
+        return None
+    return hass.data[DOMAIN].get(DATA_PRESET_STORE)
+
+
+class UserPresetsView(HomeAssistantView):
+    """View to list and create user presets."""
+
+    url = f"/api/{DOMAIN}/user_presets"
+    name = f"api:{DOMAIN}:user_presets"
+    requires_auth = True
+
+    async def get(self, request: web.Request) -> web.Response:
+        """Get all user presets, optionally filtered by type.
+
+        Query params:
+            type: Optional preset type filter (effect, segment_pattern,
+                  cct_sequence, segment_sequence)
+        """
+        hass = request.app["hass"]
+
+        preset_store = _get_preset_store(hass)
+        if not preset_store:
+            return web.Response(status=503, text="Preset store not initialized")
+
+        preset_type = request.query.get("type")
+        if preset_type and preset_type not in VALID_PRESET_TYPES:
+            return web.Response(
+                status=400,
+                text=f"Invalid preset type. Valid types: {', '.join(VALID_PRESET_TYPES)}",
+            )
+
+        presets = preset_store.get_all_presets(preset_type)
+        return web.json_response(presets)
+
+    async def post(self, request: web.Request) -> web.Response:
+        """Create a new user preset.
+
+        Body:
+            type: Preset type (required)
+            data: Preset data (required)
+        """
+        hass = request.app["hass"]
+
+        preset_store = _get_preset_store(hass)
+        if not preset_store:
+            return web.Response(status=503, text="Preset store not initialized")
+
+        try:
+            body = await request.json()
+        except ValueError:
+            return web.Response(status=400, text="Invalid JSON")
+
+        preset_type = body.get("type")
+        preset_data = body.get("data")
+
+        if not preset_type:
+            return web.Response(status=400, text="type is required")
+        if preset_type not in VALID_PRESET_TYPES:
+            return web.Response(
+                status=400,
+                text=f"Invalid preset type. Valid types: {', '.join(VALID_PRESET_TYPES)}",
+            )
+        if not preset_data or not isinstance(preset_data, dict):
+            return web.Response(status=400, text="data object is required")
+        if not preset_data.get("name"):
+            return web.Response(status=400, text="name is required in data")
+
+        preset = await preset_store.add_preset(preset_type, preset_data)
+        if not preset:
+            return web.Response(status=500, text="Failed to create preset")
+
+        return web.json_response({"preset": preset}, status=201)
+
+
+class UserPresetView(HomeAssistantView):
+    """View to get, update, or delete a single user preset."""
+
+    url = f"/api/{DOMAIN}/user_presets/{{preset_type}}/{{preset_id}}"
+    name = f"api:{DOMAIN}:user_preset"
+    requires_auth = True
+
+    async def get(
+        self, request: web.Request, preset_type: str, preset_id: str
+    ) -> web.Response:
+        """Get a single user preset."""
+        hass = request.app["hass"]
+
+        preset_store = _get_preset_store(hass)
+        if not preset_store:
+            return web.Response(status=503, text="Preset store not initialized")
+
+        if preset_type not in VALID_PRESET_TYPES:
+            return web.Response(
+                status=400,
+                text=f"Invalid preset type. Valid types: {', '.join(VALID_PRESET_TYPES)}",
+            )
+
+        preset = preset_store.get_preset(preset_type, preset_id)
+        if not preset:
+            return web.Response(status=404, text="Preset not found")
+
+        return web.json_response({"preset": preset})
+
+    async def put(
+        self, request: web.Request, preset_type: str, preset_id: str
+    ) -> web.Response:
+        """Update a user preset."""
+        hass = request.app["hass"]
+
+        preset_store = _get_preset_store(hass)
+        if not preset_store:
+            return web.Response(status=503, text="Preset store not initialized")
+
+        if preset_type not in VALID_PRESET_TYPES:
+            return web.Response(
+                status=400,
+                text=f"Invalid preset type. Valid types: {', '.join(VALID_PRESET_TYPES)}",
+            )
+
+        try:
+            preset_data = await request.json()
+        except ValueError:
+            return web.Response(status=400, text="Invalid JSON")
+
+        if not isinstance(preset_data, dict):
+            return web.Response(status=400, text="Request body must be a JSON object")
+
+        preset = await preset_store.update_preset(preset_type, preset_id, preset_data)
+        if not preset:
+            return web.Response(status=404, text="Preset not found")
+
+        return web.json_response({"preset": preset})
+
+    async def delete(
+        self, request: web.Request, preset_type: str, preset_id: str
+    ) -> web.Response:
+        """Delete a user preset."""
+        hass = request.app["hass"]
+
+        preset_store = _get_preset_store(hass)
+        if not preset_store:
+            return web.Response(status=503, text="Preset store not initialized")
+
+        if preset_type not in VALID_PRESET_TYPES:
+            return web.Response(
+                status=400,
+                text=f"Invalid preset type. Valid types: {', '.join(VALID_PRESET_TYPES)}",
+            )
+
+        deleted = await preset_store.delete_preset(preset_type, preset_id)
+        if not deleted:
+            return web.Response(status=404, text="Preset not found")
+
+        return web.Response(status=204)
+
+
+class UserPresetDuplicateView(HomeAssistantView):
+    """View to duplicate a user preset."""
+
+    url = f"/api/{DOMAIN}/user_presets/{{preset_type}}/{{preset_id}}/duplicate"
+    name = f"api:{DOMAIN}:user_preset_duplicate"
+    requires_auth = True
+
+    async def post(
+        self, request: web.Request, preset_type: str, preset_id: str
+    ) -> web.Response:
+        """Duplicate a user preset.
+
+        Body (optional):
+            name: Custom name for the duplicate
+        """
+        hass = request.app["hass"]
+
+        preset_store = _get_preset_store(hass)
+        if not preset_store:
+            return web.Response(status=503, text="Preset store not initialized")
+
+        if preset_type not in VALID_PRESET_TYPES:
+            return web.Response(
+                status=400,
+                text=f"Invalid preset type. Valid types: {', '.join(VALID_PRESET_TYPES)}",
+            )
+
+        # Parse optional body for custom name
+        new_name = None
+        try:
+            body = await request.json()
+            new_name = body.get("name")
+        except ValueError:
+            pass  # No body or invalid JSON is fine
+
+        preset = await preset_store.duplicate_preset(preset_type, preset_id, new_name)
+        if not preset:
+            return web.Response(status=404, text="Source preset not found")
+
+        return web.json_response({"preset": preset}, status=201)

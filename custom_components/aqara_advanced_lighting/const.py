@@ -28,6 +28,7 @@ SERVICE_RESUME_SEGMENT_SEQUENCE: Final = "resume_segment_sequence"
 GROUP_SYNC_DELAY: Final = 0.05
 
 # Service attributes
+ATTR_Z2M_BASE_TOPIC: Final = "z2m_base_topic"
 ATTR_EFFECT: Final = "effect"
 ATTR_SPEED: Final = "speed"
 ATTR_SYNC: Final = "sync"
@@ -53,6 +54,8 @@ ATTR_HOLD: Final = "hold"
 ATTR_LOOP_MODE: Final = "loop_mode"
 ATTR_LOOP_COUNT: Final = "loop_count"
 ATTR_END_BEHAVIOR: Final = "end_behavior"
+ATTR_CLEAR_SEGMENTS: Final = "clear_segments"
+ATTR_SKIP_FIRST_IN_LOOP: Final = "skip_first_in_loop"
 ATTR_RESTORE_STATE: Final = "restore_state"
 ATTR_MODE: Final = "mode"
 ATTR_DURATION: Final = "duration"
@@ -81,6 +84,39 @@ MAX_SPEED: Final = 100
 # RGB color constraints
 MIN_RGB_VALUE: Final = 0
 MAX_RGB_VALUE: Final = 255
+
+# Supported Aqara light models (Z2M model identifiers)
+# RGB + CCT models
+MODEL_T1M_20_SEGMENT: Final = "lumi.light.acn031"
+MODEL_T1M_26_SEGMENT: Final = "lumi.light.acn032"
+MODEL_T1_STRIP: Final = "lumi.light.acn132"
+MODEL_T2_BULB_E26: Final = "lumi.light.agl001"
+MODEL_T2_BULB_E27: Final = "lumi.light.agl003"
+MODEL_T2_BULB_GU10_230V: Final = "lumi.light.agl005"
+MODEL_T2_BULB_GU10_110V: Final = "lumi.light.agl007"
+# CCT-only models (support CCT sequences only, no RGB effects)
+MODEL_T2_CCT_E26: Final = "lumi.light.agl002"
+MODEL_T2_CCT_E27: Final = "lumi.light.agl004"
+MODEL_T2_CCT_GU10_230V: Final = "lumi.light.agl006"
+MODEL_T2_CCT_GU10_110V: Final = "lumi.light.agl008"
+
+# CIE 1931 color gamut triangles for Aqara lights
+# These define the actual color space the lights can produce
+# Format: [(red_x, red_y), (green_x, green_y), (blue_x, blue_y)]
+AQARA_COLOR_GAMUT_T1M: Final = [(0.68, 0.31), (0.15, 0.06), (0.15, 0.70)]
+AQARA_COLOR_GAMUT_T1_STRIP: Final = [(0.68, 0.31), (0.15, 0.06), (0.15, 0.70)]
+AQARA_COLOR_GAMUT_T2_BULB: Final = [(0.68, 0.31), (0.15, 0.06), (0.15, 0.70)]
+
+# Map model IDs to gamuts
+AQARA_COLOR_GAMUTS: Final = {
+    MODEL_T1M_20_SEGMENT: AQARA_COLOR_GAMUT_T1M,
+    MODEL_T1M_26_SEGMENT: AQARA_COLOR_GAMUT_T1M,
+    MODEL_T1_STRIP: AQARA_COLOR_GAMUT_T1_STRIP,
+    MODEL_T2_BULB_E26: AQARA_COLOR_GAMUT_T2_BULB,
+    MODEL_T2_BULB_E27: AQARA_COLOR_GAMUT_T2_BULB,
+    MODEL_T2_BULB_GU10_230V: AQARA_COLOR_GAMUT_T2_BULB,
+    MODEL_T2_BULB_GU10_110V: AQARA_COLOR_GAMUT_T2_BULB,
+}
 
 # Brightness constraints (UI uses percentage, devices use 1-255)
 MIN_BRIGHTNESS_PERCENT: Final = 1  # Minimum percentage for UI
@@ -135,21 +171,6 @@ MAX_SEGMENT_COLORS: Final = 6
 MIN_DURATION: Final = 0.0
 MAX_DURATION: Final = 3600.0  # 1 hour
 
-# Supported Aqara light models (Z2M model identifiers)
-# RGB + CCT models
-MODEL_T1M_20_SEGMENT: Final = "lumi.light.acn031"
-MODEL_T1M_26_SEGMENT: Final = "lumi.light.acn032"
-MODEL_T1_STRIP: Final = "lumi.light.acn132"
-MODEL_T2_BULB_E26: Final = "lumi.light.agl001"
-MODEL_T2_BULB_E27: Final = "lumi.light.agl003"
-MODEL_T2_BULB_GU10_230V: Final = "lumi.light.agl005"
-MODEL_T2_BULB_GU10_110V: Final = "lumi.light.agl007"
-# CCT-only models (support CCT sequences only, no RGB effects)
-MODEL_T2_CCT_E26: Final = "lumi.light.agl002"
-MODEL_T2_CCT_E27: Final = "lumi.light.agl004"
-MODEL_T2_CCT_GU10_230V: Final = "lumi.light.agl006"
-MODEL_T2_CCT_GU10_110V: Final = "lumi.light.agl008"
-
 # Effect types for T1M (ACN031/ACN032)
 EFFECT_T1M_FLOW1: Final = "flow1"
 EFFECT_T1M_FLOW2: Final = "flow2"
@@ -189,6 +210,20 @@ DATA_UNSUB: Final = "unsub"
 DATA_CCT_SEQUENCE_MANAGER: Final = "cct_sequence_manager"
 DATA_SEGMENT_SEQUENCE_MANAGER: Final = "segment_sequence_manager"
 DATA_FAVORITES_STORE: Final = "favorites_store"
+DATA_PRESET_STORE: Final = "preset_store"
+
+# User preset type constants
+PRESET_TYPE_EFFECT: Final = "effect"
+PRESET_TYPE_SEGMENT_PATTERN: Final = "segment_pattern"
+PRESET_TYPE_CCT_SEQUENCE: Final = "cct_sequence"
+PRESET_TYPE_SEGMENT_SEQUENCE: Final = "segment_sequence"
+
+VALID_PRESET_TYPES: Final = [
+    PRESET_TYPE_EFFECT,
+    PRESET_TYPE_SEGMENT_PATTERN,
+    PRESET_TYPE_CCT_SEQUENCE,
+    PRESET_TYPE_SEGMENT_SEQUENCE,
+]
 
 # Event types for automation triggers
 EVENT_SEQUENCE_STARTED: Final = f"{DOMAIN}_sequence_started"
@@ -245,7 +280,7 @@ PRESET_CCT_CIRCADIAN: Final = "circadian"
 EFFECT_PRESETS: Final = {
     # T2 Bulb presets
     PRESET_T2_CANDLELIGHT: {
-        "name": "T2: Candlelight",
+        "name": "Candlelight",
         "icon": "mdi:candle",
         "effect": EFFECT_T2_CANDLELIGHT,
         "colors": [[255, 125, 18]],
@@ -254,7 +289,7 @@ EFFECT_PRESETS: Final = {
         "device_types": [MODEL_T2_BULB_E26, MODEL_T2_BULB_E27, MODEL_T2_BULB_GU10_110V, MODEL_T2_BULB_GU10_230V],
     },
     PRESET_T2_BREATH: {
-        "name": "T2: Breath",
+        "name": "Breath",
         "icon": "mdi:meditation",
         "effect": EFFECT_T2_BREATHING,
         "colors": [[255, 125, 18]],
@@ -263,7 +298,7 @@ EFFECT_PRESETS: Final = {
         "device_types": [MODEL_T2_BULB_E26, MODEL_T2_BULB_E27, MODEL_T2_BULB_GU10_110V, MODEL_T2_BULB_GU10_230V],
     },
     PRESET_T2_COLORFUL: {
-        "name": "T2: Colorful",
+        "name": "Colorful",
         "icon": "mdi:palette",
         "effect": EFFECT_T2_FADING,
         "colors": [
@@ -280,7 +315,7 @@ EFFECT_PRESETS: Final = {
         "device_types": [MODEL_T2_BULB_E26, MODEL_T2_BULB_E27, MODEL_T2_BULB_GU10_110V, MODEL_T2_BULB_GU10_230V],
     },
     PRESET_T2_SECURITY: {
-        "name": "T2: Security",
+        "name": "Security",
         "icon": "mdi:shield-alert",
         "effect": EFFECT_T2_FLASH,
         "colors": [[255, 0, 0]],
@@ -290,7 +325,7 @@ EFFECT_PRESETS: Final = {
     },
     # T1M presets
     PRESET_T1M_DINNER: {
-        "name": "T1M: Dinner",
+        "name": "Dinner",
         "icon": "mdi:silverware-fork-knife",
         "effect": EFFECT_T1M_FLOW1,
         "colors": [[214, 235, 255], [92, 86, 255], [93, 0, 255]],
@@ -299,7 +334,7 @@ EFFECT_PRESETS: Final = {
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT],
     },
     PRESET_T1M_SUNSET: {
-        "name": "T1M: Sunset",
+        "name": "Sunset",
         "icon": "mdi:weather-sunset",
         "effect": EFFECT_T1M_FLOW2,
         "colors": [[255, 0, 0], [255, 138, 138], [179, 191, 255], [0, 0, 255]],
@@ -308,7 +343,7 @@ EFFECT_PRESETS: Final = {
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT],
     },
     PRESET_T1M_AUTUMN: {
-        "name": "T1M: Autumn",
+        "name": "Autumn",
         "icon": "mdi:leaf-maple",
         "effect": EFFECT_T1M_FLOW1,
         "colors": [[255, 71, 0], [255, 119, 0], [255, 154, 0], [255, 225, 0]],
@@ -317,7 +352,7 @@ EFFECT_PRESETS: Final = {
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT],
     },
     PRESET_T1M_GALAXY: {
-        "name": "T1M: Galaxy",
+        "name": "Galaxy",
         "icon": "mdi:star-circle",
         "effect": EFFECT_T1M_FADING,
         "colors": [[0, 137, 255], [198, 0, 255], [255, 0, 255], [0, 0, 255]],
@@ -326,7 +361,7 @@ EFFECT_PRESETS: Final = {
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT],
     },
     PRESET_T1M_DAYDREAM: {
-        "name": "T1M: Daydream",
+        "name": "Daydream",
         "icon": "mdi:cloud",
         "effect": EFFECT_T1M_FADING,
         "colors": [[255, 0, 0], [255, 155, 143], [255, 0, 255], [255, 163, 249]],
@@ -335,7 +370,7 @@ EFFECT_PRESETS: Final = {
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT],
     },
     PRESET_T1M_HOLIDAY: {
-        "name": "T1M: Holiday",
+        "name": "Holiday",
         "icon": "mdi:pine-tree",
         "effect": EFFECT_T1M_BREATHING,
         "colors": [[7, 255, 36], [255, 97, 0], [55, 184, 255], [0, 6, 255]],
@@ -344,7 +379,7 @@ EFFECT_PRESETS: Final = {
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT],
     },
     PRESET_T1M_PARTY: {
-        "name": "T1M: Party",
+        "name": "Party",
         "icon": "mdi:party-popper",
         "effect": EFFECT_T1M_HOPPING,
         "colors": [[255, 0, 0], [255, 94, 0], [255, 255, 0], [255, 0, 255], [0, 255, 255], [0, 0, 255], [255, 0, 255]],
@@ -353,7 +388,7 @@ EFFECT_PRESETS: Final = {
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT],
     },
     PRESET_T1M_METEOR: {
-        "name": "T1M: Meteor",
+        "name": "Meteor",
         "icon": "mdi:meteor",
         "effect": EFFECT_T1M_ROLLING,
         "colors": [[255, 148, 0], [89, 255, 0], [0, 255, 252], [175, 7, 255]],
@@ -362,7 +397,7 @@ EFFECT_PRESETS: Final = {
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT],
     },
     PRESET_T1M_ALERT: {
-        "name": "T1M: Alert",
+        "name": "Alert",
         "icon": "mdi:alert",
         "effect": EFFECT_T1M_HOPPING,
         "colors": [[255, 0, 0]],
@@ -372,7 +407,7 @@ EFFECT_PRESETS: Final = {
     },
     # T1 Strip presets (all use same decoded colors)
     PRESET_T1_STRIP_RAINBOW: {
-        "name": "T1 Strip: Rainbow",
+        "name": "Rainbow",
         "icon": "mdi:rainbow",
         "effect": EFFECT_T1_RAINBOW1,
         "colors": [
@@ -389,7 +424,7 @@ EFFECT_PRESETS: Final = {
         "device_types": [MODEL_T1_STRIP],
     },
     PRESET_T1_STRIP_HEARTBEAT: {
-        "name": "T1 Strip: Heartbeat",
+        "name": "Heartbeat",
         "icon": "mdi:heart-pulse",
         "effect": EFFECT_T1_FLASH,
         "colors": [
@@ -404,7 +439,7 @@ EFFECT_PRESETS: Final = {
         "device_types": [MODEL_T1_STRIP],
     },
     PRESET_T1_STRIP_GALA: {
-        "name": "T1 Strip: Gala",
+        "name": "Gala",
         "icon": "mdi:party-popper",
         "effect": EFFECT_T1_BREATHING,
         "colors": [
@@ -421,7 +456,7 @@ EFFECT_PRESETS: Final = {
         "device_types": [MODEL_T1_STRIP],
     },
     PRESET_T1_STRIP_SEA_OF_FLOWERS: {
-        "name": "T1 Strip: Sea of flowers",
+        "name": "Sea of flowers",
         "icon": "mdi:flower",
         "effect": EFFECT_T1_CHASING,
         "colors": [
@@ -438,7 +473,7 @@ EFFECT_PRESETS: Final = {
         "device_types": [MODEL_T1_STRIP],
     },
     PRESET_T1_STRIP_RHYTHMIC: {
-        "name": "T1 Strip: Rhythmic",
+        "name": "Rhythmic",
         "icon": "mdi:sine-wave",
         "effect": EFFECT_T1_HOPPING,
         "colors": [
@@ -455,7 +490,7 @@ EFFECT_PRESETS: Final = {
         "device_types": [MODEL_T1_STRIP],
     },
     PRESET_T1_STRIP_EXCITING: {
-        "name": "T1 Strip: Exciting",
+        "name": "Exciting",
         "icon": "mdi:flash",
         "effect": EFFECT_T1_FLICKER,
         "colors": [
@@ -468,7 +503,7 @@ EFFECT_PRESETS: Final = {
         "device_types": [MODEL_T1_STRIP],
     },
     PRESET_T1_STRIP_COLORFUL: {
-        "name": "T1 Strip: Colorful",
+        "name": "Colorful",
         "icon": "mdi:palette",
         "effect": EFFECT_T1_RAINBOW2,
         "colors": [
@@ -503,7 +538,7 @@ PRESET_SEGMENT_12: Final = "segment_12"
 # Segment pattern preset definitions (T1M and T1 Strip)
 SEGMENT_PATTERN_PRESETS: Final = {
     PRESET_SEGMENT_1: {
-        "name": "Segment: Preset 1",
+        "name": "Preset 1",
         "icon": "preset_01.svg",
         "segments": [
             [255, 205, 213], [255, 205, 213], [255, 205, 213], [255, 205, 213],
@@ -517,7 +552,7 @@ SEGMENT_PATTERN_PRESETS: Final = {
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
     },
     PRESET_SEGMENT_2: {
-        "name": "Segment: Preset 2",
+        "name": "Preset 2",
         "icon": "preset_02.svg",
         "segments": [
             [255, 235, 193], [255, 235, 193], [255, 235, 193], [255, 235, 193],
@@ -531,7 +566,7 @@ SEGMENT_PATTERN_PRESETS: Final = {
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
     },
     PRESET_SEGMENT_3: {
-        "name": "Segment: Preset 3",
+        "name": "Preset 3",
         "icon": "preset_03.svg",
         "segments": [
             [129, 235, 254], [129, 235, 254], [129, 235, 254], [129, 235, 254],
@@ -545,7 +580,7 @@ SEGMENT_PATTERN_PRESETS: Final = {
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
     },
     PRESET_SEGMENT_4: {
-        "name": "Segment: Preset 4",
+        "name": "Preset 4",
         "icon": "preset_04.svg",
         "segments": [
             [233, 202, 249], [233, 202, 249], [233, 202, 249], [233, 202, 249],
@@ -559,7 +594,7 @@ SEGMENT_PATTERN_PRESETS: Final = {
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
     },
     PRESET_SEGMENT_5: {
-        "name": "Segment: Preset 5",
+        "name": "Preset 5",
         "icon": "preset_05.svg",
         "segments": [
             [255, 83, 74], [255, 83, 74], [255, 83, 74], [255, 83, 74],
@@ -573,7 +608,7 @@ SEGMENT_PATTERN_PRESETS: Final = {
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
     },
     PRESET_SEGMENT_6: {
-        "name": "Segment: Preset 6",
+        "name": "Preset 6",
         "icon": "preset_06.svg",
         "segments": [
             [26, 152, 249], [26, 152, 249], [26, 152, 249], [26, 152, 249],
@@ -587,7 +622,7 @@ SEGMENT_PATTERN_PRESETS: Final = {
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
     },
     PRESET_SEGMENT_7: {
-        "name": "Segment: Preset 7",
+        "name": "Preset 7",
         "icon": "preset_07.svg",
         "segments": [
             [167, 188, 255], [167, 188, 255], [167, 188, 255], [167, 188, 255],
@@ -601,7 +636,7 @@ SEGMENT_PATTERN_PRESETS: Final = {
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
     },
     PRESET_SEGMENT_8: {
-        "name": "Segment: Preset 8",
+        "name": "Preset 8",
         "icon": "preset_08.svg",
         "segments": [
             [255, 221, 50], [255, 221, 50], [255, 221, 50], [255, 221, 50],
@@ -615,7 +650,7 @@ SEGMENT_PATTERN_PRESETS: Final = {
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
     },
     PRESET_SEGMENT_9: {
-        "name": "Segment: Preset 9",
+        "name": "Preset 9",
         "icon": "preset_09.svg",
         "segments": [
             [255, 134, 160], [255, 134, 160], [255, 134, 160], [255, 134, 160],
@@ -629,7 +664,7 @@ SEGMENT_PATTERN_PRESETS: Final = {
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
     },
     PRESET_SEGMENT_10: {
-        "name": "Segment: Preset 10",
+        "name": "Preset 10",
         "icon": "preset_10.svg",
         "segments": [
             [193, 129, 235], [193, 129, 235], [193, 129, 235], [193, 129, 235],
@@ -643,7 +678,7 @@ SEGMENT_PATTERN_PRESETS: Final = {
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
     },
     PRESET_SEGMENT_11: {
-        "name": "Segment: Preset 11",
+        "name": "Preset 11",
         "icon": "preset_11.svg",
         "segments": [
             [45, 168, 249], [45, 168, 249], [45, 168, 249], [45, 168, 249],
@@ -657,7 +692,7 @@ SEGMENT_PATTERN_PRESETS: Final = {
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
     },
     PRESET_SEGMENT_12: {
-        "name": "Segment: Preset 12",
+        "name": "Preset 12",
         "icon": "preset_12.svg",
         "segments": [
             [255, 170, 161], [255, 170, 161], [255, 170, 161], [255, 170, 161],
@@ -915,3 +950,19 @@ def brightness_percent_to_device(percent: int) -> int:
     # Formula: device = round((percent / 100) * 254) + 1
     # This ensures: 1% -> 1, 100% -> 255
     return round(((percent - 1) / 99) * 254) + 1
+
+
+def xy_in_gamut(x: float, y: float, gamut: list[tuple[float, float]]) -> bool:
+    """Check if XY coordinates are within the specified gamut triangle.
+
+    Args:
+        x: X coordinate (0.0-1.0)
+        y: Y coordinate (0.0-1.0)
+        gamut: List of three tuples representing the gamut triangle vertices
+
+    Returns:
+        True if the point is within the gamut, False otherwise
+    """
+    from homeassistant.util.color import check_point_in_lamps_reach
+
+    return check_point_in_lamps_reach((x, y), gamut)

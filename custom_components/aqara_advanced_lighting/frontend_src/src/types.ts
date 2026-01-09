@@ -121,6 +121,129 @@ export interface Favorite {
   entities: string[];
 }
 
+// RGB color for user presets (backward compatibility)
+export interface RGBColor {
+  r: number;
+  g: number;
+  b: number;
+}
+
+// XY color for CIE 1931 color space
+export interface XYColor {
+  x: number;  // 0.0-1.0
+  y: number;  // 0.0-1.0
+}
+
+// HS color for Hue-Saturation color space
+export interface HSColor {
+  h: number;  // Hue: 0-360 degrees
+  s: number;  // Saturation: 0-100 percent
+}
+
+// Color gamut definition per device type
+export interface ColorGamut {
+  red: [number, number];    // [x, y]
+  green: [number, number];
+  blue: [number, number];
+}
+
+// Color gamut triangles for Aqara lights
+export const AQARA_GAMUTS: Record<string, ColorGamut> = {
+  T1M: {
+    red: [0.68, 0.31],
+    green: [0.15, 0.06],
+    blue: [0.15, 0.70],
+  },
+  T1_STRIP: {
+    red: [0.68, 0.31],
+    green: [0.15, 0.06],
+    blue: [0.15, 0.70],
+  },
+  T2_BULB: {
+    red: [0.68, 0.31],
+    green: [0.15, 0.06],
+    blue: [0.15, 0.70],
+  },
+};
+
+// Segment color entry for user presets
+export interface SegmentColorEntry {
+  segment: number | string;
+  color: RGBColor;
+}
+
+// User preset interfaces
+export interface UserEffectPreset {
+  id: string;
+  name: string;
+  icon?: string;
+  device_type?: string;
+  effect: string;
+  effect_speed: number;
+  effect_brightness?: number;
+  effect_colors: XYColor[];  // Changed to XYColor for accurate color representation
+  effect_segments?: string;
+  created_at: string;
+  modified_at: string;
+}
+
+export interface UserSegmentPatternPreset {
+  id: string;
+  name: string;
+  icon?: string;
+  device_type?: string;
+  segments: SegmentColorEntry[];
+  created_at: string;
+  modified_at: string;
+}
+
+export interface UserCCTSequencePreset {
+  id: string;
+  name: string;
+  icon?: string;
+  steps: CCTSequenceStep[];
+  loop_mode: string;
+  loop_count?: number;
+  end_behavior: string;
+  created_at: string;
+  modified_at: string;
+}
+
+export interface UserSegmentSequencePreset {
+  id: string;
+  name: string;
+  icon?: string;
+  device_type?: string;
+  steps: SegmentSequenceStep[];
+  loop_mode: string;
+  loop_count?: number;
+  end_behavior: string;
+  clear_segments?: boolean;
+  skip_first_in_loop?: boolean;
+  created_at: string;
+  modified_at: string;
+}
+
+export interface UserPresetsData {
+  effect_presets: UserEffectPreset[];
+  segment_pattern_presets: UserSegmentPatternPreset[];
+  cct_sequence_presets: UserCCTSequencePreset[];
+  segment_sequence_presets: UserSegmentSequencePreset[];
+}
+
+// Tab type for panel navigation
+export type PanelTab = 'activate' | 'effects' | 'patterns' | 'cct' | 'segments' | 'presets';
+
+// Sort options for presets
+export type PresetSortOption = 'name-asc' | 'name-desc' | 'date-new' | 'date-old';
+
+export interface PresetSortPreferences {
+  effects: PresetSortOption;
+  patterns: PresetSortOption;
+  cct: PresetSortOption;
+  segments: PresetSortOption;
+}
+
 export const SUPPORTED_MODELS = {
   T2_BULB: [
     'lumi.light.agl001',

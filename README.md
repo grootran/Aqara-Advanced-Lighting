@@ -4,7 +4,9 @@ Home Assistant HACS integration for advanced control of the Aqara T1M Ceiling Li
 
 ## Overview
 
-Easily control the more advanced features of Aqara lights, with RGB dynamic effects, individual segment patterns, gradients, CCT sequences, and state restoration.
+Easily control the more advanced features of the Aqara T1M Ceiling Light, T1 LED Strip, and T2 bulbs, with RGB dynamic effects, RGB segment patterns & gradients, CCT sequences, and state restoration. Create and save custom presets, target multiple lights at once.
+
+Home Assistant backend services for easy integration into automations and scripts. Frontend sidebar accessible panel for easy creation and activation of presets, with builder UI for effects and segment patterns, plus sequencers for dynamic CCT control and animated segment patterns.
 
 ### Supported Devices
 
@@ -22,7 +24,18 @@ Easily control the more advanced features of Aqara lights, with RGB dynamic effe
   - Save favorite light targets for quick access
   - Light control tiles for turning lights on/off and adjusting brightness
   - Access to all effect and sequence presets
-- **Aqara App Effect Presets** - Quick access to 24 preset effects from the Aqara Home app
+  - **Visual Editors** - Create custom effects, patterns, and sequences with interactive builders
+    - Effect editor with color pickers and effect type selector
+    - Segment pattern editor with visual segment selection
+    - CCT sequence editor with multi-step timeline
+    - RGB segment sequence editor with animation patterns
+  - **User Preset System** - Save, edit, and manage your custom presets
+    - Create and save unlimited custom presets for all feature types
+    - Edit existing presets with full customization options
+    - Duplicate presets to create variations
+    - Delete unwanted presets
+    - Persistent storage across Home Assistant restarts
+- **Aqara App Effect Presets** - Quick access to 24 preset effect scenes from the Aqara Home app
   - 4 T2 Bulb presets (Candlelight, Breath, Colorful, Security)
   - 9 T1M presets (Dinner, Sunset, Autumn, Galaxy, Daydream, Holiday, Party, Meteor, Alert)
   - 7 T1 Strip presets (Rainbow, Heartbeat, Gala, Sea of Flowers, Rhythmic, Exciting, Colorful)
@@ -441,13 +454,23 @@ data:
 - `entity_id` (required): Light entity with segment support (T1M or T1 Strip)
 - `preset` (optional): Use a built-in preset ("loading_bar", "wave", "sparkle"). When preset is selected, manual step parameters are ignored
 - `turn_on` (optional): Turn light on before starting sequence (default: false)
+- `clear_segments` (optional): Clear existing segment pattern before starting sequence (default: false)
+- `skip_first_in_loop` (optional): Skip the first step when looping (useful for initialization steps, default: false)
 - **Step 1 fields** (required if not using preset):
   - `step_1_segments`: Segments to apply pattern to (e.g., "all", "1-20", "odd", "even")
   - `step_1_colors`: List of RGB colors (1-6 colors)
   - `step_1_mode`: Pattern mode ("gradient", "blocks_repeat", "blocks_expand", "individual")
   - `step_1_duration`: Time to complete the activation pattern (0-3600 seconds)
   - `step_1_hold`: Time to hold after activation completes (0-3600 seconds)
-  - `step_1_activation_pattern`: How segments activate ("sequential_forward", "sequential_reverse", "random", "simultaneous")
+  - `step_1_activation_pattern`: How segments activate during the duration phase
+    - `"all"`: All segments activate simultaneously (All at Once)
+    - `"sequential_forward"`: Segments activate one by one from first to last
+    - `"sequential_reverse"`: Segments activate one by one from last to first
+    - `"random"`: Segments activate in random order
+    - `"ping_pong"`: Segments activate forward then reverse in a ping pong pattern
+    - `"centre_out"`: Segments activate from the center outward to both edges
+    - `"edges_in"`: Segments activate from both edges inward to the center
+    - `"paired"`: Segments activate in pairs (first and last, second and second-last, etc.)
 - **Steps 2-20 fields** (optional): Same format as step 1, access via "Show advanced fields" in UI
 - `loop_mode` (optional): How to loop the sequence (default: "once", ignored when using preset)
   - `"once"`: Run sequence one time
@@ -781,7 +804,7 @@ automation:
           step_1_mode: "blocks_repeat"
           step_1_duration: 0.5
           step_1_hold: 0.5
-          step_1_activation_pattern: "simultaneous"
+          step_1_activation_pattern: "all"
           step_2_segments: "all"
           step_2_colors:
             - r: 0
@@ -790,7 +813,7 @@ automation:
           step_2_mode: "blocks_repeat"
           step_2_duration: 0.5
           step_2_hold: 0.5
-          step_2_activation_pattern: "simultaneous"
+          step_2_activation_pattern: "all"
           loop_mode: "count"
           loop_count: 5
           end_behavior: "turn_off"
@@ -859,6 +882,56 @@ script:
           end_behavior: "maintain"
 ```
 
+**Startup Intro with Looping Pattern**
+```yaml
+automation:
+  - alias: "Party lights with intro"
+    trigger:
+      - platform: state
+        entity_id: input_boolean.party_mode
+        to: "on"
+    action:
+      - service: aqara_advanced_lighting.start_segment_sequence
+        target:
+          entity_id: light.led_strip
+        data:
+          turn_on: true
+          clear_segments: true  # Clear any existing patterns first
+          # Step 1: Dramatic white flash intro (only runs once)
+          step_1_segments: "all"
+          step_1_colors:
+            - r: 255
+              g: 255
+              b: 255
+          step_1_mode: "blocks_repeat"
+          step_1_duration: 0.2
+          step_1_hold: 0.3
+          step_1_activation_pattern: "all"
+          # Step 2: Red chase (loops)
+          step_2_segments: "all"
+          step_2_colors:
+            - r: 255
+              g: 0
+              b: 0
+          step_2_mode: "blocks_repeat"
+          step_2_duration: 1.0
+          step_2_hold: 0.0
+          step_2_activation_pattern: "sequential_forward"
+          # Step 3: Blue chase (loops)
+          step_3_segments: "all"
+          step_3_colors:
+            - r: 0
+              g: 0
+              b: 255
+          step_3_mode: "blocks_repeat"
+          step_3_duration: 1.0
+          step_3_hold: 0.0
+          step_3_activation_pattern: "sequential_reverse"
+          loop_mode: "continuous"
+          skip_first_in_loop: true  # Skip the white flash intro when looping
+          end_behavior: "turn_off"
+```
+
 ## Troubleshooting
 
 ### Integration won't load
@@ -891,6 +964,10 @@ script:
 - T1M: 0.0.0_0027
 - T1 strip: 0.0.0_0027
 - T2 bulb: 0.0.0_0030
+
+## Disclaimer
+
+This is an unofficial integration and is not provided by or supported by Aqara.
 
 ## Support
 
