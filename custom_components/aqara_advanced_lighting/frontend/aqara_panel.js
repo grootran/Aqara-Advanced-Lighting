@@ -1,36 +1,104 @@
-!function(){"use strict";function t(t,e,s,i){var n,o=arguments.length,r=o<3?e:null===i?i=Object.getOwnPropertyDescriptor(e,s):i;if("object"==typeof Reflect&&"function"==typeof Reflect.decorate)r=Reflect.decorate(t,e,s,i);else for(var a=t.length-1;a>=0;a--)(n=t[a])&&(r=(o<3?n(r):o>3?n(e,s,r):n(e,s))||r);return o>3&&r&&Object.defineProperty(e,s,r),r}"function"==typeof SuppressedError&&SuppressedError;const e=globalThis,s=e.ShadowRoot&&(void 0===e.ShadyCSS||e.ShadyCSS.nativeShadow)&&"adoptedStyleSheets"in Document.prototype&&"replace"in CSSStyleSheet.prototype,i=Symbol(),n=new WeakMap;let o=class{constructor(t,e,s){if(this._$cssResult$=!0,s!==i)throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");this.cssText=t,this.t=e}get styleSheet(){let t=this.o;const e=this.t;if(s&&void 0===t){const s=void 0!==e&&1===e.length;s&&(t=n.get(e)),void 0===t&&((this.o=t=new CSSStyleSheet).replaceSync(this.cssText),s&&n.set(e,t))}return t}toString(){return this.cssText}};const r=s?t=>t:t=>t instanceof CSSStyleSheet?(t=>{let e="";for(const s of t.cssRules)e+=s.cssText;return(t=>new o("string"==typeof t?t:t+"",void 0,i))(e)})(t):t,{is:a,defineProperty:c,getOwnPropertyDescriptor:h,getOwnPropertyNames:l,getOwnPropertySymbols:d,getPrototypeOf:p}=Object,u=globalThis,_=u.trustedTypes,v=_?_.emptyScript:"",g=u.reactiveElementPolyfillSupport,m=(t,e)=>t,f={toAttribute(t,e){switch(e){case Boolean:t=t?v:null;break;case Object:case Array:t=null==t?t:JSON.stringify(t)}return t},fromAttribute(t,e){let s=t;switch(e){case Boolean:s=null!==t;break;case Number:s=null===t?null:Number(t);break;case Object:case Array:try{s=JSON.parse(t)}catch(t){s=null}}return s}},$=(t,e)=>!a(t,e),y={attribute:!0,type:String,converter:f,reflect:!1,useDefault:!1,hasChanged:$};Symbol.metadata??=Symbol("metadata"),u.litPropertyMetadata??=new WeakMap;let b=class extends HTMLElement{static addInitializer(t){this._$Ei(),(this.l??=[]).push(t)}static get observedAttributes(){return this.finalize(),this._$Eh&&[...this._$Eh.keys()]}static createProperty(t,e=y){if(e.state&&(e.attribute=!1),this._$Ei(),this.prototype.hasOwnProperty(t)&&((e=Object.create(e)).wrapped=!0),this.elementProperties.set(t,e),!e.noAccessor){const s=Symbol(),i=this.getPropertyDescriptor(t,s,e);void 0!==i&&c(this.prototype,t,i)}}static getPropertyDescriptor(t,e,s){const{get:i,set:n}=h(this.prototype,t)??{get(){return this[e]},set(t){this[e]=t}};return{get:i,set(e){const o=i?.call(this);n?.call(this,e),this.requestUpdate(t,o,s)},configurable:!0,enumerable:!0}}static getPropertyOptions(t){return this.elementProperties.get(t)??y}static _$Ei(){if(this.hasOwnProperty(m("elementProperties")))return;const t=p(this);t.finalize(),void 0!==t.l&&(this.l=[...t.l]),this.elementProperties=new Map(t.elementProperties)}static finalize(){if(this.hasOwnProperty(m("finalized")))return;if(this.finalized=!0,this._$Ei(),this.hasOwnProperty(m("properties"))){const t=this.properties,e=[...l(t),...d(t)];for(const s of e)this.createProperty(s,t[s])}const t=this[Symbol.metadata];if(null!==t){const e=litPropertyMetadata.get(t);if(void 0!==e)for(const[t,s]of e)this.elementProperties.set(t,s)}this._$Eh=new Map;for(const[t,e]of this.elementProperties){const s=this._$Eu(t,e);void 0!==s&&this._$Eh.set(s,t)}this.elementStyles=this.finalizeStyles(this.styles)}static finalizeStyles(t){const e=[];if(Array.isArray(t)){const s=new Set(t.flat(1/0).reverse());for(const t of s)e.unshift(r(t))}else void 0!==t&&e.push(r(t));return e}static _$Eu(t,e){const s=e.attribute;return!1===s?void 0:"string"==typeof s?s:"string"==typeof t?t.toLowerCase():void 0}constructor(){super(),this._$Ep=void 0,this.isUpdatePending=!1,this.hasUpdated=!1,this._$Em=null,this._$Ev()}_$Ev(){this._$ES=new Promise(t=>this.enableUpdating=t),this._$AL=new Map,this._$E_(),this.requestUpdate(),this.constructor.l?.forEach(t=>t(this))}addController(t){(this._$EO??=new Set).add(t),void 0!==this.renderRoot&&this.isConnected&&t.hostConnected?.()}removeController(t){this._$EO?.delete(t)}_$E_(){const t=new Map,e=this.constructor.elementProperties;for(const s of e.keys())this.hasOwnProperty(s)&&(t.set(s,this[s]),delete this[s]);t.size>0&&(this._$Ep=t)}createRenderRoot(){const t=this.shadowRoot??this.attachShadow(this.constructor.shadowRootOptions);return((t,i)=>{if(s)t.adoptedStyleSheets=i.map(t=>t instanceof CSSStyleSheet?t:t.styleSheet);else for(const s of i){const i=document.createElement("style"),n=e.litNonce;void 0!==n&&i.setAttribute("nonce",n),i.textContent=s.cssText,t.appendChild(i)}})(t,this.constructor.elementStyles),t}connectedCallback(){this.renderRoot??=this.createRenderRoot(),this.enableUpdating(!0),this._$EO?.forEach(t=>t.hostConnected?.())}enableUpdating(t){}disconnectedCallback(){this._$EO?.forEach(t=>t.hostDisconnected?.())}attributeChangedCallback(t,e,s){this._$AK(t,s)}_$ET(t,e){const s=this.constructor.elementProperties.get(t),i=this.constructor._$Eu(t,s);if(void 0!==i&&!0===s.reflect){const n=(void 0!==s.converter?.toAttribute?s.converter:f).toAttribute(e,s.type);this._$Em=t,null==n?this.removeAttribute(i):this.setAttribute(i,n),this._$Em=null}}_$AK(t,e){const s=this.constructor,i=s._$Eh.get(t);if(void 0!==i&&this._$Em!==i){const t=s.getPropertyOptions(i),n="function"==typeof t.converter?{fromAttribute:t.converter}:void 0!==t.converter?.fromAttribute?t.converter:f;this._$Em=i;const o=n.fromAttribute(e,t.type);this[i]=o??this._$Ej?.get(i)??o,this._$Em=null}}requestUpdate(t,e,s,i=!1,n){if(void 0!==t){const o=this.constructor;if(!1===i&&(n=this[t]),s??=o.getPropertyOptions(t),!((s.hasChanged??$)(n,e)||s.useDefault&&s.reflect&&n===this._$Ej?.get(t)&&!this.hasAttribute(o._$Eu(t,s))))return;this.C(t,e,s)}!1===this.isUpdatePending&&(this._$ES=this._$EP())}C(t,e,{useDefault:s,reflect:i,wrapped:n},o){s&&!(this._$Ej??=new Map).has(t)&&(this._$Ej.set(t,o??e??this[t]),!0!==n||void 0!==o)||(this._$AL.has(t)||(this.hasUpdated||s||(e=void 0),this._$AL.set(t,e)),!0===i&&this._$Em!==t&&(this._$Eq??=new Set).add(t))}async _$EP(){this.isUpdatePending=!0;try{await this._$ES}catch(t){Promise.reject(t)}const t=this.scheduleUpdate();return null!=t&&await t,!this.isUpdatePending}scheduleUpdate(){return this.performUpdate()}performUpdate(){if(!this.isUpdatePending)return;if(!this.hasUpdated){if(this.renderRoot??=this.createRenderRoot(),this._$Ep){for(const[t,e]of this._$Ep)this[t]=e;this._$Ep=void 0}const t=this.constructor.elementProperties;if(t.size>0)for(const[e,s]of t){const{wrapped:t}=s,i=this[e];!0!==t||this._$AL.has(e)||void 0===i||this.C(e,void 0,s,i)}}let t=!1;const e=this._$AL;try{t=this.shouldUpdate(e),t?(this.willUpdate(e),this._$EO?.forEach(t=>t.hostUpdate?.()),this.update(e)):this._$EM()}catch(e){throw t=!1,this._$EM(),e}t&&this._$AE(e)}willUpdate(t){}_$AE(t){this._$EO?.forEach(t=>t.hostUpdated?.()),this.hasUpdated||(this.hasUpdated=!0,this.firstUpdated(t)),this.updated(t)}_$EM(){this._$AL=new Map,this.isUpdatePending=!1}get updateComplete(){return this.getUpdateComplete()}getUpdateComplete(){return this._$ES}shouldUpdate(t){return!0}update(t){this._$Eq&&=this._$Eq.forEach(t=>this._$ET(t,this[t])),this._$EM()}updated(t){}firstUpdated(t){}};b.elementStyles=[],b.shadowRootOptions={mode:"open"},b[m("elementProperties")]=new Map,b[m("finalized")]=new Map,g?.({ReactiveElement:b}),(u.reactiveElementVersions??=[]).push("2.1.2");const w=globalThis,A=t=>t,S=w.trustedTypes,x=S?S.createPolicy("lit-html",{createHTML:t=>t}):void 0,E="$lit$",C=`lit$${Math.random().toFixed(9).slice(2)}$`,P="?"+C,k=`<${P}>`,T=document,q=()=>T.createComment(""),N=t=>null===t||"object"!=typeof t&&"function"!=typeof t,U=Array.isArray,I="[ \t\n\f\r]",O=/<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g,M=/-->/g,F=/>/g,H=RegExp(`>|${I}(?:([^\\s"'>=/]+)(${I}*=${I}*(?:[^ \t\n\f\r"'\`<>=]|("|')|))|$)`,"g"),R=/'/g,D=/"/g,z=/^(?:script|style|textarea|title)$/i,B=(t=>(e,...s)=>({_$litType$:t,strings:e,values:s}))(1),L=Symbol.for("lit-noChange"),j=Symbol.for("lit-nothing"),G=new WeakMap,W=T.createTreeWalker(T,129);function V(t,e){if(!U(t)||!t.hasOwnProperty("raw"))throw Error("invalid template strings array");return void 0!==x?x.createHTML(e):e}const K=(t,e)=>{const s=t.length-1,i=[];let n,o=2===e?"<svg>":3===e?"<math>":"",r=O;for(let e=0;e<s;e++){const s=t[e];let a,c,h=-1,l=0;for(;l<s.length&&(r.lastIndex=l,c=r.exec(s),null!==c);)l=r.lastIndex,r===O?"!--"===c[1]?r=M:void 0!==c[1]?r=F:void 0!==c[2]?(z.test(c[2])&&(n=RegExp("</"+c[2],"g")),r=H):void 0!==c[3]&&(r=H):r===H?">"===c[0]?(r=n??O,h=-1):void 0===c[1]?h=-2:(h=r.lastIndex-c[2].length,a=c[1],r=void 0===c[3]?H:'"'===c[3]?D:R):r===D||r===R?r=H:r===M||r===F?r=O:(r=H,n=void 0);const d=r===H&&t[e+1].startsWith("/>")?" ":"";o+=r===O?s+k:h>=0?(i.push(a),s.slice(0,h)+E+s.slice(h)+C+d):s+C+(-2===h?e:d)}return[V(t,o+(t[s]||"<?>")+(2===e?"</svg>":3===e?"</math>":"")),i]};class J{constructor({strings:t,_$litType$:e},s){let i;this.parts=[];let n=0,o=0;const r=t.length-1,a=this.parts,[c,h]=K(t,e);if(this.el=J.createElement(c,s),W.currentNode=this.el.content,2===e||3===e){const t=this.el.content.firstChild;t.replaceWith(...t.childNodes)}for(;null!==(i=W.nextNode())&&a.length<r;){if(1===i.nodeType){if(i.hasAttributes())for(const t of i.getAttributeNames())if(t.endsWith(E)){const e=h[o++],s=i.getAttribute(t).split(C),r=/([.?@])?(.*)/.exec(e);a.push({type:1,index:n,name:r[2],strings:s,ctor:"."===r[1]?tt:"?"===r[1]?et:"@"===r[1]?st:X}),i.removeAttribute(t)}else t.startsWith(C)&&(a.push({type:6,index:n}),i.removeAttribute(t));if(z.test(i.tagName)){const t=i.textContent.split(C),e=t.length-1;if(e>0){i.textContent=S?S.emptyScript:"";for(let s=0;s<e;s++)i.append(t[s],q()),W.nextNode(),a.push({type:2,index:++n});i.append(t[e],q())}}}else if(8===i.nodeType)if(i.data===P)a.push({type:2,index:n});else{let t=-1;for(;-1!==(t=i.data.indexOf(C,t+1));)a.push({type:7,index:n}),t+=C.length-1}n++}}static createElement(t,e){const s=T.createElement("template");return s.innerHTML=t,s}}function Q(t,e,s=t,i){if(e===L)return e;let n=void 0!==i?s._$Co?.[i]:s._$Cl;const o=N(e)?void 0:e._$litDirective$;return n?.constructor!==o&&(n?._$AO?.(!1),void 0===o?n=void 0:(n=new o(t),n._$AT(t,s,i)),void 0!==i?(s._$Co??=[])[i]=n:s._$Cl=n),void 0!==n&&(e=Q(t,n._$AS(t,e.values),n,i)),e}class Y{constructor(t,e){this._$AV=[],this._$AN=void 0,this._$AD=t,this._$AM=e}get parentNode(){return this._$AM.parentNode}get _$AU(){return this._$AM._$AU}u(t){const{el:{content:e},parts:s}=this._$AD,i=(t?.creationScope??T).importNode(e,!0);W.currentNode=i;let n=W.nextNode(),o=0,r=0,a=s[0];for(;void 0!==a;){if(o===a.index){let e;2===a.type?e=new Z(n,n.nextSibling,this,t):1===a.type?e=new a.ctor(n,a.name,a.strings,this,t):6===a.type&&(e=new it(n,this,t)),this._$AV.push(e),a=s[++r]}o!==a?.index&&(n=W.nextNode(),o++)}return W.currentNode=T,i}p(t){let e=0;for(const s of this._$AV)void 0!==s&&(void 0!==s.strings?(s._$AI(t,s,e),e+=s.strings.length-2):s._$AI(t[e])),e++}}class Z{get _$AU(){return this._$AM?._$AU??this._$Cv}constructor(t,e,s,i){this.type=2,this._$AH=j,this._$AN=void 0,this._$AA=t,this._$AB=e,this._$AM=s,this.options=i,this._$Cv=i?.isConnected??!0}get parentNode(){let t=this._$AA.parentNode;const e=this._$AM;return void 0!==e&&11===t?.nodeType&&(t=e.parentNode),t}get startNode(){return this._$AA}get endNode(){return this._$AB}_$AI(t,e=this){t=Q(this,t,e),N(t)?t===j||null==t||""===t?(this._$AH!==j&&this._$AR(),this._$AH=j):t!==this._$AH&&t!==L&&this._(t):void 0!==t._$litType$?this.$(t):void 0!==t.nodeType?this.T(t):(t=>U(t)||"function"==typeof t?.[Symbol.iterator])(t)?this.k(t):this._(t)}O(t){return this._$AA.parentNode.insertBefore(t,this._$AB)}T(t){this._$AH!==t&&(this._$AR(),this._$AH=this.O(t))}_(t){this._$AH!==j&&N(this._$AH)?this._$AA.nextSibling.data=t:this.T(T.createTextNode(t)),this._$AH=t}$(t){const{values:e,_$litType$:s}=t,i="number"==typeof s?this._$AC(t):(void 0===s.el&&(s.el=J.createElement(V(s.h,s.h[0]),this.options)),s);if(this._$AH?._$AD===i)this._$AH.p(e);else{const t=new Y(i,this),s=t.u(this.options);t.p(e),this.T(s),this._$AH=t}}_$AC(t){let e=G.get(t.strings);return void 0===e&&G.set(t.strings,e=new J(t)),e}k(t){U(this._$AH)||(this._$AH=[],this._$AR());const e=this._$AH;let s,i=0;for(const n of t)i===e.length?e.push(s=new Z(this.O(q()),this.O(q()),this,this.options)):s=e[i],s._$AI(n),i++;i<e.length&&(this._$AR(s&&s._$AB.nextSibling,i),e.length=i)}_$AR(t=this._$AA.nextSibling,e){for(this._$AP?.(!1,!0,e);t!==this._$AB;){const e=A(t).nextSibling;A(t).remove(),t=e}}setConnected(t){void 0===this._$AM&&(this._$Cv=t,this._$AP?.(t))}}class X{get tagName(){return this.element.tagName}get _$AU(){return this._$AM._$AU}constructor(t,e,s,i,n){this.type=1,this._$AH=j,this._$AN=void 0,this.element=t,this.name=e,this._$AM=i,this.options=n,s.length>2||""!==s[0]||""!==s[1]?(this._$AH=Array(s.length-1).fill(new String),this.strings=s):this._$AH=j}_$AI(t,e=this,s,i){const n=this.strings;let o=!1;if(void 0===n)t=Q(this,t,e,0),o=!N(t)||t!==this._$AH&&t!==L,o&&(this._$AH=t);else{const i=t;let r,a;for(t=n[0],r=0;r<n.length-1;r++)a=Q(this,i[s+r],e,r),a===L&&(a=this._$AH[r]),o||=!N(a)||a!==this._$AH[r],a===j?t=j:t!==j&&(t+=(a??"")+n[r+1]),this._$AH[r]=a}o&&!i&&this.j(t)}j(t){t===j?this.element.removeAttribute(this.name):this.element.setAttribute(this.name,t??"")}}class tt extends X{constructor(){super(...arguments),this.type=3}j(t){this.element[this.name]=t===j?void 0:t}}class et extends X{constructor(){super(...arguments),this.type=4}j(t){this.element.toggleAttribute(this.name,!!t&&t!==j)}}class st extends X{constructor(t,e,s,i,n){super(t,e,s,i,n),this.type=5}_$AI(t,e=this){if((t=Q(this,t,e,0)??j)===L)return;const s=this._$AH,i=t===j&&s!==j||t.capture!==s.capture||t.once!==s.once||t.passive!==s.passive,n=t!==j&&(s===j||i);i&&this.element.removeEventListener(this.name,this,s),n&&this.element.addEventListener(this.name,this,t),this._$AH=t}handleEvent(t){"function"==typeof this._$AH?this._$AH.call(this.options?.host??this.element,t):this._$AH.handleEvent(t)}}class it{constructor(t,e,s){this.element=t,this.type=6,this._$AN=void 0,this._$AM=e,this.options=s}get _$AU(){return this._$AM._$AU}_$AI(t){Q(this,t)}}const nt=w.litHtmlPolyfillSupport;nt?.(J,Z),(w.litHtmlVersions??=[]).push("3.3.2");const ot=globalThis;let rt=class extends b{constructor(){super(...arguments),this.renderOptions={host:this},this._$Do=void 0}createRenderRoot(){const t=super.createRenderRoot();return this.renderOptions.renderBefore??=t.firstChild,t}update(t){const e=this.render();this.hasUpdated||(this.renderOptions.isConnected=this.isConnected),super.update(t),this._$Do=((t,e,s)=>{const i=s?.renderBefore??e;let n=i._$litPart$;if(void 0===n){const t=s?.renderBefore??null;i._$litPart$=n=new Z(e.insertBefore(q(),t),t,void 0,s??{})}return n._$AI(t),n})(e,this.renderRoot,this.renderOptions)}connectedCallback(){super.connectedCallback(),this._$Do?.setConnected(!0)}disconnectedCallback(){super.disconnectedCallback(),this._$Do?.setConnected(!1)}render(){return L}};rt._$litElement$=!0,rt.finalized=!0,ot.litElementHydrateSupport?.({LitElement:rt});const at=ot.litElementPolyfillSupport;at?.({LitElement:rt}),(ot.litElementVersions??=[]).push("4.2.2");const ct={attribute:!0,type:String,converter:f,reflect:!1,hasChanged:$},ht=(t=ct,e,s)=>{const{kind:i,metadata:n}=s;let o=globalThis.litPropertyMetadata.get(n);if(void 0===o&&globalThis.litPropertyMetadata.set(n,o=new Map),"setter"===i&&((t=Object.create(t)).wrapped=!0),o.set(s.name,t),"accessor"===i){const{name:i}=s;return{set(s){const n=e.get.call(this);e.set.call(this,s),this.requestUpdate(i,n,t,!0,s)},init(e){return void 0!==e&&this.C(i,void 0,t,e),e}}}if("setter"===i){const{name:i}=s;return function(s){const n=this[i];e.call(this,s),this.requestUpdate(i,n,t,!0,s)}}throw Error("Unsupported decorator location: "+i)};function lt(t){return(e,s)=>"object"==typeof s?ht(t,e,s):((t,e,s)=>{const i=e.hasOwnProperty(s);return e.constructor.createProperty(s,t),i?Object.getOwnPropertyDescriptor(e,s):void 0})(t,e,s)}function dt(t){return lt({...t,state:!0,attribute:!1})}const pt=2;class ut{constructor(t){}get _$AU(){return this._$AM._$AU}_$AT(t,e,s){this._$Ct=t,this._$AM=e,this._$Ci=s}_$AS(t,e){return this.update(t,e)}update(t,e){return this.render(...e)}}const _t=(t,e)=>{const s=t._$AN;if(void 0===s)return!1;for(const t of s)t._$AO?.(e,!1),_t(t,e);return!0},vt=t=>{let e,s;do{if(void 0===(e=t._$AM))break;s=e._$AN,s.delete(t),t=e}while(0===s?.size)},gt=t=>{for(let e;e=t._$AM;t=e){let s=e._$AN;if(void 0===s)e._$AN=s=new Set;else if(s.has(t))break;s.add(t),$t(e)}};function mt(t){void 0!==this._$AN?(vt(this),this._$AM=t,gt(this)):this._$AM=t}function ft(t,e=!1,s=0){const i=this._$AH,n=this._$AN;if(void 0!==n&&0!==n.size)if(e)if(Array.isArray(i))for(let t=s;t<i.length;t++)_t(i[t],!1),vt(i[t]);else null!=i&&(_t(i,!1),vt(i));else _t(this,t)}const $t=t=>{t.type==pt&&(t._$AP??=ft,t._$AQ??=mt)};class yt extends ut{constructor(){super(...arguments),this._$AN=void 0}_$AT(t,e,s){super._$AT(t,e,s),gt(this),this.isConnected=t._$AU}_$AO(t,e=!0){t!==this.isConnected&&(this.isConnected=t,t?this.reconnected?.():this.disconnected?.()),e&&(_t(this,t),vt(this))}setValue(t){if((t=>void 0===t.strings)(this._$Ct))this._$Ct._$AI(t,this);else{const e=[...this._$Ct._$AH];e[this._$Ci]=t,this._$Ct._$AI(e,this,0)}}disconnected(){}reconnected(){}}class bt{}const wt=new WeakMap,At=(t=>(...e)=>({_$litDirective$:t,values:e}))(class extends yt{render(t){return j}update(t,[e]){const s=e!==this.G;return s&&void 0!==this.G&&this.rt(void 0),(s||this.lt!==this.ct)&&(this.G=e,this.ht=t.options?.host,this.rt(this.ct=t.element)),j}rt(t){if(this.isConnected||(t=void 0),"function"==typeof this.G){const e=this.ht??globalThis;let s=wt.get(e);void 0===s&&(s=new WeakMap,wt.set(e,s)),void 0!==s.get(this.G)&&this.G.call(this.ht,void 0),s.set(this.G,t),void 0!==t&&this.G.call(this.ht,t)}else this.G.value=t}get lt(){return"function"==typeof this.G?wt.get(this.ht??globalThis)?.get(this.G):this.G?.value}disconnected(){this.lt===this.ct&&this.rt(void 0)}reconnected(){this.rt(this.ct)}}),St=((t,...e)=>{const s=1===t.length?t[0]:e.reduce((e,s,i)=>e+(t=>{if(!0===t._$cssResult$)return t.cssText;if("number"==typeof t)return t;throw Error("Value passed to 'css' function must be a 'css' function result: "+t+". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.")})(s)+t[i+1],t[0]);return new o(s,t,i)})`
+!function(){"use strict";function e(e,t,s,i){var o,r=arguments.length,a=r<3?t:null===i?i=Object.getOwnPropertyDescriptor(t,s):i;if("object"==typeof Reflect&&"function"==typeof Reflect.decorate)a=Reflect.decorate(e,t,s,i);else for(var n=e.length-1;n>=0;n--)(o=e[n])&&(a=(r<3?o(a):r>3?o(t,s,a):o(t,s))||a);return r>3&&a&&Object.defineProperty(t,s,a),a}"function"==typeof SuppressedError&&SuppressedError;const t=globalThis,s=t.ShadowRoot&&(void 0===t.ShadyCSS||t.ShadyCSS.nativeShadow)&&"adoptedStyleSheets"in Document.prototype&&"replace"in CSSStyleSheet.prototype,i=Symbol(),o=new WeakMap;let r=class{constructor(e,t,s){if(this._$cssResult$=!0,s!==i)throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");this.cssText=e,this.t=t}get styleSheet(){let e=this.o;const t=this.t;if(s&&void 0===e){const s=void 0!==t&&1===t.length;s&&(e=o.get(t)),void 0===e&&((this.o=e=new CSSStyleSheet).replaceSync(this.cssText),s&&o.set(t,e))}return e}toString(){return this.cssText}};const a=(e,...t)=>{const s=1===e.length?e[0]:t.reduce((t,s,i)=>t+(e=>{if(!0===e._$cssResult$)return e.cssText;if("number"==typeof e)return e;throw Error("Value passed to 'css' function must be a 'css' function result: "+e+". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.")})(s)+e[i+1],e[0]);return new r(s,e,i)},n=s?e=>e:e=>e instanceof CSSStyleSheet?(e=>{let t="";for(const s of e.cssRules)t+=s.cssText;return(e=>new r("string"==typeof e?e:e+"",void 0,i))(t)})(e):e,{is:c,defineProperty:l,getOwnPropertyDescriptor:d,getOwnPropertyNames:h,getOwnPropertySymbols:p,getPrototypeOf:g}=Object,m=globalThis,v=m.trustedTypes,_=v?v.emptyScript:"",u=m.reactiveElementPolyfillSupport,f=(e,t)=>e,b={toAttribute(e,t){switch(t){case Boolean:e=e?_:null;break;case Object:case Array:e=null==e?e:JSON.stringify(e)}return e},fromAttribute(e,t){let s=e;switch(t){case Boolean:s=null!==e;break;case Number:s=null===e?null:Number(e);break;case Object:case Array:try{s=JSON.parse(e)}catch(e){s=null}}return s}},x=(e,t)=>!c(e,t),y={attribute:!0,type:String,converter:b,reflect:!1,useDefault:!1,hasChanged:x};Symbol.metadata??=Symbol("metadata"),m.litPropertyMetadata??=new WeakMap;let $=class extends HTMLElement{static addInitializer(e){this._$Ei(),(this.l??=[]).push(e)}static get observedAttributes(){return this.finalize(),this._$Eh&&[...this._$Eh.keys()]}static createProperty(e,t=y){if(t.state&&(t.attribute=!1),this._$Ei(),this.prototype.hasOwnProperty(e)&&((t=Object.create(t)).wrapped=!0),this.elementProperties.set(e,t),!t.noAccessor){const s=Symbol(),i=this.getPropertyDescriptor(e,s,t);void 0!==i&&l(this.prototype,e,i)}}static getPropertyDescriptor(e,t,s){const{get:i,set:o}=d(this.prototype,e)??{get(){return this[t]},set(e){this[t]=e}};return{get:i,set(t){const r=i?.call(this);o?.call(this,t),this.requestUpdate(e,r,s)},configurable:!0,enumerable:!0}}static getPropertyOptions(e){return this.elementProperties.get(e)??y}static _$Ei(){if(this.hasOwnProperty(f("elementProperties")))return;const e=g(this);e.finalize(),void 0!==e.l&&(this.l=[...e.l]),this.elementProperties=new Map(e.elementProperties)}static finalize(){if(this.hasOwnProperty(f("finalized")))return;if(this.finalized=!0,this._$Ei(),this.hasOwnProperty(f("properties"))){const e=this.properties,t=[...h(e),...p(e)];for(const s of t)this.createProperty(s,e[s])}const e=this[Symbol.metadata];if(null!==e){const t=litPropertyMetadata.get(e);if(void 0!==t)for(const[e,s]of t)this.elementProperties.set(e,s)}this._$Eh=new Map;for(const[e,t]of this.elementProperties){const s=this._$Eu(e,t);void 0!==s&&this._$Eh.set(s,e)}this.elementStyles=this.finalizeStyles(this.styles)}static finalizeStyles(e){const t=[];if(Array.isArray(e)){const s=new Set(e.flat(1/0).reverse());for(const e of s)t.unshift(n(e))}else void 0!==e&&t.push(n(e));return t}static _$Eu(e,t){const s=t.attribute;return!1===s?void 0:"string"==typeof s?s:"string"==typeof e?e.toLowerCase():void 0}constructor(){super(),this._$Ep=void 0,this.isUpdatePending=!1,this.hasUpdated=!1,this._$Em=null,this._$Ev()}_$Ev(){this._$ES=new Promise(e=>this.enableUpdating=e),this._$AL=new Map,this._$E_(),this.requestUpdate(),this.constructor.l?.forEach(e=>e(this))}addController(e){(this._$EO??=new Set).add(e),void 0!==this.renderRoot&&this.isConnected&&e.hostConnected?.()}removeController(e){this._$EO?.delete(e)}_$E_(){const e=new Map,t=this.constructor.elementProperties;for(const s of t.keys())this.hasOwnProperty(s)&&(e.set(s,this[s]),delete this[s]);e.size>0&&(this._$Ep=e)}createRenderRoot(){const e=this.shadowRoot??this.attachShadow(this.constructor.shadowRootOptions);return((e,i)=>{if(s)e.adoptedStyleSheets=i.map(e=>e instanceof CSSStyleSheet?e:e.styleSheet);else for(const s of i){const i=document.createElement("style"),o=t.litNonce;void 0!==o&&i.setAttribute("nonce",o),i.textContent=s.cssText,e.appendChild(i)}})(e,this.constructor.elementStyles),e}connectedCallback(){this.renderRoot??=this.createRenderRoot(),this.enableUpdating(!0),this._$EO?.forEach(e=>e.hostConnected?.())}enableUpdating(e){}disconnectedCallback(){this._$EO?.forEach(e=>e.hostDisconnected?.())}attributeChangedCallback(e,t,s){this._$AK(e,s)}_$ET(e,t){const s=this.constructor.elementProperties.get(e),i=this.constructor._$Eu(e,s);if(void 0!==i&&!0===s.reflect){const o=(void 0!==s.converter?.toAttribute?s.converter:b).toAttribute(t,s.type);this._$Em=e,null==o?this.removeAttribute(i):this.setAttribute(i,o),this._$Em=null}}_$AK(e,t){const s=this.constructor,i=s._$Eh.get(e);if(void 0!==i&&this._$Em!==i){const e=s.getPropertyOptions(i),o="function"==typeof e.converter?{fromAttribute:e.converter}:void 0!==e.converter?.fromAttribute?e.converter:b;this._$Em=i;const r=o.fromAttribute(t,e.type);this[i]=r??this._$Ej?.get(i)??r,this._$Em=null}}requestUpdate(e,t,s,i=!1,o){if(void 0!==e){const r=this.constructor;if(!1===i&&(o=this[e]),s??=r.getPropertyOptions(e),!((s.hasChanged??x)(o,t)||s.useDefault&&s.reflect&&o===this._$Ej?.get(e)&&!this.hasAttribute(r._$Eu(e,s))))return;this.C(e,t,s)}!1===this.isUpdatePending&&(this._$ES=this._$EP())}C(e,t,{useDefault:s,reflect:i,wrapped:o},r){s&&!(this._$Ej??=new Map).has(e)&&(this._$Ej.set(e,r??t??this[e]),!0!==o||void 0!==r)||(this._$AL.has(e)||(this.hasUpdated||s||(t=void 0),this._$AL.set(e,t)),!0===i&&this._$Em!==e&&(this._$Eq??=new Set).add(e))}async _$EP(){this.isUpdatePending=!0;try{await this._$ES}catch(e){Promise.reject(e)}const e=this.scheduleUpdate();return null!=e&&await e,!this.isUpdatePending}scheduleUpdate(){return this.performUpdate()}performUpdate(){if(!this.isUpdatePending)return;if(!this.hasUpdated){if(this.renderRoot??=this.createRenderRoot(),this._$Ep){for(const[e,t]of this._$Ep)this[e]=t;this._$Ep=void 0}const e=this.constructor.elementProperties;if(e.size>0)for(const[t,s]of e){const{wrapped:e}=s,i=this[t];!0!==e||this._$AL.has(t)||void 0===i||this.C(t,void 0,s,i)}}let e=!1;const t=this._$AL;try{e=this.shouldUpdate(t),e?(this.willUpdate(t),this._$EO?.forEach(e=>e.hostUpdate?.()),this.update(t)):this._$EM()}catch(t){throw e=!1,this._$EM(),t}e&&this._$AE(t)}willUpdate(e){}_$AE(e){this._$EO?.forEach(e=>e.hostUpdated?.()),this.hasUpdated||(this.hasUpdated=!0,this.firstUpdated(e)),this.updated(e)}_$EM(){this._$AL=new Map,this.isUpdatePending=!1}get updateComplete(){return this.getUpdateComplete()}getUpdateComplete(){return this._$ES}shouldUpdate(e){return!0}update(e){this._$Eq&&=this._$Eq.forEach(e=>this._$ET(e,this[e])),this._$EM()}updated(e){}firstUpdated(e){}};$.elementStyles=[],$.shadowRootOptions={mode:"open"},$[f("elementProperties")]=new Map,$[f("finalized")]=new Map,u?.({ReactiveElement:$}),(m.reactiveElementVersions??=[]).push("2.1.2");const w=globalThis,C=e=>e,S=w.trustedTypes,k=S?S.createPolicy("lit-html",{createHTML:e=>e}):void 0,P="$lit$",E=`lit$${Math.random().toFixed(9).slice(2)}$`,A="?"+E,T=`<${A}>`,M=document,z=()=>M.createComment(""),q=e=>null===e||"object"!=typeof e&&"function"!=typeof e,I=Array.isArray,U="[ \t\n\f\r]",D=/<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g,N=/-->/g,B=/>/g,F=RegExp(`>|${U}(?:([^\\s"'>=/]+)(${U}*=${U}*(?:[^ \t\n\f\r"'\`<>=]|("|')|))|$)`,"g"),H=/'/g,L=/"/g,O=/^(?:script|style|textarea|title)$/i,j=(e=>(t,...s)=>({_$litType$:e,strings:t,values:s}))(1),R=Symbol.for("lit-noChange"),G=Symbol.for("lit-nothing"),W=new WeakMap,V=M.createTreeWalker(M,129);function K(e,t){if(!I(e)||!e.hasOwnProperty("raw"))throw Error("invalid template strings array");return void 0!==k?k.createHTML(t):t}const Y=(e,t)=>{const s=e.length-1,i=[];let o,r=2===t?"<svg>":3===t?"<math>":"",a=D;for(let t=0;t<s;t++){const s=e[t];let n,c,l=-1,d=0;for(;d<s.length&&(a.lastIndex=d,c=a.exec(s),null!==c);)d=a.lastIndex,a===D?"!--"===c[1]?a=N:void 0!==c[1]?a=B:void 0!==c[2]?(O.test(c[2])&&(o=RegExp("</"+c[2],"g")),a=F):void 0!==c[3]&&(a=F):a===F?">"===c[0]?(a=o??D,l=-1):void 0===c[1]?l=-2:(l=a.lastIndex-c[2].length,n=c[1],a=void 0===c[3]?F:'"'===c[3]?L:H):a===L||a===H?a=F:a===N||a===B?a=D:(a=F,o=void 0);const h=a===F&&e[t+1].startsWith("/>")?" ":"";r+=a===D?s+T:l>=0?(i.push(n),s.slice(0,l)+P+s.slice(l)+E+h):s+E+(-2===l?t:h)}return[K(e,r+(e[s]||"<?>")+(2===t?"</svg>":3===t?"</math>":"")),i]};class J{constructor({strings:e,_$litType$:t},s){let i;this.parts=[];let o=0,r=0;const a=e.length-1,n=this.parts,[c,l]=Y(e,t);if(this.el=J.createElement(c,s),V.currentNode=this.el.content,2===t||3===t){const e=this.el.content.firstChild;e.replaceWith(...e.childNodes)}for(;null!==(i=V.nextNode())&&n.length<a;){if(1===i.nodeType){if(i.hasAttributes())for(const e of i.getAttributeNames())if(e.endsWith(P)){const t=l[r++],s=i.getAttribute(e).split(E),a=/([.?@])?(.*)/.exec(t);n.push({type:1,index:o,name:a[2],strings:s,ctor:"."===a[1]?te:"?"===a[1]?se:"@"===a[1]?ie:ee}),i.removeAttribute(e)}else e.startsWith(E)&&(n.push({type:6,index:o}),i.removeAttribute(e));if(O.test(i.tagName)){const e=i.textContent.split(E),t=e.length-1;if(t>0){i.textContent=S?S.emptyScript:"";for(let s=0;s<t;s++)i.append(e[s],z()),V.nextNode(),n.push({type:2,index:++o});i.append(e[t],z())}}}else if(8===i.nodeType)if(i.data===A)n.push({type:2,index:o});else{let e=-1;for(;-1!==(e=i.data.indexOf(E,e+1));)n.push({type:7,index:o}),e+=E.length-1}o++}}static createElement(e,t){const s=M.createElement("template");return s.innerHTML=e,s}}function Z(e,t,s=e,i){if(t===R)return t;let o=void 0!==i?s._$Co?.[i]:s._$Cl;const r=q(t)?void 0:t._$litDirective$;return o?.constructor!==r&&(o?._$AO?.(!1),void 0===r?o=void 0:(o=new r(e),o._$AT(e,s,i)),void 0!==i?(s._$Co??=[])[i]=o:s._$Cl=o),void 0!==o&&(t=Z(e,o._$AS(e,t.values),o,i)),t}class Q{constructor(e,t){this._$AV=[],this._$AN=void 0,this._$AD=e,this._$AM=t}get parentNode(){return this._$AM.parentNode}get _$AU(){return this._$AM._$AU}u(e){const{el:{content:t},parts:s}=this._$AD,i=(e?.creationScope??M).importNode(t,!0);V.currentNode=i;let o=V.nextNode(),r=0,a=0,n=s[0];for(;void 0!==n;){if(r===n.index){let t;2===n.type?t=new X(o,o.nextSibling,this,e):1===n.type?t=new n.ctor(o,n.name,n.strings,this,e):6===n.type&&(t=new oe(o,this,e)),this._$AV.push(t),n=s[++a]}r!==n?.index&&(o=V.nextNode(),r++)}return V.currentNode=M,i}p(e){let t=0;for(const s of this._$AV)void 0!==s&&(void 0!==s.strings?(s._$AI(e,s,t),t+=s.strings.length-2):s._$AI(e[t])),t++}}class X{get _$AU(){return this._$AM?._$AU??this._$Cv}constructor(e,t,s,i){this.type=2,this._$AH=G,this._$AN=void 0,this._$AA=e,this._$AB=t,this._$AM=s,this.options=i,this._$Cv=i?.isConnected??!0}get parentNode(){let e=this._$AA.parentNode;const t=this._$AM;return void 0!==t&&11===e?.nodeType&&(e=t.parentNode),e}get startNode(){return this._$AA}get endNode(){return this._$AB}_$AI(e,t=this){e=Z(this,e,t),q(e)?e===G||null==e||""===e?(this._$AH!==G&&this._$AR(),this._$AH=G):e!==this._$AH&&e!==R&&this._(e):void 0!==e._$litType$?this.$(e):void 0!==e.nodeType?this.T(e):(e=>I(e)||"function"==typeof e?.[Symbol.iterator])(e)?this.k(e):this._(e)}O(e){return this._$AA.parentNode.insertBefore(e,this._$AB)}T(e){this._$AH!==e&&(this._$AR(),this._$AH=this.O(e))}_(e){this._$AH!==G&&q(this._$AH)?this._$AA.nextSibling.data=e:this.T(M.createTextNode(e)),this._$AH=e}$(e){const{values:t,_$litType$:s}=e,i="number"==typeof s?this._$AC(e):(void 0===s.el&&(s.el=J.createElement(K(s.h,s.h[0]),this.options)),s);if(this._$AH?._$AD===i)this._$AH.p(t);else{const e=new Q(i,this),s=e.u(this.options);e.p(t),this.T(s),this._$AH=e}}_$AC(e){let t=W.get(e.strings);return void 0===t&&W.set(e.strings,t=new J(e)),t}k(e){I(this._$AH)||(this._$AH=[],this._$AR());const t=this._$AH;let s,i=0;for(const o of e)i===t.length?t.push(s=new X(this.O(z()),this.O(z()),this,this.options)):s=t[i],s._$AI(o),i++;i<t.length&&(this._$AR(s&&s._$AB.nextSibling,i),t.length=i)}_$AR(e=this._$AA.nextSibling,t){for(this._$AP?.(!1,!0,t);e!==this._$AB;){const t=C(e).nextSibling;C(e).remove(),e=t}}setConnected(e){void 0===this._$AM&&(this._$Cv=e,this._$AP?.(e))}}class ee{get tagName(){return this.element.tagName}get _$AU(){return this._$AM._$AU}constructor(e,t,s,i,o){this.type=1,this._$AH=G,this._$AN=void 0,this.element=e,this.name=t,this._$AM=i,this.options=o,s.length>2||""!==s[0]||""!==s[1]?(this._$AH=Array(s.length-1).fill(new String),this.strings=s):this._$AH=G}_$AI(e,t=this,s,i){const o=this.strings;let r=!1;if(void 0===o)e=Z(this,e,t,0),r=!q(e)||e!==this._$AH&&e!==R,r&&(this._$AH=e);else{const i=e;let a,n;for(e=o[0],a=0;a<o.length-1;a++)n=Z(this,i[s+a],t,a),n===R&&(n=this._$AH[a]),r||=!q(n)||n!==this._$AH[a],n===G?e=G:e!==G&&(e+=(n??"")+o[a+1]),this._$AH[a]=n}r&&!i&&this.j(e)}j(e){e===G?this.element.removeAttribute(this.name):this.element.setAttribute(this.name,e??"")}}class te extends ee{constructor(){super(...arguments),this.type=3}j(e){this.element[this.name]=e===G?void 0:e}}class se extends ee{constructor(){super(...arguments),this.type=4}j(e){this.element.toggleAttribute(this.name,!!e&&e!==G)}}class ie extends ee{constructor(e,t,s,i,o){super(e,t,s,i,o),this.type=5}_$AI(e,t=this){if((e=Z(this,e,t,0)??G)===R)return;const s=this._$AH,i=e===G&&s!==G||e.capture!==s.capture||e.once!==s.once||e.passive!==s.passive,o=e!==G&&(s===G||i);i&&this.element.removeEventListener(this.name,this,s),o&&this.element.addEventListener(this.name,this,e),this._$AH=e}handleEvent(e){"function"==typeof this._$AH?this._$AH.call(this.options?.host??this.element,e):this._$AH.handleEvent(e)}}class oe{constructor(e,t,s){this.element=e,this.type=6,this._$AN=void 0,this._$AM=t,this.options=s}get _$AU(){return this._$AM._$AU}_$AI(e){Z(this,e)}}const re=w.litHtmlPolyfillSupport;re?.(J,X),(w.litHtmlVersions??=[]).push("3.3.2");const ae=globalThis;let ne=class extends ${constructor(){super(...arguments),this.renderOptions={host:this},this._$Do=void 0}createRenderRoot(){const e=super.createRenderRoot();return this.renderOptions.renderBefore??=e.firstChild,e}update(e){const t=this.render();this.hasUpdated||(this.renderOptions.isConnected=this.isConnected),super.update(e),this._$Do=((e,t,s)=>{const i=s?.renderBefore??t;let o=i._$litPart$;if(void 0===o){const e=s?.renderBefore??null;i._$litPart$=o=new X(t.insertBefore(z(),e),e,void 0,s??{})}return o._$AI(e),o})(t,this.renderRoot,this.renderOptions)}connectedCallback(){super.connectedCallback(),this._$Do?.setConnected(!0)}disconnectedCallback(){super.disconnectedCallback(),this._$Do?.setConnected(!1)}render(){return R}};ne._$litElement$=!0,ne.finalized=!0,ae.litElementHydrateSupport?.({LitElement:ne});const ce=ae.litElementPolyfillSupport;ce?.({LitElement:ne}),(ae.litElementVersions??=[]).push("4.2.2");const le=e=>(t,s)=>{void 0!==s?s.addInitializer(()=>{customElements.define(e,t)}):customElements.define(e,t)},de={attribute:!0,type:String,converter:b,reflect:!1,hasChanged:x},he=(e=de,t,s)=>{const{kind:i,metadata:o}=s;let r=globalThis.litPropertyMetadata.get(o);if(void 0===r&&globalThis.litPropertyMetadata.set(o,r=new Map),"setter"===i&&((e=Object.create(e)).wrapped=!0),r.set(s.name,e),"accessor"===i){const{name:i}=s;return{set(s){const o=t.get.call(this);t.set.call(this,s),this.requestUpdate(i,o,e,!0,s)},init(t){return void 0!==t&&this.C(i,void 0,e,t),t}}}if("setter"===i){const{name:i}=s;return function(s){const o=this[i];t.call(this,s),this.requestUpdate(i,o,e,!0,s)}}throw Error("Unsupported decorator location: "+i)};function pe(e){return(t,s)=>"object"==typeof s?he(e,t,s):((e,t,s)=>{const i=t.hasOwnProperty(s);return t.constructor.createProperty(s,e),i?Object.getOwnPropertyDescriptor(t,s):void 0})(e,t,s)}function ge(e){return pe({...e,state:!0,attribute:!1})}function me(e,t){return(t,s,i)=>((e,t,s)=>(s.configurable=!0,s.enumerable=!0,Reflect.decorate&&"object"!=typeof t&&Object.defineProperty(e,t,s),s))(t,s,{get(){return(t=>t.renderRoot?.querySelector(e)??null)(this)}})}const ve=2;class _e{constructor(e){}get _$AU(){return this._$AM._$AU}_$AT(e,t,s){this._$Ct=e,this._$AM=t,this._$Ci=s}_$AS(e,t){return this.update(e,t)}update(e,t){return this.render(...t)}}const ue=(e,t)=>{const s=e._$AN;if(void 0===s)return!1;for(const e of s)e._$AO?.(t,!1),ue(e,t);return!0},fe=e=>{let t,s;do{if(void 0===(t=e._$AM))break;s=t._$AN,s.delete(e),e=t}while(0===s?.size)},be=e=>{for(let t;t=e._$AM;e=t){let s=t._$AN;if(void 0===s)t._$AN=s=new Set;else if(s.has(e))break;s.add(e),$e(t)}};function xe(e){void 0!==this._$AN?(fe(this),this._$AM=e,be(this)):this._$AM=e}function ye(e,t=!1,s=0){const i=this._$AH,o=this._$AN;if(void 0!==o&&0!==o.size)if(t)if(Array.isArray(i))for(let e=s;e<i.length;e++)ue(i[e],!1),fe(i[e]);else null!=i&&(ue(i,!1),fe(i));else ue(this,e)}const $e=e=>{e.type==ve&&(e._$AP??=ye,e._$AQ??=xe)};class we extends _e{constructor(){super(...arguments),this._$AN=void 0}_$AT(e,t,s){super._$AT(e,t,s),be(this),this.isConnected=e._$AU}_$AO(e,t=!0){e!==this.isConnected&&(this.isConnected=e,e?this.reconnected?.():this.disconnected?.()),t&&(ue(this,e),fe(this))}setValue(e){if((e=>void 0===e.strings)(this._$Ct))this._$Ct._$AI(e,this);else{const t=[...this._$Ct._$AH];t[this._$Ci]=e,this._$Ct._$AI(t,this,0)}}disconnected(){}reconnected(){}}class Ce{}const Se=new WeakMap,ke=(e=>(...t)=>({_$litDirective$:e,values:t}))(class extends we{render(e){return G}update(e,[t]){const s=t!==this.G;return s&&void 0!==this.G&&this.rt(void 0),(s||this.lt!==this.ct)&&(this.G=t,this.ht=e.options?.host,this.rt(this.ct=e.element)),G}rt(e){if(this.isConnected||(e=void 0),"function"==typeof this.G){const t=this.ht??globalThis;let s=Se.get(t);void 0===s&&(s=new WeakMap,Se.set(t,s)),void 0!==s.get(this.G)&&this.G.call(this.ht,void 0),s.set(this.G,e),void 0!==e&&this.G.call(this.ht,e)}else this.G.value=e}get lt(){return"function"==typeof this.G?Se.get(this.ht??globalThis)?.get(this.G):this.G?.value}disconnected(){this.lt===this.ct&&this.rt(void 0)}reconnected(){this.rt(this.ct)}}),Pe=a`
+  /* Base styles - follows HA haStyle patterns */
   :host {
     display: block;
-    padding: 16px;
-    background-color: var(--card-background-color, #fff);
-    color: var(--primary-text-color, #000);
-    font-family: var(--paper-font-body1_-_font-family);
+    height: 100%;
+    background-color: var(--primary-background-color);
+    color: var(--primary-text-color);
+    font-family: var(--ha-font-family-body, var(--paper-font-body1_-_font-family, Roboto, sans-serif));
+    font-size: var(--ha-font-size-m, 14px);
+    line-height: var(--ha-line-height-normal, 1.5);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Fixed header - follows HA developer-tools pattern */
+  .header {
+    background-color: var(--app-header-background-color);
+    color: var(--app-header-text-color, var(--text-primary-color));
+    border-bottom: 1px solid var(--divider-color);
+    position: fixed;
+    top: env(safe-area-inset-top, 0px);
+    left: var(--mdc-drawer-width, 0px);
+    right: 0;
+    z-index: 4;
+  }
+
+  :host([narrow]) .header {
+    left: 0;
+  }
+
+  /* Safe area padding for iOS notch */
+  @supports (padding-top: env(safe-area-inset-top)) {
+    .header {
+      padding-top: 0;
+    }
+  }
+
+  /* Toolbar - hamburger menu and title */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    height: var(--header-height, 56px);
+    padding: 0 12px;
+    box-sizing: border-box;
+  }
+
+  .main-title {
+    margin-left: 8px;
+    font-size: 20px;
+    font-weight: 400;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ha-tab-group - native HA tab component (same as Developer Tools) */
+  ha-tab-group {
+    --track-color: var(--divider-color);
+    --indicator-color: var(--primary-color);
+  }
+
+  ha-tab-group-tab {
+    --ha-tab-active-text-color: var(--primary-color);
+  }
+
+  /* Content area with padding for fixed header */
+  .content {
+    padding: calc(var(--header-height, 56px) + 48px + 16px + env(safe-area-inset-top, 0px)) 16px 16px;
     max-width: 1200px;
     margin: 0 auto;
+    box-sizing: border-box;
+    min-height: 100vh;
   }
 
-  .panel-header {
-    margin-bottom: 24px;
+  /* HA scrollbar styling (from haStyleScrollbar) */
+  ::-webkit-scrollbar {
+    width: 0.4rem;
+    height: 0.4rem;
   }
 
-  .panel-title {
-    font-size: 24px;
-    font-weight: 500;
-    margin: 0 0 8px 0;
-    color: var(--primary-text-color);
+  ::-webkit-scrollbar-thumb {
+    -webkit-border-radius: 4px;
+    border-radius: 4px;
+    background: var(--scrollbar-thumb-color, var(--divider-color));
   }
 
-  .controls {
-    background: var(--primary-background-color);
-    border-radius: 8px;
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* Controls section - now using ha-card */
+  ha-card.controls {
     padding: 16px;
     margin-bottom: 24px;
   }
 
   .control-row {
     display: flex;
-    align-items: center;
-    gap: 16px;
+    flex-direction: column;
+    gap: 8px;
     margin-bottom: 16px;
   }
 
@@ -39,14 +107,14 @@
   }
 
   .control-label {
-    font-size: 14px;
-    font-weight: 500;
-    min-width: 80px;
-    color: var(--secondary-text-color);
+    font-size: var(--ha-font-size-m, 14px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    color: var(--primary-text-color);
+    line-height: var(--ha-line-height-condensed, 1.2);
   }
 
   .control-input {
-    flex: 1;
+    width: 100%;
   }
 
   .control-buttons {
@@ -64,24 +132,35 @@
     margin-right: 4px;
   }
 
-  /* Target input with add favorite button */
+  /* Target input with selector and favorite button */
   .target-input {
     display: flex;
+    flex-wrap: wrap;
     align-items: flex-start;
     gap: 8px;
+    min-width: 0;
+    width: 100%;
   }
 
-  .target-input ha-selector {
+  /* Target selector container */
+  .target-selector {
     flex: 1;
+    min-width: 200px;
+  }
+
+  .target-selector ha-selector {
+    display: block;
+    width: 100%;
   }
 
   .add-favorite-btn {
-    --mdc-icon-button-size: 40px;
+    --mdc-icon-button-size: 36px;
     color: var(--primary-color);
+    flex-shrink: 0;
   }
 
   .add-favorite-btn:hover {
-    color: var(--accent-color);
+    color: var(--accent-color, var(--primary-color));
   }
 
   /* Favorite inline input */
@@ -89,17 +168,25 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-wrap: wrap;
   }
 
   .favorite-input-container ha-selector {
     flex: 1;
+    min-width: 150px;
   }
 
   .favorite-input-container ha-button {
     flex-shrink: 0;
   }
 
-  /* Light tile card container */
+  .favorite-input-buttons {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  /* Light tile card container - uses HA grid patterns */
   .light-tile-container {
     width: 100%;
     display: grid;
@@ -109,19 +196,12 @@
 
   .light-tile-container hui-tile-card {
     --ha-card-background: var(--card-background-color);
-    --ha-card-border-radius: 12px;
+    --ha-card-border-radius: var(--ha-card-border-radius, 12px);
     display: block;
     width: 100%;
   }
 
-  @media (max-width: 600px) {
-    .light-tile-container {
-      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-      gap: 8px;
-    }
-  }
-
-  /* Favorites container and chips */
+  /* Favorites container - uses HA chip pattern */
   .favorites-container {
     display: flex;
     flex-wrap: wrap;
@@ -137,8 +217,8 @@
     border: 1px solid var(--divider-color);
     border-radius: 20px;
     cursor: pointer;
-    transition: all 0.2s ease;
-    font-size: 13px;
+    transition: all 0.15s ease-in-out;
+    font-size: var(--ha-font-size-s, 13px);
   }
 
   .favorite-chip:hover {
@@ -149,7 +229,7 @@
 
   .favorite-icon {
     --mdc-icon-size: 16px;
-    color: var(--warning-color);
+    color: var(--warning-color, #ff9800);
   }
 
   .favorite-chip:hover .favorite-icon {
@@ -174,9 +254,52 @@
     opacity: 1;
   }
 
-  .section {
-    background: var(--primary-background-color);
-    border-radius: 8px;
+  /* ha-expansion-panel styling for sections - follows HA patterns */
+  ha-expansion-panel {
+    --expansion-panel-content-padding: 0 16px 16px 16px;
+    --ha-card-border-radius: var(--ha-card-border-radius, 12px);
+    margin-bottom: 16px;
+    display: block;
+  }
+
+  ha-expansion-panel[outlined] {
+    border-radius: var(--ha-card-border-radius, 12px);
+    border: 1px solid var(--divider-color);
+    background: var(--card-background-color);
+  }
+
+  /* Expansion panel header styling */
+  ha-expansion-panel .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    cursor: default;
+    margin-bottom: 0;
+    user-select: none;
+    padding: 8px;
+  }
+
+  ha-expansion-panel .section-header-controls {
+    margin-right: 0;
+  }
+
+  /* Expansion panel content - consistent 16px padding */
+  ha-expansion-panel .section-content {
+    padding: 0;
+  }
+
+  /* Controls content inside expansion panel - flex column layout instead of grid */
+  ha-expansion-panel .section-content.controls-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* Legacy section styling for ha-card - follows HA patterns */
+  ha-card.section {
+    --ha-card-background: var(--card-background-color, var(--primary-background-color));
+    --ha-card-border-radius: var(--ha-card-border-radius, 12px);
     padding: 16px;
     margin-bottom: 16px;
   }
@@ -191,17 +314,55 @@
   }
 
   .section-title {
-    font-size: 18px;
-    font-weight: 500;
+    font-size: var(--ha-font-size-l, 18px);
+    font-weight: var(--ha-font-weight-medium, 500);
     color: var(--primary-text-color);
   }
 
   .section-subtitle {
-    font-size: 12px;
+    font-size: var(--ha-font-size-s, 12px);
     color: var(--secondary-text-color);
     margin-top: 4px;
   }
 
+  .section-header-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Sort dropdown - uses HA select styling patterns */
+  .sort-select {
+    padding: 6px 10px;
+    font-size: var(--ha-font-size-s, 12px);
+    border: 1px solid var(--divider-color);
+    border-radius: var(--ha-border-radius-sm, 4px);
+    background: var(--card-background-color);
+    color: var(--primary-text-color);
+    cursor: pointer;
+    min-width: 110px;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23666'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 4px center;
+    background-size: 18px;
+    padding-right: 24px;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  }
+
+  .sort-select:hover {
+    border-color: var(--primary-color);
+  }
+
+  .sort-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 1px var(--primary-color);
+  }
+
+  /* Preset grid - uses HA layout patterns */
   .section-content {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -212,6 +373,7 @@
     display: none;
   }
 
+  /* Preset buttons - follows HA card interaction patterns */
   .preset-button {
     display: flex;
     flex-direction: column;
@@ -220,18 +382,31 @@
     padding: 12px;
     background: var(--card-background-color);
     border: 2px solid var(--divider-color);
-    border-radius: 8px;
+    border-radius: var(--ha-card-border-radius, 12px);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.15s ease-in-out;
     min-height: 80px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .preset-button::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--primary-color);
+    opacity: 0;
+    transition: opacity 0.15s ease-in-out;
+  }
+
+  .preset-button:hover::before {
+    opacity: 0.08;
   }
 
   .preset-button:hover {
-    background: var(--primary-color);
-    color: var(--text-primary-color);
     border-color: var(--primary-color);
     transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: var(--ha-card-box-shadow, 0 4px 8px rgba(0, 0, 0, 0.1));
   }
 
   .preset-button:active {
@@ -239,23 +414,26 @@
   }
 
   .preset-button.disabled {
-    opacity: 0.3;
+    opacity: 0.4;
     cursor: not-allowed;
   }
 
   .preset-button.disabled:hover {
-    background: var(--card-background-color);
-    color: var(--primary-text-color);
     border-color: var(--divider-color);
     transform: none;
     box-shadow: none;
   }
 
+  .preset-button.disabled::before {
+    opacity: 0;
+  }
+
   .preset-name {
-    font-size: 13px;
-    font-weight: 500;
+    font-size: var(--ha-font-size-s, 13px);
+    font-weight: var(--ha-font-weight-medium, 500);
     text-align: center;
     margin-top: 8px;
+    position: relative;
   }
 
   .preset-icon {
@@ -264,6 +442,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    position: relative;
   }
 
   .preset-icon img {
@@ -275,22 +454,22 @@
   .preset-icon ha-icon {
     width: 100%;
     height: 100%;
+    --mdc-icon-size: 32px;
   }
 
+  /* Loading state - follows HA patterns */
   .loading {
     display: flex;
     justify-content: center;
     align-items: center;
     padding: 40px;
-    font-size: 16px;
+    font-size: var(--ha-font-size-m, 16px);
     color: var(--secondary-text-color);
   }
 
-  .error {
-    background: var(--error-color);
-    color: white;
-    padding: 16px;
-    border-radius: 8px;
+  /* HA native ha-alert component styling */
+  ha-alert {
+    display: block;
     margin-bottom: 16px;
   }
 
@@ -298,10 +477,10 @@
     text-align: center;
     padding: 40px;
     color: var(--secondary-text-color);
-    font-size: 14px;
+    font-size: var(--ha-font-size-m, 14px);
   }
 
-  ha-entity-picker {
+  ha-selector {
     display: block;
     width: 100%;
   }
@@ -310,9 +489,739 @@
     width: 100%;
   }
 
+  /* Tab content area */
+  .tab-content {
+    min-height: 200px;
+  }
+
+  /* Editor form styles - now using ha-card, follows HA form patterns */
+  ha-card.editor-form {
+    padding: 16px;
+  }
+
+  .editor-form h2 {
+    font-size: var(--ha-font-size-xl, 20px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    margin: 0 0 8px 0;
+    color: var(--primary-text-color);
+  }
+
+  .form-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .form-row:last-child {
+    margin-bottom: 0;
+  }
+
+  .form-label {
+    font-size: var(--ha-font-size-m, 14px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    min-width: 120px;
+    color: var(--secondary-text-color);
+  }
+
+  .form-input {
+    flex: 1;
+  }
+
+  /* Vertical form section - label above content, left-aligned */
+  .form-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .form-section .form-label {
+    min-width: unset;
+  }
+
+
+  /* Two-column form row for Name/Icon on desktop */
+  .form-row-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .form-row-pair .form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .form-row-pair .form-field .form-label {
+    min-width: unset;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--divider-color);
+  }
+
+  /* =========================================
+   * UNIFORM COLOR PICKER STYLES
+   * Standard variant: for color arrays (Effects, Gradient, Blocks, Sequence Steps)
+   * Palette variant: for pattern-editor Individual mode (selectable fixed colors)
+   * ========================================= */
+
+  /* Color picker container */
+  .color-picker-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  /* Individual color item wrapper */
+  .color-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px;
+    background: var(--card-background-color);
+    border-radius: 8px;
+    border: 1px solid var(--divider-color);
+  }
+
+  /* Color swatch - 40px for good touch targets (Apple HIG recommends 44px minimum) */
+  .color-swatch {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 2px solid var(--divider-color);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .color-swatch:hover {
+    transform: scale(1.08);
+    border-color: var(--primary-color);
+  }
+
+  .color-swatch:active {
+    transform: scale(0.95);
+  }
+
+  /* Hidden native input overlays the swatch */
+  .color-swatch input[type="color"] {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    border: none;
+    padding: 0;
+  }
+
+  /* Remove button */
+  .color-remove {
+    --mdc-icon-button-size: 28px;
+    --mdc-icon-size: 16px;
+    opacity: 0.6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.15s ease, color 0.15s ease;
+  }
+
+  .color-remove:hover {
+    opacity: 1;
+    color: var(--error-color);
+  }
+
+  /* Add color button - 44px minimum for touch */
+  .add-color-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border: 2px dashed var(--divider-color);
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--secondary-text-color);
+    background: transparent;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .add-color-btn:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    background: var(--secondary-background-color);
+  }
+
+  .add-color-btn.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  /* =========================================
+   * PALETTE VARIANT
+   * For pattern-editor Individual mode (selectable fixed colors)
+   * ========================================= */
+
+  /* Palette container */
+  .color-palette {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+  }
+
+  /* Palette color wrapper with edit button */
+  .palette-color-wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Selectable palette swatch */
+  .palette-color {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 3px solid var(--divider-color);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .palette-color:hover {
+    transform: scale(1.08);
+  }
+
+  .palette-color.selected {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px var(--primary-color);
+  }
+
+  /* Small edit button below palette swatch */
+  .palette-edit-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 50%;
+    background: var(--secondary-background-color);
+    color: var(--secondary-text-color);
+    cursor: pointer;
+    padding: 0;
+    transition: all 0.15s ease;
+    --mdc-icon-size: 14px;
+  }
+
+  .palette-edit-btn:hover {
+    background: var(--primary-color);
+    color: var(--text-primary-color);
+  }
+
+  /* Color picker modal overlay */
+  .color-picker-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+
+  .color-picker-modal {
+    background: var(--card-background-color, #fff);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    max-width: 90vw;
+  }
+
+  .color-picker-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-bottom: 8px;
+  }
+
+  .color-picker-modal-title {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--primary-text-color);
+  }
+
+  .color-picker-modal-preview {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 3px solid var(--divider-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  .color-picker-modal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  /* Step list styles - follows HA list patterns */
+  .step-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .step-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    background: var(--card-background-color);
+    border-radius: var(--ha-border-radius-sm, 8px);
+    border: 1px solid var(--divider-color);
+  }
+
+  .step-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: var(--primary-color);
+    color: var(--text-primary-color);
+    border-radius: 50%;
+    font-size: var(--ha-font-size-s, 12px);
+    font-weight: var(--ha-font-weight-medium, 600);
+    flex-shrink: 0;
+  }
+
+  .step-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .step-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .step-field {
+    flex: 1;
+    min-width: 120px;
+  }
+
+  .step-field-label {
+    font-size: var(--ha-font-size-xs, 11px);
+    color: var(--secondary-text-color);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .step-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .step-actions ha-icon-button {
+    --mdc-icon-button-size: 32px;
+    --mdc-icon-size: 18px;
+  }
+
+  .add-step-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+    border: 2px dashed var(--divider-color);
+    border-radius: var(--ha-border-radius-sm, 8px);
+    cursor: pointer;
+    color: var(--secondary-text-color);
+    transition: all 0.15s ease-in-out;
+  }
+
+  .add-step-btn:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    background: var(--secondary-background-color);
+  }
+
+  /* Segment grid editor - follows HA grid patterns */
+  .segment-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+    gap: 4px;
+    padding: 12px;
+    background: var(--card-background-color);
+    border-radius: var(--ha-border-radius-sm, 8px);
+  }
+
+  .segment-cell {
+    aspect-ratio: 1;
+    border-radius: var(--ha-border-radius-sm, 4px);
+    cursor: pointer;
+    border: 2px solid var(--divider-color);
+    transition: all 0.15s ease-in-out;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--ha-font-size-xs, 10px);
+    font-weight: var(--ha-font-weight-medium, 600);
+    color: var(--secondary-text-color);
+  }
+
+  .segment-cell:hover {
+    transform: scale(1.1);
+    z-index: 1;
+  }
+
+  .segment-cell.selected {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px var(--primary-color);
+  }
+
+  .segment-cell.colored {
+    border-color: transparent;
+  }
+
+  .preset-type-tabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .preset-type-tab {
+    padding: 8px 16px;
+    border: 1px solid var(--divider-color);
+    border-radius: 20px;
+    background: transparent;
+    cursor: pointer;
+    font-size: var(--ha-font-size-s, 13px);
+    color: var(--secondary-text-color);
+    transition: all 0.15s ease-in-out;
+  }
+
+  .preset-type-tab:hover {
+    background: var(--secondary-background-color);
+  }
+
+  .preset-type-tab.active {
+    background: var(--primary-color);
+    color: var(--text-primary-color);
+    border-color: var(--primary-color);
+  }
+
+  .preset-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* Preset list item - follows HA list-item patterns */
+  .preset-list-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: var(--card-background-color);
+    border-radius: var(--ha-border-radius-sm, 8px);
+    border: 1px solid var(--divider-color);
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+  }
+
+  .preset-list-item:hover {
+    background: var(--secondary-background-color);
+  }
+
+  .preset-list-item-info {
+    flex: 1;
+  }
+
+  .preset-list-item-name {
+    font-weight: var(--ha-font-weight-medium, 500);
+    font-size: var(--ha-font-size-m, 14px);
+  }
+
+  .preset-list-item-description {
+    font-size: var(--ha-font-size-s, 12px);
+    color: var(--secondary-text-color);
+    margin-top: 2px;
+  }
+
+  .preset-list-item-meta {
+    font-size: var(--ha-font-size-xs, 11px);
+    color: var(--secondary-text-color);
+    margin-top: 4px;
+  }
+
+  .preset-list-item-actions {
+    display: flex;
+    gap: 4px;
+  }
+
+  .preset-list-item-actions ha-icon-button {
+    --mdc-icon-button-size: 32px;
+    --mdc-icon-size: 18px;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 40px;
+    color: var(--secondary-text-color);
+  }
+
+  .empty-state-icon {
+    --mdc-icon-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+  }
+
+  .empty-state-text {
+    font-size: var(--ha-font-size-m, 14px);
+  }
+
+  /* Editor description */
+  .editor-description {
+    font-size: var(--ha-font-size-m, 14px);
+    color: var(--secondary-text-color);
+    margin-bottom: 24px;
+    line-height: var(--ha-line-height-normal, 1.5);
+  }
+
+  /* Placeholder styles */
+  .coming-soon {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--secondary-text-color);
+    background: var(--card-background-color);
+    border-radius: var(--ha-card-border-radius, 12px);
+    border: 2px dashed var(--divider-color);
+    font-size: var(--ha-font-size-m, 14px);
+  }
+
+  /* No presets empty state - follows HA empty state patterns */
+  .no-presets {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--secondary-text-color);
+    background: var(--card-background-color);
+    border-radius: var(--ha-card-border-radius, 12px);
+  }
+
+  .no-presets ha-icon {
+    --mdc-icon-size: 48px;
+    opacity: 0.5;
+    margin-bottom: 16px;
+    display: block;
+  }
+
+  .no-presets p {
+    margin: 8px 0;
+    font-size: var(--ha-font-size-m, 14px);
+  }
+
+  /* User preset button styling in Activate tab */
+  .preset-button.user-preset {
+    border-color: var(--primary-color);
+    border-style: dashed;
+    border-width: 2px;
+  }
+
+  .preset-button.user-preset:hover {
+    border-style: solid;
+  }
+
+  /* Preset category in My Presets tab */
+  .preset-category {
+    margin-bottom: 24px;
+  }
+
+  .preset-category-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .preset-category h3 {
+    font-size: var(--ha-font-size-l, 16px);
+    font-weight: var(--ha-font-weight-medium, 600);
+    margin: 0;
+    color: var(--primary-text-color);
+  }
+
+  /* Preset grid for My Presets tab */
+  .preset-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+  }
+
+  /* User preset card with action buttons - follows HA card patterns */
+  .user-preset-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    background: var(--card-background-color);
+    border: 2px solid var(--divider-color);
+    border-radius: var(--ha-card-border-radius, 12px);
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+    min-height: 80px;
+    overflow: hidden;
+  }
+
+  .user-preset-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--primary-color);
+    opacity: 0;
+    transition: opacity 0.15s ease-in-out;
+  }
+
+  .user-preset-card:hover::before {
+    opacity: 0.08;
+  }
+
+  .user-preset-card:hover {
+    border-color: var(--primary-color);
+    transform: translateY(-2px);
+    box-shadow: var(--ha-card-box-shadow, 0 4px 8px rgba(0, 0, 0, 0.1));
+  }
+
+  .user-preset-card:active {
+    transform: translateY(0);
+  }
+
+  .user-preset-card.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .user-preset-card.disabled:hover {
+    border-color: var(--divider-color);
+    transform: none;
+    box-shadow: none;
+  }
+
+  .user-preset-card.disabled::before {
+    opacity: 0;
+  }
+
+  .user-preset-card .preset-icon {
+    font-size: 28px;
+    margin-bottom: 8px;
+    line-height: 1;
+    position: relative;
+    --mdc-icon-size: 28px;
+  }
+
+  .user-preset-card .preset-name {
+    font-size: var(--ha-font-size-s, 12px);
+    text-align: center;
+    font-weight: var(--ha-font-weight-medium, 500);
+    line-height: 1.2;
+    word-break: break-word;
+    max-width: 100%;
+    position: relative;
+  }
+
+  /* Action buttons overlay */
+  .preset-card-actions {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    display: flex;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity 0.15s ease-in-out;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: var(--ha-border-radius-sm, 4px);
+    padding: 2px;
+    z-index: 1;
+  }
+
+  .user-preset-card:hover .preset-card-actions {
+    opacity: 1;
+  }
+
+  .preset-card-actions ha-icon-button {
+    --mdc-icon-button-size: 28px;
+    --mdc-icon-size: 16px;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .preset-card-actions ha-icon-button ha-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .preset-card-actions ha-icon-button:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: var(--ha-border-radius-sm, 4px);
+  }
+
+  /* Responsive styles - follows HA breakpoints */
   @media (max-width: 600px) {
-    :host {
-      padding: 8px;
+    .content {
+      padding: calc(var(--header-height, 56px) + 48px + 8px + env(safe-area-inset-top, 0px)) 8px 8px;
+    }
+
+    .toolbar {
+      padding: 0 4px;
+    }
+
+    .main-title {
+      font-size: 18px;
+    }
+
+    ha-tab-group-tab {
+      font-size: 12px;
+    }
+
+    .light-tile-container {
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 8px;
     }
 
     .section-content {
@@ -326,246 +1235,2844 @@
     }
 
     .preset-name {
-      font-size: 11px;
+      font-size: var(--ha-font-size-xs, 11px);
+    }
+
+    /* Target selector takes full width on mobile */
+    .target-selector {
+      min-width: 100%;
+    }
+
+    /* Favorite input mobile - buttons below text field */
+    .favorite-input-container {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .favorite-input-container ha-selector {
+      width: 100%;
+      min-width: unset;
+    }
+
+    .favorite-input-buttons {
+      justify-content: flex-end;
     }
   }
-`;let xt=class extends rt{constructor(){super(...arguments),this.narrow=!1,this._loading=!0,this._selectedEntities=[],this._brightness=100,this._useCustomBrightness=!1,this._collapsed={},this._hasIncompatibleLights=!1,this._favorites=[],this._showFavoriteInput=!1,this._favoriteInputName="",this._tileCardRef=new bt,this._tileCards=new Map}firstUpdated(){this._loadPresets(),this._loadFavorites()}updated(t){super.updated(t),t.has("hass")&&void 0===t.get("hass")&&(this._loadPresets(),this._loadFavorites()),this._updateTileCard()}async _updateTileCard(){const t=this._tileCardRef.value;if(!t||!this.hass)return;if(!this._selectedEntities.length)return this._tileCards.forEach(t=>t.remove()),void this._tileCards.clear();await customElements.whenDefined("hui-tile-card");const e=new Set(this._selectedEntities);for(const[t,s]of this._tileCards.entries())e.has(t)||(s.remove(),this._tileCards.delete(t));for(const e of this._selectedEntities){let s=this._tileCards.get(e);s||(s=document.createElement("hui-tile-card"),t.appendChild(s),this._tileCards.set(e,s));try{s.setConfig({type:"tile",entity:e,features:[{type:"light-brightness"}]}),s.hass=this.hass}catch(t){console.warn("Failed to configure tile card for",e,":",t)}}}async _loadPresets(){try{const t=await fetch("/api/aqara_advanced_lighting/presets");if(!t.ok)throw new Error(`HTTP error ${t.status}`);this._presets=await t.json(),this._loading=!1}catch(t){this._error=t instanceof Error?t.message:"Failed to load presets",this._loading=!1}}async _loadFavorites(){if(this.hass?.auth?.data?.access_token)try{const t=await fetch("/api/aqara_advanced_lighting/favorites",{credentials:"same-origin",headers:{Authorization:`Bearer ${this.hass.auth.data.access_token}`}});if(!t.ok)return void console.warn("Failed to load favorites:",t.status);const e=await t.json();this._favorites=e.favorites||[]}catch(t){console.warn("Failed to load favorites:",t)}else console.warn("No auth token available, skipping favorites load")}_addFavorite(){if(!this._selectedEntities.length)return;const t=this._selectedEntities[0],e=1===this._selectedEntities.length&&t?this._getEntityFriendlyName(t):`${this._selectedEntities.length} lights`;this._favoriteInputName=e,this._showFavoriteInput=!0}async _saveFavorite(){if(this._selectedEntities.length&&this.hass?.auth?.data?.access_token){try{const t=await fetch("/api/aqara_advanced_lighting/favorites",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json",Authorization:`Bearer ${this.hass.auth.data.access_token}`},body:JSON.stringify({entities:this._selectedEntities,name:this._favoriteInputName||void 0})});if(!t.ok)throw new Error(`HTTP error ${t.status}`);const e=await t.json();this._favorites=[...this._favorites,e.favorite]}catch(t){console.error("Failed to add favorite:",t)}this._cancelFavoriteInput()}else this._cancelFavoriteInput()}_cancelFavoriteInput(){this._showFavoriteInput=!1,this._favoriteInputName=""}_handleFavoriteNameChange(t){this._favoriteInputName=t.detail.value||""}_handleFavoriteNameKeydown(t){"Enter"===t.key?(t.preventDefault(),this._saveFavorite()):"Escape"===t.key&&(t.preventDefault(),this._cancelFavoriteInput())}async _removeFavorite(t){if(this.hass?.auth?.data?.access_token)try{const e=await fetch(`/api/aqara_advanced_lighting/favorites/${t}`,{method:"DELETE",credentials:"same-origin",headers:{Authorization:`Bearer ${this.hass.auth.data.access_token}`}});if(!e.ok&&204!==e.status)throw new Error(`HTTP error ${e.status}`);this._favorites=this._favorites.filter(e=>e.id!==t)}catch(t){console.error("Failed to remove favorite:",t)}else console.error("No auth token available")}_selectFavorite(t){this._selectedEntities=[...t.entities]}_getEntityFriendlyName(t){if(!this.hass)return t;const e=this.hass.states[t];return e&&e.attributes.friendly_name?e.attributes.friendly_name:t.split(".")[1]?.replace(/_/g," ")||t}_getSelectedDeviceTypes(){if(!this._selectedEntities.length||!this.hass)return this._hasIncompatibleLights=!1,[];const t=new Set;let e=!1;for(const s of this._selectedEntities){const i=this.hass.states[s];if(!i)continue;const n=i.attributes.effect_list;n&&Array.isArray(n)?n.includes("flow1")||n.includes("flow2")||n.includes("rolling")?t.add("t1m"):n.includes("rainbow1")||n.includes("rainbow2")||n.includes("chasing")||n.includes("flicker")||n.includes("dash")?t.add("t1_strip"):n.includes("candlelight")?t.add("t2_bulb"):e=!0:n||void 0===i.attributes.color_temp?e=!0:t.add("t2_cct")}return this._hasIncompatibleLights=e,Array.from(t)}_filterPresets(){const t=this._getSelectedDeviceTypes(),e=t.length>0,s=t.includes("t2_bulb"),i=t.includes("t1m"),n=t.includes("t1_strip");return{showDynamicEffects:e&&(s||i||n),showSegmentPatterns:e&&(i||n),showCCTSequences:e,showSegmentSequences:e&&(i||n),t2Presets:s&&this._presets?.dynamic_effects.t2_bulb||[],t1mPresets:i&&this._presets?.dynamic_effects.t1m||[],t1StripPresets:n&&this._presets?.dynamic_effects.t1_strip||[]}}_handleEntityChange(t){const e=t.detail.value;"string"==typeof e?this._selectedEntities=e?[e]:[]:Array.isArray(e)?this._selectedEntities=e:this._selectedEntities=[]}_handleBrightnessChange(t){this._brightness=t.detail.value}_handleCustomBrightnessToggle(t){this._useCustomBrightness=t.detail.value}_toggleSection(t){this._collapsed={...this._collapsed,[t]:!this._collapsed[t]}}async _activateDynamicEffect(t){if(!this._selectedEntities.length)return;const e={entity_id:this._selectedEntities,preset:t.id,turn_on:!0,sync:!0};this._useCustomBrightness&&(e.brightness=this._brightness),await this.hass.callService("aqara_advanced_lighting","set_dynamic_effect",e)}async _activateSegmentPattern(t){if(!this._selectedEntities.length)return;const e={entity_id:this._selectedEntities,preset:t.id,turn_on:!0,sync:!0};this._useCustomBrightness&&(e.brightness=this._brightness),await this.hass.callService("aqara_advanced_lighting","set_segment_pattern",e)}async _activateCCTSequence(t){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","start_cct_sequence",{entity_id:this._selectedEntities,preset:t.id,turn_on:!0,sync:!0})}async _activateSegmentSequence(t){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","start_segment_sequence",{entity_id:this._selectedEntities,preset:t.id,turn_on:!0,sync:!0})}async _stopEffect(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","stop_effect",{entity_id:this._selectedEntities,restore_state:!0})}async _pauseCCTSequence(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","pause_cct_sequence",{entity_id:this._selectedEntities})}async _resumeCCTSequence(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","resume_cct_sequence",{entity_id:this._selectedEntities})}async _stopCCTSequence(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","stop_cct_sequence",{entity_id:this._selectedEntities})}async _pauseSegmentSequence(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","pause_segment_sequence",{entity_id:this._selectedEntities})}async _resumeSegmentSequence(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","resume_segment_sequence",{entity_id:this._selectedEntities})}async _stopSegmentSequence(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","stop_segment_sequence",{entity_id:this._selectedEntities})}render(){if(this._loading)return B`<div class="loading">Loading presets...</div>`;if(this._error)return B`<div class="error">Error: ${this._error}</div>`;if(!this._presets)return B`<div class="error">No presets available</div>`;const t=this._filterPresets(),e=this._selectedEntities.length>0;return B`
-      <div class="panel-header">
-        <h1 class="panel-title">Aqara Advanced Lighting</h1>
-      </div>
 
-      <div class="controls">
-        <div class="control-row">
-          <span class="control-label">Target</span>
-          <div class="control-input target-input">
+  /* Mobile responsive form styles */
+  @media (max-width: 600px) {
+    .form-row {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .form-row-pair {
+      grid-template-columns: 1fr;
+    }
+
+    .form-label {
+      min-width: unset;
+      margin-bottom: 4px;
+    }
+
+    .step-row {
+      flex-direction: column;
+    }
+
+    .step-field {
+      min-width: unset;
+    }
+
+    /* Sort dropdown mobile styles */
+    .sort-select {
+      min-width: 90px;
+      font-size: var(--ha-font-size-xs, 11px);
+      padding: 4px 20px 4px 6px;
+    }
+
+    .section-header-controls {
+      gap: 4px;
+    }
+
+    .preset-category-header {
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .preset-grid {
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 8px;
+    }
+
+    .user-preset-card {
+      padding: 8px;
+      min-height: 60px;
+    }
+
+    .user-preset-card .preset-icon {
+      font-size: 24px;
+      margin-bottom: 4px;
+      --mdc-icon-size: 24px;
+    }
+
+    .user-preset-card .preset-name {
+      font-size: var(--ha-font-size-xs, 11px);
+    }
+  }
+
+  /* HA dialog fullscreen on mobile - follows haStyleDialog */
+  @media all and (max-width: 450px), all and (max-height: 500px) {
+    ha-dialog {
+      --mdc-dialog-min-width: calc(100vw - env(safe-area-inset-right) - env(safe-area-inset-left));
+      --mdc-dialog-max-width: calc(100vw - env(safe-area-inset-right) - env(safe-area-inset-left));
+      --mdc-dialog-min-height: 100%;
+      --mdc-dialog-max-height: 100%;
+      --vertical-align-dialog: flex-end;
+      --ha-dialog-border-radius: 0;
+    }
+  }
+`,Ee=a`
+  /* =========================================
+   * UNIFORM COLOR PICKER STYLES
+   * Standard variant: for color arrays (Effects, Gradient, Blocks, Sequence Steps)
+   * Palette variant: for pattern-editor Individual mode (selectable fixed colors)
+   * ========================================= */
+
+  /* Color picker container */
+  .color-picker-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  /* Individual color item wrapper */
+  .color-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px;
+    background: var(--card-background-color);
+    border-radius: 8px;
+    border: 1px solid var(--divider-color);
+  }
+
+  /* Color swatch - 40px for good touch targets (Apple HIG recommends 44px minimum) */
+  .color-swatch {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 2px solid var(--divider-color);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .color-swatch:hover {
+    transform: scale(1.08);
+    border-color: var(--primary-color);
+  }
+
+  .color-swatch:active {
+    transform: scale(0.95);
+  }
+
+  /* Hidden native input overlays the swatch */
+  .color-swatch input[type="color"] {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    border: none;
+    padding: 0;
+  }
+
+  /* Remove button */
+  .color-remove {
+    --mdc-icon-button-size: 28px;
+    --mdc-icon-size: 16px;
+    opacity: 0.6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.15s ease, color 0.15s ease;
+  }
+
+  .color-remove:hover {
+    opacity: 1;
+    color: var(--error-color);
+  }
+
+  /* Add color button - 44px minimum for touch */
+  .add-color-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border: 2px dashed var(--divider-color);
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--secondary-text-color);
+    background: transparent;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .add-color-btn:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    background: var(--secondary-background-color);
+  }
+
+  .add-color-btn.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  /* =========================================
+   * PALETTE VARIANT
+   * For pattern-editor Individual mode (selectable fixed colors)
+   * ========================================= */
+
+  /* Palette container */
+  .color-palette {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+  }
+
+  /* Palette color wrapper with edit button */
+  .palette-color-wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Selectable palette swatch */
+  .palette-color {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 3px solid var(--divider-color);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .palette-color:hover {
+    transform: scale(1.08);
+  }
+
+  .palette-color.selected {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px var(--primary-color);
+  }
+
+  /* Small edit button below palette swatch */
+  .palette-edit-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 50%;
+    background: var(--secondary-background-color);
+    color: var(--secondary-text-color);
+    cursor: pointer;
+    padding: 0;
+    transition: all 0.15s ease;
+    --mdc-icon-size: 14px;
+  }
+
+  .palette-edit-btn:hover {
+    background: var(--primary-color);
+    color: var(--text-primary-color);
+  }
+
+  /* Color picker modal overlay */
+  .color-picker-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+
+  .color-picker-modal {
+    background: var(--card-background-color, #fff);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    max-width: 90vw;
+  }
+
+  .color-picker-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-bottom: 8px;
+  }
+
+  .color-picker-modal-title {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--primary-text-color);
+  }
+
+  .color-picker-modal-preview {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 3px solid var(--divider-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  .color-picker-modal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+  }
+`;function Ae(e,t,s=255){if(0===t)return{r:0,g:0,b:0};const i=1/t*e,o=1/t*(1-e-t);let r=3.2406*i-1.5372+-.4986*o,a=-.9689*i+1.8758+.0415*o,n=.0557*i-.204+1.057*o;const c=Math.max(r,a,n);c>1&&(r/=c,a/=c,n/=c),r=Math.max(0,r),a=Math.max(0,a),n=Math.max(0,n),r=r<=.0031308?12.92*r:1.055*Math.pow(r,1/2.4)-.055,a=a<=.0031308?12.92*a:1.055*Math.pow(a,1/2.4)-.055,n=n<=.0031308?12.92*n:1.055*Math.pow(n,1/2.4)-.055;const l=s/255;return{r:Math.max(0,Math.min(255,Math.round(255*r*l))),g:Math.max(0,Math.min(255,Math.round(255*a*l))),b:Math.max(0,Math.min(255,Math.round(255*n*l)))}}function Te(e,t,s){let i=e/255,o=t/255,r=s/255;i=i>.04045?Math.pow((i+.055)/1.055,2.4):i/12.92,o=o>.04045?Math.pow((o+.055)/1.055,2.4):o/12.92,r=r>.04045?Math.pow((r+.055)/1.055,2.4):r/12.92;const a=.4124*i+.3576*o+.1805*r,n=.2126*i+.7152*o+.0722*r,c=a+n+(.0193*i+.1192*o+.9505*r);return 0===c?{x:.3127,y:.329}:{x:a/c,y:n/c}}function Me(e){const t=e=>e.toString(16).padStart(2,"0");return`#${t(e.r)}${t(e.g)}${t(e.b)}`}function ze(e,t=255){return Me(Ae(e.x,e.y,t))}function qe(e,t){const s=1*(t/100),i=s*(1-Math.abs(e/60%2-1)),o=1-s;let r=0,a=0,n=0;return e>=0&&e<60?(r=s,a=i,n=0):e>=60&&e<120?(r=i,a=s,n=0):e>=120&&e<180?(r=0,a=s,n=i):e>=180&&e<240?(r=0,a=i,n=s):e>=240&&e<300?(r=i,a=0,n=s):(r=s,a=0,n=i),{r:Math.round(255*(r+o)),g:Math.round(255*(a+o)),b:Math.round(255*(n+o))}}function Ie(e){const t=Ae(e.x,e.y,255);return function(e,t,s){const i=e/255,o=t/255,r=s/255,a=Math.max(i,o,r),n=a-Math.min(i,o,r);let c=0,l=0;return 0!==a&&(l=n/a*100),0!==n&&(c=a===i?(o-r)/n%6:a===o?(r-i)/n+2:(i-o)/n+4,c=Math.round(60*c),c<0&&(c+=360)),{h:c,s:Math.round(l)}}(t.r,t.g,t.b)}function Ue(e){const t=qe(e.h,e.s);return Te(t.r,t.g,t.b)}let De=class extends ne{constructor(){super(...arguments),this.color={h:0,s:100},this.size=200,this._isDragging=!1,this._onPointerMove=e=>{this._isDragging&&(e.preventDefault(),this._handleInteraction(e))},this._onPointerUp=()=>{this._isDragging=!1,this._marker?.classList.remove("dragging"),window.removeEventListener("mousemove",this._onPointerMove),window.removeEventListener("mouseup",this._onPointerUp),window.removeEventListener("touchmove",this._onPointerMove),window.removeEventListener("touchend",this._onPointerUp)}}firstUpdated(){this._drawColorWheel(),this._updateMarkerPosition()}updated(e){e.has("size")&&this._drawColorWheel(),e.has("color")&&!this._isDragging&&this._updateMarkerPosition()}_drawColorWheel(){const e=this._canvas;if(!e)return;const t=e.getContext("2d");if(!t)return;const s=this.size,i=s/2,o=s/2,r=s/2;e.width=s,e.height=s;for(let e=0;e<360;e++){const s=(e-1)*Math.PI/180,a=(e+1)*Math.PI/180,n=t.createRadialGradient(i,o,0,i,o,r);n.addColorStop(0,"hsl("+e+", 0%, 100%)"),n.addColorStop(1,"hsl("+e+", 100%, 50%)"),t.beginPath(),t.moveTo(i,o),t.arc(i,o,r,s,a),t.closePath(),t.fillStyle=n,t.fill()}}_updateMarkerPosition(){if(!this._marker)return;const{x:e,y:t}=this._hsToPosition(this.color);var s;this._marker.style.left=`${e}px`,this._marker.style.top=`${t}px`,this._marker.style.backgroundColor=Me(qe((s=this.color).h,s.s))}_hsToPosition(e){const t=this.size/2,s=this.size/2,i=this.size/2,o=e.h*Math.PI/180,r=e.s/100*i;return{x:t+r*Math.cos(o),y:s+r*Math.sin(o)}}_positionToHs(e,t){const s=this.size/2,i=this.size/2,o=this.size/2,r=e-s,a=t-i;let n=Math.sqrt(r*r+a*a);n=Math.min(n,o);let c=180*Math.atan2(a,r)/Math.PI;return c<0&&(c+=360),{h:Math.round(c)%360,s:Math.round(n/o*100)}}_handleInteraction(e){const t=this._canvas;if(!t)return;const s=t.getBoundingClientRect();let i,o;if(e instanceof TouchEvent){const t=e.touches[0];if(!t)return;i=t.clientX,o=t.clientY}else i=e.clientX,o=e.clientY;const r=i-s.left,a=o-s.top,n=this._positionToHs(r,a);this.color=n,this._updateMarkerPosition(),this.dispatchEvent(new CustomEvent("color-changed",{detail:{color:n},bubbles:!0,composed:!0}))}_onPointerDown(e){e.preventDefault(),this._isDragging=!0,this._marker?.classList.add("dragging"),this._handleInteraction(e),e instanceof MouseEvent?(window.addEventListener("mousemove",this._onPointerMove),window.addEventListener("mouseup",this._onPointerUp)):(window.addEventListener("touchmove",this._onPointerMove,{passive:!1}),window.addEventListener("touchend",this._onPointerUp))}render(){return j`
+      <div class="color-picker-container" style="width: ${this.size}px; height: ${this.size}px;">
+        <canvas
+          @mousedown=${this._onPointerDown}
+          @touchstart=${this._onPointerDown}
+        ></canvas>
+        <div class="marker"></div>
+      </div>
+    `}};De.styles=a`
+    :host {
+      display: inline-block;
+    }
+
+    .color-picker-container {
+      position: relative;
+      touch-action: none;
+    }
+
+    canvas {
+      border-radius: 50%;
+      cursor: crosshair;
+    }
+
+    .marker {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 3px solid white;
+      box-shadow: 0 0 4px rgba(0, 0, 0, 0.5), inset 0 0 2px rgba(0, 0, 0, 0.3);
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      transition: box-shadow 0.1s ease;
+    }
+
+    .marker.dragging {
+      box-shadow: 0 0 8px rgba(0, 0, 0, 0.7), inset 0 0 2px rgba(0, 0, 0, 0.3);
+    }
+
+    .center-white {
+      position: absolute;
+      width: 20%;
+      height: 20%;
+      border-radius: 50%;
+      background: radial-gradient(circle, white 0%, transparent 100%);
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+  `,e([pe({type:Object})],De.prototype,"color",void 0),e([pe({type:Number})],De.prototype,"size",void 0),e([ge()],De.prototype,"_isDragging",void 0),e([me("canvas")],De.prototype,"_canvas",void 0),e([me(".marker")],De.prototype,"_marker",void 0),De=e([le("hs-color-picker")],De);const Ne={t2_bulb:["breathing","candlelight","fading","flash"],t1:["flow1","flow2","fading","hopping","breathing","rolling"],t1m:["flow1","flow2","fading","hopping","breathing","rolling"],t1_strip:["breathing","rainbow1","chasing","flash","hopping","rainbow2","flicker","dash"]},Be={},Fe={t2_bulb:"T2 Bulb",t1:"T1 (20 segments)",t1m:"T1M (26 segments)",t1_strip:"T1 Strip"};let He=class extends ne{constructor(){super(...arguments),this.editMode=!1,this.hasSelectedEntities=!1,this.previewActive=!1,this._name="",this._icon="",this._deviceType="t2_bulb",this._effect="",this._speed=50,this._brightness=100,this._colors=[{x:.68,y:.31}],this._segments="",this._saving=!1,this._previewing=!1,this._editingColorIndex=null,this._editingColor=null}updated(e){super.updated(e),e.has("preset")&&this.preset&&this._loadPreset(this.preset)}_loadPreset(e){this._name=e.name,this._icon=e.icon||"",this._deviceType=e.device_type||"t2_bulb",this._effect=e.effect,this._speed=e.effect_speed,this._brightness=e.effect_brightness||100,this._colors=e.effect_colors.map(e=>"x"in e&&"y"in e?{x:e.x,y:e.y}:"r"in e&&"g"in e&&"b"in e?Te(e.r,e.g,e.b):{x:.68,y:.31}),this._segments=e.effect_segments||""}_handleNameChange(e){this._name=e.detail.value||""}_handleIconChange(e){this._icon=e.detail.value||""}_handleDeviceTypeChange(e){this._deviceType=e.detail.value||"t2_bulb",this._effect=""}_handleSpeedChange(e){this._speed=e.detail.value||50}_handleBrightnessChange(e){this._brightness=e.detail.value||100}_handleSegmentsChange(e){this._segments=e.detail.value||""}_openColorPicker(e){const t=this._colors[e];t&&(this._editingColorIndex=e,this._editingColor=Ie(t))}_handleColorPickerChange(e){this._editingColor=e.detail.color}_confirmColorPicker(){if(null!==this._editingColorIndex&&null!==this._editingColor){const e=Ue(this._editingColor);this._colors=this._colors.map((t,s)=>s===this._editingColorIndex?e:t)}this._closeColorPicker()}_closeColorPicker(){this._editingColorIndex=null,this._editingColor=null}_addColor(){this._colors.length<8&&(this._colors=[...this._colors,{x:.3127,y:.329}])}_removeColor(e){this._colors.length>1&&(this._colors=this._colors.filter((t,s)=>s!==e))}_colorToHex(e){return ze(e,255)}_getEffectIconUrl(e){return`/api/aqara_advanced_lighting/icons/${Be[e]||e}.svg`}_selectEffect(e){this._effect=e}_getPresetData(){const e={name:this._name,icon:this._icon||void 0,device_type:this._deviceType,effect:this._effect,effect_speed:this._speed,effect_brightness:this._brightness,effect_colors:this._colors};return"t1_strip"===this._deviceType&&this._segments&&(e.effect_segments=this._segments),e}async _preview(){if(this.hass&&this._effect&&!this._previewing){this._previewing=!0;try{this.dispatchEvent(new CustomEvent("preview",{detail:this._getPresetData(),bubbles:!0,composed:!0}))}finally{this._previewing=!1}}}_stopPreview(){this.dispatchEvent(new CustomEvent("stop-preview",{bubbles:!0,composed:!0}))}async _save(){if(this._name.trim()&&this._effect){this._saving=!0;try{this.dispatchEvent(new CustomEvent("save",{detail:this._getPresetData(),bubbles:!0,composed:!0}))}finally{this._saving=!1}}}_cancel(){this.dispatchEvent(new CustomEvent("cancel",{bubbles:!0,composed:!0}))}render(){const e=Object.entries(Fe).map(([e,t])=>({value:e,label:t})),t=Ne[this._deviceType]||[],s="t1_strip"===this._deviceType;return j`
+      <div class="editor-content">
+        <div class="form-row-triple">
+          <div class="form-field">
+            <span class="form-label">Name</span>
             <ha-selector
               .hass=${this.hass}
-              .selector=${{entity:{multiple:!0,filter:{domain:"light"}}}}
-              .value=${this._selectedEntities}
-              @value-changed=${this._handleEntityChange}
+              .selector=${{text:{}}}
+              .value=${this._name}
+              @value-changed=${this._handleNameChange}
             ></ha-selector>
-            ${e&&!this._showFavoriteInput?B`
-                  <ha-icon-button
-                    class="add-favorite-btn"
-                    @click=${this._addFavorite}
-                    title="Save as favorite"
-                  >
-                    <ha-icon icon="mdi:star-plus"></ha-icon>
-                  </ha-icon-button>
-                `:""}
+          </div>
+          <div class="form-field">
+            <span class="form-label">Icon</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{icon:{}}}
+              .value=${this._icon}
+              @value-changed=${this._handleIconChange}
+            ></ha-selector>
+          </div>
+          <div class="form-field">
+            <span class="form-label">Device Type</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{select:{options:e,mode:"dropdown"}}}
+              .value=${this._deviceType}
+              @value-changed=${this._handleDeviceTypeChange}
+            ></ha-selector>
           </div>
         </div>
 
-        ${this._showFavoriteInput?B`
-              <div class="control-row">
-                <span class="control-label">Favorite Name</span>
-                <div class="control-input favorite-input-container">
-                  <ha-selector
-                    .hass=${this.hass}
-                    .selector=${{text:{}}}
-                    .value=${this._favoriteInputName}
-                    @value-changed=${this._handleFavoriteNameChange}
-                    @keydown=${this._handleFavoriteNameKeydown}
-                  ></ha-selector>
-                  <ha-button @click=${this._saveFavorite}>
-                    <ha-icon icon="mdi:check"></ha-icon>
-                    Save
-                  </ha-button>
-                  <ha-button @click=${this._cancelFavoriteInput}>
-                    <ha-icon icon="mdi:close"></ha-icon>
-                    Cancel
-                  </ha-button>
-                </div>
+        <div class="form-row-pair">
+          <div class="form-field">
+            <span class="form-label">Speed</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{number:{min:1,max:100,mode:"slider"}}}
+              .value=${this._speed}
+              @value-changed=${this._handleSpeedChange}
+            ></ha-selector>
+          </div>
+          <div class="form-field">
+            <span class="form-label">Brightness</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{number:{min:1,max:100,mode:"slider",unit_of_measurement:"%"}}}
+              .value=${this._brightness}
+              @value-changed=${this._handleBrightnessChange}
+            ></ha-selector>
+          </div>
+        </div>
+
+        ${s?j`
+              <div class="form-section">
+                <span class="form-label">Segments</span>
+                <ha-selector
+                  .hass=${this.hass}
+                  .selector=${{text:{}}}
+                  .value=${this._segments}
+                  @value-changed=${this._handleSegmentsChange}
+                ></ha-selector>
+                <span class="field-description">Segments to apply effect to (e.g., "1-20", "odd", "even", "first-half", "last-third").</span>
               </div>
             `:""}
 
-        ${this._favorites.length>0?B`
-              <div class="control-row">
-                <span class="control-label">Favorites</span>
-                <div class="control-input favorites-container">
-                  ${this._favorites.map(t=>B`
-                      <div class="favorite-chip" @click=${()=>this._selectFavorite(t)}>
-                        <ha-icon icon="mdi:star" class="favorite-icon"></ha-icon>
-                        <span class="favorite-name">${t.name}</span>
+        <div class="form-section">
+          <span class="form-label">Effect</span>
+          <div class="effect-grid">
+            ${t.map(e=>j`
+                <div
+                  class="effect-icon-btn ${this._effect===e?"selected":""}"
+                  @click=${()=>this._selectEffect(e)}
+                  title=${e}
+                >
+                  <div
+                    class="effect-icon"
+                    style="
+                      -webkit-mask-image: url('${this._getEffectIconUrl(e)}');
+                      mask-image: url('${this._getEffectIconUrl(e)}');
+                    "
+                  ></div>
+                  <span>${e}</span>
+                </div>
+              `)}
+          </div>
+        </div>
+
+        <div class="form-section">
+          <span class="form-label">Colors (1-8)</span>
+          <div class="color-picker-grid">
+            ${this._colors.map((e,t)=>j`
+                <div class="color-item">
+                  <div
+                    class="color-swatch"
+                    style="background-color: ${this._colorToHex(e)}"
+                    @click=${()=>this._openColorPicker(t)}
+                    title="Click to edit color"
+                  ></div>
+                  ${this._colors.length>1?j`
                         <ha-icon-button
-                          class="remove-favorite-btn"
-                          @click=${e=>{e.stopPropagation(),this._removeFavorite(t.id)}}
-                          title="Remove favorite"
+                          class="color-remove"
+                          @click=${()=>this._removeColor(t)}
+                          title="Remove color"
                         >
                           <ha-icon icon="mdi:close"></ha-icon>
                         </ha-icon-button>
-                      </div>
-                    `)}
+                      `:""}
+                </div>
+              `)}
+            <div
+              class="add-color-btn ${this._colors.length>=8?"disabled":""}"
+              @click=${this._addColor}
+              title="Add color"
+            >
+              <ha-icon icon="mdi:plus"></ha-icon>
+            </div>
+          </div>
+        </div>
+
+        ${null!==this._editingColorIndex&&null!==this._editingColor?j`
+              <div class="color-picker-modal-overlay" @click=${this._closeColorPicker}>
+                <div class="color-picker-modal" @click=${e=>e.stopPropagation()}>
+                  <div class="color-picker-modal-header">
+                    <span class="color-picker-modal-title">Select color</span>
+                    <div
+                      class="color-picker-modal-preview"
+                      style="background-color: ${this._editingColor?`hsl(${this._editingColor.h}, ${this._editingColor.s}%, 50%)`:"#fff"}"
+                    ></div>
+                  </div>
+                  <hs-color-picker
+                    .color=${this._editingColor}
+                    .size=${220}
+                    @color-changed=${this._handleColorPickerChange}
+                  ></hs-color-picker>
+                  <div class="color-picker-modal-actions">
+                    <ha-button @click=${this._closeColorPicker}>Cancel</ha-button>
+                    <ha-button @click=${this._confirmColorPicker}>
+                      <ha-icon icon="mdi:check"></ha-icon>
+                      Apply
+                    </ha-button>
+                  </div>
                 </div>
               </div>
             `:""}
 
-        ${e?B`
-              <div class="control-row">
-                <span class="control-label">Light Control</span>
-                <div class="control-input light-tile-container" ${At(this._tileCardRef)}>
-                </div>
+        ${this.hasSelectedEntities?"":j`
+              <div class="preview-warning">
+                <ha-icon icon="mdi:information"></ha-icon>
+                <span>Select light entities in the Activate tab to preview effects on your devices.</span>
+              </div>
+            `}
+
+        <div class="form-actions">
+          <ha-button @click=${this._cancel}>Cancel</ha-button>
+          ${this.previewActive?j`
+                <ha-button @click=${this._stopPreview}>
+                  <ha-icon icon="mdi:stop"></ha-icon>
+                  Stop
+                </ha-button>
+              `:j`
+                <ha-button
+                  @click=${this._preview}
+                  .disabled=${!this._effect||this._previewing||!this.hasSelectedEntities}
+                  title=${this.hasSelectedEntities?"":"Select entities in Activate tab first"}
+                >
+                  <ha-icon icon="mdi:play"></ha-icon>
+                  Preview
+                </ha-button>
+              `}
+          <ha-button @click=${this._save} .disabled=${!this._name.trim()||!this._effect||this._saving}>
+            <ha-icon icon="mdi:content-save"></ha-icon>
+            ${this.editMode?"Update":"Save"}
+          </ha-button>
+        </div>
+      </div>
+    `}};He.styles=[Ee,a`
+    :host {
+      display: block;
+    }
+
+    .editor-content {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .form-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .form-row-pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .form-row-triple {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .form-row-pair .form-field,
+    .form-row-triple .form-field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .form-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .form-section .form-label {
+      min-width: unset;
+    }
+
+    .form-label {
+      font-size: 14px;
+      font-weight: 500;
+      min-width: 120px;
+      color: var(--secondary-text-color);
+    }
+
+    .field-description {
+      font-size: 12px;
+      color: var(--secondary-text-color);
+      margin-top: 4px;
+    }
+
+    .form-input {
+      flex: 1;
+    }
+
+    /* Color picker styles inherited from panelStyles (styles.ts) */
+
+    /* Effect icon grid selector */
+    .effect-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .effect-icon-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+      min-width: 70px;
+      background: var(--card-background-color);
+      border: 2px solid var(--divider-color);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .effect-icon-btn:hover {
+      background: var(--secondary-background-color);
+      border-color: var(--primary-color);
+    }
+
+    .effect-icon-btn.selected {
+      background: var(--primary-color);
+      border-color: var(--primary-color);
+      color: var(--text-primary-color);
+    }
+
+    .effect-icon {
+      width: 32px;
+      height: 32px;
+      margin-bottom: 4px;
+      background-color: var(--primary-text-color);
+      -webkit-mask-size: contain;
+      mask-size: contain;
+      -webkit-mask-repeat: no-repeat;
+      mask-repeat: no-repeat;
+      -webkit-mask-position: center;
+      mask-position: center;
+    }
+
+    .effect-icon-btn.selected .effect-icon {
+      background-color: var(--text-primary-color);
+    }
+
+    .effect-icon-btn span {
+      font-size: 11px;
+      text-transform: capitalize;
+      text-align: center;
+    }
+
+    /* .color-remove and .add-color-btn inherited from panelStyles (styles.ts) */
+
+    .form-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid var(--divider-color);
+    }
+
+    .preview-warning {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--secondary-background-color);
+      color: var(--secondary-text-color);
+      border: 1px solid var(--divider-color);
+      border-left: 4px solid var(--warning-color, #ffc107);
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    .preview-warning ha-icon {
+      flex-shrink: 0;
+      --mdc-icon-size: 18px;
+    }
+
+    @media (max-width: 600px) {
+      .form-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .form-row-pair,
+      .form-row-triple {
+        grid-template-columns: 1fr;
+      }
+
+      .form-label {
+        min-width: unset;
+        margin-bottom: 4px;
+      }
+    }
+  `],e([pe({attribute:!1})],He.prototype,"hass",void 0),e([pe({type:Object})],He.prototype,"preset",void 0),e([pe({type:Boolean})],He.prototype,"editMode",void 0),e([pe({type:Boolean})],He.prototype,"hasSelectedEntities",void 0),e([pe({type:Boolean})],He.prototype,"previewActive",void 0),e([ge()],He.prototype,"_name",void 0),e([ge()],He.prototype,"_icon",void 0),e([ge()],He.prototype,"_deviceType",void 0),e([ge()],He.prototype,"_effect",void 0),e([ge()],He.prototype,"_speed",void 0),e([ge()],He.prototype,"_brightness",void 0),e([ge()],He.prototype,"_colors",void 0),e([ge()],He.prototype,"_segments",void 0),e([ge()],He.prototype,"_saving",void 0),e([ge()],He.prototype,"_previewing",void 0),e([ge()],He.prototype,"_editingColorIndex",void 0),e([ge()],He.prototype,"_editingColor",void 0),He=e([le("effect-editor")],He);const Le={t1:20,t1m:26,t1_strip:50},Oe={t1:"T1 (20 segments)",t1m:"T1M (26 segments)",t1_strip:"T1 Strip (up to 50 segments)"},je=[{x:.68,y:.31},{x:.17,y:.7},{x:.15,y:.06},{x:.42,y:.51},{x:.38,y:.16},{x:.22,y:.33}];let Re=class extends ne{constructor(){super(...arguments),this.editMode=!1,this.hasSelectedEntities=!1,this.stripSegmentCount=50,this._name="",this._icon="",this._deviceType="t1m",this._segments=new Map,this._selectedSegments=new Set,this._saving=!1,this._previewing=!1,this._clearMode=!1,this._selectMode=!1,this._patternMode="individual",this._colorPalette=[...je],this._selectedPaletteIndex=0,this._gradientColors=[{x:.68,y:.31},{x:.15,y:.06}],this._blockColors=[{x:.68,y:.31},{x:.17,y:.7}],this._expandBlocks=!1,this._editingColorSource=null,this._editingColorIndex=null,this._editingColor=null}updated(e){if(super.updated(e),e.has("preset")&&this.preset&&this._loadPreset(this.preset),e.has("stripSegmentCount")&&"t1_strip"===this._deviceType){const e=this._getMaxSegments();let t=!1;const s=new Map;for(const[i,o]of this._segments)i<e?s.set(i,o):t=!0;if(t){this._segments=s;const t=new Set;for(const s of this._selectedSegments)s<e&&t.add(s);this._selectedSegments=t}}}_getMaxSegments(){return"t1_strip"===this._deviceType?this.stripSegmentCount:Le[this._deviceType]||26}_loadPreset(e){this._name=e.name,this._icon=e.icon||"",this._deviceType=e.device_type||"t1m",this._segments=new Map,this._selectedSegments=new Set,this._patternMode="individual",this._clearMode=!1;for(const t of e.segments){const e="string"==typeof t.segment?parseInt(t.segment,10):t.segment,s=t.color;"x"in s&&"y"in s?this._segments.set(e-1,{x:s.x,y:s.y}):"r"in s&&"g"in s&&"b"in s&&this._segments.set(e-1,Te(s.r,s.g,s.b))}}_handleNameChange(e){this._name=e.detail.value||""}_handleIconChange(e){this._icon=e.detail.value||""}_handleDeviceTypeChange(e){this._deviceType=e.detail.value||"t1m";const t=this._getMaxSegments(),s=new Map;for(const[e,i]of this._segments)e<t&&s.set(e,i);this._segments=s,this._selectedSegments=new Set}_handlePatternModeChange(e){this._patternMode=e,this._clearMode=!1,this._selectMode=!1}_toggleClearMode(){this._clearMode=!this._clearMode,this._clearMode&&(this._selectMode=!1)}_toggleSelectMode(){this._selectMode=!this._selectMode,this._selectMode&&(this._clearMode=!1)}_handleSegmentClick(e,t){if(this._clearMode){const t=new Map(this._segments);return t.delete(e),void(this._segments=t)}if(this._selectMode||t.shiftKey){const t=new Set(this._selectedSegments);t.has(e)?t.delete(e):t.add(e),this._selectedSegments=t}else if(t.ctrlKey||t.metaKey)this._selectedSegments=new Set([...this._selectedSegments,e]);else{const t=this._colorPalette[this._selectedPaletteIndex],s=new Map(this._segments);s.set(e,{...t}),this._segments=s}}_selectPaletteColor(e){this._selectedPaletteIndex=e}_addGradientColor(){this._gradientColors.length>=6||(this._gradientColors=[...this._gradientColors,{x:.42,y:.51}])}_removeGradientColor(e){this._gradientColors.length<=2||(this._gradientColors=this._gradientColors.filter((t,s)=>s!==e))}_addBlockColor(){this._blockColors.length>=6||(this._blockColors=[...this._blockColors,{x:.22,y:.33}])}_removeBlockColor(e){this._blockColors.length<=1||(this._blockColors=this._blockColors.filter((t,s)=>s!==e))}_handleExpandBlocksChange(e){const t=e.target;this._expandBlocks=t.checked}_applyToSelected(){if(0===this._selectedSegments.size)return;const e=this._colorPalette[this._selectedPaletteIndex],t=new Map(this._segments);for(const s of this._selectedSegments)t.set(s,{...e});this._segments=t,this._selectedSegments=new Set}_clearSelected(){if(0===this._selectedSegments.size)return;const e=new Map(this._segments);for(const t of this._selectedSegments)e.delete(t);this._segments=e,this._selectedSegments=new Set}_selectAll(){const e=this._getMaxSegments(),t=new Set;for(let s=0;s<e;s++)t.add(s);this._selectedSegments=t}_clearAll(){this._segments=new Map,this._selectedSegments=new Set}_interpolateHue(e,t,s){let i=t-e;i>180?i-=360:i<-180&&(i+=360);let o=e+i*s;return o<0&&(o+=360),o>=360&&(o-=360),o}_generateGradientPattern(){const e=this._getMaxSegments(),t=this._gradientColors,s=t.length,i=new Map;if(s<2||0===e)return i;const o=t.map(e=>Ie(e));for(let t=0;t<e;t++){const r=t/(e-1)*(s-1),a=Math.floor(r),n=r-a,c=o[Math.min(a,s-1)],l=o[Math.min(a+1,s-1)],d={h:Math.round(this._interpolateHue(c.h,l.h,n)),s:Math.round(c.s+(l.s-c.s)*n)};i.set(t,Ue(d))}return i}_generateBlocksPattern(){const e=this._getMaxSegments(),t=this._blockColors,s=t.length,i=new Map;if(0===s||0===e)return i;if(this._expandBlocks){const o=e/s;for(let r=0;r<e;r++){const e=Math.min(Math.floor(r/o),s-1);i.set(r,{...t[e]})}}else for(let o=0;o<e;o++){const e=o%s;i.set(o,{...t[e]})}return i}_applyToGrid(){let e;if("gradient"===this._patternMode)e=this._generateGradientPattern();else{if("blocks"!==this._patternMode)return;e=this._generateBlocksPattern()}this._segments=e}_applyToSelectedSegments(){if(0===this._selectedSegments.size)return;const e=Array.from(this._selectedSegments).sort((e,t)=>e-t),t=e.length;let s=[];if("gradient"===this._patternMode)s=this._gradientColors;else{if("blocks"!==this._patternMode)return;s=this._blockColors}const i=s.length,o=new Map(this._segments);if("gradient"===this._patternMode){const r=s.map(e=>Ie(e));for(let s=0;s<t;s++){const a=e[s],n=(t>1?s/(t-1):0)*(i-1),c=Math.floor(n),l=n-c,d=r[Math.min(c,i-1)],h=r[Math.min(c+1,i-1)],p={h:Math.round(this._interpolateHue(d.h,h.h,l)),s:Math.round(d.s+(h.s-d.s)*l)};o.set(a,Ue(p))}}else if("blocks"===this._patternMode)if(this._expandBlocks){const r=Math.ceil(t/i);for(let a=0;a<t;a++){const t=e[a],n=Math.min(Math.floor(a/r),i-1);o.set(t,{...s[n]})}}else for(let r=0;r<t;r++){const t=e[r],a=r%i;o.set(t,{...s[a]})}this._segments=o,this._selectedSegments=new Set}_openPaletteColorPicker(e){const t=this._colorPalette[e];t&&(this._editingColorSource="palette",this._editingColorIndex=e,this._editingColor=Ie(t))}_openGradientColorPicker(e){const t=this._gradientColors[e];t&&(this._editingColorSource="gradient",this._editingColorIndex=e,this._editingColor=Ie(t))}_openBlockColorPicker(e){const t=this._blockColors[e];t&&(this._editingColorSource="blocks",this._editingColorIndex=e,this._editingColor=Ie(t))}_handleColorPickerChange(e){this._editingColor=e.detail.color}_confirmColorPicker(){if(null===this._editingColorIndex||null===this._editingColor||!this._editingColorSource)return void this._closeColorPicker();const e=Ue(this._editingColor);"palette"===this._editingColorSource?this._colorPalette=this._colorPalette.map((t,s)=>s===this._editingColorIndex?e:t):"gradient"===this._editingColorSource?this._gradientColors=this._gradientColors.map((t,s)=>s===this._editingColorIndex?e:t):"blocks"===this._editingColorSource&&(this._blockColors=this._blockColors.map((t,s)=>s===this._editingColorIndex?e:t)),this._closeColorPicker()}_closeColorPicker(){this._editingColorSource=null,this._editingColorIndex=null,this._editingColor=null}_getCurrentPattern(){return this._segments}_colorToHex(e){return ze(e,255)}_getPresetData(){const e=this._getCurrentPattern(),t=[];for(const[s,i]of e){const e=Ae(i.x,i.y,255);t.push({segment:s+1,color:{r:e.r,g:e.g,b:e.b}})}return{name:this._name,icon:this._icon||void 0,device_type:this._deviceType,segments:t}}async _preview(){if(!this.hass||this._previewing)return;if(0!==this._getCurrentPattern().size){this._previewing=!0;try{this.dispatchEvent(new CustomEvent("preview",{detail:this._getPresetData(),bubbles:!0,composed:!0}))}finally{this._previewing=!1}}}async _save(){if(!this._name.trim())return;if(0!==this._getCurrentPattern().size){this._saving=!0;try{this.dispatchEvent(new CustomEvent("save",{detail:this._getPresetData(),bubbles:!0,composed:!0}))}finally{this._saving=!1}}}_cancel(){this.dispatchEvent(new CustomEvent("cancel",{bubbles:!0,composed:!0}))}_canPreview(){return this._getCurrentPattern().size>0}_canSave(){if(!this._name.trim())return!1;return this._getCurrentPattern().size>0}_renderSegmentGrid(){const e=this._getMaxSegments(),t=[];for(let s=0;s<e;s++){const e=this._segments.get(s),i=this._selectedSegments.has(s),o=void 0!==e;t.push(j`
+        <div
+          class="segment-cell ${i?"selected":""} ${o?"colored":""}"
+          style="${o?`background-color: ${this._colorToHex(e)}`:""}"
+          @click=${e=>this._handleSegmentClick(s,e)}
+          title="Segment ${s+1}${this._clearMode&&o?" - Click to clear":""}"
+        >
+          ${s+1}
+        </div>
+      `)}return j`
+      <div class="segment-grid-container">
+        <div class="segment-grid ${this._clearMode?"clear-mode":""} ${this._selectMode?"select-mode":""}">
+          ${t}
+        </div>
+        <div class="grid-controls">
+          <ha-button
+            class="${this._selectMode?"select-mode-toggle active":"select-mode-toggle"}"
+            @click=${this._toggleSelectMode}
+            title="Toggle select mode - when active, clicking segments toggles selection"
+          >
+            <ha-icon icon="${this._selectMode?"mdi:selection-multiple":"mdi:selection"}"></ha-icon>
+            ${this._selectMode?"Select: ON":"Select: OFF"}
+          </ha-button>
+          <ha-button
+            class="${this._clearMode?"clear-mode-toggle active":"clear-mode-toggle"}"
+            @click=${this._toggleClearMode}
+            title="Toggle clear mode - when active, clicking segments removes their color"
+          >
+            <ha-icon icon="${this._clearMode?"mdi:eraser":"mdi:eraser-variant"}"></ha-icon>
+            ${this._clearMode?"Clear: ON":"Clear: OFF"}
+          </ha-button>
+          <ha-button @click=${this._selectAll}>Select All</ha-button>
+          <ha-button
+            @click=${this._clearSelected}
+            .disabled=${0===this._selectedSegments.size}
+          >
+            Clear Selected
+          </ha-button>
+          <ha-button @click=${this._clearAll}>Clear All</ha-button>
+        </div>
+        <div class="grid-info">
+          ${this._selectedSegments.size} selected
+        </div>
+      </div>
+    `}_renderIndividualMode(){return j`
+      <div class="mode-description">
+        Click a color to select it, click the pencil to change it. Then click segments to apply.
+      </div>
+      <div class="color-palette">
+        <span class="palette-label">Colors:</span>
+        ${this._colorPalette.map((e,t)=>j`
+          <div class="palette-color-wrapper">
+            <div
+              class="palette-color ${this._selectedPaletteIndex===t?"selected":""}"
+              style="background-color: ${this._colorToHex(e)}"
+              @click=${()=>this._selectPaletteColor(t)}
+              title="Color ${t+1} - Click to select"
+            ></div>
+            <button
+              class="palette-edit-btn"
+              @click=${()=>this._openPaletteColorPicker(t)}
+              title="Edit color ${t+1}"
+            >
+              <ha-icon icon="mdi:pencil"></ha-icon>
+            </button>
+          </div>
+        `)}
+        <ha-button
+          @click=${this._applyToSelected}
+          .disabled=${0===this._selectedSegments.size}
+        >
+          <ha-icon icon="mdi:selection"></ha-icon>
+          Apply to Selected
+        </ha-button>
+      </div>
+    `}_renderGradientMode(){return j`
+      <div class="mode-description">
+        Create a smooth color gradient across all segments. Add 2-6 colors to blend.
+      </div>
+      <div class="color-array">
+        ${this._gradientColors.map((e,t)=>j`
+          <div class="color-item">
+            <div
+              class="color-swatch"
+              style="background-color: ${this._colorToHex(e)}"
+              @click=${()=>this._openGradientColorPicker(t)}
+              title="Click to edit color"
+            ></div>
+            ${this._gradientColors.length>2?j`
+                  <ha-icon-button
+                    class="color-remove"
+                    @click=${()=>this._removeGradientColor(t)}
+                  >
+                    <ha-icon icon="mdi:close"></ha-icon>
+                  </ha-icon-button>
+                `:""}
+          </div>
+        `)}
+        ${this._gradientColors.length<6?j`
+              <div
+                class="add-color-btn"
+                @click=${this._addGradientColor}
+                title="Add color"
+              >
+                <ha-icon icon="mdi:plus"></ha-icon>
+              </div>
+            `:""}
+      </div>
+      <div class="generated-actions">
+        <ha-button @click=${this._applyToGrid}>
+          <ha-icon icon="mdi:grid"></ha-icon>
+          Apply to Grid
+        </ha-button>
+        <ha-button
+          @click=${this._applyToSelectedSegments}
+          .disabled=${0===this._selectedSegments.size}
+        >
+          <ha-icon icon="mdi:selection"></ha-icon>
+          Apply to Selected
+        </ha-button>
+      </div>
+    `}_renderBlocksMode(){return j`
+      <div class="mode-description">
+        Create evenly spaced blocks of color across all segments. Add 1-6 colors.
+      </div>
+      <div class="color-array">
+        ${this._blockColors.map((e,t)=>j`
+          <div class="color-item">
+            <div
+              class="color-swatch"
+              style="background-color: ${this._colorToHex(e)}"
+              @click=${()=>this._openBlockColorPicker(t)}
+              title="Click to edit color"
+            ></div>
+            ${this._blockColors.length>1?j`
+                  <ha-icon-button
+                    class="color-remove"
+                    @click=${()=>this._removeBlockColor(t)}
+                  >
+                    <ha-icon icon="mdi:close"></ha-icon>
+                  </ha-icon-button>
+                `:""}
+          </div>
+        `)}
+        ${this._blockColors.length<6?j`
+              <div
+                class="add-color-btn"
+                @click=${this._addBlockColor}
+                title="Add color"
+              >
+                <ha-icon icon="mdi:plus"></ha-icon>
+              </div>
+            `:""}
+      </div>
+      <div class="options-row">
+        <label class="option-item">
+          <input
+            type="checkbox"
+            .checked=${this._expandBlocks}
+            @change=${this._handleExpandBlocksChange}
+          />
+          <span class="option-label">Expand blocks to fill segments evenly</span>
+        </label>
+      </div>
+      <div class="generated-actions">
+        <ha-button @click=${this._applyToGrid}>
+          <ha-icon icon="mdi:grid"></ha-icon>
+          Apply to Grid
+        </ha-button>
+        <ha-button
+          @click=${this._applyToSelectedSegments}
+          .disabled=${0===this._selectedSegments.size}
+        >
+          <ha-icon icon="mdi:selection"></ha-icon>
+          Apply to Selected
+        </ha-button>
+      </div>
+    `}render(){const e=Object.entries(Oe).map(([e,t])=>({value:e,label:"t1_strip"===e?`T1 Strip (${this.stripSegmentCount} segments)`:t}));return j`
+      <div class="editor-content">
+        <div class="form-row-triple">
+          <div class="form-field">
+            <span class="form-label">Name</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{text:{}}}
+              .value=${this._name}
+              @value-changed=${this._handleNameChange}
+            ></ha-selector>
+          </div>
+          <div class="form-field">
+            <span class="form-label">Icon</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{icon:{}}}
+              .value=${this._icon}
+              @value-changed=${this._handleIconChange}
+            ></ha-selector>
+          </div>
+          <div class="form-field">
+            <span class="form-label">Device Type</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{select:{options:e,mode:"dropdown"}}}
+              .value=${this._deviceType}
+              @value-changed=${this._handleDeviceTypeChange}
+            ></ha-selector>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <span class="form-label">Segment Grid</span>
+          ${this._renderSegmentGrid()}
+        </div>
+
+        <div class="form-section">
+          <span class="form-label">Pattern Mode</span>
+          <div class="mode-content">
+              <div class="mode-tabs">
+                <button
+                  class="mode-tab ${"individual"===this._patternMode?"active":""}"
+                  @click=${()=>this._handlePatternModeChange("individual")}
+                >
+                  Individual
+                </button>
+                <button
+                  class="mode-tab ${"gradient"===this._patternMode?"active":""}"
+                  @click=${()=>this._handlePatternModeChange("gradient")}
+                >
+                  Gradient
+                </button>
+                <button
+                  class="mode-tab ${"blocks"===this._patternMode?"active":""}"
+                  @click=${()=>this._handlePatternModeChange("blocks")}
+                >
+                  Blocks
+                </button>
               </div>
 
-              <div class="control-row">
-                <span class="control-label">Quick Controls</span>
-                <div class="control-input control-buttons">
-                  ${t.showDynamicEffects?B`
-                        <ha-button @click=${this._stopEffect}>
-                          <ha-icon icon="mdi:stop"></ha-icon>
-                          Effect
-                        </ha-button>
-                      `:""}
-                  <ha-button @click=${this._pauseCCTSequence}>
-                    <ha-icon icon="mdi:pause"></ha-icon>
-                    CCT
-                  </ha-button>
-                  <ha-button @click=${this._resumeCCTSequence}>
-                    <ha-icon icon="mdi:play"></ha-icon>
-                    CCT
-                  </ha-button>
-                  <ha-button @click=${this._stopCCTSequence}>
-                    <ha-icon icon="mdi:stop"></ha-icon>
-                    CCT
-                  </ha-button>
-                  ${t.showSegmentSequences?B`
-                        <ha-button @click=${this._pauseSegmentSequence}>
-                          <ha-icon icon="mdi:pause"></ha-icon>
-                          Segment
-                        </ha-button>
-                        <ha-button @click=${this._resumeSegmentSequence}>
-                          <ha-icon icon="mdi:play"></ha-icon>
-                          Segment
-                        </ha-button>
-                        <ha-button @click=${this._stopSegmentSequence}>
-                          <ha-icon icon="mdi:stop"></ha-icon>
-                          Segment
-                        </ha-button>
-                      `:""}
+              ${"individual"===this._patternMode?this._renderIndividualMode():"gradient"===this._patternMode?this._renderGradientMode():this._renderBlocksMode()}
+            </div>
+        </div>
+
+        ${this.hasSelectedEntities?"":j`
+              <div class="preview-warning">
+                <ha-icon icon="mdi:information"></ha-icon>
+                <span>Select light entities in the Activate tab to preview patterns on your devices.</span>
+              </div>
+            `}
+
+        <div class="form-actions">
+          <ha-button @click=${this._cancel}>Cancel</ha-button>
+          <ha-button
+            @click=${this._preview}
+            .disabled=${!this._canPreview()||this._previewing||!this.hasSelectedEntities}
+            title=${this.hasSelectedEntities?"":"Select entities in Activate tab first"}
+          >
+            <ha-icon icon="mdi:play"></ha-icon>
+            Preview
+          </ha-button>
+          <ha-button
+            @click=${this._save}
+            .disabled=${!this._canSave()||this._saving}
+          >
+            <ha-icon icon="mdi:content-save"></ha-icon>
+            ${this.editMode?"Update":"Save"}
+          </ha-button>
+        </div>
+
+        ${null!==this._editingColorSource&&null!==this._editingColor?j`
+              <div class="color-picker-modal-overlay" @click=${this._closeColorPicker}>
+                <div class="color-picker-modal" @click=${e=>e.stopPropagation()}>
+                  <div class="color-picker-modal-header">
+                    <span class="color-picker-modal-title">Select color</span>
+                    <div
+                      class="color-picker-modal-preview"
+                      style="background-color: ${this._editingColor?`hsl(${this._editingColor.h}, ${this._editingColor.s}%, 50%)`:"#fff"}"
+                    ></div>
+                  </div>
+                  <hs-color-picker
+                    .color=${this._editingColor}
+                    .size=${220}
+                    @color-changed=${this._handleColorPickerChange}
+                  ></hs-color-picker>
+                  <div class="color-picker-modal-actions">
+                    <ha-button @click=${this._closeColorPicker}>Cancel</ha-button>
+                    <ha-button @click=${this._confirmColorPicker}>
+                      <ha-icon icon="mdi:check"></ha-icon>
+                      Apply
+                    </ha-button>
+                  </div>
                 </div>
               </div>
+            `:""}
+      </div>
+    `}};Re.styles=[Ee,a`
+    :host {
+      display: block;
+    }
 
-              <div class="control-row">
-                <span class="control-label">Custom Brightness</span>
-                <div class="control-input">
+    .editor-content {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .form-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .form-row-pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .form-row-triple {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .form-row-pair .form-field,
+    .form-row-triple .form-field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .form-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .form-section .form-label {
+      min-width: unset;
+    }
+
+    .form-label {
+      font-size: 14px;
+      font-weight: 500;
+      min-width: 120px;
+      color: var(--secondary-text-color);
+    }
+
+    .form-input {
+      flex: 1;
+    }
+
+    .segment-grid-container {
+      background: var(--card-background-color);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .segment-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
+      gap: 4px;
+      margin-bottom: 12px;
+    }
+
+    .segment-cell {
+      aspect-ratio: 1;
+      border-radius: 4px;
+      cursor: pointer;
+      border: 2px solid var(--divider-color);
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--secondary-text-color);
+      background: var(--primary-background-color);
+    }
+
+    .segment-cell:hover {
+      transform: scale(1.1);
+      z-index: 1;
+    }
+
+    .segment-cell.selected {
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 2px var(--primary-color);
+    }
+
+    .segment-cell.colored {
+      border-color: transparent;
+      color: transparent;
+    }
+
+    /* Clear mode cursor */
+    .segment-grid.clear-mode .segment-cell.colored {
+      cursor: not-allowed;
+    }
+
+    .segment-grid.clear-mode .segment-cell.colored:hover {
+      opacity: 0.7;
+    }
+
+    /* Select mode cursor */
+    .segment-grid.select-mode .segment-cell {
+      cursor: crosshair;
+    }
+
+    .segment-grid.select-mode .segment-cell:hover {
+      border-color: var(--info-color, #2196f3);
+    }
+
+    .grid-controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding-top: 8px;
+      border-top: 1px solid var(--divider-color);
+    }
+
+    .grid-info {
+      font-size: 12px;
+      color: var(--secondary-text-color);
+      margin-top: 8px;
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid var(--divider-color);
+    }
+
+    .preview-warning {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--secondary-background-color);
+      color: var(--secondary-text-color);
+      border: 1px solid var(--divider-color);
+      border-left: 4px solid var(--warning-color, #ffc107);
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    .preview-warning ha-icon {
+      flex-shrink: 0;
+      --mdc-icon-size: 18px;
+    }
+
+    /* Sub-tabs for pattern modes */
+    .mode-tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 16px;
+      border-bottom: 2px solid var(--divider-color);
+    }
+
+    .mode-tab {
+      padding: 8px 16px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--secondary-text-color);
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.2s ease;
+    }
+
+    .mode-tab:hover {
+      color: var(--primary-text-color);
+      background: var(--secondary-background-color);
+    }
+
+    .mode-tab.active {
+      color: var(--primary-color);
+      border-bottom-color: var(--primary-color);
+    }
+
+    /* Color picker, palette, color-array, color-item, color-swatch,
+       color-picker-modal, color-remove, add-color-btn styles
+       are inherited from panelStyles (styles.ts) */
+
+    .palette-label {
+      font-size: 13px;
+      color: var(--secondary-text-color);
+      margin-right: 8px;
+    }
+
+    /* Use color-picker-grid as alias for color-array in gradient/blocks modes */
+    .color-array {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    /* Options row */
+    .options-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    .option-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .option-label {
+      font-size: 13px;
+      color: var(--secondary-text-color);
+    }
+
+    /* Mode description */
+    .mode-description {
+      font-size: 13px;
+      color: var(--secondary-text-color);
+      margin-bottom: 16px;
+      padding: 8px 12px;
+      background: var(--secondary-background-color);
+      border-radius: 4px;
+    }
+
+    /* Clear mode toggle button */
+    .clear-mode-toggle.active {
+      --mdc-theme-primary: var(--error-color);
+      color: var(--error-color);
+    }
+
+    /* Select mode toggle button */
+    .select-mode-toggle.active {
+      --mdc-theme-primary: var(--info-color, #2196f3);
+      color: var(--info-color, #2196f3);
+    }
+
+    /* Generated pattern actions */
+    .generated-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+
+    /* Mode content container */
+    .mode-content {
+      background: var(--card-background-color);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    @media (max-width: 600px) {
+      .form-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .form-row-pair,
+      .form-row-triple {
+        grid-template-columns: 1fr;
+      }
+
+      .form-label {
+        min-width: unset;
+        margin-bottom: 4px;
+      }
+
+      .grid-controls {
+        flex-direction: column;
+      }
+
+      .mode-tabs {
+        overflow-x: auto;
+      }
+
+      .color-palette {
+        justify-content: center;
+      }
+    }
+  `],e([pe({attribute:!1})],Re.prototype,"hass",void 0),e([pe({type:Object})],Re.prototype,"preset",void 0),e([pe({type:Boolean})],Re.prototype,"editMode",void 0),e([pe({type:Boolean})],Re.prototype,"hasSelectedEntities",void 0),e([pe({type:Number})],Re.prototype,"stripSegmentCount",void 0),e([ge()],Re.prototype,"_name",void 0),e([ge()],Re.prototype,"_icon",void 0),e([ge()],Re.prototype,"_deviceType",void 0),e([ge()],Re.prototype,"_segments",void 0),e([ge()],Re.prototype,"_selectedSegments",void 0),e([ge()],Re.prototype,"_saving",void 0),e([ge()],Re.prototype,"_previewing",void 0),e([ge()],Re.prototype,"_clearMode",void 0),e([ge()],Re.prototype,"_selectMode",void 0),e([ge()],Re.prototype,"_patternMode",void 0),e([ge()],Re.prototype,"_colorPalette",void 0),e([ge()],Re.prototype,"_selectedPaletteIndex",void 0),e([ge()],Re.prototype,"_gradientColors",void 0),e([ge()],Re.prototype,"_blockColors",void 0),e([ge()],Re.prototype,"_expandBlocks",void 0),e([ge()],Re.prototype,"_editingColorSource",void 0),e([ge()],Re.prototype,"_editingColorIndex",void 0),e([ge()],Re.prototype,"_editingColor",void 0),Re=e([le("pattern-editor")],Re);const Ge=[{value:"once",label:"Run Once"},{value:"loop",label:"Loop N Times"},{value:"continuous",label:"Continuous Loop"}],We=[{value:"maintain",label:"Stay at Last Step"},{value:"turn_off",label:"Turn Off Light"}];let Ve=class extends ne{constructor(){super(...arguments),this.editMode=!1,this.hasSelectedEntities=!1,this.selectedEntities=[],this.previewActive=!1,this._name="",this._icon="",this._steps=[],this._loopMode="once",this._loopCount=3,this._endBehavior="maintain",this._saving=!1,this._previewing=!1}connectedCallback(){super.connectedCallback(),0!==this._steps.length||this.preset||this._addDefaultStep()}updated(e){super.updated(e),e.has("preset")&&this.preset&&this._loadPreset(this.preset)}_loadPreset(e){this._name=e.name,this._icon=e.icon||"",this._loopMode=e.loop_mode,this._loopCount=e.loop_count||3,this._endBehavior=e.end_behavior,this._steps=e.steps.map((e,t)=>({...e,id:`step-${t}-${Date.now()}`}))}_addDefaultStep(){this._steps=[{id:`step-0-${Date.now()}`,color_temp:4e3,brightness:50,transition:2,hold:5}]}_generateStepId(){return`step-${this._steps.length}-${Date.now()}`}_handleNameChange(e){this._name=e.detail.value||""}_handleIconChange(e){this._icon=e.detail.value||""}_handleLoopModeChange(e){this._loopMode=e.detail.value||"once"}_handleLoopCountChange(e){this._loopCount=e.detail.value||3}_handleEndBehaviorChange(e){this._endBehavior=e.detail.value||"maintain"}_hasIncompatibleEndpoints(){if(!this.hass||!this.selectedEntities.length)return!1;for(const e of this.selectedEntities){const t=this.hass.states[e];if(!t)continue;const s=t.attributes.supported_color_modes;if(!s||!s.includes("color_temp"))return!0}return!1}_handleStepFieldChange(e,t,s){this._steps=this._steps.map(i=>i.id===e?{...i,[t]:s.detail.value}:i)}_handleStepColorTempChange(e,t){const s=t.detail.value,i=100*Math.round(1e6/s/100);this._steps=this._steps.map(t=>t.id===e?{...t,color_temp:i}:t)}_addStep(){if(this._steps.length>=20)return;const e={id:this._generateStepId(),color_temp:4e3,brightness:50,transition:2,hold:5};this._steps=[...this._steps,e]}_removeStep(e){this._steps.length<=1||(this._steps=this._steps.filter(t=>t.id!==e))}_moveStepUp(e){if(e<=0)return;const t=[...this._steps],s=t[e-1];t[e-1]=t[e],t[e]=s,this._steps=t}_moveStepDown(e){if(e>=this._steps.length-1)return;const t=[...this._steps],s=t[e];t[e]=t[e+1],t[e+1]=s,this._steps=t}_duplicateStep(e){if(this._steps.length>=20)return;const t={...e,id:this._generateStepId()},s=this._steps.findIndex(t=>t.id===e.id),i=[...this._steps];i.splice(s+1,0,t),this._steps=i}_getPresetData(){const e=this._steps.map(({id:e,...t})=>t),t={name:this._name,icon:this._icon||void 0,steps:e,loop_mode:this._loopMode,end_behavior:this._endBehavior};return"loop"===this._loopMode&&(t.loop_count=this._loopCount),t}async _preview(){if(this.hass&&!this._previewing){this._previewing=!0;try{this.dispatchEvent(new CustomEvent("preview",{detail:this._getPresetData(),bubbles:!0,composed:!0}))}finally{this._previewing=!1}}}_stopPreview(){this.dispatchEvent(new CustomEvent("stop-preview",{bubbles:!0,composed:!0}))}async _save(){if(this._name.trim()&&0!==this._steps.length){this._saving=!0;try{this.dispatchEvent(new CustomEvent("save",{detail:this._getPresetData(),bubbles:!0,composed:!0}))}finally{this._saving=!1}}}_cancel(){this.dispatchEvent(new CustomEvent("cancel",{bubbles:!0,composed:!0}))}_renderStep(e,t){return j`
+      <div class="step-item">
+        <div class="step-header">
+          <span class="step-number">Step ${t+1}</span>
+          <div class="step-actions">
+            <ha-icon-button
+              @click=${()=>this._moveStepUp(t)}
+              .disabled=${0===t}
+              title="Move up"
+            >
+              <ha-icon icon="mdi:arrow-up"></ha-icon>
+            </ha-icon-button>
+            <ha-icon-button
+              @click=${()=>this._moveStepDown(t)}
+              .disabled=${t===this._steps.length-1}
+              title="Move down"
+            >
+              <ha-icon icon="mdi:arrow-down"></ha-icon>
+            </ha-icon-button>
+            <ha-icon-button
+              @click=${()=>this._duplicateStep(e)}
+              .disabled=${this._steps.length>=20}
+              title="Duplicate"
+            >
+              <ha-icon icon="mdi:content-copy"></ha-icon>
+            </ha-icon-button>
+            <ha-icon-button
+              @click=${()=>this._removeStep(e.id)}
+              .disabled=${this._steps.length<=1}
+              title="Remove"
+            >
+              <ha-icon icon="mdi:delete"></ha-icon>
+            </ha-icon-button>
+          </div>
+        </div>
+        <div class="step-fields">
+          <div class="step-field">
+            <span class="step-field-label">Color Temperature (${e.color_temp}K)</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{color_temp:{min_mireds:153,max_mireds:370}}}
+              .value=${Math.round(1e6/e.color_temp)}
+              @value-changed=${t=>this._handleStepColorTempChange(e.id,t)}
+            ></ha-selector>
+          </div>
+          <div class="step-field">
+            <span class="step-field-label">Brightness (%)</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{number:{min:1,max:100,mode:"slider",unit_of_measurement:"%"}}}
+              .value=${e.brightness}
+              @value-changed=${t=>this._handleStepFieldChange(e.id,"brightness",t)}
+            ></ha-selector>
+          </div>
+          <div class="step-field">
+            <span class="step-field-label">Transition Time (seconds)</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{number:{min:0,max:60,step:.5,mode:"box",unit_of_measurement:"s"}}}
+              .value=${e.transition}
+              @value-changed=${t=>this._handleStepFieldChange(e.id,"transition",t)}
+            ></ha-selector>
+          </div>
+          <div class="step-field">
+            <span class="step-field-label">Hold Time (seconds)</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{number:{min:0,max:300,step:1,mode:"box",unit_of_measurement:"s"}}}
+              .value=${e.hold}
+              @value-changed=${t=>this._handleStepFieldChange(e.id,"hold",t)}
+            ></ha-selector>
+          </div>
+        </div>
+      </div>
+    `}render(){return j`
+      <div class="editor-content">
+        <div class="form-row-pair">
+          <div class="form-field">
+            <span class="form-label">Name</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{text:{}}}
+              .value=${this._name}
+              @value-changed=${this._handleNameChange}
+            ></ha-selector>
+          </div>
+          <div class="form-field">
+            <span class="form-label">Icon</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{icon:{}}}
+              .value=${this._icon}
+              @value-changed=${this._handleIconChange}
+            ></ha-selector>
+          </div>
+        </div>
+
+        <div class="form-row-pair">
+          <div class="form-field">
+            <span class="form-label">Loop Mode</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{select:{options:Ge,mode:"dropdown"}}}
+              .value=${this._loopMode}
+              @value-changed=${this._handleLoopModeChange}
+            ></ha-selector>
+          </div>
+          <div class="form-field">
+            <span class="form-label">End Behavior</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{select:{options:We,mode:"dropdown"}}}
+              .value=${this._endBehavior}
+              @value-changed=${this._handleEndBehaviorChange}
+            ></ha-selector>
+          </div>
+        </div>
+
+        ${"loop"===this._loopMode?j`
+              <div class="form-row">
+                <span class="form-label">Loop Count</span>
+                <div class="form-input">
                   <ha-selector
                     .hass=${this.hass}
-                    .selector=${{boolean:{}}}
-                    .value=${this._useCustomBrightness}
-                    @value-changed=${this._handleCustomBrightnessToggle}
+                    .selector=${{number:{min:1,max:100,mode:"box"}}}
+                    .value=${this._loopCount}
+                    @value-changed=${this._handleLoopCountChange}
                   ></ha-selector>
                 </div>
               </div>
+            `:""}
 
-              ${this._useCustomBrightness?B`
-                    <div class="control-row">
-                      <span class="control-label">Brightness</span>
-                      <div class="control-input">
-                        <ha-selector
-                          .hass=${this.hass}
-                          .selector=${{number:{min:1,max:100,mode:"slider",unit_of_measurement:"%"}}}
-                          .value=${this._brightness}
-                          @value-changed=${this._handleBrightnessChange}
-                        ></ha-selector>
+        <div class="form-section">
+          <span class="form-label">Steps (1-20)</span>
+          <div class="step-list">
+            ${0===this._steps.length?j`
+                  <div class="empty-steps">
+                    No steps defined. Click "Add Step" to create your first step.
+                  </div>
+                `:this._steps.map((e,t)=>this._renderStep(e,t))}
+
+            <button
+              class="add-step-btn ${this._steps.length>=20?"disabled":""}"
+              @click=${this._addStep}
+              ?disabled=${this._steps.length>=20}
+            >
+              <ha-icon icon="mdi:plus"></ha-icon>
+              Add Step
+            </button>
+          </div>
+        </div>
+
+        ${this._hasIncompatibleEndpoints()?j`
+              <div class="error-warning">
+                <ha-icon icon="mdi:alert-circle"></ha-icon>
+                <span>One or more selected lights do not support color temperature control. CCT sequences require lights with color_temp capability. For T1M devices, select the white/CCT endpoint instead of the RGB ring endpoint.</span>
+              </div>
+            `:""}
+
+        ${this.hasSelectedEntities?"":j`
+              <div class="preview-warning">
+                <ha-icon icon="mdi:information"></ha-icon>
+                <span>Select light entities in the Activate tab to preview sequences on your devices.</span>
+              </div>
+            `}
+
+        <div class="form-actions">
+          <ha-button @click=${this._cancel}>Cancel</ha-button>
+          ${this.previewActive?j`
+                <ha-button @click=${this._stopPreview}>
+                  <ha-icon icon="mdi:stop"></ha-icon>
+                  Stop
+                </ha-button>
+              `:j`
+                <ha-button
+                  @click=${this._preview}
+                  .disabled=${this._previewing||0===this._steps.length||!this.hasSelectedEntities||this._hasIncompatibleEndpoints()}
+                  title=${this.hasSelectedEntities?this._hasIncompatibleEndpoints()?"Selected light does not support color temperature":"":"Select entities in Activate tab first"}
+                >
+                  <ha-icon icon="mdi:play"></ha-icon>
+                  Preview
+                </ha-button>
+              `}
+          <ha-button
+            @click=${this._save}
+            .disabled=${!this._name.trim()||0===this._steps.length||this._saving}
+          >
+            <ha-icon icon="mdi:content-save"></ha-icon>
+            ${this.editMode?"Update":"Save"}
+          </ha-button>
+        </div>
+      </div>
+    `}};Ve.styles=a`
+    :host {
+      display: block;
+    }
+
+    .editor-content {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .form-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .form-row-pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .form-row-pair .form-field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .form-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .form-section .form-label {
+      min-width: unset;
+    }
+
+    .form-label {
+      font-size: 14px;
+      font-weight: 500;
+      min-width: 120px;
+      color: var(--secondary-text-color);
+    }
+
+    .form-input {
+      flex: 1;
+    }
+
+    .step-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .step-item {
+      background: var(--card-background-color);
+      border: 1px solid var(--divider-color);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .step-number {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--primary-color);
+    }
+
+    .step-actions {
+      display: flex;
+      gap: 4px;
+    }
+
+    .step-actions ha-icon-button {
+      --mdc-icon-button-size: 32px;
+      --mdc-icon-size: 18px;
+    }
+
+    .step-fields {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+    }
+
+    .step-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .step-field-label {
+      font-size: 12px;
+      color: var(--secondary-text-color);
+    }
+
+    .add-step-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px;
+      border: 2px dashed var(--divider-color);
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--secondary-text-color);
+      transition: all 0.2s ease;
+      background: transparent;
+    }
+
+    .add-step-btn:hover {
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+      background: var(--secondary-background-color);
+    }
+
+    .add-step-btn.disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid var(--divider-color);
+    }
+
+    .preview-warning {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--secondary-background-color);
+      color: var(--secondary-text-color);
+      border: 1px solid var(--divider-color);
+      border-left: 4px solid var(--warning-color, #ffc107);
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    .preview-warning ha-icon {
+      flex-shrink: 0;
+      --mdc-icon-size: 18px;
+    }
+
+    .error-warning {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--secondary-background-color);
+      color: var(--secondary-text-color);
+      border: 1px solid var(--divider-color);
+      border-left: 4px solid var(--error-color, #db4437);
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    .error-warning ha-icon {
+      flex-shrink: 0;
+      --mdc-icon-size: 18px;
+    }
+
+    .empty-steps {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--secondary-text-color);
+      background: var(--card-background-color);
+      border-radius: 8px;
+      border: 2px dashed var(--divider-color);
+    }
+
+    @media (max-width: 600px) {
+      .form-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .form-row-pair {
+        grid-template-columns: 1fr;
+      }
+
+      .form-label {
+        min-width: unset;
+        margin-bottom: 4px;
+      }
+
+      .step-fields {
+        grid-template-columns: 1fr;
+      }
+    }
+  `,e([pe({attribute:!1})],Ve.prototype,"hass",void 0),e([pe({type:Object})],Ve.prototype,"preset",void 0),e([pe({type:Boolean})],Ve.prototype,"editMode",void 0),e([pe({type:Boolean})],Ve.prototype,"hasSelectedEntities",void 0),e([pe({type:Array})],Ve.prototype,"selectedEntities",void 0),e([pe({type:Boolean})],Ve.prototype,"previewActive",void 0),e([ge()],Ve.prototype,"_name",void 0),e([ge()],Ve.prototype,"_icon",void 0),e([ge()],Ve.prototype,"_steps",void 0),e([ge()],Ve.prototype,"_loopMode",void 0),e([ge()],Ve.prototype,"_loopCount",void 0),e([ge()],Ve.prototype,"_endBehavior",void 0),e([ge()],Ve.prototype,"_saving",void 0),e([ge()],Ve.prototype,"_previewing",void 0),Ve=e([le("cct-sequence-editor")],Ve);const Ke=[{value:"once",label:"Run Once"},{value:"count",label:"Loop N Times"},{value:"continuous",label:"Continuous Loop"}],Ye=[{value:"maintain",label:"Stay at Last Step"},{value:"turn_off",label:"Turn Off Light"}],Je=[{value:"blocks_repeat",label:"Blocks (Repeat)"},{value:"blocks_expand",label:"Blocks (Expand)"},{value:"gradient",label:"Gradient"}],Ze=[{value:"all",label:"All at Once"},{value:"sequential_forward",label:"Sequential Forward"},{value:"sequential_reverse",label:"Sequential Reverse"},{value:"random",label:"Random"},{value:"ping_pong",label:"Ping Pong"},{value:"center_out",label:"Center Out"},{value:"edges_in",label:"Edges In"},{value:"paired",label:"Paired"}],Qe={t1:"T1 (20 segments)",t1m:"T1M (26 segments)",t1_strip:"T1 Strip (up to 50 segments)"};let Xe=class extends ne{constructor(){super(...arguments),this.editMode=!1,this.hasSelectedEntities=!1,this.previewActive=!1,this._name="",this._icon="",this._deviceType="t1m",this._steps=[],this._loopMode="once",this._loopCount=3,this._endBehavior="maintain",this._clearSegments=!1,this._skipFirstInLoop=!1,this._saving=!1,this._previewing=!1,this._editingStepId=null,this._editingColorIndex=null,this._editingColor=null}connectedCallback(){super.connectedCallback(),0!==this._steps.length||this.preset||this._addDefaultStep()}updated(e){super.updated(e),e.has("preset")&&this.preset&&this._loadPreset(this.preset)}_loadPreset(e){this._name=e.name,this._icon=e.icon||"",this._deviceType=e.device_type||"t1m",this._loopMode=e.loop_mode,this._loopCount=e.loop_count||3,this._endBehavior=e.end_behavior,this._clearSegments=e.clear_segments||!1,this._skipFirstInLoop=e.skip_first_in_loop||!1,this._steps=e.steps.map((e,t)=>({...e,id:`step-${t}-${Date.now()}`,colorsArray:e.colors.map(e=>{const t={r:e[0]??0,g:e[1]??0,b:e[2]??0};return Te(t.r,t.g,t.b)})}))}_addDefaultStep(){this._steps=[{id:`step-0-${Date.now()}`,segments:"1-5",colors:[[255,0,0]],colorsArray:[{x:.68,y:.31}],mode:"blocks_expand",duration:2,hold:3,activation_pattern:"all"}]}_generateStepId(){return`step-${this._steps.length}-${Date.now()}`}_handleNameChange(e){this._name=e.detail.value||""}_handleIconChange(e){this._icon=e.detail.value||""}_handleDeviceTypeChange(e){this._deviceType=e.detail.value||"t1m"}_handleLoopModeChange(e){this._loopMode=e.detail.value||"once"}_handleLoopCountChange(e){this._loopCount=e.detail.value||3}_handleEndBehaviorChange(e){this._endBehavior=e.detail.value||"maintain"}_handleClearSegmentsChange(e){this._clearSegments=e.target.checked}_handleSkipFirstInLoopChange(e){this._skipFirstInLoop=e.target.checked}_hasInvalidGradientSteps(){return this._steps.some(e=>"gradient"===e.mode&&e.colorsArray.length<2)}_handleStepFieldChange(e,t,s){this._steps=this._steps.map(i=>i.id===e?{...i,[t]:s.detail.value}:i)}_openStepColorPicker(e,t){const s=this._steps.find(t=>t.id===e);if(!s)return;const i=s.colorsArray[t];i&&(this._editingStepId=e,this._editingColorIndex=t,this._editingColor=Ie(i))}_handleColorPickerChange(e){this._editingColor=e.detail.color}_confirmColorPicker(){if(null===this._editingStepId||null===this._editingColorIndex||null===this._editingColor)return void this._closeColorPicker();const e=Ue(this._editingColor),t=this._editingStepId,s=this._editingColorIndex;this._steps=this._steps.map(i=>{if(i.id!==t)return i;const o=i.colorsArray.map((t,i)=>i===s?e:t),r=o.map(e=>{const t=Ae(e.x,e.y,255);return[t.r,t.g,t.b]});return{...i,colorsArray:o,colors:r}}),this._closeColorPicker()}_closeColorPicker(){this._editingStepId=null,this._editingColorIndex=null,this._editingColor=null}_addStepColor(e){this._steps=this._steps.map(t=>{if(t.id!==e||t.colorsArray.length>=8)return t;const s=[...t.colorsArray,{x:.3127,y:.329}],i=s.map(e=>{const t=Ae(e.x,e.y,255);return[t.r,t.g,t.b]});return{...t,colorsArray:s,colors:i}})}_removeStepColor(e,t){this._steps=this._steps.map(s=>{if(s.id!==e||s.colorsArray.length<=1)return s;const i=s.colorsArray.filter((e,s)=>s!==t),o=i.map(e=>{const t=Ae(e.x,e.y,255);return[t.r,t.g,t.b]});return{...s,colorsArray:i,colors:o}})}_addStep(){if(this._steps.length>=20)return;const e={id:this._generateStepId(),segments:"1-5",colors:[[255,0,0]],colorsArray:[{x:.68,y:.31}],mode:"blocks_expand",duration:2,hold:3,activation_pattern:"all"};this._steps=[...this._steps,e]}_removeStep(e){this._steps.length<=1||(this._steps=this._steps.filter(t=>t.id!==e))}_moveStepUp(e){if(e<=0)return;const t=[...this._steps],s=t[e-1];t[e-1]=t[e],t[e]=s,this._steps=t}_moveStepDown(e){if(e>=this._steps.length-1)return;const t=[...this._steps],s=t[e];t[e]=t[e+1],t[e+1]=s,this._steps=t}_duplicateStep(e){if(this._steps.length>=20)return;const t={...e,id:this._generateStepId(),colorsArray:e.colorsArray.map(e=>({...e})),colors:e.colors.map(e=>[...e])},s=this._steps.findIndex(t=>t.id===e.id),i=[...this._steps];i.splice(s+1,0,t),this._steps=i}_getPresetData(){const e=this._steps.map(({id:e,colorsArray:t,...s})=>({...s,colors:t.map(e=>{const t=Ae(e.x,e.y,255);return[t.r,t.g,t.b]})})),t={name:this._name,icon:this._icon||void 0,device_type:this._deviceType,steps:e,loop_mode:this._loopMode,end_behavior:this._endBehavior,clear_segments:this._clearSegments,skip_first_in_loop:this._skipFirstInLoop};return"count"===this._loopMode&&(t.loop_count=this._loopCount),t}_colorToHex(e){return ze(e,255)}async _preview(){if(this.hass&&!this._previewing){this._previewing=!0;try{this.dispatchEvent(new CustomEvent("preview",{detail:this._getPresetData(),bubbles:!0,composed:!0}))}finally{this._previewing=!1}}}_stopPreview(){this.dispatchEvent(new CustomEvent("stop-preview",{bubbles:!0,composed:!0}))}async _save(){if(this._name.trim()&&0!==this._steps.length){this._saving=!0;try{this.dispatchEvent(new CustomEvent("save",{detail:this._getPresetData(),bubbles:!0,composed:!0}))}finally{this._saving=!1}}}_cancel(){this.dispatchEvent(new CustomEvent("cancel",{bubbles:!0,composed:!0}))}_renderStep(e,t){return j`
+      <div class="step-item">
+        <div class="step-header">
+          <span class="step-number">Step ${t+1}</span>
+          <div class="step-actions">
+            <ha-icon-button
+              @click=${()=>this._moveStepUp(t)}
+              .disabled=${0===t}
+              title="Move up"
+            >
+              <ha-icon icon="mdi:arrow-up"></ha-icon>
+            </ha-icon-button>
+            <ha-icon-button
+              @click=${()=>this._moveStepDown(t)}
+              .disabled=${t===this._steps.length-1}
+              title="Move down"
+            >
+              <ha-icon icon="mdi:arrow-down"></ha-icon>
+            </ha-icon-button>
+            <ha-icon-button
+              @click=${()=>this._duplicateStep(e)}
+              .disabled=${this._steps.length>=20}
+              title="Duplicate"
+            >
+              <ha-icon icon="mdi:content-copy"></ha-icon>
+            </ha-icon-button>
+            <ha-icon-button
+              @click=${()=>this._removeStep(e.id)}
+              .disabled=${this._steps.length<=1}
+              title="Remove"
+            >
+              <ha-icon icon="mdi:delete"></ha-icon>
+            </ha-icon-button>
+          </div>
+        </div>
+        <div class="step-fields">
+          <div class="step-field">
+            <span class="step-field-label">Segments (e.g., 1-5, 10, 15-20)</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{text:{}}}
+              .value=${e.segments}
+              @value-changed=${t=>this._handleStepFieldChange(e.id,"segments",t)}
+            ></ha-selector>
+          </div>
+          <div class="step-field">
+            <span class="step-field-label">Mode</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{select:{options:Je,mode:"dropdown"}}}
+              .value=${e.mode}
+              @value-changed=${t=>this._handleStepFieldChange(e.id,"mode",t)}
+            ></ha-selector>
+          </div>
+          <div class="step-field">
+            <span class="step-field-label">Activation Pattern</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{select:{options:Ze,mode:"dropdown"}}}
+              .value=${e.activation_pattern}
+              @value-changed=${t=>this._handleStepFieldChange(e.id,"activation_pattern",t)}
+            ></ha-selector>
+          </div>
+          <div class="step-field">
+            <span class="step-field-label">Duration (seconds)</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{number:{min:0,max:60,step:.5,mode:"box",unit_of_measurement:"s"}}}
+              .value=${e.duration}
+              @value-changed=${t=>this._handleStepFieldChange(e.id,"duration",t)}
+            ></ha-selector>
+          </div>
+          <div class="step-field">
+            <span class="step-field-label">Hold Time (seconds)</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{number:{min:0,max:300,step:1,mode:"box",unit_of_measurement:"s"}}}
+              .value=${e.hold}
+              @value-changed=${t=>this._handleStepFieldChange(e.id,"hold",t)}
+            ></ha-selector>
+          </div>
+          <div class="step-field full-width">
+            <span class="step-field-label">Colors (1-8)</span>
+            <div class="color-picker-grid">
+              ${e.colorsArray.map((t,s)=>j`
+                  <div class="color-item">
+                    <div
+                      class="color-swatch"
+                      style="background-color: ${this._colorToHex(t)}"
+                      @click=${()=>this._openStepColorPicker(e.id,s)}
+                      title="Click to edit color"
+                    ></div>
+                    ${e.colorsArray.length>1?j`
+                          <ha-icon-button
+                            class="color-remove"
+                            @click=${()=>this._removeStepColor(e.id,s)}
+                            title="Remove color"
+                          >
+                            <ha-icon icon="mdi:close"></ha-icon>
+                          </ha-icon-button>
+                        `:""}
+                  </div>
+                `)}
+              ${e.colorsArray.length<8?j`
+                    <div
+                      class="add-color-btn"
+                      @click=${()=>this._addStepColor(e.id)}
+                      title="Add color"
+                    >
+                      <ha-icon icon="mdi:plus"></ha-icon>
+                    </div>
+                  `:""}
+            </div>
+          </div>
+        </div>
+      </div>
+    `}render(){const e=Object.entries(Qe).map(([e,t])=>({value:e,label:t}));return j`
+      <div class="editor-content">
+        <div class="form-row-triple">
+          <div class="form-field">
+            <span class="form-label">Name</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{text:{}}}
+              .value=${this._name}
+              @value-changed=${this._handleNameChange}
+            ></ha-selector>
+          </div>
+          <div class="form-field">
+            <span class="form-label">Icon</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{icon:{}}}
+              .value=${this._icon}
+              @value-changed=${this._handleIconChange}
+            ></ha-selector>
+          </div>
+          <div class="form-field">
+            <span class="form-label">Device Type</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{select:{options:e,mode:"dropdown"}}}
+              .value=${this._deviceType}
+              @value-changed=${this._handleDeviceTypeChange}
+            ></ha-selector>
+          </div>
+        </div>
+
+        <div class="form-row-pair">
+          <div class="form-field">
+            <span class="form-label">Loop Mode</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{select:{options:Ke,mode:"dropdown"}}}
+              .value=${this._loopMode}
+              @value-changed=${this._handleLoopModeChange}
+            ></ha-selector>
+          </div>
+          <div class="form-field">
+            <span class="form-label">End Behavior</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{select:{options:Ye,mode:"dropdown"}}}
+              .value=${this._endBehavior}
+              @value-changed=${this._handleEndBehaviorChange}
+            ></ha-selector>
+          </div>
+        </div>
+
+        <div class="form-section toggle-row">
+          <div class="toggle-item">
+            <span class="toggle-label">Clear Segments</span>
+            <ha-switch
+              .checked=${this._clearSegments}
+              @change=${this._handleClearSegmentsChange}
+            ></ha-switch>
+          </div>
+          <div class="toggle-item">
+            <span class="toggle-label">Skip First Step in Loop</span>
+            <ha-switch
+              .checked=${this._skipFirstInLoop}
+              @change=${this._handleSkipFirstInLoopChange}
+            ></ha-switch>
+          </div>
+        </div>
+
+        ${"loop"===this._loopMode?j`
+              <div class="form-row">
+                <span class="form-label">Loop Count</span>
+                <div class="form-input">
+                  <ha-selector
+                    .hass=${this.hass}
+                    .selector=${{number:{min:1,max:100,mode:"box"}}}
+                    .value=${this._loopCount}
+                    @value-changed=${this._handleLoopCountChange}
+                  ></ha-selector>
+                </div>
+              </div>
+            `:""}
+
+        <div class="form-section">
+          <span class="form-label">Steps (1-20)</span>
+          <div class="step-list">
+            ${0===this._steps.length?j`
+                  <div class="empty-steps">
+                    No steps defined. Click "Add Step" to create your first step.
+                  </div>
+                `:this._steps.map((e,t)=>this._renderStep(e,t))}
+
+            <button
+              class="add-step-btn ${this._steps.length>=20?"disabled":""}"
+              @click=${this._addStep}
+              ?disabled=${this._steps.length>=20}
+            >
+              <ha-icon icon="mdi:plus"></ha-icon>
+              Add Step
+            </button>
+          </div>
+        </div>
+
+        ${this._hasInvalidGradientSteps()?j`
+              <div class="error-warning">
+                <ha-icon icon="mdi:alert-circle"></ha-icon>
+                <span>Gradient mode requires at least 2 colors. Please add more colors to steps using gradient mode or change the mode.</span>
+              </div>
+            `:""}
+
+        ${this.hasSelectedEntities?"":j`
+              <div class="preview-warning">
+                <ha-icon icon="mdi:information"></ha-icon>
+                <span>Select light entities in the Activate tab to preview sequences on your devices.</span>
+              </div>
+            `}
+
+        <div class="form-actions">
+          <ha-button @click=${this._cancel}>Cancel</ha-button>
+          ${this.previewActive?j`
+                <ha-button @click=${this._stopPreview}>
+                  <ha-icon icon="mdi:stop"></ha-icon>
+                  Stop
+                </ha-button>
+              `:j`
+                <ha-button
+                  @click=${this._preview}
+                  .disabled=${this._previewing||0===this._steps.length||!this.hasSelectedEntities||this._hasInvalidGradientSteps()}
+                  title=${this.hasSelectedEntities?this._hasInvalidGradientSteps()?"Fix gradient validation errors first":"":"Select entities in Activate tab first"}
+                >
+                  <ha-icon icon="mdi:play"></ha-icon>
+                  Preview
+                </ha-button>
+              `}
+          <ha-button
+            @click=${this._save}
+            .disabled=${!this._name.trim()||0===this._steps.length||this._saving||this._hasInvalidGradientSteps()}
+          >
+            <ha-icon icon="mdi:content-save"></ha-icon>
+            ${this.editMode?"Update":"Save"}
+          </ha-button>
+        </div>
+
+        ${null!==this._editingStepId&&null!==this._editingColor?j`
+              <div class="color-picker-modal-overlay" @click=${this._closeColorPicker}>
+                <div class="color-picker-modal" @click=${e=>e.stopPropagation()}>
+                  <div class="color-picker-modal-header">
+                    <span class="color-picker-modal-title">Select color</span>
+                    <div
+                      class="color-picker-modal-preview"
+                      style="background-color: ${this._editingColor?`hsl(${this._editingColor.h}, ${this._editingColor.s}%, 50%)`:"#fff"}"
+                    ></div>
+                  </div>
+                  <hs-color-picker
+                    .color=${this._editingColor}
+                    .size=${220}
+                    @color-changed=${this._handleColorPickerChange}
+                  ></hs-color-picker>
+                  <div class="color-picker-modal-actions">
+                    <ha-button @click=${this._closeColorPicker}>Cancel</ha-button>
+                    <ha-button @click=${this._confirmColorPicker}>
+                      <ha-icon icon="mdi:check"></ha-icon>
+                      Apply
+                    </ha-button>
+                  </div>
+                </div>
+              </div>
+            `:""}
+      </div>
+    `}};Xe.styles=[Ee,a`
+    :host {
+      display: block;
+    }
+
+    .editor-content {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .form-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .form-row-pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .form-row-triple {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .form-row-pair .form-field,
+    .form-row-triple .form-field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .form-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .form-section.toggle-row {
+      flex-direction: row;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    .toggle-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toggle-label {
+      font-size: 14px;
+      color: var(--secondary-text-color);
+    }
+
+    .form-section .form-label {
+      min-width: unset;
+    }
+
+    .form-label {
+      font-size: 14px;
+      font-weight: 500;
+      min-width: 120px;
+      color: var(--secondary-text-color);
+    }
+
+    .form-input {
+      flex: 1;
+    }
+
+    .step-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .step-item {
+      background: var(--card-background-color);
+      border: 1px solid var(--divider-color);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .step-number {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--primary-color);
+    }
+
+    .step-actions {
+      display: flex;
+      gap: 4px;
+    }
+
+    .step-actions ha-icon-button {
+      --mdc-icon-button-size: 32px;
+      --mdc-icon-size: 18px;
+    }
+
+    .step-fields {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+
+    .step-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .step-field-label {
+      font-size: 12px;
+      color: var(--secondary-text-color);
+    }
+
+    .step-field.full-width {
+      grid-column: 1 / -1;
+    }
+
+    /* Color picker styles (color-picker-grid, color-item, color-swatch,
+       color-picker-modal, color-remove, add-color-btn) are inherited
+       from panelStyles (styles.ts) */
+
+    .add-step-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px;
+      border: 2px dashed var(--divider-color);
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--secondary-text-color);
+      transition: all 0.2s ease;
+      background: transparent;
+    }
+
+    .add-step-btn:hover {
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+      background: var(--secondary-background-color);
+    }
+
+    .add-step-btn.disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid var(--divider-color);
+    }
+
+    .preview-warning {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--secondary-background-color);
+      color: var(--secondary-text-color);
+      border: 1px solid var(--divider-color);
+      border-left: 4px solid var(--warning-color, #ffc107);
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    .preview-warning ha-icon {
+      flex-shrink: 0;
+      --mdc-icon-size: 18px;
+    }
+
+    .error-warning {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--secondary-background-color);
+      color: var(--secondary-text-color);
+      border: 1px solid var(--divider-color);
+      border-left: 4px solid var(--error-color, #db4437);
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    .error-warning ha-icon {
+      flex-shrink: 0;
+      --mdc-icon-size: 18px;
+    }
+
+    .empty-steps {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--secondary-text-color);
+      background: var(--card-background-color);
+      border-radius: 8px;
+      border: 2px dashed var(--divider-color);
+    }
+
+    @media (max-width: 600px) {
+      .form-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .form-row-pair,
+      .form-row-triple {
+        grid-template-columns: 1fr;
+      }
+
+      .form-label {
+        min-width: unset;
+        margin-bottom: 4px;
+      }
+
+      .step-fields {
+        grid-template-columns: 1fr;
+      }
+    }
+  `],e([pe({attribute:!1})],Xe.prototype,"hass",void 0),e([pe({type:Object})],Xe.prototype,"preset",void 0),e([pe({type:Boolean})],Xe.prototype,"editMode",void 0),e([pe({type:Boolean})],Xe.prototype,"hasSelectedEntities",void 0),e([pe({type:Boolean})],Xe.prototype,"previewActive",void 0),e([ge()],Xe.prototype,"_name",void 0),e([ge()],Xe.prototype,"_icon",void 0),e([ge()],Xe.prototype,"_deviceType",void 0),e([ge()],Xe.prototype,"_steps",void 0),e([ge()],Xe.prototype,"_loopMode",void 0),e([ge()],Xe.prototype,"_loopCount",void 0),e([ge()],Xe.prototype,"_endBehavior",void 0),e([ge()],Xe.prototype,"_clearSegments",void 0),e([ge()],Xe.prototype,"_skipFirstInLoop",void 0),e([ge()],Xe.prototype,"_saving",void 0),e([ge()],Xe.prototype,"_previewing",void 0),e([ge()],Xe.prototype,"_editingStepId",void 0),e([ge()],Xe.prototype,"_editingColorIndex",void 0),e([ge()],Xe.prototype,"_editingColor",void 0),Xe=e([le("segment-sequence-editor")],Xe);let et=class extends ne{constructor(){super(...arguments),this.narrow=!1,this._loading=!0,this._selectedEntities=[],this._brightness=100,this._useCustomBrightness=!1,this._collapsed={},this._hasIncompatibleLights=!1,this._favorites=[],this._showFavoriteInput=!1,this._favoriteInputName="",this._activeTab="activate",this._effectPreviewActive=!1,this._cctPreviewActive=!1,this._segmentSequencePreviewActive=!1,this._sortPreferences={effects:"name-asc",patterns:"name-asc",cct:"name-asc",segments:"name-asc"},this._tileCardRef=new Ce,this._tileCards=new Map}firstUpdated(){this._loadPresets(),this._loadFavorites(),this._loadUserPresets(),this._loadSortPreferences()}updated(e){super.updated(e),e.has("hass")&&void 0===e.get("hass")&&(this._loadPresets(),this._loadFavorites(),this._loadUserPresets()),this._updateTileCard()}async _updateTileCard(){const e=this._tileCardRef.value;if(!e||!this.hass)return void(this._tileCards.size>0&&this._tileCards.clear());if(!this._selectedEntities.length)return this._tileCards.forEach(e=>{e.parentElement&&e.remove()}),void this._tileCards.clear();await customElements.whenDefined("hui-tile-card");const t=new Set(this._selectedEntities);for(const[s,i]of this._tileCards.entries())t.has(s)&&i.parentElement===e||(i.parentElement&&i.remove(),this._tileCards.delete(s));for(const t of this._selectedEntities){let s=this._tileCards.get(t);s&&s.parentElement===e||(s=document.createElement("hui-tile-card"),e.appendChild(s),this._tileCards.set(t,s));try{s.setConfig({type:"tile",entity:t,features:[{type:"light-brightness"}]}),s.hass=this.hass}catch(e){console.warn("Failed to configure tile card for",t,":",e)}}}async _loadPresets(){try{const e=await fetch("/api/aqara_advanced_lighting/presets");if(!e.ok)throw new Error(`HTTP error ${e.status}`);this._presets=await e.json(),this._loading=!1}catch(e){this._error=e instanceof Error?e.message:"Failed to load presets",this._loading=!1}}async _loadFavorites(){if(this.hass?.auth?.data?.access_token)try{const e=await fetch("/api/aqara_advanced_lighting/favorites",{credentials:"same-origin",headers:{Authorization:`Bearer ${this.hass.auth.data.access_token}`}});if(!e.ok)return void console.warn("Failed to load favorites:",e.status);const t=await e.json();this._favorites=t.favorites||[]}catch(e){console.warn("Failed to load favorites:",e)}else console.warn("No auth token available, skipping favorites load")}async _loadUserPresets(){if(this.hass?.auth?.data?.access_token)try{const e=await fetch("/api/aqara_advanced_lighting/user_presets",{credentials:"same-origin",headers:{Authorization:`Bearer ${this.hass.auth.data.access_token}`}});if(!e.ok)return void console.warn("Failed to load user presets:",e.status);this._userPresets=await e.json()}catch(e){console.warn("Failed to load user presets:",e)}else console.warn("No auth token available, skipping user presets load")}_loadSortPreferences(){try{const e=localStorage.getItem("aqara_lighting_sort_preferences");if(e){const t=JSON.parse(e);this._sortPreferences={effects:t.effects||"name-asc",patterns:t.patterns||"name-asc",cct:t.cct||"name-asc",segments:t.segments||"name-asc"}}}catch(e){console.warn("Failed to load sort preferences:",e)}}_saveSortPreferences(){try{localStorage.setItem("aqara_lighting_sort_preferences",JSON.stringify(this._sortPreferences))}catch(e){console.warn("Failed to save sort preferences:",e)}}_setSortPreference(e,t){this._sortPreferences={...this._sortPreferences,[e]:t},this._saveSortPreferences()}_sortUserEffectPresets(e,t){const s=[...e];switch(t){case"name-asc":return s.sort((e,t)=>e.name.localeCompare(t.name));case"name-desc":return s.sort((e,t)=>t.name.localeCompare(e.name));case"date-new":return s.sort((e,t)=>new Date(t.created_at).getTime()-new Date(e.created_at).getTime());case"date-old":return s.sort((e,t)=>new Date(e.created_at).getTime()-new Date(t.created_at).getTime());default:return s}}_sortUserPatternPresets(e,t){const s=[...e];switch(t){case"name-asc":return s.sort((e,t)=>e.name.localeCompare(t.name));case"name-desc":return s.sort((e,t)=>t.name.localeCompare(e.name));case"date-new":return s.sort((e,t)=>new Date(t.created_at).getTime()-new Date(e.created_at).getTime());case"date-old":return s.sort((e,t)=>new Date(e.created_at).getTime()-new Date(t.created_at).getTime());default:return s}}_sortUserCCTSequencePresets(e,t){const s=[...e];switch(t){case"name-asc":return s.sort((e,t)=>e.name.localeCompare(t.name));case"name-desc":return s.sort((e,t)=>t.name.localeCompare(e.name));case"date-new":return s.sort((e,t)=>new Date(t.created_at).getTime()-new Date(e.created_at).getTime());case"date-old":return s.sort((e,t)=>new Date(e.created_at).getTime()-new Date(t.created_at).getTime());default:return s}}_sortUserSegmentSequencePresets(e,t){const s=[...e];switch(t){case"name-asc":return s.sort((e,t)=>e.name.localeCompare(t.name));case"name-desc":return s.sort((e,t)=>t.name.localeCompare(e.name));case"date-new":return s.sort((e,t)=>new Date(t.created_at).getTime()-new Date(e.created_at).getTime());case"date-old":return s.sort((e,t)=>new Date(e.created_at).getTime()-new Date(t.created_at).getTime());default:return s}}_sortDynamicEffectPresets(e,t){const s=[...e];switch(t){case"name-asc":case"date-new":case"date-old":default:return s.sort((e,t)=>e.name.localeCompare(t.name));case"name-desc":return s.sort((e,t)=>t.name.localeCompare(e.name))}}_sortSegmentPatternPresets(e,t){const s=[...e];switch(t){case"name-asc":case"date-new":case"date-old":default:return s.sort((e,t)=>e.name.localeCompare(t.name));case"name-desc":return s.sort((e,t)=>t.name.localeCompare(e.name))}}_sortCCTSequencePresets(e,t){const s=[...e];switch(t){case"name-asc":case"date-new":case"date-old":default:return s.sort((e,t)=>e.name.localeCompare(t.name));case"name-desc":return s.sort((e,t)=>t.name.localeCompare(e.name))}}_sortSegmentSequencePresets(e,t){const s=[...e];switch(t){case"name-asc":case"date-new":case"date-old":default:return s.sort((e,t)=>e.name.localeCompare(t.name));case"name-desc":return s.sort((e,t)=>t.name.localeCompare(e.name))}}async _saveUserPreset(e,t){if(this.hass?.auth?.data?.access_token)try{const s=await fetch("/api/aqara_advanced_lighting/user_presets",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json",Authorization:`Bearer ${this.hass.auth.data.access_token}`},body:JSON.stringify({type:e,data:t})});if(!s.ok)throw new Error(`HTTP error ${s.status}`);await this._loadUserPresets()}catch(e){console.error("Failed to save user preset:",e)}else console.error("No auth token available")}async _updateUserPreset(e,t,s){if(this.hass?.auth?.data?.access_token)try{const i=await fetch(`/api/aqara_advanced_lighting/user_presets/${e}/${t}`,{method:"PUT",credentials:"same-origin",headers:{"Content-Type":"application/json",Authorization:`Bearer ${this.hass.auth.data.access_token}`},body:JSON.stringify(s)});if(!i.ok)throw new Error(`HTTP error ${i.status}`);await this._loadUserPresets()}catch(e){console.error("Failed to update user preset:",e)}else console.error("No auth token available")}async _deleteUserPreset(e,t){if(this.hass?.auth?.data?.access_token)try{const s=await fetch(`/api/aqara_advanced_lighting/user_presets/${e}/${t}`,{method:"DELETE",credentials:"same-origin",headers:{Authorization:`Bearer ${this.hass.auth.data.access_token}`}});if(!s.ok&&204!==s.status)throw new Error(`HTTP error ${s.status}`);await this._loadUserPresets()}catch(e){console.error("Failed to delete user preset:",e)}else console.error("No auth token available")}_setActiveTab(e){this._activeTab=e}_handleTabChange(e){const t=e.detail.name;t&&t!==this._activeTab&&(this._activeTab=t)}_addFavorite(){if(!this._selectedEntities.length)return;const e=this._selectedEntities[0],t=1===this._selectedEntities.length&&e?this._getEntityFriendlyName(e):`${this._selectedEntities.length} lights`;this._favoriteInputName=t,this._showFavoriteInput=!0}async _saveFavorite(){if(this._selectedEntities.length&&this.hass?.auth?.data?.access_token){try{const e=await fetch("/api/aqara_advanced_lighting/favorites",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json",Authorization:`Bearer ${this.hass.auth.data.access_token}`},body:JSON.stringify({entities:this._selectedEntities,name:this._favoriteInputName||void 0})});if(!e.ok)throw new Error(`HTTP error ${e.status}`);const t=await e.json();this._favorites=[...this._favorites,t.favorite]}catch(e){console.error("Failed to add favorite:",e)}this._cancelFavoriteInput()}else this._cancelFavoriteInput()}_cancelFavoriteInput(){this._showFavoriteInput=!1,this._favoriteInputName=""}_handleFavoriteNameChange(e){this._favoriteInputName=e.detail.value||""}_handleFavoriteNameKeydown(e){"Enter"===e.key?(e.preventDefault(),this._saveFavorite()):"Escape"===e.key&&(e.preventDefault(),this._cancelFavoriteInput())}async _removeFavorite(e){if(this.hass?.auth?.data?.access_token)try{const t=await fetch(`/api/aqara_advanced_lighting/favorites/${e}`,{method:"DELETE",credentials:"same-origin",headers:{Authorization:`Bearer ${this.hass.auth.data.access_token}`}});if(!t.ok&&204!==t.status)throw new Error(`HTTP error ${t.status}`);this._favorites=this._favorites.filter(t=>t.id!==e)}catch(e){console.error("Failed to remove favorite:",e)}else console.error("No auth token available")}_selectFavorite(e){this._selectedEntities=[...e.entities]}_getEntityFriendlyName(e){if(!this.hass)return e;const t=this.hass.states[e];return t&&t.attributes.friendly_name?t.attributes.friendly_name:e.split(".")[1]?.replace(/_/g," ")||e}_getSelectedDeviceTypes(){if(!this._selectedEntities.length||!this.hass)return this._hasIncompatibleLights=!1,[];const e=new Set;let t=!1;for(const s of this._selectedEntities){const i=this.hass.states[s];if(!i)continue;const o=i.attributes.effect_list;o&&Array.isArray(o)?o.includes("flow1")||o.includes("flow2")||o.includes("rolling")?e.add("t1m"):o.includes("rainbow1")||o.includes("rainbow2")||o.includes("chasing")||o.includes("flicker")||o.includes("dash")?e.add("t1_strip"):o.includes("candlelight")?e.add("t2_bulb"):t=!0:o||void 0===i.attributes.color_temp?t=!0:e.add("t2_cct")}return this._hasIncompatibleLights=t,Array.from(e)}_getT1StripSegmentCount(){if(!this._selectedEntities.length||!this.hass)return 50;for(const e of this._selectedEntities){const t=this.hass.states[e];if(!t)continue;const s=t.attributes.effect_list;if(s&&Array.isArray(s)&&(s.includes("rainbow1")||s.includes("rainbow2")||s.includes("chasing")||s.includes("flicker")||s.includes("dash"))){let s;const i=t.attributes.length;if(i&&"number"==typeof i&&i>0&&(s=i),void 0===s){const t=e.split(".")[1]||"";for(const e of["number","sensor"]){const i=`${e}.${t}_length`,o=this.hass.states[i];if(o&&o.state&&"unknown"!==o.state&&"unavailable"!==o.state){const e=parseFloat(o.state);if(!isNaN(e)&&e>0){s=e;break}}}}if(void 0!==s&&s>0)return Math.round(5*s)}}return 50}_filterPresets(){const e=this._getSelectedDeviceTypes(),t=e.length>0,s=e.includes("t2_bulb"),i=e.includes("t1m"),o=e.includes("t1_strip");return{showDynamicEffects:t&&(s||i||o),showSegmentPatterns:t&&(i||o),showCCTSequences:t,showSegmentSequences:t&&(i||o),t2Presets:s&&this._presets?.dynamic_effects.t2_bulb||[],t1mPresets:i&&this._presets?.dynamic_effects.t1m||[],t1StripPresets:o&&this._presets?.dynamic_effects.t1_strip||[]}}_handleTargetChanged(e){const t=e.detail.value;if(!t)return void(this._selectedEntities=[]);const s=t.entity_id;s?Array.isArray(s)?this._selectedEntities=s:this._selectedEntities=[s]:this._selectedEntities=[]}_handleBrightnessChange(e){this._brightness=e.detail.value}_handleCustomBrightnessToggle(e){this._useCustomBrightness=e.target.checked}_handleExpansionChange(e,t){const s=t.detail.expanded;this._collapsed={...this._collapsed,[e]:!s}}async _activateDynamicEffect(e){if(!this._selectedEntities.length)return;const t={entity_id:this._selectedEntities,preset:e.id,turn_on:!0,sync:!0};this._useCustomBrightness&&(t.brightness=this._brightness),await this.hass.callService("aqara_advanced_lighting","set_dynamic_effect",t)}async _activateSegmentPattern(e){if(!this._selectedEntities.length)return;const t={entity_id:this._selectedEntities,preset:e.id,turn_on:!0,sync:!0};this._useCustomBrightness&&(t.brightness=this._brightness),await this.hass.callService("aqara_advanced_lighting","set_segment_pattern",t)}async _activateCCTSequence(e){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","start_cct_sequence",{entity_id:this._selectedEntities,preset:e.id,turn_on:!0,sync:!0})}async _activateSegmentSequence(e){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","start_segment_sequence",{entity_id:this._selectedEntities,preset:e.id,turn_on:!0,sync:!0})}async _stopEffect(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","stop_effect",{entity_id:this._selectedEntities,restore_state:!0})}async _pauseCCTSequence(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","pause_cct_sequence",{entity_id:this._selectedEntities})}async _resumeCCTSequence(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","resume_cct_sequence",{entity_id:this._selectedEntities})}async _stopCCTSequence(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","stop_cct_sequence",{entity_id:this._selectedEntities})}async _pauseSegmentSequence(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","pause_segment_sequence",{entity_id:this._selectedEntities})}async _resumeSegmentSequence(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","resume_segment_sequence",{entity_id:this._selectedEntities})}async _stopSegmentSequence(){this._selectedEntities.length&&await this.hass.callService("aqara_advanced_lighting","stop_segment_sequence",{entity_id:this._selectedEntities})}_getUserEffectPresetsForDeviceType(e){return this._userPresets?.effect_presets?this._userPresets.effect_presets.filter(t=>!t.device_type||("t1m"===e&&("t1"===t.device_type||"t1m"===t.device_type)||t.device_type===e)):[]}_getFilteredUserPatternPresets(){if(!this._userPresets?.segment_pattern_presets)return[];const e=this._getSelectedDeviceTypes();if(0===e.length)return[];return e.includes("t1m")||e.includes("t1_strip")?this._userPresets.segment_pattern_presets.filter(t=>!t.device_type||("t1"===t.device_type||"t1m"===t.device_type?e.includes("t1m"):e.includes(t.device_type))):[]}_getFilteredUserCCTSequencePresets(){if(!this._userPresets?.cct_sequence_presets)return[];return this._getSelectedDeviceTypes().length>0?this._userPresets.cct_sequence_presets:[]}_getFilteredUserSegmentSequencePresets(){if(!this._userPresets?.segment_sequence_presets)return[];const e=this._getSelectedDeviceTypes();if(0===e.length)return[];return e.includes("t1m")||e.includes("t1_strip")?this._userPresets.segment_sequence_presets.filter(t=>!t.device_type||("t1"===t.device_type||"t1m"===t.device_type?e.includes("t1m"):e.includes(t.device_type))):[]}async _activateUserEffectPreset(e){if(!this._selectedEntities.length)return;const t={entity_id:this._selectedEntities,effect:e.effect,speed:e.effect_speed,turn_on:!0,sync:!0};e.effect_colors.forEach((e,s)=>{s<8&&(t[`color_${s+1}`]={x:e.x,y:e.y})}),void 0!==e.effect_brightness?t.brightness=e.effect_brightness:this._useCustomBrightness&&(t.brightness=this._brightness),e.effect_segments&&(t.segments=e.effect_segments),await this.hass.callService("aqara_advanced_lighting","set_dynamic_effect",t)}async _activateUserPatternPreset(e){if(!this._selectedEntities.length)return;if(!e.segments||!Array.isArray(e.segments)||0===e.segments.length)return void console.warn("Pattern preset has no segments:",e.name);const t=e.segments.filter(e=>e&&e.color).map(e=>({segment:e.segment,color:{r:e.color.r,g:e.color.g,b:e.color.b}}));if(0===t.length)return void console.warn("Pattern preset has no valid segments after filtering:",e.name);const s={entity_id:this._selectedEntities,segment_colors:t,turn_on:!0,sync:!0,turn_off_unspecified:!0};this._useCustomBrightness&&(s.brightness=this._brightness);try{await this.hass.callService("aqara_advanced_lighting","set_segment_pattern",s)}catch(e){console.error("Failed to activate pattern preset:",e)}}async _activateUserCCTSequencePreset(e){if(!this._selectedEntities.length)return;const t={entity_id:this._selectedEntities,loop_mode:e.loop_mode,end_behavior:e.end_behavior,turn_on:!0,sync:!0};"count"===e.loop_mode&&void 0!==e.loop_count&&(t.loop_count=e.loop_count),e.steps.forEach((e,s)=>{const i=s+1;i<=20&&(t[`step_${i}_color_temp`]=e.color_temp,t[`step_${i}_brightness`]=e.brightness,t[`step_${i}_transition`]=e.transition,t[`step_${i}_hold`]=e.hold)}),await this.hass.callService("aqara_advanced_lighting","start_cct_sequence",t)}async _activateUserSegmentSequencePreset(e){if(!this._selectedEntities.length)return;const t={entity_id:this._selectedEntities,loop_mode:e.loop_mode,end_behavior:e.end_behavior,turn_on:!0,sync:!0};"count"===e.loop_mode&&void 0!==e.loop_count&&(t.loop_count=e.loop_count),e.steps.forEach((e,s)=>{const i=s+1;i<=20&&(t[`step_${i}_segments`]=e.segments,t[`step_${i}_mode`]=e.mode,t[`step_${i}_duration`]=e.duration,t[`step_${i}_hold`]=e.hold,t[`step_${i}_activation_pattern`]=e.activation_pattern,e.colors&&Array.isArray(e.colors)&&e.colors.forEach((e,s)=>{s<6&&(t[`step_${i}_color_${s+1}`]=e)}))}),await this.hass.callService("aqara_advanced_lighting","start_segment_sequence",t)}render(){return this._loading?j`
+        <div class="header">
+          <div class="toolbar">
+            <ha-menu-button .hass=${this.hass} .narrow=${this.narrow}></ha-menu-button>
+            <div class="main-title">Aqara Advanced Lighting</div>
+          </div>
+        </div>
+        <div class="content">
+          <div class="loading">Loading presets...</div>
+        </div>
+      `:this._error?j`
+        <div class="header">
+          <div class="toolbar">
+            <ha-menu-button .hass=${this.hass} .narrow=${this.narrow}></ha-menu-button>
+            <div class="main-title">Aqara Advanced Lighting</div>
+          </div>
+        </div>
+        <div class="content">
+          <ha-alert alert-type="error" title="Error">
+            ${this._error}
+          </ha-alert>
+        </div>
+      `:this._presets?j`
+      <div class="header">
+        <div class="toolbar">
+          <ha-menu-button .hass=${this.hass} .narrow=${this.narrow}></ha-menu-button>
+          <div class="main-title">Aqara Advanced Lighting</div>
+        </div>
+        <ha-tab-group @wa-tab-show=${this._handleTabChange}>
+          <ha-tab-group-tab slot="nav" panel="activate" .active=${"activate"===this._activeTab}>
+            Activate
+          </ha-tab-group-tab>
+          <ha-tab-group-tab slot="nav" panel="effects" .active=${"effects"===this._activeTab}>
+            Effects
+          </ha-tab-group-tab>
+          <ha-tab-group-tab slot="nav" panel="patterns" .active=${"patterns"===this._activeTab}>
+            Patterns
+          </ha-tab-group-tab>
+          <ha-tab-group-tab slot="nav" panel="cct" .active=${"cct"===this._activeTab}>
+            CCT
+          </ha-tab-group-tab>
+          <ha-tab-group-tab slot="nav" panel="segments" .active=${"segments"===this._activeTab}>
+            Segments
+          </ha-tab-group-tab>
+          <ha-tab-group-tab slot="nav" panel="presets" .active=${"presets"===this._activeTab}>
+            My Presets
+          </ha-tab-group-tab>
+        </ha-tab-group>
+      </div>
+      <div class="content">
+        <div class="tab-content">
+          ${this._renderTabContent()}
+        </div>
+      </div>
+    `:j`
+        <div class="header">
+          <div class="toolbar">
+            <ha-menu-button .hass=${this.hass} .narrow=${this.narrow}></ha-menu-button>
+            <div class="main-title">Aqara Advanced Lighting</div>
+          </div>
+        </div>
+        <div class="content">
+          <ha-alert alert-type="warning" title="No presets available">
+            Presets could not be loaded. Please check your configuration.
+          </ha-alert>
+        </div>
+      `}_renderTabContent(){switch(this._activeTab){case"activate":default:return this._renderActivateTab();case"effects":return this._renderEffectsTab();case"patterns":return this._renderPatternsTab();case"cct":return this._renderCCTTab();case"segments":return this._renderSegmentsTab();case"presets":return this._renderPresetsTab()}}_renderActivateTab(){const e=this._filterPresets(),t=this._selectedEntities.length>0,s="target_controls",i=!this._collapsed[s];return j`
+      <ha-expansion-panel
+        outlined
+        .expanded=${i}
+        @expanded-changed=${e=>this._handleExpansionChange(s,e)}
+      >
+        <div slot="header" class="section-header">
+          <div>
+            <div class="section-title">Target</div>
+            <div class="section-subtitle">${t?`${this._selectedEntities.length} light${1!==this._selectedEntities.length?"s":""} selected`:"Select lights to control"}</div>
+          </div>
+        </div>
+        <div class="section-content controls-content">
+          <div class="control-row">
+            <span class="control-label">Lights</span>
+            <div class="control-input target-input">
+              <div class="target-selector">
+                <ha-selector
+                  .hass=${this.hass}
+                  .selector=${{target:{entity:{domain:"light"}}}}
+                  .value=${{entity_id:this._selectedEntities}}
+                  @value-changed=${this._handleTargetChanged}
+                ></ha-selector>
+              </div>
+              ${t&&!this._showFavoriteInput?j`
+                    <ha-icon-button
+                      class="add-favorite-btn"
+                      @click=${this._addFavorite}
+                      title="Save as favorite"
+                    >
+                      <ha-icon icon="mdi:star-plus"></ha-icon>
+                    </ha-icon-button>
+                  `:""}
+            </div>
+          </div>
+
+          ${this._showFavoriteInput?j`
+                <div class="control-row">
+                  <span class="control-label">Favorite Name</span>
+                  <div class="control-input favorite-input-container">
+                    <ha-selector
+                      .hass=${this.hass}
+                      .selector=${{text:{}}}
+                      .value=${this._favoriteInputName}
+                      @value-changed=${this._handleFavoriteNameChange}
+                      @keydown=${this._handleFavoriteNameKeydown}
+                    ></ha-selector>
+                    <div class="favorite-input-buttons">
+                      <ha-button @click=${this._saveFavorite}>
+                        <ha-icon icon="mdi:check"></ha-icon>
+                        Save
+                      </ha-button>
+                      <ha-button @click=${this._cancelFavoriteInput}>
+                        <ha-icon icon="mdi:close"></ha-icon>
+                        Cancel
+                      </ha-button>
+                    </div>
+                  </div>
+                </div>
+              `:""}
+
+          ${this._favorites.length>0?j`
+                <div class="control-row">
+                  <span class="control-label">Favorites</span>
+                  <div class="control-input favorites-container">
+                    ${this._favorites.map(e=>j`
+                        <div class="favorite-chip" @click=${()=>this._selectFavorite(e)}>
+                          <ha-icon icon="mdi:star" class="favorite-icon"></ha-icon>
+                          <span class="favorite-name">${e.name}</span>
+                          <ha-icon-button
+                            class="remove-favorite-btn"
+                            @click=${t=>{t.stopPropagation(),this._removeFavorite(e.id)}}
+                            title="Remove favorite"
+                          >
+                            <ha-icon icon="mdi:close"></ha-icon>
+                          </ha-icon-button>
+                        </div>
+                      `)}
+                  </div>
+                </div>
+              `:""}
+
+          ${t?j`
+                <div class="control-row">
+                  <span class="control-label">Light Control</span>
+                  <div class="control-input light-tile-container" ${ke(this._tileCardRef)}>
+                  </div>
+                </div>
+
+                <div class="control-row">
+                  <span class="control-label">Quick Controls</span>
+                  <div class="control-input control-buttons">
+                    ${e.showDynamicEffects?j`
+                          <ha-button @click=${this._stopEffect}>
+                            <ha-icon icon="mdi:stop"></ha-icon>
+                            Effect
+                          </ha-button>
+                        `:""}
+                    <ha-button @click=${this._pauseCCTSequence}>
+                      <ha-icon icon="mdi:pause"></ha-icon>
+                      CCT
+                    </ha-button>
+                    <ha-button @click=${this._resumeCCTSequence}>
+                      <ha-icon icon="mdi:play"></ha-icon>
+                      CCT
+                    </ha-button>
+                    <ha-button @click=${this._stopCCTSequence}>
+                      <ha-icon icon="mdi:stop"></ha-icon>
+                      CCT
+                    </ha-button>
+                    ${e.showSegmentSequences?j`
+                          <ha-button @click=${this._pauseSegmentSequence}>
+                            <ha-icon icon="mdi:pause"></ha-icon>
+                            Segment
+                          </ha-button>
+                          <ha-button @click=${this._resumeSegmentSequence}>
+                            <ha-icon icon="mdi:play"></ha-icon>
+                            Segment
+                          </ha-button>
+                          <ha-button @click=${this._stopSegmentSequence}>
+                            <ha-icon icon="mdi:stop"></ha-icon>
+                            Segment
+                          </ha-button>
+                        `:""}
+                  </div>
+                </div>
+
+                <div class="form-section">
+                  <span class="form-label">Custom Brightness</span>
+                  <ha-switch
+                    .checked=${this._useCustomBrightness}
+                    @change=${this._handleCustomBrightnessToggle}
+                  ></ha-switch>
+                </div>
+
+                ${this._useCustomBrightness?j`
+                      <div class="control-row">
+                        <span class="control-label">Brightness</span>
+                        <div class="control-input">
+                          <ha-selector
+                            .hass=${this.hass}
+                            .selector=${{number:{min:1,max:100,mode:"slider",unit_of_measurement:"%"}}}
+                            .value=${this._brightness}
+                            @value-changed=${this._handleBrightnessChange}
+                          ></ha-selector>
+                        </div>
+                      </div>
+                    `:""}
+              `:""}
+        </div>
+      </ha-expansion-panel>
+
+      ${t?"":j`<div class="no-lights">Please select one or more lights to view available presets</div>`}
+
+      ${this._hasIncompatibleLights?j`
+            <ha-alert alert-type="error" title="Incompatible light selected">
+              Please select a compatible Aqara light (T1, T1M, T1 Strip, or T2 Bulb).
+            </ha-alert>
+          `:""}
+
+      ${e.showDynamicEffects&&!this._hasIncompatibleLights?j`
+            ${e.t2Presets.length>0||this._getUserEffectPresetsForDeviceType("t2_bulb").length>0?this._renderDynamicEffectsSection("T2 Bulb",e.t2Presets,"t2_bulb"):""}
+            ${e.t1mPresets.length>0||this._getUserEffectPresetsForDeviceType("t1m").length>0?this._renderDynamicEffectsSection("T1M",e.t1mPresets,"t1m"):""}
+            ${e.t1StripPresets.length>0||this._getUserEffectPresetsForDeviceType("t1_strip").length>0?this._renderDynamicEffectsSection("T1 Strip",e.t1StripPresets,"t1_strip"):""}
+          `:""}
+
+      ${e.showSegmentPatterns&&((this._presets?.segment_patterns?.length??0)>0||this._getFilteredUserPatternPresets().length>0)&&!this._hasIncompatibleLights?this._renderSegmentPatternsSection():""}
+
+      ${e.showCCTSequences&&((this._presets?.cct_sequences?.length??0)>0||this._getFilteredUserCCTSequencePresets().length>0)&&!this._hasIncompatibleLights?this._renderCCTSequencesSection():""}
+
+      ${e.showSegmentSequences&&((this._presets?.segment_sequences?.length??0)>0||this._getFilteredUserSegmentSequencePresets().length>0)&&!this._hasIncompatibleLights?this._renderSegmentSequencesSection():""}
+    `}_renderEffectsTab(){const e="effect"===this._editingPreset?.type?this._editingPreset.preset:void 0;return j`
+      <ha-card class="editor-form">
+        <h2>${e?"Edit Effect Preset":"Create Effect Preset"}</h2>
+        <p class="editor-description">
+          ${e?"Update your effect preset settings.":"Create custom dynamic effect presets with your choice of colors, speed, and brightness."}
+        </p>
+        <effect-editor
+          .hass=${this.hass}
+          .preset=${e}
+          .editMode=${!!e}
+          .hasSelectedEntities=${this._selectedEntities.length>0}
+          .previewActive=${this._effectPreviewActive}
+          @save=${this._handleEffectSave}
+          @preview=${this._handleEffectPreview}
+          @stop-preview=${this._handleEffectStopPreview}
+          @cancel=${this._handleEditorCancel}
+        ></effect-editor>
+      </ha-card>
+    `}async _handleEffectSave(e){if("effect"===this._editingPreset?.type){const t=this._editingPreset.preset;await this._updateUserPreset("effect",t.id,e.detail)}else await this._saveUserPreset("effect",e.detail);this._editingPreset=void 0,this._setActiveTab("presets")}_handleEditorCancel(){this._editingPreset=void 0,this._setActiveTab("activate")}async _handleEffectPreview(e){if(!this._selectedEntities.length)return void console.warn("No entities selected for preview");const t=e.detail,s={entity_id:this._selectedEntities,effect:t.effect,speed:t.effect_speed,turn_on:!0,sync:!0};t.effect_colors&&t.effect_colors.forEach((e,t)=>{if(t<8)if("x"in e&&"y"in e&&void 0!==e.x&&void 0!==e.y){const i=Ae(e.x,e.y,255);s[`color_${t+1}`]=[i.r,i.g,i.b]}else"r"in e&&"g"in e&&"b"in e&&(s[`color_${t+1}`]=[e.r,e.g,e.b])}),void 0!==t.effect_brightness&&(s.brightness=t.effect_brightness),t.effect_segments&&(s.segments=t.effect_segments),await this.hass.callService("aqara_advanced_lighting","set_dynamic_effect",s),this._effectPreviewActive=!0}async _handleEffectStopPreview(){this._selectedEntities.length&&(await this.hass.callService("aqara_advanced_lighting","stop_effect",{entity_id:this._selectedEntities,restore_state:!0}),this._effectPreviewActive=!1)}_renderPatternsTab(){const e="pattern"===this._editingPreset?.type?this._editingPreset.preset:void 0;return j`
+      <ha-card class="editor-form">
+        <h2>${e?"Edit Segment Pattern":"Create Segment Pattern"}</h2>
+        <p class="editor-description">
+          ${e?"Update your segment pattern settings.":"Design custom segment patterns by setting individual segment colors."}
+        </p>
+        <pattern-editor
+          .hass=${this.hass}
+          .preset=${e}
+          .editMode=${!!e}
+          .hasSelectedEntities=${this._selectedEntities.length>0}
+          .stripSegmentCount=${this._getT1StripSegmentCount()}
+          @save=${this._handlePatternSave}
+          @preview=${this._handlePatternPreview}
+          @cancel=${this._handleEditorCancel}
+        ></pattern-editor>
+      </ha-card>
+    `}async _handlePatternSave(e){if("pattern"===this._editingPreset?.type){const t=this._editingPreset.preset;await this._updateUserPreset("segment_pattern",t.id,e.detail)}else await this._saveUserPreset("segment_pattern",e.detail);this._editingPreset=void 0,this._setActiveTab("presets")}async _handlePatternPreview(e){if(!this._selectedEntities.length)return void console.warn("No entities selected for preview");const t=e.detail;if(!t.segments||!Array.isArray(t.segments))return void console.error("Pattern preview: No segments in data");const s=t.segments.map(e=>({segment:e.segment,color:{r:e.color.r,g:e.color.g,b:e.color.b}}));try{await this.hass.callService("aqara_advanced_lighting","set_segment_pattern",{entity_id:this._selectedEntities,segment_colors:s,turn_on:!0,turn_off_unspecified:!0,sync:!0})}catch(e){console.error("Pattern preview service call failed:",e)}}_renderCCTTab(){const e="cct"===this._editingPreset?.type?this._editingPreset.preset:void 0;return j`
+      <ha-card class="editor-form">
+        <h2>${e?"Edit CCT Sequence":"Create CCT Sequence"}</h2>
+        <p class="editor-description">
+          ${e?"Update your CCT sequence settings.":"Build color temperature sequences with multiple steps and timing controls."}
+        </p>
+        <cct-sequence-editor
+          .hass=${this.hass}
+          .preset=${e}
+          .editMode=${!!e}
+          .hasSelectedEntities=${this._selectedEntities.length>0}
+          .selectedEntities=${this._selectedEntities}
+          .previewActive=${this._cctPreviewActive}
+          @save=${this._handleCCTSave}
+          @preview=${this._handleCCTPreview}
+          @stop-preview=${this._handleCCTStopPreview}
+          @cancel=${this._handleEditorCancel}
+        ></cct-sequence-editor>
+      </ha-card>
+    `}async _handleCCTSave(e){if("cct"===this._editingPreset?.type){const t=this._editingPreset.preset;await this._updateUserPreset("cct_sequence",t.id,e.detail)}else await this._saveUserPreset("cct_sequence",e.detail);this._editingPreset=void 0,this._setActiveTab("presets")}async _handleCCTPreview(e){if(!this._selectedEntities.length)return void console.warn("No entities selected for preview");const t=e.detail,s={entity_id:this._selectedEntities,loop_mode:t.loop_mode,end_behavior:t.end_behavior,turn_on:!0,sync:!0};"count"===t.loop_mode&&void 0!==t.loop_count&&(s.loop_count=t.loop_count),t.steps&&Array.isArray(t.steps)&&t.steps.forEach((e,t)=>{const i=t+1;i<=20&&(s[`step_${i}_color_temp`]=e.color_temp,s[`step_${i}_brightness`]=e.brightness,s[`step_${i}_transition`]=e.transition,s[`step_${i}_hold`]=e.hold)}),await this.hass.callService("aqara_advanced_lighting","start_cct_sequence",s),this._cctPreviewActive=!0}async _handleCCTStopPreview(){this._selectedEntities.length&&(await this.hass.callService("aqara_advanced_lighting","stop_cct_sequence",{entity_id:this._selectedEntities}),this._cctPreviewActive=!1)}_renderSegmentsTab(){const e="segment"===this._editingPreset?.type?this._editingPreset.preset:void 0;return j`
+      <ha-card class="editor-form">
+        <h2>${e?"Edit Segment Sequence":"Create Segment Sequence"}</h2>
+        <p class="editor-description">
+          ${e?"Update your segment sequence settings.":"Design animated segment sequences with multiple steps and transition effects."}
+        </p>
+        <segment-sequence-editor
+          .hass=${this.hass}
+          .preset=${e}
+          .editMode=${!!e}
+          .hasSelectedEntities=${this._selectedEntities.length>0}
+          .previewActive=${this._segmentSequencePreviewActive}
+          @save=${this._handleSegmentSequenceSave}
+          @preview=${this._handleSegmentSequencePreview}
+          @stop-preview=${this._handleSegmentSequenceStopPreview}
+          @cancel=${this._handleEditorCancel}
+        ></segment-sequence-editor>
+      </ha-card>
+    `}async _handleSegmentSequenceSave(e){if("segment"===this._editingPreset?.type){const t=this._editingPreset.preset;await this._updateUserPreset("segment_sequence",t.id,e.detail)}else await this._saveUserPreset("segment_sequence",e.detail);this._editingPreset=void 0,this._setActiveTab("presets")}async _handleSegmentSequencePreview(e){if(!this._selectedEntities.length)return void console.warn("No entities selected for preview");const t=e.detail,s={entity_id:this._selectedEntities,loop_mode:t.loop_mode,end_behavior:t.end_behavior,clear_segments:t.clear_segments||!1,skip_first_in_loop:t.skip_first_in_loop||!1,turn_on:!0,sync:!0};"count"===t.loop_mode&&void 0!==t.loop_count&&(s.loop_count=t.loop_count),t.steps&&Array.isArray(t.steps)&&t.steps.forEach((e,t)=>{const i=t+1;i<=20&&(s[`step_${i}_segments`]=e.segments,s[`step_${i}_mode`]=e.mode,s[`step_${i}_duration`]=e.duration,s[`step_${i}_hold`]=e.hold,s[`step_${i}_activation_pattern`]=e.activation_pattern,e.colors&&Array.isArray(e.colors)&&e.colors.forEach((e,t)=>{t<6&&(s[`step_${i}_color_${t+1}`]=e)}))}),await this.hass.callService("aqara_advanced_lighting","start_segment_sequence",s),this._segmentSequencePreviewActive=!0}async _handleSegmentSequenceStopPreview(){this._selectedEntities.length&&(await this.hass.callService("aqara_advanced_lighting","stop_segment_sequence",{entity_id:this._selectedEntities}),this._segmentSequencePreviewActive=!1)}_renderPresetsTab(){const e=this._userPresets?.effect_presets||[],t=this._userPresets?.segment_pattern_presets||[],s=this._userPresets?.cct_sequence_presets||[],i=this._userPresets?.segment_sequence_presets||[],o=e.length+t.length+s.length+i.length,r=this._selectedEntities.length>0,a=this._sortUserEffectPresets(e,this._sortPreferences.effects),n=this._sortUserPatternPresets(t,this._sortPreferences.patterns),c=this._sortUserCCTSequencePresets(s,this._sortPreferences.cct),l=this._sortUserSegmentSequencePresets(i,this._sortPreferences.segments);return j`
+      <ha-card class="editor-form">
+        <h2>My Presets</h2>
+        <p class="editor-description">
+          Manage your saved presets. ${r?"Click a preset to activate it, or use the edit/delete buttons.":"Select lights in the Activate tab to enable activation."}
+        </p>
+
+        ${0===o?j`
+              <div class="no-presets">
+                <ha-icon icon="mdi:folder-open-outline"></ha-icon>
+                <p>No saved presets yet.</p>
+                <p>Use the other tabs to create and save your custom presets.</p>
+              </div>
+            `:j`
+              ${e.length>0?j`
+                    <div class="preset-category">
+                      <div class="preset-category-header">
+                        <h3>Effect Presets (${e.length})</h3>
+                        ${this._renderSortDropdown("effects")}
+                      </div>
+                      <div class="preset-grid">
+                        ${a.map(e=>j`
+                            <div
+                              class="user-preset-card ${r?"":"disabled"}"
+                              @click=${r?()=>this._activateUserEffectPreset(e):null}
+                              title="${e.name}"
+                            >
+                              <div class="preset-card-actions">
+                                <ha-icon-button
+                                  @click=${t=>{t.stopPropagation(),this._editEffectPreset(e)}}
+                                  title="Edit preset"
+                                >
+                                  <ha-icon icon="mdi:pencil"></ha-icon>
+                                </ha-icon-button>
+                                <ha-icon-button
+                                  @click=${t=>{t.stopPropagation(),this._deleteUserPreset("effect",e.id)}}
+                                  title="Delete preset"
+                                >
+                                  <ha-icon icon="mdi:delete"></ha-icon>
+                                </ha-icon-button>
+                              </div>
+                              <div class="preset-icon">
+                                <ha-icon icon="${e.icon||"mdi:lightbulb-on"}"></ha-icon>
+                              </div>
+                              <div class="preset-name">${e.name}</div>
+                            </div>
+                          `)}
                       </div>
                     </div>
                   `:""}
-            `:""}
-      </div>
 
-      ${e?"":B`<div class="no-lights">Please select one or more lights to view available presets</div>`}
+              ${t.length>0?j`
+                    <div class="preset-category">
+                      <div class="preset-category-header">
+                        <h3>Segment Pattern Presets (${t.length})</h3>
+                        ${this._renderSortDropdown("patterns")}
+                      </div>
+                      <div class="preset-grid">
+                        ${n.map(e=>j`
+                            <div
+                              class="user-preset-card ${r?"":"disabled"}"
+                              @click=${r?()=>this._activateUserPatternPreset(e):null}
+                              title="${e.name}"
+                            >
+                              <div class="preset-card-actions">
+                                <ha-icon-button
+                                  @click=${t=>{t.stopPropagation(),this._editPatternPreset(e)}}
+                                  title="Edit preset"
+                                >
+                                  <ha-icon icon="mdi:pencil"></ha-icon>
+                                </ha-icon-button>
+                                <ha-icon-button
+                                  @click=${t=>{t.stopPropagation(),this._deleteUserPreset("segment_pattern",e.id)}}
+                                  title="Delete preset"
+                                >
+                                  <ha-icon icon="mdi:delete"></ha-icon>
+                                </ha-icon-button>
+                              </div>
+                              <div class="preset-icon">
+                                <ha-icon icon="${e.icon||"mdi:palette"}"></ha-icon>
+                              </div>
+                              <div class="preset-name">${e.name}</div>
+                            </div>
+                          `)}
+                      </div>
+                    </div>
+                  `:""}
 
-      ${this._hasIncompatibleLights?B`<div class="error">Incompatible light selected. Please select a compatible Aqara light (T1, T1M, T1 Strip, or T2 Bulb).</div>`:""}
+              ${s.length>0?j`
+                    <div class="preset-category">
+                      <div class="preset-category-header">
+                        <h3>CCT Sequence Presets (${s.length})</h3>
+                        ${this._renderSortDropdown("cct")}
+                      </div>
+                      <div class="preset-grid">
+                        ${c.map(e=>j`
+                            <div
+                              class="user-preset-card ${r?"":"disabled"}"
+                              @click=${r?()=>this._activateUserCCTSequencePreset(e):null}
+                              title="${e.name}"
+                            >
+                              <div class="preset-card-actions">
+                                <ha-icon-button
+                                  @click=${t=>{t.stopPropagation(),this._editCCTSequencePreset(e)}}
+                                  title="Edit preset"
+                                >
+                                  <ha-icon icon="mdi:pencil"></ha-icon>
+                                </ha-icon-button>
+                                <ha-icon-button
+                                  @click=${t=>{t.stopPropagation(),this._deleteUserPreset("cct_sequence",e.id)}}
+                                  title="Delete preset"
+                                >
+                                  <ha-icon icon="mdi:delete"></ha-icon>
+                                </ha-icon-button>
+                              </div>
+                              <div class="preset-icon">
+                                <ha-icon icon="${e.icon||"mdi:temperature-kelvin"}"></ha-icon>
+                              </div>
+                              <div class="preset-name">${e.name}</div>
+                            </div>
+                          `)}
+                      </div>
+                    </div>
+                  `:""}
 
-      ${t.showDynamicEffects&&!this._hasIncompatibleLights?B`
-            ${t.t2Presets.length>0?this._renderDynamicEffectsSection("T2 Bulb",t.t2Presets):""}
-            ${t.t1mPresets.length>0?this._renderDynamicEffectsSection("T1M",t.t1mPresets):""}
-            ${t.t1StripPresets.length>0?this._renderDynamicEffectsSection("T1 Strip",t.t1StripPresets):""}
-          `:""}
-
-      ${t.showSegmentPatterns&&this._presets.segment_patterns.length>0&&!this._hasIncompatibleLights?this._renderSegmentPatternsSection():""}
-
-      ${t.showCCTSequences&&this._presets.cct_sequences.length>0&&!this._hasIncompatibleLights?this._renderCCTSequencesSection():""}
-
-      ${t.showSegmentSequences&&this._presets.segment_sequences.length>0&&!this._hasIncompatibleLights?this._renderSegmentSequencesSection():""}
-    `}_renderDynamicEffectsSection(t,e){const s=`dynamic_${t.toLowerCase().replace(/\s+/g,"_")}`,i=this._collapsed[s];return B`
-      <div class="section">
-        <div class="section-header" @click=${()=>this._toggleSection(s)}>
+              ${i.length>0?j`
+                    <div class="preset-category">
+                      <div class="preset-category-header">
+                        <h3>Segment Sequence Presets (${i.length})</h3>
+                        ${this._renderSortDropdown("segments")}
+                      </div>
+                      <div class="preset-grid">
+                        ${l.map(e=>j`
+                            <div
+                              class="user-preset-card ${r?"":"disabled"}"
+                              @click=${r?()=>this._activateUserSegmentSequencePreset(e):null}
+                              title="${e.name}"
+                            >
+                              <div class="preset-card-actions">
+                                <ha-icon-button
+                                  @click=${t=>{t.stopPropagation(),this._editSegmentSequencePreset(e)}}
+                                  title="Edit preset"
+                                >
+                                  <ha-icon icon="mdi:pencil"></ha-icon>
+                                </ha-icon-button>
+                                <ha-icon-button
+                                  @click=${t=>{t.stopPropagation(),this._deleteUserPreset("segment_sequence",e.id)}}
+                                  title="Delete preset"
+                                >
+                                  <ha-icon icon="mdi:delete"></ha-icon>
+                                </ha-icon-button>
+                              </div>
+                              <div class="preset-icon">
+                                <ha-icon icon="${e.icon||"mdi:animation-play"}"></ha-icon>
+                              </div>
+                              <div class="preset-name">${e.name}</div>
+                            </div>
+                          `)}
+                      </div>
+                    </div>
+                  `:""}
+            `}
+      </ha-card>
+    `}_editEffectPreset(e){this._editingPreset={type:"effect",preset:e},this._setActiveTab("effects")}_editPatternPreset(e){this._editingPreset={type:"pattern",preset:e},this._setActiveTab("patterns")}_editCCTSequencePreset(e){this._editingPreset={type:"cct",preset:e},this._setActiveTab("cct")}_editSegmentSequencePreset(e){this._editingPreset={type:"segment",preset:e},this._setActiveTab("segments")}_renderSortDropdown(e){const t=this._sortPreferences[e];return j`
+      <select
+        class="sort-select"
+        .value=${t}
+        @change=${t=>{t.stopPropagation(),this._setSortPreference(e,t.target.value)}}
+        @click=${e=>e.stopPropagation()}
+      >
+        <option value="name-asc">Name (A-Z)</option>
+        <option value="name-desc">Name (Z-A)</option>
+        <option value="date-new">Newest First</option>
+        <option value="date-old">Oldest First</option>
+      </select>
+    `}_renderDynamicEffectsSection(e,t,s){const i=`dynamic_${e.toLowerCase().replace(/\s+/g,"_")}`,o=!this._collapsed[i],r=this._getUserEffectPresetsForDeviceType(s),a=r.length+t.length,n=this._sortUserEffectPresets(r,this._sortPreferences.effects),c=this._sortDynamicEffectPresets(t,this._sortPreferences.effects);return j`
+      <ha-expansion-panel
+        outlined
+        .expanded=${o}
+        @expanded-changed=${e=>this._handleExpansionChange(i,e)}
+      >
+        <div slot="header" class="section-header">
           <div>
-            <div class="section-title">Dynamic Effects: ${t}</div>
-            <div class="section-subtitle">${e.length} presets</div>
+            <div class="section-title">Dynamic Effects: ${e}</div>
+            <div class="section-subtitle">${a} presets${r.length>0?` (${r.length} custom)`:""}</div>
           </div>
-          <ha-icon .icon=${i?"mdi:chevron-down":"mdi:chevron-up"}></ha-icon>
+          <div class="section-header-controls" @click=${e=>e.stopPropagation()}>
+            ${this._renderSortDropdown("effects")}
+          </div>
         </div>
-        <div class="section-content ${i?"collapsed":""}">
-          ${e.map(t=>B`
-              <div class="preset-button" @click=${()=>this._activateDynamicEffect(t)}>
+        <div class="section-content">
+          ${n.map(e=>j`
+              <div class="preset-button user-preset" @click=${()=>this._activateUserEffectPreset(e)}>
                 <div class="preset-icon">
-                  ${this._renderPresetIcon(t.icon,"mdi:lightbulb-on")}
+                  <ha-icon icon="${e.icon||"mdi:lightbulb-on"}"></ha-icon>
                 </div>
-                <div class="preset-name">${t.name}</div>
+                <div class="preset-name">${e.name}</div>
+              </div>
+            `)}
+          ${c.map(e=>j`
+              <div class="preset-button" @click=${()=>this._activateDynamicEffect(e)}>
+                <div class="preset-icon">
+                  ${this._renderPresetIcon(e.icon,"mdi:lightbulb-on")}
+                </div>
+                <div class="preset-name">${e.name}</div>
               </div>
             `)}
         </div>
-      </div>
-    `}_renderSegmentPatternsSection(){const t="segment_patterns",e=this._collapsed[t];return B`
-      <div class="section">
-        <div class="section-header" @click=${()=>this._toggleSection(t)}>
+      </ha-expansion-panel>
+    `}_renderSegmentPatternsSection(){const e="segment_patterns",t=!this._collapsed[e],s=this._getFilteredUserPatternPresets(),i=this._presets.segment_patterns,o=s.length+i.length,r=this._sortUserPatternPresets(s,this._sortPreferences.patterns),a=this._sortSegmentPatternPresets(i,this._sortPreferences.patterns);return j`
+      <ha-expansion-panel
+        outlined
+        .expanded=${t}
+        @expanded-changed=${t=>this._handleExpansionChange(e,t)}
+      >
+        <div slot="header" class="section-header">
           <div>
             <div class="section-title">Segment Patterns</div>
-            <div class="section-subtitle">${this._presets.segment_patterns.length} presets</div>
+            <div class="section-subtitle">${o} presets${s.length>0?` (${s.length} custom)`:""}</div>
           </div>
-          <ha-icon .icon=${e?"mdi:chevron-down":"mdi:chevron-up"}></ha-icon>
+          <div class="section-header-controls" @click=${e=>e.stopPropagation()}>
+            ${this._renderSortDropdown("patterns")}
+          </div>
         </div>
-        <div class="section-content ${e?"collapsed":""}">
-          ${this._presets.segment_patterns.map(t=>B`
-              <div class="preset-button" @click=${()=>this._activateSegmentPattern(t)}>
+        <div class="section-content">
+          ${r.map(e=>j`
+              <div class="preset-button user-preset" @click=${()=>this._activateUserPatternPreset(e)}>
                 <div class="preset-icon">
-                  ${this._renderPresetIcon(t.icon,"mdi:palette")}
+                  <ha-icon icon="${e.icon||"mdi:palette"}"></ha-icon>
                 </div>
-                <div class="preset-name">${t.name}</div>
+                <div class="preset-name">${e.name}</div>
+              </div>
+            `)}
+          ${a.map(e=>j`
+              <div class="preset-button" @click=${()=>this._activateSegmentPattern(e)}>
+                <div class="preset-icon">
+                  ${this._renderPresetIcon(e.icon,"mdi:palette")}
+                </div>
+                <div class="preset-name">${e.name}</div>
               </div>
             `)}
         </div>
-      </div>
-    `}_renderPresetIcon(t,e){return t?t.includes(".")?B`<img src="/api/aqara_advanced_lighting/icons/${t}" alt="preset icon" />`:B`<ha-icon icon="${t}"></ha-icon>`:B`<ha-icon icon="${e}"></ha-icon>`}_renderCCTSequencesSection(){const t="cct_sequences",e=this._collapsed[t];return B`
-      <div class="section">
-        <div class="section-header" @click=${()=>this._toggleSection(t)}>
+      </ha-expansion-panel>
+    `}_renderPresetIcon(e,t){return e?e.includes(".")?j`<img src="/api/aqara_advanced_lighting/icons/${e}" alt="preset icon" />`:j`<ha-icon icon="${e}"></ha-icon>`:j`<ha-icon icon="${t}"></ha-icon>`}_renderCCTSequencesSection(){const e="cct_sequences",t=!this._collapsed[e],s=this._getFilteredUserCCTSequencePresets(),i=this._presets.cct_sequences,o=s.length+i.length,r=this._sortUserCCTSequencePresets(s,this._sortPreferences.cct),a=this._sortCCTSequencePresets(i,this._sortPreferences.cct);return j`
+      <ha-expansion-panel
+        outlined
+        .expanded=${t}
+        @expanded-changed=${t=>this._handleExpansionChange(e,t)}
+      >
+        <div slot="header" class="section-header">
           <div>
             <div class="section-title">CCT Sequences</div>
-            <div class="section-subtitle">${this._presets.cct_sequences.length} presets</div>
+            <div class="section-subtitle">${o} presets${s.length>0?` (${s.length} custom)`:""}</div>
           </div>
-          <ha-icon .icon=${e?"mdi:chevron-down":"mdi:chevron-up"}></ha-icon>
+          <div class="section-header-controls" @click=${e=>e.stopPropagation()}>
+            ${this._renderSortDropdown("cct")}
+          </div>
         </div>
-        <div class="section-content ${e?"collapsed":""}">
-          ${this._presets.cct_sequences.map(t=>B`
-              <div class="preset-button" @click=${()=>this._activateCCTSequence(t)}>
+        <div class="section-content">
+          ${r.map(e=>j`
+              <div class="preset-button user-preset" @click=${()=>this._activateUserCCTSequencePreset(e)}>
                 <div class="preset-icon">
-                  ${this._renderPresetIcon(t.icon,"mdi:temperature-kelvin")}
+                  <ha-icon icon="${e.icon||"mdi:temperature-kelvin"}"></ha-icon>
                 </div>
-                <div class="preset-name">${t.name}</div>
+                <div class="preset-name">${e.name}</div>
+              </div>
+            `)}
+          ${a.map(e=>j`
+              <div class="preset-button" @click=${()=>this._activateCCTSequence(e)}>
+                <div class="preset-icon">
+                  ${this._renderPresetIcon(e.icon,"mdi:temperature-kelvin")}
+                </div>
+                <div class="preset-name">${e.name}</div>
               </div>
             `)}
         </div>
-      </div>
-    `}_renderSegmentSequencesSection(){const t="segment_sequences",e=this._collapsed[t];return B`
-      <div class="section">
-        <div class="section-header" @click=${()=>this._toggleSection(t)}>
+      </ha-expansion-panel>
+    `}_renderSegmentSequencesSection(){const e="segment_sequences",t=!this._collapsed[e],s=this._getFilteredUserSegmentSequencePresets(),i=this._presets.segment_sequences,o=s.length+i.length,r=this._sortUserSegmentSequencePresets(s,this._sortPreferences.segments),a=this._sortSegmentSequencePresets(i,this._sortPreferences.segments);return j`
+      <ha-expansion-panel
+        outlined
+        .expanded=${t}
+        @expanded-changed=${t=>this._handleExpansionChange(e,t)}
+      >
+        <div slot="header" class="section-header">
           <div>
             <div class="section-title">Segment Sequences</div>
-            <div class="section-subtitle">${this._presets.segment_sequences.length} presets</div>
+            <div class="section-subtitle">${o} presets${s.length>0?` (${s.length} custom)`:""}</div>
           </div>
-          <ha-icon .icon=${e?"mdi:chevron-down":"mdi:chevron-up"}></ha-icon>
+          <div class="section-header-controls" @click=${e=>e.stopPropagation()}>
+            ${this._renderSortDropdown("segments")}
+          </div>
         </div>
-        <div class="section-content ${e?"collapsed":""}">
-          ${this._presets.segment_sequences.map(t=>B`
-              <div class="preset-button" @click=${()=>this._activateSegmentSequence(t)}>
+        <div class="section-content">
+          ${r.map(e=>j`
+              <div class="preset-button user-preset" @click=${()=>this._activateUserSegmentSequencePreset(e)}>
                 <div class="preset-icon">
-                  ${this._renderPresetIcon(t.icon,"mdi:animation-play")}
+                  <ha-icon icon="${e.icon||"mdi:animation-play"}"></ha-icon>
                 </div>
-                <div class="preset-name">${t.name}</div>
+                <div class="preset-name">${e.name}</div>
+              </div>
+            `)}
+          ${a.map(e=>j`
+              <div class="preset-button" @click=${()=>this._activateSegmentSequence(e)}>
+                <div class="preset-icon">
+                  ${this._renderPresetIcon(e.icon,"mdi:animation-play")}
+                </div>
+                <div class="preset-name">${e.name}</div>
               </div>
             `)}
         </div>
-      </div>
-    `}};xt.styles=St,t([lt({attribute:!1})],xt.prototype,"hass",void 0),t([lt({type:Boolean})],xt.prototype,"narrow",void 0),t([dt()],xt.prototype,"_presets",void 0),t([dt()],xt.prototype,"_loading",void 0),t([dt()],xt.prototype,"_error",void 0),t([dt()],xt.prototype,"_selectedEntities",void 0),t([dt()],xt.prototype,"_brightness",void 0),t([dt()],xt.prototype,"_useCustomBrightness",void 0),t([dt()],xt.prototype,"_collapsed",void 0),t([dt()],xt.prototype,"_hasIncompatibleLights",void 0),t([dt()],xt.prototype,"_favorites",void 0),t([dt()],xt.prototype,"_showFavoriteInput",void 0),t([dt()],xt.prototype,"_favoriteInputName",void 0),xt=t([(t=>(e,s)=>{void 0!==s?s.addInitializer(()=>{customElements.define(t,e)}):customElements.define(t,e)})("aqara-advanced-lighting-panel")],xt);const Et="aqara-advanced-lighting-panel";customElements.get(Et)?console.log(`${Et} already registered`):console.log(`Registering ${Et}`),window.customPanel&&window.customPanel(Et)}();
+      </ha-expansion-panel>
+    `}};et.styles=Pe,e([pe({attribute:!1})],et.prototype,"hass",void 0),e([pe({type:Boolean,reflect:!0})],et.prototype,"narrow",void 0),e([ge()],et.prototype,"_presets",void 0),e([ge()],et.prototype,"_loading",void 0),e([ge()],et.prototype,"_error",void 0),e([ge()],et.prototype,"_selectedEntities",void 0),e([ge()],et.prototype,"_brightness",void 0),e([ge()],et.prototype,"_useCustomBrightness",void 0),e([ge()],et.prototype,"_collapsed",void 0),e([ge()],et.prototype,"_hasIncompatibleLights",void 0),e([ge()],et.prototype,"_favorites",void 0),e([ge()],et.prototype,"_showFavoriteInput",void 0),e([ge()],et.prototype,"_favoriteInputName",void 0),e([ge()],et.prototype,"_activeTab",void 0),e([ge()],et.prototype,"_userPresets",void 0),e([ge()],et.prototype,"_editingPreset",void 0),e([ge()],et.prototype,"_effectPreviewActive",void 0),e([ge()],et.prototype,"_cctPreviewActive",void 0),e([ge()],et.prototype,"_segmentSequencePreviewActive",void 0),e([ge()],et.prototype,"_sortPreferences",void 0),et=e([le("aqara-advanced-lighting-panel")],et);const tt="aqara-advanced-lighting-panel";customElements.get(tt)?console.log(`${tt} already registered`):console.log(`Registering ${tt}`),window.customPanel&&window.customPanel(tt)}();

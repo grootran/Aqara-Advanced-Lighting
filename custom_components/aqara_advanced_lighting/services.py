@@ -24,6 +24,7 @@ from .const import (
     ACTIVATION_SEQUENTIAL_REVERSE,
     ATTR_ACTIVATION_PATTERN,
     ATTR_BRIGHTNESS,
+    ATTR_CLEAR_SEGMENTS,
     ATTR_COLOR_1,
     ATTR_COLOR_2,
     ATTR_COLOR_3,
@@ -45,17 +46,24 @@ from .const import (
     ATTR_RESTORE_STATE,
     ATTR_SEGMENT_COLORS,
     ATTR_SEGMENTS,
+    ATTR_SKIP_FIRST_IN_LOOP,
     ATTR_SPEED,
     ATTR_STEPS,
     ATTR_SYNC,
     ATTR_TRANSITION,
     ATTR_TURN_OFF_UNSPECIFIED,
     ATTR_TURN_ON,
+    ATTR_Z2M_BASE_TOPIC,
     CCT_SEQUENCE_PRESETS,
     DATA_CCT_SEQUENCE_MANAGER,
+    DATA_PRESET_STORE,
     DATA_SEGMENT_SEQUENCE_MANAGER,
     DOMAIN,
     EFFECT_PRESETS,
+    PRESET_TYPE_CCT_SEQUENCE,
+    PRESET_TYPE_EFFECT,
+    PRESET_TYPE_SEGMENT_PATTERN,
+    PRESET_TYPE_SEGMENT_SEQUENCE,
     END_BEHAVIOR_MAINTAIN,
     END_BEHAVIOR_TURN_OFF,
     EVENT_ATTR_EFFECT_TYPE,
@@ -127,6 +135,7 @@ from .models import (
     SegmentColor,
     SegmentSequence,
     SegmentSequenceStep,
+    XYColor,
 )
 from .mqtt_client import MQTTClient
 from .segment_utils import (
@@ -139,7 +148,7 @@ from .state_manager import StateManager
 
 _LOGGER = logging.getLogger(__name__)
 
-# RGB color schema (for dict format)
+# RGB color schema (for dict format - backward compatibility)
 RGB_COLOR_SCHEMA = vol.Schema(
     {
         vol.Required("r"): vol.All(vol.Coerce(int), vol.Range(MIN_RGB_VALUE, MAX_RGB_VALUE)),
@@ -148,11 +157,22 @@ RGB_COLOR_SCHEMA = vol.Schema(
     }
 )
 
-# RGB color list schema (for color picker [r, g, b] format)
+# XY color schema (for CIE 1931 color space)
+XY_COLOR_SCHEMA = vol.Schema(
+    {
+        vol.Required("x"): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1.0)),
+        vol.Required("y"): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1.0)),
+    }
+)
+
+# RGB color list schema (for color picker [r, g, b] format - backward compatibility)
 RGB_COLOR_LIST_SCHEMA = vol.All(
     [vol.All(vol.Coerce(int), vol.Range(MIN_RGB_VALUE, MAX_RGB_VALUE))],
     vol.Length(min=3, max=3),
 )
+
+# Flexible color schema that accepts both RGB and XY formats
+COLOR_SCHEMA = vol.Any(RGB_COLOR_SCHEMA, XY_COLOR_SCHEMA, RGB_COLOR_LIST_SCHEMA)
 
 # Segment color schema
 SEGMENT_COLOR_SCHEMA = vol.Schema(
@@ -186,6 +206,7 @@ SERVICE_SET_DYNAMIC_EFFECT_SCHEMA = vol.Schema(
         ),
         vol.Optional(ATTR_TURN_ON, default=False): cv.boolean,
         vol.Optional(ATTR_SYNC, default=True): cv.boolean,
+        vol.Optional(ATTR_Z2M_BASE_TOPIC): cv.string,
     }
 )
 
@@ -193,6 +214,7 @@ SERVICE_STOP_EFFECT_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
         vol.Optional(ATTR_RESTORE_STATE, default=True): cv.boolean,
+        vol.Optional(ATTR_Z2M_BASE_TOPIC): cv.string,
     }
 )
 
@@ -207,6 +229,7 @@ SERVICE_SET_SEGMENT_PATTERN_SCHEMA = vol.Schema(
         vol.Optional(ATTR_TURN_ON, default=False): cv.boolean,
         vol.Optional(ATTR_TURN_OFF_UNSPECIFIED, default=False): cv.boolean,
         vol.Optional(ATTR_SYNC, default=True): cv.boolean,
+        vol.Optional(ATTR_Z2M_BASE_TOPIC): cv.string,
     }
 )
 
@@ -227,6 +250,7 @@ SERVICE_CREATE_GRADIENT_SCHEMA = vol.Schema(
         vol.Optional(ATTR_TURN_ON, default=False): cv.boolean,
         vol.Optional(ATTR_TURN_OFF_UNSPECIFIED, default=False): cv.boolean,
         vol.Optional(ATTR_SYNC, default=True): cv.boolean,
+        vol.Optional(ATTR_Z2M_BASE_TOPIC): cv.string,
     }
 )
 
@@ -248,6 +272,7 @@ SERVICE_CREATE_BLOCKS_SCHEMA = vol.Schema(
         vol.Optional(ATTR_EXPAND, default=False): cv.boolean,
         vol.Optional(ATTR_TURN_OFF_UNSPECIFIED, default=False): cv.boolean,
         vol.Optional(ATTR_SYNC, default=True): cv.boolean,
+        vol.Optional(ATTR_Z2M_BASE_TOPIC): cv.string,
     }
 )
 
@@ -298,24 +323,28 @@ _cct_sequence_schema_dict[vol.Optional(ATTR_LOOP_COUNT)] = vol.All(
 _cct_sequence_schema_dict[vol.Optional(ATTR_END_BEHAVIOR, default=END_BEHAVIOR_MAINTAIN)] = vol.In(
     [END_BEHAVIOR_MAINTAIN, END_BEHAVIOR_TURN_OFF]
 )
+_cct_sequence_schema_dict[vol.Optional(ATTR_Z2M_BASE_TOPIC)] = cv.string
 
 SERVICE_START_CCT_SEQUENCE_SCHEMA = vol.Schema(_cct_sequence_schema_dict)
 
 SERVICE_STOP_CCT_SEQUENCE_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+        vol.Optional(ATTR_Z2M_BASE_TOPIC): cv.string,
     }
 )
 
 SERVICE_PAUSE_CCT_SEQUENCE_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+        vol.Optional(ATTR_Z2M_BASE_TOPIC): cv.string,
     }
 )
 
 SERVICE_RESUME_CCT_SEQUENCE_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+        vol.Optional(ATTR_Z2M_BASE_TOPIC): cv.string,
     }
 )
 
@@ -398,26 +427,75 @@ _segment_sequence_schema_dict[vol.Optional(ATTR_LOOP_COUNT)] = vol.All(
 _segment_sequence_schema_dict[vol.Optional(ATTR_END_BEHAVIOR, default=END_BEHAVIOR_MAINTAIN)] = vol.In(
     [END_BEHAVIOR_MAINTAIN, END_BEHAVIOR_TURN_OFF]
 )
+_segment_sequence_schema_dict[vol.Optional(ATTR_CLEAR_SEGMENTS, default=False)] = cv.boolean
+_segment_sequence_schema_dict[vol.Optional(ATTR_SKIP_FIRST_IN_LOOP, default=False)] = cv.boolean
+_segment_sequence_schema_dict[vol.Optional(ATTR_Z2M_BASE_TOPIC)] = cv.string
 
 SERVICE_START_SEGMENT_SEQUENCE_SCHEMA = vol.Schema(_segment_sequence_schema_dict)
 
 SERVICE_STOP_SEGMENT_SEQUENCE_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+        vol.Optional(ATTR_Z2M_BASE_TOPIC): cv.string,
     }
 )
 
 SERVICE_PAUSE_SEGMENT_SEQUENCE_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+        vol.Optional(ATTR_Z2M_BASE_TOPIC): cv.string,
     }
 )
 
 SERVICE_RESUME_SEGMENT_SEQUENCE_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+        vol.Optional(ATTR_Z2M_BASE_TOPIC): cv.string,
     }
 )
+
+
+def _normalize_color_to_rgb(color_data: dict[str, Any] | list[int]) -> RGBColor:
+    """Convert color input (XY, RGB dict, or RGB list) to RGBColor.
+
+    Accepts three formats for backward compatibility and XY support:
+    - XY format: {"x": 0.5, "y": 0.5}
+    - RGB dict: {"r": 255, "g": 0, "b": 0}
+    - RGB list: [255, 0, 0]
+
+    Args:
+        color_data: Color in any supported format
+
+    Returns:
+        RGBColor object suitable for MQTT
+
+    Raises:
+        ServiceValidationError: If color format is invalid
+    """
+    if isinstance(color_data, list):
+        # RGB list format [r, g, b]
+        if len(color_data) == 3:
+            return RGBColor(r=color_data[0], g=color_data[1], b=color_data[2])
+        msg = f"RGB list must have exactly 3 values, got {len(color_data)}"
+        raise ServiceValidationError(msg)
+
+    if isinstance(color_data, dict):
+        # Check for XY format
+        if "x" in color_data and "y" in color_data:
+            # XY format - convert to RGB
+            xy_color = XYColor.from_dict(color_data)
+            return xy_color.to_rgb()
+
+        # Check for RGB dict format
+        if "r" in color_data and "g" in color_data and "b" in color_data:
+            # RGB dict format - use directly
+            return RGBColor.from_dict(color_data)
+
+        msg = "Color dict must have either 'x'/'y' keys (XY) or 'r'/'g'/'b' keys (RGB)"
+        raise ServiceValidationError(msg)
+
+    msg = f"Invalid color format: expected dict or list, got {type(color_data)}"
+    raise ServiceValidationError(msg)
 
 
 def _get_mqtt_client_and_state_manager(
@@ -440,6 +518,17 @@ def _get_mqtt_client_and_state_manager(
         )
 
     return mqtt_client, state_manager
+
+
+def _get_preset_store(hass: HomeAssistant):
+    """Get the preset store from hass.data.
+
+    Returns:
+        PresetStore instance or None if not initialized.
+    """
+    if DOMAIN not in hass.data:
+        return None
+    return hass.data[DOMAIN].get(DATA_PRESET_STORE)
 
 
 def _resolve_entity_ids(hass: HomeAssistant, entity_ids: list[str]) -> list[str]:
@@ -675,6 +764,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
         sync: bool = call.data.get(ATTR_SYNC, True)
+        z2m_base_topic: str | None = call.data.get(ATTR_Z2M_BASE_TOPIC)
 
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
@@ -688,31 +778,60 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
         # Store preset data for device validation
         preset_data = None
+        is_user_preset = False
         if preset:
-            if preset not in EFFECT_PRESETS:
+            # Check user presets first
+            preset_store = _get_preset_store(hass)
+            user_preset = None
+            if preset_store:
+                user_preset = preset_store.get_preset_by_name(
+                    PRESET_TYPE_EFFECT, preset
+                )
+
+            if user_preset:
+                # Use user preset
+                is_user_preset = True
+                effect_str: str = user_preset["effect"]
+                speed: int = user_preset["effect_speed"]
+
+                # Use slider brightness if provided, otherwise use preset brightness
+                brightness_percent: int | None = call.data.get(ATTR_BRIGHTNESS)
+                brightness: int | None
+                if brightness_percent is not None:
+                    brightness = brightness_percent_to_device(brightness_percent)
+                else:
+                    brightness = user_preset.get("effect_brightness")
+
+                # User presets store colors as list of dicts
+                colors_data: list[dict[str, int]] = user_preset["effect_colors"]
+
+                # User presets may specify segments
+                if user_preset.get("effect_segments"):
+                    segments = user_preset["effect_segments"]
+            elif preset in EFFECT_PRESETS:
+                # Use built-in preset
+                preset_data = EFFECT_PRESETS[preset]
+                effect_str = preset_data["effect"]
+                speed = preset_data["speed"]
+
+                # Use slider brightness if provided, otherwise use preset brightness
+                brightness_percent = call.data.get(ATTR_BRIGHTNESS)
+                if brightness_percent is not None:
+                    brightness = brightness_percent_to_device(brightness_percent)
+                else:
+                    brightness = preset_data.get("brightness")
+
+                # Convert preset colors to expected format
+                colors_data = [
+                    {"r": color[0], "g": color[1], "b": color[2]}
+                    for color in preset_data["colors"]
+                ]
+            else:
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
                     translation_key="invalid_preset",
                     translation_placeholders={"preset": preset},
                 )
-
-            preset_data = EFFECT_PRESETS[preset]
-            effect_str: str = preset_data["effect"]
-            speed: int = preset_data["speed"]
-
-            # Use slider brightness if provided, otherwise use preset brightness
-            brightness_percent: int | None = call.data.get(ATTR_BRIGHTNESS)
-            brightness: int | None
-            if brightness_percent is not None:
-                brightness = brightness_percent_to_device(brightness_percent)
-            else:
-                brightness = preset_data.get("brightness")
-
-            # Convert preset colors to expected format
-            colors_data: list[dict[str, int]] = [
-                {"r": color[0], "g": color[1], "b": color[2]}
-                for color in preset_data["colors"]
-            ]
         else:
             # Manual mode - require effect, speed, and at least color_1
             effect_str_opt: str | None = call.data.get(ATTR_EFFECT)
@@ -740,7 +859,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             )
 
             # Collect colors from individual color picker parameters
-            colors_data: list[dict[str, int]] = []
+            # Supports both RGB and XY color formats
+            colors: list[RGBColor] = []
             for color_attr in [
                 ATTR_COLOR_1,
                 ATTR_COLOR_2,
@@ -751,16 +871,21 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 ATTR_COLOR_7,
                 ATTR_COLOR_8,
             ]:
-                color_rgb = call.data.get(color_attr)
-                if color_rgb:
-                    # Color picker returns [r, g, b] list, convert to dict
-                    colors_data.append({"r": color_rgb[0], "g": color_rgb[1], "b": color_rgb[2]})
+                color_data = call.data.get(color_attr)
+                if color_data:
+                    # Convert to RGBColor (handles XY, RGB dict, and RGB list)
+                    colors.append(_normalize_color_to_rgb(color_data))
 
-            if not colors_data:
+            if not colors:
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
                     translation_key="color_required",
                 )
+
+        # Convert colors_data to colors for preset path
+        # (Manual path already has colors as list of RGBColor)
+        if preset:
+            colors = [_normalize_color_to_rgb(cd) for cd in colors_data]
 
         # Convert effect string to EffectType
         try:
@@ -772,8 +897,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 translation_placeholders={"effect": effect_str},
             ) from ex
 
-        # Convert color data to RGBColor objects
-        colors = [RGBColor(**color_data) for color_data in colors_data]
+        # Colors are already RGBColor objects from _normalize_color_to_rgb
 
         # Prepare effects for all entities
         entities_to_publish: list[tuple[str, str, DynamicEffect]] = []
@@ -889,13 +1013,16 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 len(entities_to_publish),
             )
             await mqtt_client.async_publish_batch_effects(
-                [(z2m_name, effect) for _, z2m_name, effect in entities_to_publish]
+                [(z2m_name, effect) for _, z2m_name, effect in entities_to_publish],
+                z2m_base_topic,
             )
         else:
             # Non-synchronized or single device - publish sequentially
             for _, z2m_name, dynamic_effect in entities_to_publish:
                 try:
-                    await mqtt_client.async_publish_dynamic_effect(z2m_name, dynamic_effect)
+                    await mqtt_client.async_publish_dynamic_effect(
+                        z2m_name, dynamic_effect, z2m_base_topic
+                    )
                 except Exception as ex:
                     _LOGGER.warning(
                         "Failed to publish effect to %s: %s", z2m_name, ex
@@ -945,6 +1072,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         mqtt_client, state_manager = _get_mqtt_client_and_state_manager(hass)
 
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+        z2m_base_topic: str | None = call.data.get(ATTR_Z2M_BASE_TOPIC)
 
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
@@ -1042,6 +1170,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         mqtt_client, state_manager = _get_mqtt_client_and_state_manager(hass)
 
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+        z2m_base_topic: str | None = call.data.get(ATTR_Z2M_BASE_TOPIC)
 
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
@@ -1063,9 +1192,20 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
         # Get preset data if preset is specified
         preset_data = None
+        user_preset = None
         if preset:
-            preset_data = SEGMENT_PATTERN_PRESETS.get(preset)
-            if not preset_data:
+            # Check user presets first
+            preset_store = _get_preset_store(hass)
+            if preset_store:
+                user_preset = preset_store.get_preset_by_name(
+                    PRESET_TYPE_SEGMENT_PATTERN, preset
+                )
+
+            if not user_preset:
+                # Fall back to built-in presets
+                preset_data = SEGMENT_PATTERN_PRESETS.get(preset)
+
+            if not user_preset and not preset_data:
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
                     translation_key="invalid_preset",
@@ -1148,7 +1288,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     _LOGGER.warning("Failed to set brightness for %s: %s", entity_id, ex)
 
             # If using preset, build segment_colors from preset data
-            if preset_data:
+            if user_preset:
+                # User presets store segments as list of dicts already
+                segment_colors_data = user_preset["segments"][:max_segments]
+            elif preset_data:
                 preset_segments = preset_data["segments"]
                 # Build segment_colors_data from preset
                 segment_colors_data = [
@@ -1204,7 +1347,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 device_state.paused_segment_sequence = paused_segment
 
             try:
-                await mqtt_client.async_publish_segment_pattern(z2m_name, segment_colors)
+                await mqtt_client.async_publish_segment_pattern(
+                    z2m_name, segment_colors, z2m_base_topic
+                )
                 _LOGGER.info("Applied segment pattern to %s", entity_id)
 
                 # Fire effect activated event
@@ -1241,6 +1386,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         mqtt_client, state_manager = _get_mqtt_client_and_state_manager(hass)
 
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+        z2m_base_topic: str | None = call.data.get(ATTR_Z2M_BASE_TOPIC)
 
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
@@ -1260,7 +1406,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         turn_off_unspecified: bool = call.data.get(ATTR_TURN_OFF_UNSPECIFIED, False)
 
         # Collect colors from individual color picker parameters
-        colors_data: list[dict[str, int]] = []
+        # Supports both RGB and XY color formats
+        colors_rgb: list[RGBColor] = []
         for color_attr in [
             ATTR_COLOR_1,
             ATTR_COLOR_2,
@@ -1269,10 +1416,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             ATTR_COLOR_5,
             ATTR_COLOR_6,
         ]:
-            color_rgb = call.data.get(color_attr)
-            if color_rgb:
-                # Color picker returns [r, g, b] list, convert to dict
-                colors_data.append({"r": color_rgb[0], "g": color_rgb[1], "b": color_rgb[2]})
+            color_data = call.data.get(color_attr)
+            if color_data:
+                # Convert to RGBColor (handles XY, RGB dict, and RGB list)
+                colors_rgb.append(_normalize_color_to_rgb(color_data))
 
         # Process each entity
         for entity_id in resolved_entity_ids:
@@ -1337,7 +1484,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 segment_list = list(range(1, segment_count + 1))
 
             # Generate gradient
-            gradient_data = generate_gradient_colors(colors_data, segment_count)
+            gradient_data = generate_gradient_colors(colors_rgb, segment_count)
 
             # Map gradient positions to actual segment numbers
             if segments_str:
@@ -1367,7 +1514,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             state_manager.capture_state(entity_id, z2m_name)
 
             try:
-                await mqtt_client.async_publish_segment_pattern(z2m_name, segment_colors)
+                await mqtt_client.async_publish_segment_pattern(
+                    z2m_name, segment_colors, z2m_base_topic
+                )
                 _LOGGER.info("Applied gradient to %s", entity_id)
 
                 # Fire effect activated event
@@ -1404,6 +1553,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         mqtt_client, state_manager = _get_mqtt_client_and_state_manager(hass)
 
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+        z2m_base_topic: str | None = call.data.get(ATTR_Z2M_BASE_TOPIC)
 
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
@@ -1424,7 +1574,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         turn_off_unspecified: bool = call.data.get(ATTR_TURN_OFF_UNSPECIFIED, False)
 
         # Collect colors from individual color picker parameters
-        colors_data: list[dict[str, int]] = []
+        # Supports both RGB and XY color formats
+        colors_rgb: list[RGBColor] = []
         for color_attr in [
             ATTR_COLOR_1,
             ATTR_COLOR_2,
@@ -1433,10 +1584,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             ATTR_COLOR_5,
             ATTR_COLOR_6,
         ]:
-            color_rgb = call.data.get(color_attr)
-            if color_rgb:
-                # Color picker returns [r, g, b] list, convert to dict
-                colors_data.append({"r": color_rgb[0], "g": color_rgb[1], "b": color_rgb[2]})
+            color_data = call.data.get(color_attr)
+            if color_data:
+                # Convert to RGBColor (handles XY, RGB dict, and RGB list)
+                colors_rgb.append(_normalize_color_to_rgb(color_data))
 
         # Process each entity
         for entity_id in resolved_entity_ids:
@@ -1501,7 +1652,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 segment_list = list(range(1, segment_count + 1))
 
             # Generate blocks
-            blocks_data = generate_block_colors(colors_data, segment_count, expand)
+            blocks_data = generate_block_colors(colors_rgb, segment_count, expand)
 
             # Map block positions to actual segment numbers
             if segments_str:
@@ -1531,7 +1682,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             state_manager.capture_state(entity_id, z2m_name)
 
             try:
-                await mqtt_client.async_publish_segment_pattern(z2m_name, segment_colors)
+                await mqtt_client.async_publish_segment_pattern(
+                    z2m_name, segment_colors, z2m_base_topic
+                )
                 _LOGGER.info("Applied block pattern to %s", entity_id)
 
                 # Fire effect activated event
@@ -1581,6 +1734,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             )
 
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+        z2m_base_topic: str | None = call.data.get(ATTR_Z2M_BASE_TOPIC)
 
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
@@ -1593,15 +1747,24 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
         # Handle preset or manual configuration
         if preset:
-            # Using a preset - load preset data
-            if preset not in CCT_SEQUENCE_PRESETS:
+            # Check user presets first
+            preset_store = _get_preset_store(hass)
+            user_preset = None
+            if preset_store:
+                user_preset = preset_store.get_preset_by_name(
+                    PRESET_TYPE_CCT_SEQUENCE, preset
+                )
+
+            if user_preset:
+                preset_data = user_preset
+            elif preset in CCT_SEQUENCE_PRESETS:
+                preset_data = CCT_SEQUENCE_PRESETS[preset]
+            else:
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
                     translation_key="invalid_preset",
                     translation_placeholders={"preset": preset},
                 )
-
-            preset_data = CCT_SEQUENCE_PRESETS[preset]
 
             # Create CCTSequenceStep objects from preset step data
             sequence_steps = []
@@ -1714,7 +1877,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             await _ensure_light_on(hass, mqtt_client, entity_id, z2m_name, turn_on)
 
             try:
-                await cct_manager.start_sequence(entity_id, sequence)
+                await cct_manager.start_sequence(entity_id, sequence, z2m_base_topic)
                 _LOGGER.info(
                     "Started CCT sequence for %s: %d steps, loop_mode=%s",
                     entity_id,
@@ -1746,6 +1909,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             )
 
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+        # z2m_base_topic extracted for schema consistency (stop doesn't need MQTT)
+        _: str | None = call.data.get(ATTR_Z2M_BASE_TOPIC)
 
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
@@ -1784,6 +1949,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             )
 
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+        # z2m_base_topic extracted for schema consistency (pause doesn't need MQTT)
+        _: str | None = call.data.get(ATTR_Z2M_BASE_TOPIC)
 
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
@@ -1821,6 +1988,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             )
 
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+        # z2m_base_topic extracted for schema consistency (resume doesn't need MQTT)
+        _: str | None = call.data.get(ATTR_Z2M_BASE_TOPIC)
 
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
@@ -1858,6 +2027,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             )
 
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+        z2m_base_topic: str | None = call.data.get(ATTR_Z2M_BASE_TOPIC)
 
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
@@ -1867,15 +2037,24 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
         # Handle preset or manual configuration
         if preset:
-            # Using a preset - load preset data
-            if preset not in SEGMENT_SEQUENCE_PRESETS:
+            # Check user presets first
+            preset_store = _get_preset_store(hass)
+            user_preset = None
+            if preset_store:
+                user_preset = preset_store.get_preset_by_name(
+                    PRESET_TYPE_SEGMENT_SEQUENCE, preset
+                )
+
+            if user_preset:
+                preset_data = user_preset
+            elif preset in SEGMENT_SEQUENCE_PRESETS:
+                preset_data = SEGMENT_SEQUENCE_PRESETS[preset]
+            else:
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
                     translation_key="invalid_preset",
                     translation_placeholders={"preset": preset},
                 )
-
-            preset_data = SEGMENT_SEQUENCE_PRESETS[preset]
 
             # Create SegmentSequenceStep objects from preset step data
             sequence_steps = []
@@ -1902,11 +2081,15 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             loop_mode: str = preset_data["loop_mode"]
             loop_count: int | None = preset_data.get("loop_count")
             end_behavior: str = preset_data["end_behavior"]
+            clear_segments: bool = preset_data.get("clear_segments", False)
+            skip_first_in_loop: bool = preset_data.get("skip_first_in_loop", False)
         else:
             # Manual configuration - extract from service call parameters
             loop_mode = call.data.get(ATTR_LOOP_MODE, LOOP_MODE_ONCE)
             loop_count = call.data.get(ATTR_LOOP_COUNT)
             end_behavior = call.data.get(ATTR_END_BEHAVIOR, END_BEHAVIOR_MAINTAIN)
+            clear_segments = call.data.get(ATTR_CLEAR_SEGMENTS, False)
+            skip_first_in_loop = call.data.get(ATTR_SKIP_FIRST_IN_LOOP, False)
 
             # Validate loop_count is provided when loop_mode is "count"
             if loop_mode == LOOP_MODE_COUNT and loop_count is None:
@@ -1923,13 +2106,13 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
                 # Check if this step is provided
                 if segments_key in call.data and mode_key in call.data:
-                    # Extract colors for this step
+                    # Extract colors for this step (supports both RGB and XY formats)
                     step_colors = []
                     for color_num in range(1, 7):
                         color_key = f"step_{step_num}_color_{color_num}"
                         if color_key in call.data:
-                            color_list = call.data[color_key]
-                            step_colors.append(RGBColor(r=color_list[0], g=color_list[1], b=color_list[2]))
+                            color_data = call.data[color_key]
+                            step_colors.append(_normalize_color_to_rgb(color_data))
 
                     if not step_colors:
                         raise ServiceValidationError(
@@ -1973,6 +2156,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 loop_mode=loop_mode,
                 loop_count=loop_count,
                 end_behavior=end_behavior,
+                clear_segments=clear_segments,
+                skip_first_in_loop=skip_first_in_loop,
             )
         except ValueError as ex:
             raise ServiceValidationError(
@@ -2017,7 +2202,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             await _ensure_light_on(hass, mqtt_client, entity_id, z2m_name, turn_on)
 
             try:
-                sequence_id = await segment_manager.start_sequence(entity_id, sequence)
+                sequence_id = await segment_manager.start_sequence(
+                    entity_id, sequence, z2m_base_topic
+                )
                 _LOGGER.info("Started segment sequence for %s (sequence_id=%s)", entity_id, sequence_id)
             except Exception as ex:
                 _LOGGER.error(
@@ -2045,6 +2232,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             )
 
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+        # z2m_base_topic extracted for schema consistency (stop doesn't need MQTT)
+        _: str | None = call.data.get(ATTR_Z2M_BASE_TOPIC)
 
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
@@ -2078,6 +2267,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             )
 
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+        # z2m_base_topic extracted for schema consistency (pause doesn't need MQTT)
+        _: str | None = call.data.get(ATTR_Z2M_BASE_TOPIC)
 
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
@@ -2115,6 +2306,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             )
 
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+        # z2m_base_topic extracted for schema consistency (resume doesn't need MQTT)
+        _: str | None = call.data.get(ATTR_Z2M_BASE_TOPIC)
 
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)

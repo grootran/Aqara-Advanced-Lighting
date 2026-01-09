@@ -1,38 +1,111 @@
 import { css } from 'lit';
 
+/**
+ * Home Assistant-aligned panel styles
+ * Uses HA CSS custom properties for theming compatibility
+ * Following patterns from HA frontend src/styles/
+ */
 export const panelStyles = css`
+  /* Base styles - follows HA haStyle patterns */
   :host {
     display: block;
-    padding: 16px;
-    background-color: var(--card-background-color, #fff);
-    color: var(--primary-text-color, #000);
-    font-family: var(--paper-font-body1_-_font-family);
+    height: 100%;
+    background-color: var(--primary-background-color);
+    color: var(--primary-text-color);
+    font-family: var(--ha-font-family-body, var(--paper-font-body1_-_font-family, Roboto, sans-serif));
+    font-size: var(--ha-font-size-m, 14px);
+    line-height: var(--ha-line-height-normal, 1.5);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Fixed header - follows HA developer-tools pattern */
+  .header {
+    background-color: var(--app-header-background-color);
+    color: var(--app-header-text-color, var(--text-primary-color));
+    border-bottom: 1px solid var(--divider-color);
+    position: fixed;
+    top: env(safe-area-inset-top, 0px);
+    left: var(--mdc-drawer-width, 0px);
+    right: 0;
+    z-index: 4;
+  }
+
+  :host([narrow]) .header {
+    left: 0;
+  }
+
+  /* Safe area padding for iOS notch */
+  @supports (padding-top: env(safe-area-inset-top)) {
+    .header {
+      padding-top: 0;
+    }
+  }
+
+  /* Toolbar - hamburger menu and title */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    height: var(--header-height, 56px);
+    padding: 0 12px;
+    box-sizing: border-box;
+  }
+
+  .main-title {
+    margin-left: 8px;
+    font-size: 20px;
+    font-weight: 400;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ha-tab-group - native HA tab component (same as Developer Tools) */
+  ha-tab-group {
+    --track-color: var(--divider-color);
+    --indicator-color: var(--primary-color);
+  }
+
+  ha-tab-group-tab {
+    --ha-tab-active-text-color: var(--primary-color);
+  }
+
+  /* Content area with padding for fixed header */
+  .content {
+    padding: calc(var(--header-height, 56px) + 48px + 16px + env(safe-area-inset-top, 0px)) 16px 16px;
     max-width: 1200px;
     margin: 0 auto;
+    box-sizing: border-box;
+    min-height: 100vh;
   }
 
-  .panel-header {
-    margin-bottom: 24px;
+  /* HA scrollbar styling (from haStyleScrollbar) */
+  ::-webkit-scrollbar {
+    width: 0.4rem;
+    height: 0.4rem;
   }
 
-  .panel-title {
-    font-size: 24px;
-    font-weight: 500;
-    margin: 0 0 8px 0;
-    color: var(--primary-text-color);
+  ::-webkit-scrollbar-thumb {
+    -webkit-border-radius: 4px;
+    border-radius: 4px;
+    background: var(--scrollbar-thumb-color, var(--divider-color));
   }
 
-  .controls {
-    background: var(--primary-background-color);
-    border-radius: 8px;
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* Controls section - now using ha-card */
+  ha-card.controls {
     padding: 16px;
     margin-bottom: 24px;
   }
 
   .control-row {
     display: flex;
-    align-items: center;
-    gap: 16px;
+    flex-direction: column;
+    gap: 8px;
     margin-bottom: 16px;
   }
 
@@ -41,14 +114,14 @@ export const panelStyles = css`
   }
 
   .control-label {
-    font-size: 14px;
-    font-weight: 500;
-    min-width: 80px;
-    color: var(--secondary-text-color);
+    font-size: var(--ha-font-size-m, 14px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    color: var(--primary-text-color);
+    line-height: var(--ha-line-height-condensed, 1.2);
   }
 
   .control-input {
-    flex: 1;
+    width: 100%;
   }
 
   .control-buttons {
@@ -66,24 +139,35 @@ export const panelStyles = css`
     margin-right: 4px;
   }
 
-  /* Target input with add favorite button */
+  /* Target input with selector and favorite button */
   .target-input {
     display: flex;
+    flex-wrap: wrap;
     align-items: flex-start;
     gap: 8px;
+    min-width: 0;
+    width: 100%;
   }
 
-  .target-input ha-selector {
+  /* Target selector container */
+  .target-selector {
     flex: 1;
+    min-width: 200px;
+  }
+
+  .target-selector ha-selector {
+    display: block;
+    width: 100%;
   }
 
   .add-favorite-btn {
-    --mdc-icon-button-size: 40px;
+    --mdc-icon-button-size: 36px;
     color: var(--primary-color);
+    flex-shrink: 0;
   }
 
   .add-favorite-btn:hover {
-    color: var(--accent-color);
+    color: var(--accent-color, var(--primary-color));
   }
 
   /* Favorite inline input */
@@ -91,17 +175,25 @@ export const panelStyles = css`
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-wrap: wrap;
   }
 
   .favorite-input-container ha-selector {
     flex: 1;
+    min-width: 150px;
   }
 
   .favorite-input-container ha-button {
     flex-shrink: 0;
   }
 
-  /* Light tile card container */
+  .favorite-input-buttons {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  /* Light tile card container - uses HA grid patterns */
   .light-tile-container {
     width: 100%;
     display: grid;
@@ -111,19 +203,12 @@ export const panelStyles = css`
 
   .light-tile-container hui-tile-card {
     --ha-card-background: var(--card-background-color);
-    --ha-card-border-radius: 12px;
+    --ha-card-border-radius: var(--ha-card-border-radius, 12px);
     display: block;
     width: 100%;
   }
 
-  @media (max-width: 600px) {
-    .light-tile-container {
-      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-      gap: 8px;
-    }
-  }
-
-  /* Favorites container and chips */
+  /* Favorites container - uses HA chip pattern */
   .favorites-container {
     display: flex;
     flex-wrap: wrap;
@@ -139,8 +224,8 @@ export const panelStyles = css`
     border: 1px solid var(--divider-color);
     border-radius: 20px;
     cursor: pointer;
-    transition: all 0.2s ease;
-    font-size: 13px;
+    transition: all 0.15s ease-in-out;
+    font-size: var(--ha-font-size-s, 13px);
   }
 
   .favorite-chip:hover {
@@ -151,7 +236,7 @@ export const panelStyles = css`
 
   .favorite-icon {
     --mdc-icon-size: 16px;
-    color: var(--warning-color);
+    color: var(--warning-color, #ff9800);
   }
 
   .favorite-chip:hover .favorite-icon {
@@ -176,9 +261,52 @@ export const panelStyles = css`
     opacity: 1;
   }
 
-  .section {
-    background: var(--primary-background-color);
-    border-radius: 8px;
+  /* ha-expansion-panel styling for sections - follows HA patterns */
+  ha-expansion-panel {
+    --expansion-panel-content-padding: 0 16px 16px 16px;
+    --ha-card-border-radius: var(--ha-card-border-radius, 12px);
+    margin-bottom: 16px;
+    display: block;
+  }
+
+  ha-expansion-panel[outlined] {
+    border-radius: var(--ha-card-border-radius, 12px);
+    border: 1px solid var(--divider-color);
+    background: var(--card-background-color);
+  }
+
+  /* Expansion panel header styling */
+  ha-expansion-panel .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    cursor: default;
+    margin-bottom: 0;
+    user-select: none;
+    padding: 8px;
+  }
+
+  ha-expansion-panel .section-header-controls {
+    margin-right: 0;
+  }
+
+  /* Expansion panel content - consistent 16px padding */
+  ha-expansion-panel .section-content {
+    padding: 0;
+  }
+
+  /* Controls content inside expansion panel - flex column layout instead of grid */
+  ha-expansion-panel .section-content.controls-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* Legacy section styling for ha-card - follows HA patterns */
+  ha-card.section {
+    --ha-card-background: var(--card-background-color, var(--primary-background-color));
+    --ha-card-border-radius: var(--ha-card-border-radius, 12px);
     padding: 16px;
     margin-bottom: 16px;
   }
@@ -193,17 +321,55 @@ export const panelStyles = css`
   }
 
   .section-title {
-    font-size: 18px;
-    font-weight: 500;
+    font-size: var(--ha-font-size-l, 18px);
+    font-weight: var(--ha-font-weight-medium, 500);
     color: var(--primary-text-color);
   }
 
   .section-subtitle {
-    font-size: 12px;
+    font-size: var(--ha-font-size-s, 12px);
     color: var(--secondary-text-color);
     margin-top: 4px;
   }
 
+  .section-header-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Sort dropdown - uses HA select styling patterns */
+  .sort-select {
+    padding: 6px 10px;
+    font-size: var(--ha-font-size-s, 12px);
+    border: 1px solid var(--divider-color);
+    border-radius: var(--ha-border-radius-sm, 4px);
+    background: var(--card-background-color);
+    color: var(--primary-text-color);
+    cursor: pointer;
+    min-width: 110px;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23666'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 4px center;
+    background-size: 18px;
+    padding-right: 24px;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  }
+
+  .sort-select:hover {
+    border-color: var(--primary-color);
+  }
+
+  .sort-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 1px var(--primary-color);
+  }
+
+  /* Preset grid - uses HA layout patterns */
   .section-content {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -214,6 +380,7 @@ export const panelStyles = css`
     display: none;
   }
 
+  /* Preset buttons - follows HA card interaction patterns */
   .preset-button {
     display: flex;
     flex-direction: column;
@@ -222,18 +389,31 @@ export const panelStyles = css`
     padding: 12px;
     background: var(--card-background-color);
     border: 2px solid var(--divider-color);
-    border-radius: 8px;
+    border-radius: var(--ha-card-border-radius, 12px);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.15s ease-in-out;
     min-height: 80px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .preset-button::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--primary-color);
+    opacity: 0;
+    transition: opacity 0.15s ease-in-out;
+  }
+
+  .preset-button:hover::before {
+    opacity: 0.08;
   }
 
   .preset-button:hover {
-    background: var(--primary-color);
-    color: var(--text-primary-color);
     border-color: var(--primary-color);
     transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: var(--ha-card-box-shadow, 0 4px 8px rgba(0, 0, 0, 0.1));
   }
 
   .preset-button:active {
@@ -241,23 +421,26 @@ export const panelStyles = css`
   }
 
   .preset-button.disabled {
-    opacity: 0.3;
+    opacity: 0.4;
     cursor: not-allowed;
   }
 
   .preset-button.disabled:hover {
-    background: var(--card-background-color);
-    color: var(--primary-text-color);
     border-color: var(--divider-color);
     transform: none;
     box-shadow: none;
   }
 
+  .preset-button.disabled::before {
+    opacity: 0;
+  }
+
   .preset-name {
-    font-size: 13px;
-    font-weight: 500;
+    font-size: var(--ha-font-size-s, 13px);
+    font-weight: var(--ha-font-weight-medium, 500);
     text-align: center;
     margin-top: 8px;
+    position: relative;
   }
 
   .preset-icon {
@@ -266,6 +449,7 @@ export const panelStyles = css`
     display: flex;
     align-items: center;
     justify-content: center;
+    position: relative;
   }
 
   .preset-icon img {
@@ -277,22 +461,22 @@ export const panelStyles = css`
   .preset-icon ha-icon {
     width: 100%;
     height: 100%;
+    --mdc-icon-size: 32px;
   }
 
+  /* Loading state - follows HA patterns */
   .loading {
     display: flex;
     justify-content: center;
     align-items: center;
     padding: 40px;
-    font-size: 16px;
+    font-size: var(--ha-font-size-m, 16px);
     color: var(--secondary-text-color);
   }
 
-  .error {
-    background: var(--error-color);
-    color: white;
-    padding: 16px;
-    border-radius: 8px;
+  /* HA native ha-alert component styling */
+  ha-alert {
+    display: block;
     margin-bottom: 16px;
   }
 
@@ -300,10 +484,10 @@ export const panelStyles = css`
     text-align: center;
     padding: 40px;
     color: var(--secondary-text-color);
-    font-size: 14px;
+    font-size: var(--ha-font-size-m, 14px);
   }
 
-  ha-entity-picker {
+  ha-selector {
     display: block;
     width: 100%;
   }
@@ -312,9 +496,739 @@ export const panelStyles = css`
     width: 100%;
   }
 
+  /* Tab content area */
+  .tab-content {
+    min-height: 200px;
+  }
+
+  /* Editor form styles - now using ha-card, follows HA form patterns */
+  ha-card.editor-form {
+    padding: 16px;
+  }
+
+  .editor-form h2 {
+    font-size: var(--ha-font-size-xl, 20px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    margin: 0 0 8px 0;
+    color: var(--primary-text-color);
+  }
+
+  .form-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .form-row:last-child {
+    margin-bottom: 0;
+  }
+
+  .form-label {
+    font-size: var(--ha-font-size-m, 14px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    min-width: 120px;
+    color: var(--secondary-text-color);
+  }
+
+  .form-input {
+    flex: 1;
+  }
+
+  /* Vertical form section - label above content, left-aligned */
+  .form-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .form-section .form-label {
+    min-width: unset;
+  }
+
+
+  /* Two-column form row for Name/Icon on desktop */
+  .form-row-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .form-row-pair .form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .form-row-pair .form-field .form-label {
+    min-width: unset;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--divider-color);
+  }
+
+  /* =========================================
+   * UNIFORM COLOR PICKER STYLES
+   * Standard variant: for color arrays (Effects, Gradient, Blocks, Sequence Steps)
+   * Palette variant: for pattern-editor Individual mode (selectable fixed colors)
+   * ========================================= */
+
+  /* Color picker container */
+  .color-picker-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  /* Individual color item wrapper */
+  .color-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px;
+    background: var(--card-background-color);
+    border-radius: 8px;
+    border: 1px solid var(--divider-color);
+  }
+
+  /* Color swatch - 40px for good touch targets (Apple HIG recommends 44px minimum) */
+  .color-swatch {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 2px solid var(--divider-color);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .color-swatch:hover {
+    transform: scale(1.08);
+    border-color: var(--primary-color);
+  }
+
+  .color-swatch:active {
+    transform: scale(0.95);
+  }
+
+  /* Hidden native input overlays the swatch */
+  .color-swatch input[type="color"] {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    border: none;
+    padding: 0;
+  }
+
+  /* Remove button */
+  .color-remove {
+    --mdc-icon-button-size: 28px;
+    --mdc-icon-size: 16px;
+    opacity: 0.6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.15s ease, color 0.15s ease;
+  }
+
+  .color-remove:hover {
+    opacity: 1;
+    color: var(--error-color);
+  }
+
+  /* Add color button - 44px minimum for touch */
+  .add-color-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border: 2px dashed var(--divider-color);
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--secondary-text-color);
+    background: transparent;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .add-color-btn:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    background: var(--secondary-background-color);
+  }
+
+  .add-color-btn.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  /* =========================================
+   * PALETTE VARIANT
+   * For pattern-editor Individual mode (selectable fixed colors)
+   * ========================================= */
+
+  /* Palette container */
+  .color-palette {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+  }
+
+  /* Palette color wrapper with edit button */
+  .palette-color-wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Selectable palette swatch */
+  .palette-color {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 3px solid var(--divider-color);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .palette-color:hover {
+    transform: scale(1.08);
+  }
+
+  .palette-color.selected {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px var(--primary-color);
+  }
+
+  /* Small edit button below palette swatch */
+  .palette-edit-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 50%;
+    background: var(--secondary-background-color);
+    color: var(--secondary-text-color);
+    cursor: pointer;
+    padding: 0;
+    transition: all 0.15s ease;
+    --mdc-icon-size: 14px;
+  }
+
+  .palette-edit-btn:hover {
+    background: var(--primary-color);
+    color: var(--text-primary-color);
+  }
+
+  /* Color picker modal overlay */
+  .color-picker-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+
+  .color-picker-modal {
+    background: var(--card-background-color, #fff);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    max-width: 90vw;
+  }
+
+  .color-picker-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-bottom: 8px;
+  }
+
+  .color-picker-modal-title {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--primary-text-color);
+  }
+
+  .color-picker-modal-preview {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 3px solid var(--divider-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  .color-picker-modal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  /* Step list styles - follows HA list patterns */
+  .step-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .step-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    background: var(--card-background-color);
+    border-radius: var(--ha-border-radius-sm, 8px);
+    border: 1px solid var(--divider-color);
+  }
+
+  .step-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: var(--primary-color);
+    color: var(--text-primary-color);
+    border-radius: 50%;
+    font-size: var(--ha-font-size-s, 12px);
+    font-weight: var(--ha-font-weight-medium, 600);
+    flex-shrink: 0;
+  }
+
+  .step-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .step-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .step-field {
+    flex: 1;
+    min-width: 120px;
+  }
+
+  .step-field-label {
+    font-size: var(--ha-font-size-xs, 11px);
+    color: var(--secondary-text-color);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .step-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .step-actions ha-icon-button {
+    --mdc-icon-button-size: 32px;
+    --mdc-icon-size: 18px;
+  }
+
+  .add-step-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+    border: 2px dashed var(--divider-color);
+    border-radius: var(--ha-border-radius-sm, 8px);
+    cursor: pointer;
+    color: var(--secondary-text-color);
+    transition: all 0.15s ease-in-out;
+  }
+
+  .add-step-btn:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    background: var(--secondary-background-color);
+  }
+
+  /* Segment grid editor - follows HA grid patterns */
+  .segment-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+    gap: 4px;
+    padding: 12px;
+    background: var(--card-background-color);
+    border-radius: var(--ha-border-radius-sm, 8px);
+  }
+
+  .segment-cell {
+    aspect-ratio: 1;
+    border-radius: var(--ha-border-radius-sm, 4px);
+    cursor: pointer;
+    border: 2px solid var(--divider-color);
+    transition: all 0.15s ease-in-out;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--ha-font-size-xs, 10px);
+    font-weight: var(--ha-font-weight-medium, 600);
+    color: var(--secondary-text-color);
+  }
+
+  .segment-cell:hover {
+    transform: scale(1.1);
+    z-index: 1;
+  }
+
+  .segment-cell.selected {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px var(--primary-color);
+  }
+
+  .segment-cell.colored {
+    border-color: transparent;
+  }
+
+  .preset-type-tabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .preset-type-tab {
+    padding: 8px 16px;
+    border: 1px solid var(--divider-color);
+    border-radius: 20px;
+    background: transparent;
+    cursor: pointer;
+    font-size: var(--ha-font-size-s, 13px);
+    color: var(--secondary-text-color);
+    transition: all 0.15s ease-in-out;
+  }
+
+  .preset-type-tab:hover {
+    background: var(--secondary-background-color);
+  }
+
+  .preset-type-tab.active {
+    background: var(--primary-color);
+    color: var(--text-primary-color);
+    border-color: var(--primary-color);
+  }
+
+  .preset-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* Preset list item - follows HA list-item patterns */
+  .preset-list-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: var(--card-background-color);
+    border-radius: var(--ha-border-radius-sm, 8px);
+    border: 1px solid var(--divider-color);
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+  }
+
+  .preset-list-item:hover {
+    background: var(--secondary-background-color);
+  }
+
+  .preset-list-item-info {
+    flex: 1;
+  }
+
+  .preset-list-item-name {
+    font-weight: var(--ha-font-weight-medium, 500);
+    font-size: var(--ha-font-size-m, 14px);
+  }
+
+  .preset-list-item-description {
+    font-size: var(--ha-font-size-s, 12px);
+    color: var(--secondary-text-color);
+    margin-top: 2px;
+  }
+
+  .preset-list-item-meta {
+    font-size: var(--ha-font-size-xs, 11px);
+    color: var(--secondary-text-color);
+    margin-top: 4px;
+  }
+
+  .preset-list-item-actions {
+    display: flex;
+    gap: 4px;
+  }
+
+  .preset-list-item-actions ha-icon-button {
+    --mdc-icon-button-size: 32px;
+    --mdc-icon-size: 18px;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 40px;
+    color: var(--secondary-text-color);
+  }
+
+  .empty-state-icon {
+    --mdc-icon-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+  }
+
+  .empty-state-text {
+    font-size: var(--ha-font-size-m, 14px);
+  }
+
+  /* Editor description */
+  .editor-description {
+    font-size: var(--ha-font-size-m, 14px);
+    color: var(--secondary-text-color);
+    margin-bottom: 24px;
+    line-height: var(--ha-line-height-normal, 1.5);
+  }
+
+  /* Placeholder styles */
+  .coming-soon {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--secondary-text-color);
+    background: var(--card-background-color);
+    border-radius: var(--ha-card-border-radius, 12px);
+    border: 2px dashed var(--divider-color);
+    font-size: var(--ha-font-size-m, 14px);
+  }
+
+  /* No presets empty state - follows HA empty state patterns */
+  .no-presets {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--secondary-text-color);
+    background: var(--card-background-color);
+    border-radius: var(--ha-card-border-radius, 12px);
+  }
+
+  .no-presets ha-icon {
+    --mdc-icon-size: 48px;
+    opacity: 0.5;
+    margin-bottom: 16px;
+    display: block;
+  }
+
+  .no-presets p {
+    margin: 8px 0;
+    font-size: var(--ha-font-size-m, 14px);
+  }
+
+  /* User preset button styling in Activate tab */
+  .preset-button.user-preset {
+    border-color: var(--primary-color);
+    border-style: dashed;
+    border-width: 2px;
+  }
+
+  .preset-button.user-preset:hover {
+    border-style: solid;
+  }
+
+  /* Preset category in My Presets tab */
+  .preset-category {
+    margin-bottom: 24px;
+  }
+
+  .preset-category-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .preset-category h3 {
+    font-size: var(--ha-font-size-l, 16px);
+    font-weight: var(--ha-font-weight-medium, 600);
+    margin: 0;
+    color: var(--primary-text-color);
+  }
+
+  /* Preset grid for My Presets tab */
+  .preset-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+  }
+
+  /* User preset card with action buttons - follows HA card patterns */
+  .user-preset-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    background: var(--card-background-color);
+    border: 2px solid var(--divider-color);
+    border-radius: var(--ha-card-border-radius, 12px);
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+    min-height: 80px;
+    overflow: hidden;
+  }
+
+  .user-preset-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--primary-color);
+    opacity: 0;
+    transition: opacity 0.15s ease-in-out;
+  }
+
+  .user-preset-card:hover::before {
+    opacity: 0.08;
+  }
+
+  .user-preset-card:hover {
+    border-color: var(--primary-color);
+    transform: translateY(-2px);
+    box-shadow: var(--ha-card-box-shadow, 0 4px 8px rgba(0, 0, 0, 0.1));
+  }
+
+  .user-preset-card:active {
+    transform: translateY(0);
+  }
+
+  .user-preset-card.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .user-preset-card.disabled:hover {
+    border-color: var(--divider-color);
+    transform: none;
+    box-shadow: none;
+  }
+
+  .user-preset-card.disabled::before {
+    opacity: 0;
+  }
+
+  .user-preset-card .preset-icon {
+    font-size: 28px;
+    margin-bottom: 8px;
+    line-height: 1;
+    position: relative;
+    --mdc-icon-size: 28px;
+  }
+
+  .user-preset-card .preset-name {
+    font-size: var(--ha-font-size-s, 12px);
+    text-align: center;
+    font-weight: var(--ha-font-weight-medium, 500);
+    line-height: 1.2;
+    word-break: break-word;
+    max-width: 100%;
+    position: relative;
+  }
+
+  /* Action buttons overlay */
+  .preset-card-actions {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    display: flex;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity 0.15s ease-in-out;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: var(--ha-border-radius-sm, 4px);
+    padding: 2px;
+    z-index: 1;
+  }
+
+  .user-preset-card:hover .preset-card-actions {
+    opacity: 1;
+  }
+
+  .preset-card-actions ha-icon-button {
+    --mdc-icon-button-size: 28px;
+    --mdc-icon-size: 16px;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .preset-card-actions ha-icon-button ha-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .preset-card-actions ha-icon-button:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: var(--ha-border-radius-sm, 4px);
+  }
+
+  /* Responsive styles - follows HA breakpoints */
   @media (max-width: 600px) {
-    :host {
-      padding: 8px;
+    .content {
+      padding: calc(var(--header-height, 56px) + 48px + 8px + env(safe-area-inset-top, 0px)) 8px 8px;
+    }
+
+    .toolbar {
+      padding: 0 4px;
+    }
+
+    .main-title {
+      font-size: 18px;
+    }
+
+    ha-tab-group-tab {
+      font-size: 12px;
+    }
+
+    .light-tile-container {
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 8px;
     }
 
     .section-content {
@@ -328,7 +1242,328 @@ export const panelStyles = css`
     }
 
     .preset-name {
-      font-size: 11px;
+      font-size: var(--ha-font-size-xs, 11px);
     }
+
+    /* Target selector takes full width on mobile */
+    .target-selector {
+      min-width: 100%;
+    }
+
+    /* Favorite input mobile - buttons below text field */
+    .favorite-input-container {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .favorite-input-container ha-selector {
+      width: 100%;
+      min-width: unset;
+    }
+
+    .favorite-input-buttons {
+      justify-content: flex-end;
+    }
+  }
+
+  /* Mobile responsive form styles */
+  @media (max-width: 600px) {
+    .form-row {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .form-row-pair {
+      grid-template-columns: 1fr;
+    }
+
+    .form-label {
+      min-width: unset;
+      margin-bottom: 4px;
+    }
+
+    .step-row {
+      flex-direction: column;
+    }
+
+    .step-field {
+      min-width: unset;
+    }
+
+    /* Sort dropdown mobile styles */
+    .sort-select {
+      min-width: 90px;
+      font-size: var(--ha-font-size-xs, 11px);
+      padding: 4px 20px 4px 6px;
+    }
+
+    .section-header-controls {
+      gap: 4px;
+    }
+
+    .preset-category-header {
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .preset-grid {
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 8px;
+    }
+
+    .user-preset-card {
+      padding: 8px;
+      min-height: 60px;
+    }
+
+    .user-preset-card .preset-icon {
+      font-size: 24px;
+      margin-bottom: 4px;
+      --mdc-icon-size: 24px;
+    }
+
+    .user-preset-card .preset-name {
+      font-size: var(--ha-font-size-xs, 11px);
+    }
+  }
+
+  /* HA dialog fullscreen on mobile - follows haStyleDialog */
+  @media all and (max-width: 450px), all and (max-height: 500px) {
+    ha-dialog {
+      --mdc-dialog-min-width: calc(100vw - env(safe-area-inset-right) - env(safe-area-inset-left));
+      --mdc-dialog-max-width: calc(100vw - env(safe-area-inset-right) - env(safe-area-inset-left));
+      --mdc-dialog-min-height: 100%;
+      --mdc-dialog-max-height: 100%;
+      --vertical-align-dialog: flex-end;
+      --ha-dialog-border-radius: 0;
+    }
+  }
+`;
+
+/**
+ * Shared color picker styles for editor components.
+ * Import this instead of panelStyles when you only need color picker styling.
+ */
+export const colorPickerStyles = css`
+  /* =========================================
+   * UNIFORM COLOR PICKER STYLES
+   * Standard variant: for color arrays (Effects, Gradient, Blocks, Sequence Steps)
+   * Palette variant: for pattern-editor Individual mode (selectable fixed colors)
+   * ========================================= */
+
+  /* Color picker container */
+  .color-picker-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  /* Individual color item wrapper */
+  .color-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px;
+    background: var(--card-background-color);
+    border-radius: 8px;
+    border: 1px solid var(--divider-color);
+  }
+
+  /* Color swatch - 40px for good touch targets (Apple HIG recommends 44px minimum) */
+  .color-swatch {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 2px solid var(--divider-color);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .color-swatch:hover {
+    transform: scale(1.08);
+    border-color: var(--primary-color);
+  }
+
+  .color-swatch:active {
+    transform: scale(0.95);
+  }
+
+  /* Hidden native input overlays the swatch */
+  .color-swatch input[type="color"] {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    border: none;
+    padding: 0;
+  }
+
+  /* Remove button */
+  .color-remove {
+    --mdc-icon-button-size: 28px;
+    --mdc-icon-size: 16px;
+    opacity: 0.6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.15s ease, color 0.15s ease;
+  }
+
+  .color-remove:hover {
+    opacity: 1;
+    color: var(--error-color);
+  }
+
+  /* Add color button - 44px minimum for touch */
+  .add-color-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border: 2px dashed var(--divider-color);
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--secondary-text-color);
+    background: transparent;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .add-color-btn:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    background: var(--secondary-background-color);
+  }
+
+  .add-color-btn.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  /* =========================================
+   * PALETTE VARIANT
+   * For pattern-editor Individual mode (selectable fixed colors)
+   * ========================================= */
+
+  /* Palette container */
+  .color-palette {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+  }
+
+  /* Palette color wrapper with edit button */
+  .palette-color-wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Selectable palette swatch */
+  .palette-color {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 3px solid var(--divider-color);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .palette-color:hover {
+    transform: scale(1.08);
+  }
+
+  .palette-color.selected {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px var(--primary-color);
+  }
+
+  /* Small edit button below palette swatch */
+  .palette-edit-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 50%;
+    background: var(--secondary-background-color);
+    color: var(--secondary-text-color);
+    cursor: pointer;
+    padding: 0;
+    transition: all 0.15s ease;
+    --mdc-icon-size: 14px;
+  }
+
+  .palette-edit-btn:hover {
+    background: var(--primary-color);
+    color: var(--text-primary-color);
+  }
+
+  /* Color picker modal overlay */
+  .color-picker-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+
+  .color-picker-modal {
+    background: var(--card-background-color, #fff);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    max-width: 90vw;
+  }
+
+  .color-picker-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-bottom: 8px;
+  }
+
+  .color-picker-modal-title {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--primary-text-color);
+  }
+
+  .color-picker-modal-preview {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 3px solid var(--divider-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  .color-picker-modal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
   }
 `;
