@@ -1,0 +1,23 @@
+{
+  "preset_type": "effect",
+  "name": "Ocean Waves",
+  "description": "Gentle flowing effect with blue and cyan colors that simulate peaceful ocean waves. Creates a calming atmosphere with slow, smooth transitions perfect for meditation or relaxation spaces.",
+  "author": "example-contributor",
+  "device_types": ["t1m", "t1"],
+  "tested_on": ["T1M"],
+  "icon": "mdi:waves",
+  "preset_data": {
+    "name": "Ocean Waves",
+    "icon": "mdi:waves",
+    "device_type": "t1m",
+    "effect": "flow1",
+    "effect_speed": 25,
+    "effect_brightness": 75,
+    "effect_colors": [
+      {"x": 0.1610, "y": 0.3549},
+      {"x": 0.1566, "y": 0.2854},
+      {"x": 0.1532, "y": 0.2458}
+    ]
+  },
+  "notes": "Speed is intentionally slow (25) to create a peaceful, meditative effect. Works beautifully in living rooms or bedrooms. Try reducing brightness to 50-60 for evening use."
+}

@@ -68,7 +68,8 @@ export const panelStyles = css`
   }
 
   ha-tab-group-tab {
-    --ha-tab-active-text-color: var(--primary-color);
+    --ha-tab-text-color: var(--secondary-text-color);
+    --ha-tab-active-text-color: var(--primary-text-color);
   }
 
   /* Content area with padding for fixed header */
@@ -111,6 +112,24 @@ export const panelStyles = css`
 
   .control-row:last-child {
     margin-bottom: 0;
+  }
+
+  /* Desktop layout: Target and Favorites side by side */
+  .target-favorites-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .target-favorites-grid .control-row {
+    margin-bottom: 0;
+  }
+
+  @media (min-width: 768px) {
+    .target-favorites-grid {
+      grid-template-columns: 1fr 1fr;
+    }
   }
 
   .control-label {

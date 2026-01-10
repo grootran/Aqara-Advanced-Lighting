@@ -1,0 +1,23 @@
+{
+  "preset_type": "effect",
+  "name": "Your Effect Name",
+  "description": "Detailed description of what this effect looks like and when to use it. Be specific about colors, patterns, and mood.",
+  "author": "YourGitHubUsername",
+  "device_types": ["t2_bulb", "t1", "t1m", "t1_strip"],
+  "tested_on": ["T1M", "T2 Bulb"],
+  "icon": "mdi:lightbulb-on",
+  "preset_data": {
+    "name": "Your Effect Name",
+    "icon": "mdi:lightbulb-on",
+    "device_type": "t1m",
+    "effect": "flow1",
+    "effect_speed": 50,
+    "effect_brightness": 100,
+    "effect_colors": [
+      {"x": 0.68, "y": 0.31},
+      {"x": 0.41, "y": 0.51}
+    ],
+    "effect_segments": ""
+  },
+  "notes": "Add any special notes about usage, optimal settings, or variations here."
+}

@@ -487,7 +487,7 @@ export class EffectEditor extends LitElement {
                   .value=${this._segments}
                   @value-changed=${this._handleSegmentsChange}
                 ></ha-selector>
-                <span class="field-description">Segments to apply effect to (e.g., "1-20", "odd", "even", "first-half", "last-third").</span>
+                <span class="field-description">Segments to apply effect to (e.g., "1,2,3", "1-20", "odd", "even", "first-half", "last-third").</span>
               </div>
             `
           : ''}

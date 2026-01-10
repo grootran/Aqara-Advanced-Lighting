@@ -273,8 +273,8 @@ export class CCTSequenceEditor extends LitElement {
         id: `step-0-${Date.now()}`,
         color_temp: 4000,
         brightness: 50,
-        transition: 2,
-        hold: 5,
+        transition: 15,
+        hold: 60,
       },
     ];
   }
@@ -344,8 +344,8 @@ export class CCTSequenceEditor extends LitElement {
       id: this._generateStepId(),
       color_temp: 4000,
       brightness: 50,
-      transition: 2,
-      hold: 5,
+      transition: 15,
+      hold: 60,
     };
 
     this._steps = [...this._steps, newStep];

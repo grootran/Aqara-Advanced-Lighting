@@ -353,8 +353,8 @@ export class SegmentSequenceEditor extends LitElement {
         colors: [[255, 0, 0]],
         colorsArray: [{ x: 0.68, y: 0.31 }],  // Red in XY space
         mode: 'blocks_expand',
-        duration: 2,
-        hold: 3,
+        duration: 15,
+        hold: 60,
         activation_pattern: 'all',
       },
     ];
@@ -496,8 +496,8 @@ export class SegmentSequenceEditor extends LitElement {
       colors: [[255, 0, 0]],
       colorsArray: [{ x: 0.68, y: 0.31 }],  // Red in XY space
       mode: 'blocks_expand',
-      duration: 2,
-      hold: 3,
+      duration: 15,
+      hold: 60,
       activation_pattern: 'all',
     };
 
@@ -855,24 +855,7 @@ export class SegmentSequenceEditor extends LitElement {
           </div>
         </div>
 
-        <div class="form-section toggle-row">
-          <div class="toggle-item">
-            <span class="toggle-label">Clear Segments</span>
-            <ha-switch
-              .checked=${this._clearSegments}
-              @change=${this._handleClearSegmentsChange}
-            ></ha-switch>
-          </div>
-          <div class="toggle-item">
-            <span class="toggle-label">Skip First Step in Loop</span>
-            <ha-switch
-              .checked=${this._skipFirstInLoop}
-              @change=${this._handleSkipFirstInLoopChange}
-            ></ha-switch>
-          </div>
-        </div>
-
-        ${this._loopMode === 'loop'
+        ${this._loopMode === 'count'
           ? html`
               <div class="form-row">
                 <span class="form-label">Loop Count</span>
@@ -893,6 +876,23 @@ export class SegmentSequenceEditor extends LitElement {
               </div>
             `
           : ''}
+
+        <div class="form-section toggle-row">
+          <div class="toggle-item">
+            <span class="toggle-label">Clear Segments</span>
+            <ha-switch
+              .checked=${this._clearSegments}
+              @change=${this._handleClearSegmentsChange}
+            ></ha-switch>
+          </div>
+          <div class="toggle-item">
+            <span class="toggle-label">Skip First Step in Loop</span>
+            <ha-switch
+              .checked=${this._skipFirstInLoop}
+              @change=${this._handleSkipFirstInLoopChange}
+            ></ha-switch>
+          </div>
+        </div>
 
         <div class="form-section">
           <span class="form-label">Steps (1-20)</span>

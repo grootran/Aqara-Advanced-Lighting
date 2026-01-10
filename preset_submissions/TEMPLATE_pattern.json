@@ -1,0 +1,29 @@
+{
+  "preset_type": "segment_pattern",
+  "name": "Your Pattern Name",
+  "description": "Describe the visual appearance of this segment pattern. What colors are used? What is the overall effect?",
+  "author": "YourGitHubUsername",
+  "device_types": ["t1", "t1m", "t1_strip"],
+  "tested_on": ["T1M"],
+  "icon": "mdi:palette",
+  "preset_data": {
+    "name": "Your Pattern Name",
+    "icon": "mdi:palette",
+    "device_type": "t1m",
+    "segments": [
+      {
+        "segment": 1,
+        "color": {"r": 255, "g": 0, "b": 0}
+      },
+      {
+        "segment": 2,
+        "color": {"r": 0, "g": 255, "b": 0}
+      },
+      {
+        "segment": 3,
+        "color": {"r": 0, "g": 0, "b": 255}
+      }
+    ]
+  },
+  "notes": "Include any tips for best viewing or variations users might try."
+}

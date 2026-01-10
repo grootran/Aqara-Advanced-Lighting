@@ -1,0 +1,482 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Aqara Advanced Lighting",
+        "description": "Configure advanced lighting control for Aqara lights via Zigbee2MQTT.",
+        "data": {
+          "z2m_base_topic": "Zigbee2MQTT base topic"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Aqara Advanced Lighting",
+        "description": "Update the Zigbee2MQTT base topic configuration.",
+        "data": {
+          "z2m_base_topic": "Zigbee2MQTT base topic"
+        }
+      }
+    },
+    "error": {
+      "mqtt_not_loaded": "MQTT integration is not loaded. Please set up the MQTT integration first.",
+      "unknown": "An unexpected error occurred."
+    },
+    "abort": {
+      "single_instance_allowed": "Only a single instance of Aqara Advanced Lighting is allowed.",
+      "already_configured": "This integration is already configured."
+    }
+  },
+  "exceptions": {
+    "integration_not_initialized": {
+      "message": "The Aqara Advanced Lighting integration is not initialized. Please check that the integration is properly configured."
+    },
+    "components_not_initialized": {
+      "message": "Integration components are not initialized. Please reload the integration or restart Home Assistant."
+    },
+    "cct_manager_not_initialized": {
+      "message": "The CCT sequence manager is not initialized. Please reload the integration."
+    },
+    "segment_manager_not_initialized": {
+      "message": "The RGB segment sequence manager is not initialized. Please reload the integration."
+    },
+    "device_no_segment_support": {
+      "message": "Device {entity_id} does not support RGB segment sequences. Only T1M ceiling lights and T1 LED strips support this feature."
+    },
+    "step_requires_colors": {
+      "message": "Step {step} requires at least one color. Please add color_1 for this step."
+    },
+    "mqtt_client_not_initialized": {
+      "message": "The MQTT client is not initialized. Please check your MQTT configuration and reload the integration."
+    },
+    "invalid_preset": {
+      "message": "Invalid preset: {preset}. Please select a valid preset from the list."
+    },
+    "effect_required": {
+      "message": "Effect type is required when not using a preset. Please specify the effect type to use."
+    },
+    "speed_required": {
+      "message": "Effect speed is required when not using a preset. Please specify the speed (1-100)."
+    },
+    "color_required": {
+      "message": "At least one color (color_1) is required when not using a preset. Please select at least one color."
+    },
+    "invalid_effect_type": {
+      "message": "Invalid effect type: {effect}. This effect is not supported. Please choose from the available effects for your device."
+    },
+    "preset_not_compatible": {
+      "message": "The preset \"{preset}\" is not compatible with device {device} (model: {model}). Please select a preset designed for this device type."
+    },
+    "effect_not_supported": {
+      "message": "The effect \"{effect}\" is not supported by device {device}. {reason}"
+    },
+    "segment_addressing_not_supported": {
+      "message": "Device {device} does not support segment addressing. Only T1M ceiling lights and T1 LED strips support this feature."
+    },
+    "segment_colors_required": {
+      "message": "Either a preset or segment_colors must be specified. Please select a preset or provide segment colors."
+    },
+    "loop_count_required": {
+      "message": "Loop count is required when loop mode is \"count\". Please specify how many times to loop the sequence."
+    },
+    "step_incomplete": {
+      "message": "Step {step} is incomplete. All fields (color temperature, brightness, transition time, and hold duration) must be provided for each step."
+    },
+    "step_required": {
+      "message": "At least one step is required. Please configure Step 1 with all required fields."
+    },
+    "invalid_sequence_configuration": {
+      "message": "Invalid sequence configuration: {error}. Please check your step values are within valid ranges."
+    },
+    "publish_effect_failed": {
+      "message": "Failed to publish effect to {device}. Please check that the device is available and try again."
+    },
+    "publish_pattern_failed": {
+      "message": "Failed to publish segment pattern to {device}. Please check that the device is available and try again."
+    },
+    "publish_gradient_failed": {
+      "message": "Failed to publish gradient to {device}. Please check that the device is available and try again."
+    },
+    "publish_blocks_failed": {
+      "message": "Failed to publish block pattern to {device}. Please check that the device is available and try again."
+    },
+    "start_sequence_failed": {
+      "message": "Failed to start CCT sequence for {entity}. Please check that the light is available and try again."
+    },
+    "stop_sequence_failed": {
+      "message": "Failed to stop CCT sequence for {entity}. The sequence may have already completed."
+    },
+    "entity_not_mapped": {
+      "message": "Entity {entity} could not be mapped to a Zigbee2MQTT device. Please ensure the device is paired with Zigbee2MQTT and visible in Home Assistant."
+    },
+    "device_not_found": {
+      "message": "Device {device} was not found in the Zigbee2MQTT registry. Please ensure the device is properly paired."
+    }
+  },
+  "services": {
+    "set_dynamic_effect": {
+      "name": "Set dynamic effect",
+      "description": "Activate a dynamic RGB effect on Aqara lights. Use presets from the Aqara app or create custom effects with up to 8 colors.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
+        },
+        "preset": {
+          "name": "Preset effect",
+          "description": "Choose a preset effect from the Aqara mobile app."
+        },
+        "effect": {
+          "name": "Effect type",
+          "description": "The dynamic effect pattern to activate."
+        },
+        "speed": {
+          "name": "Speed",
+          "description": "Animation speed (1-100%)."
+        },
+        "color_1": {
+          "name": "Color 1",
+          "description": "First effect color (required if not using a preset)."
+        },
+        "color_2": {
+          "name": "Color 2",
+          "description": "Second effect color (optional)."
+        },
+        "color_3": {
+          "name": "Color 3",
+          "description": "Third effect color (optional)."
+        },
+        "color_4": {
+          "name": "Color 4",
+          "description": "Fourth effect color (optional)."
+        },
+        "color_5": {
+          "name": "Color 5",
+          "description": "Fifth effect color (optional)."
+        },
+        "color_6": {
+          "name": "Color 6",
+          "description": "Sixth effect color (optional)."
+        },
+        "color_7": {
+          "name": "Color 7",
+          "description": "Seventh effect color (optional)."
+        },
+        "color_8": {
+          "name": "Color 8",
+          "description": "Eighth effect color (optional)."
+        },
+        "segments": {
+          "name": "Segments",
+          "description": "For T1 Strip only - segments to apply effect to."
+        },
+        "brightness": {
+          "name": "Brightness",
+          "description": "Brightness level for the effect (1-100%)."
+        },
+        "turn_on": {
+          "name": "Turn on light",
+          "description": "Automatically turn on the light before applying the effect."
+        },
+        "sync": {
+          "name": "Synchronized",
+          "description": "When targeting multiple lights, apply the effect to all lights simultaneously for synchronized group effects."
+        }
+      }
+    },
+    "stop_effect": {
+      "name": "Stop effect",
+      "description": "Stop the current RGB dynamic effect or segment pattern and restore the light to its previous state. If no previous state is saved, the effect is stopped without changing the light state.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
+        },
+        "restore_state": {
+          "name": "Restore state",
+          "description": "Restore the light to its pre-effect state (brightness, color, temperature)."
+        }
+      }
+    },
+    "set_segment_pattern": {
+      "name": "Set segment pattern",
+      "description": "Set individual segment colors on T1M and T1 Strip lights. Use presets from the Aqara app or create custom patterns.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
+        },
+        "preset": {
+          "name": "Preset pattern",
+          "description": "Choose a preset segment pattern from the Aqara mobile app."
+        },
+        "segment_colors": {
+          "name": "Segment colors",
+          "description": "List of segment/color pairs. Each entry specifies a segment and its RGB color."
+        },
+        "brightness": {
+          "name": "Brightness",
+          "description": "Brightness level for the pattern (1-100%)."
+        },
+        "turn_on": {
+          "name": "Turn on light",
+          "description": "Automatically turn on the light before applying the pattern."
+        },
+        "turn_off_unspecified": {
+          "name": "Turn off unspecified segments",
+          "description": "Turn off segments not specified in the pattern."
+        },
+        "sync": {
+          "name": "Synchronized",
+          "description": "When targeting multiple lights, apply the pattern to all lights simultaneously for synchronized group effects."
+        }
+      }
+    },
+    "create_gradient": {
+      "name": "Create gradient",
+      "description": "Create a smooth color gradient across segments on T1M and T1 Strip lights. Use 2-6 colors for the gradient.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
+        },
+        "color_1": {
+          "name": "Color 1",
+          "description": "First gradient color (required)."
+        },
+        "color_2": {
+          "name": "Color 2",
+          "description": "Second gradient color (required)."
+        },
+        "color_3": {
+          "name": "Color 3",
+          "description": "Third gradient color (optional)."
+        },
+        "color_4": {
+          "name": "Color 4",
+          "description": "Fourth gradient color (optional)."
+        },
+        "color_5": {
+          "name": "Color 5",
+          "description": "Fifth gradient color (optional)."
+        },
+        "color_6": {
+          "name": "Color 6",
+          "description": "Sixth gradient color (optional)."
+        },
+        "segments": {
+          "name": "Segments",
+          "description": "Segments to apply gradient to. If not specified, applies to all segments."
+        },
+        "brightness": {
+          "name": "Brightness",
+          "description": "Brightness level for the gradient (1-100%)."
+        },
+        "turn_on": {
+          "name": "Turn on light",
+          "description": "Automatically turn on the light before applying the gradient."
+        },
+        "turn_off_unspecified": {
+          "name": "Turn off unspecified segments",
+          "description": "Turn off segments not specified."
+        },
+        "sync": {
+          "name": "Synchronized",
+          "description": "When targeting multiple lights, apply the gradient to all lights simultaneously for synchronized group effects."
+        }
+      }
+    },
+    "create_blocks": {
+      "name": "Create blocks",
+      "description": "Create evenly spaced blocks of color across segments on T1M and T1 Strip lights. Use 1-6 colors for the blocks.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
+        },
+        "color_1": {
+          "name": "Color 1",
+          "description": "First block color (required)."
+        },
+        "color_2": {
+          "name": "Color 2",
+          "description": "Second block color (optional)."
+        },
+        "color_3": {
+          "name": "Color 3",
+          "description": "Third block color (optional)."
+        },
+        "color_4": {
+          "name": "Color 4",
+          "description": "Fourth block color (optional)."
+        },
+        "color_5": {
+          "name": "Color 5",
+          "description": "Fifth block color (optional)."
+        },
+        "color_6": {
+          "name": "Color 6",
+          "description": "Sixth block color (optional)."
+        },
+        "segments": {
+          "name": "Segments",
+          "description": "Segments to apply blocks to. If not specified, applies to all segments."
+        },
+        "brightness": {
+          "name": "Brightness",
+          "description": "Brightness level for the blocks (1-100%)."
+        },
+        "turn_on": {
+          "name": "Turn on light",
+          "description": "Automatically turn on the light before applying blocks."
+        },
+        "expand": {
+          "name": "Expand blocks",
+          "description": "Expand the blocks to fill segments evenly. If false, alternates colors."
+        },
+        "turn_off_unspecified": {
+          "name": "Turn off unspecified segments",
+          "description": "Turn off segments not specified."
+        },
+        "sync": {
+          "name": "Synchronized",
+          "description": "When targeting multiple lights, apply the blocks to all lights simultaneously for synchronized group effects."
+        }
+      }
+    },
+    "start_cct_sequence": {
+      "name": "Start CCT sequence",
+      "description": "Start a dynamic CCT (color temperature) sequence on Aqara lights. Use a preset sequence or define custom steps with color temperature, brightness, transition, and hold time.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
+        },
+        "preset": {
+          "name": "Preset sequence",
+          "description": "Choose a preset CCT sequence."
+        },
+        "turn_on": {
+          "name": "Turn on light",
+          "description": "Automatically turn on the light before starting the sequence if it is off."
+        },
+        "sync": {
+          "name": "Synchronized",
+          "description": "When targeting multiple lights, start the sequence on all lights simultaneously for synchronized group effects."
+        },
+        "loop_mode": {
+          "name": "Loop mode",
+          "description": "How the sequence should loop."
+        },
+        "loop_count": {
+          "name": "Loop count",
+          "description": "Number of times to loop the sequence (required when loop mode is count)."
+        },
+        "end_behavior": {
+          "name": "End behavior",
+          "description": "What to do when the sequence completes."
+        }
+      }
+    },
+    "stop_cct_sequence": {
+      "name": "Stop CCT sequence",
+      "description": "Stop a running CCT sequence on Aqara lights.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
+        }
+      }
+    },
+    "pause_cct_sequence": {
+      "name": "Pause CCT sequence",
+      "description": "Pause a running CCT sequence on Aqara lights. The sequence will stop at its current state until resumed.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
+        }
+      }
+    },
+    "resume_cct_sequence": {
+      "name": "Resume CCT sequence",
+      "description": "Resume a paused CCT sequence on Aqara lights. The sequence will continue from where it was paused.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
+        }
+      }
+    },
+    "start_segment_sequence": {
+      "name": "Start RGB segment sequence",
+      "description": "Start a timed RGB segment sequence on T1M/T1 Strip lights. Create dynamic patterns with custom color activation over time. Use presets or build custom sequences.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
+        },
+        "preset": {
+          "name": "Preset sequence",
+          "description": "Choose a preset segment sequence."
+        },
+        "turn_on": {
+          "name": "Turn on light",
+          "description": "Turn on the light before starting the sequence if it is currently off."
+        },
+        "sync": {
+          "name": "Synchronized start",
+          "description": "Start the sequence on all lights simultaneously (recommended for groups)."
+        },
+        "loop_mode": {
+          "name": "Loop mode",
+          "description": "How the sequence should loop."
+        },
+        "loop_count": {
+          "name": "Loop count",
+          "description": "Number of times to loop the sequence (required when loop mode is count)."
+        },
+        "end_behavior": {
+          "name": "End behavior",
+          "description": "What to do when the sequence completes."
+        },
+        "clear_segments": {
+          "name": "Clear segments",
+          "description": "Clear all segments (set to black) before starting the sequence."
+        },
+        "skip_first_in_loop": {
+          "name": "Skip first step in loop",
+          "description": "Skip the first step when looping. Useful for setting an initial pattern that should not repeat."
+        }
+      }
+    },
+    "stop_segment_sequence": {
+      "name": "Stop RGB segment sequence",
+      "description": "Stop a running RGB segment sequence on T1M/T1 Strip lights.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
+        }
+      }
+    },
+    "pause_segment_sequence": {
+      "name": "Pause RGB segment sequence",
+      "description": "Pause a running RGB segment sequence on T1M/T1 Strip lights. The sequence will stop at its current state until resumed.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
+        }
+      }
+    },
+    "resume_segment_sequence": {
+      "name": "Resume RGB segment sequence",
+      "description": "Resume a paused RGB segment sequence on T1M/T1 Strip lights. The sequence will continue from where it was paused.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
+        }
+      }
+    }
+  }
+}

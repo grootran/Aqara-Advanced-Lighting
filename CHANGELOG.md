@@ -5,6 +5,40 @@ All notable changes to the Aqara Advanced Lighting integration will be documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-01-10
+
+### Bug Fixes
+
+- **Panel UI**: Fixed active tab text color contrast issue in light mode - active tabs now use primary text color for better readability
+- **Segment Sequences**: Fixed Loop Count field not appearing when "Loop N Times" mode is selected
+- **Sequence Editors**: Fixed default time values for initial step (Step 1) to match steps 2-20
+  - CCT sequences: Transition 15 seconds, Hold 60 seconds
+  - Segment sequences: Duration 15 seconds, Hold 60 seconds
+- **Manifest**: Added `http` component to dependencies (required for panel API endpoints)
+
+### Improvements
+
+- **Panel UI**: Desktop layout in Activate tab
+- **Segment Sequences**: Moved Loop Count field to appear above toggle switches for better UI flow
+- **Effect Editor**: Segment selector help text with additional example ("1,2,3") for individual segment selection
+
+### Documentation
+
+- **CONTRIBUTING.md**: Added comprehensive contributor guidelines
+  - Development setup instructions for Python backend and Lit frontend
+  - Code standards and best practices aligned with Home Assistant guidelines
+  - Pull request process and testing requirements
+- **Preset Submissions**: Created preset submission framework
+  - Template files for all preset types (effects, patterns, CCT sequences, segment sequences)
+  - Quality guidelines and examples
+  - Review process documentation
+- **README.md**: Added Contributing section with links to guidelines and preset submissions
+
+### Technical Changes
+
+- **Translations**: Migrated from `strings.json` to `translations/en.json` following Home Assistant's translation structure
+- **Compatibility**: No breaking changes - fully backward compatible with v0.5.0
+
 ## [0.5.0] - 2026-01-09
 
 ## What's New
@@ -507,3 +541,4 @@ One click HACS cutton
 [0.4.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.4.0
 [0.4.1]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.4.1
 [0.5.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.5.0
+[0.5.1]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.5.1

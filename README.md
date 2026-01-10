@@ -8,6 +8,12 @@ Easily control the more advanced features of the Aqara T1M Ceiling Light, T1 LED
 
 Home Assistant backend services for easy integration into automations and scripts. Frontend sidebar accessible panel for easy creation and activation of presets, with builder UI for effects and segment patterns, plus sequencers for dynamic CCT control and animated segment patterns.
 
+_Please :star: this integration if you find it useful_
+
+_If you want to show your support please_
+
+[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/yellow_img.png)](https://www.buymeacoffee.com/absent42)
+
 ### Supported Devices
 
 | Device | Model | Segments | Dynamic Effects | Segment Control | CCT Sequences |
@@ -70,6 +76,13 @@ Home Assistant backend services for easy integration into automations and script
 
 ## Installation
 
+### HACS
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=absent42&repository=Aqara-Advanced-Lighting&category=Integration)
+
+Restart Home Assistant
+
+Alternatively:
 1. Open HACS in Home Assistant
 2. Go to "Integrations"
 3. Click the three dots menu (top right) → "Custom repositories"
@@ -106,32 +119,100 @@ To change the Z2M base topic:
 
 ## Usage
 
-All features are available as Home Assistant services. Call these services from automations, scripts, or the Developer Tools.
+The features of Advanced Aqara Lighting can be used in multiple ways: with the frontend sidebar UI panel for quick access and preset creation through visual editors, or through Home Assistant services for use in automations and scripts. Presets created in the frontend are also available in backend services.
 
-A UI sidebar panel "Aqara Lighting" is provided for easy access to presets and effect/sequence state management.
+### Frontend Panel
 
-### Working with Light Groups
+Access the Aqara Lighting panel from the Home Assistant sidebar for a user-friendly interface to control your lights and create effects and patterns.
 
-All services support Home Assistant light groups. When you target a light group, the integration automatically:
-- Detects the group and expands it to individual light entities
-- Removes any duplicate entities
-- Applies the effect/pattern to all lights simultaneously (when sync parameter is true)
-- Uses batch MQTT publishing for optimal performance
+#### Favorite Lights
 
-**Example - Applying an effect to a group:**
-```yaml
-service: aqara_advanced_lighting.set_dynamic_effect
-target:
-  entity_id: light.living_room_group  # Your light group
-data:
-  preset: "t1m_sunset"
-  sync: true  # Synchronized effect across all lights
-```
+Save your frequently used lights and light groups as favorites for quick access:
+- Click the star icon next to any light to add it to favorites
+- Favorite lights appear at the top of the panel
+- Control tiles show current state and brightness
+- Toggle lights on/off directly from the panel
+- Adjust brightness with the slider
 
-### Services
+#### Preset Management
 
-#### 1. Set Dynamic Effect
+Create, organize, and use custom presets for all features:
 
+**Built-in Aqara Presets**
+- 24 effect presets from the Aqara Home app
+- 12 segment pattern presets
+- 4 CCT sequence presets (Goodnight, Wakeup, Mindful Breathing, Circadian)
+- 6 RGB segment sequence presets (Loading Bar, Wave, Sparkle, Theater Chase, Rainbow Fill, Comet)
+
+**User Presets**
+- Create unlimited custom presets for any feature
+- Edit existing presets to fine-tune settings
+- Duplicate presets to create variations
+- Delete presets you no longer need
+- Sort presets alphabetically or by date
+- All presets persist across restarts
+
+**Applying Presets**
+1. Select target light(s) from favorites or the dropdown
+2. Choose a preset from any category
+3. Click "Activate" to apply immediately
+4. Optionally enable "Turn on light" for automatic activation
+
+#### Visual Editors
+
+Create custom effects and patterns with interactive builders:
+
+**Effect Editor**
+- Select from 13 effect types
+- Add up to 8 colors using color pickers
+- Adjust speed and brightness with sliders
+- Preview colors as you design
+- For T1 Strip: specify which segments to light
+- Save as custom preset for reuse
+
+**Segment Pattern Editor**
+- Visual segment selector shows all available segments
+- Click segments to assign colors
+- Create gradients across multiple segments
+- Generate color block patterns
+- Option to turn off unspecified segments
+- Works with T1M and T1 Strip lights
+- Save patterns as custom presets
+
+**CCT Sequence Editor**
+- Build multi-step sequences (up to 20 steps)
+- Set color temperature and brightness per step
+- Configure transition and hold durations
+- Choose loop mode: once, count, or continuous
+- Set end behavior: maintain or turn off
+- Visual timeline shows sequence flow
+- Save sequences as custom presets
+
+**RGB Segment Sequence Editor**
+- Create animated segment patterns (up to 20 steps)
+- Choose color mode: gradient, blocks, or individual
+- Select activation pattern: sequential, random, simultaneous, and more
+- Set duration and hold times per step
+- Configure loop settings
+- Option to clear segments before starting
+- Skip first step option for initialization
+- Save sequences as custom presets
+
+#### Quick Actions
+
+- **Stop Effects**: Stop any running effect and optionally restore previous light state
+- **Pause/Resume**: Control sequence playback mid-execution
+- **Light Control**: Direct on/off and brightness control from the panel
+
+### Backend Services
+
+Call these services from automations, scripts, or the Developer Tools.
+
+<details>
+<summary>
+1. Set Dynamic Effect
+</summary>
+  
 Activate a dynamic RGB effect on your lights - choose from Aqara app presets or create your own custom effect.
 
 **Service:** `aqara_advanced_lighting.set_dynamic_effect`
@@ -169,9 +250,40 @@ data:
 - `turn_on` (optional): Turn light on before applying effect (default: false)
 
 **Note:** When using `preset`, manual `effect`, `speed`, and `color` parameters are ignored.
+</details>
 
-#### 2. Set Segment Pattern
+<details>
+<summary>
+2. Stop Dynamic Effect
+</summary>
 
+Stop a running dynamic effect and optionally restore the light to its previous state before the effect was applied.
+
+**Service:** `aqara_advanced_lighting.stop_effect`
+
+**Example:**
+```yaml
+service: aqara_advanced_lighting.stop_effect
+target:
+  entity_id: light.aqara_ceiling_light
+data:
+  restore_state: true
+```
+
+**Parameters:**
+- `entity_id` (required): Light entity or group to stop effect on
+- `restore_state` (optional): Restore light to pre-effect state (default: true)
+  - When true: Restores brightness, color (RGB), and color temperature
+  - When false: Simply stops the effect, leaving light in current state
+  - Falls back to warm white if no previous state is saved
+
+**Note:** The integration automatically saves light state when applying effects or patterns. Saved states persist for 24 hours and across Home Assistant restarts.
+</details>
+
+<details>
+<summary>
+3. Set Segment Pattern
+</summary>
 Set individual segment colors (T1M and T1 Strip only) - choose from 12 Aqara app presets or create your own custom pattern.
 
 **Service:** `aqara_advanced_lighting.set_segment_pattern`
@@ -221,9 +333,12 @@ data:
 - `turn_off_unspecified` (optional): Turn off segments not specified (default: false)
 
 **Note:** When using `preset`, the `segment_colors` parameter is ignored. Presets work on T1M (20 & 26 segment) and T1 Strip devices.
+</details>
 
-#### 3. Create Gradient
-
+<details>
+<summary>
+4. Create Gradient
+</summary>
 Create a smooth color gradient across segments.
 
 **Service:** `aqara_advanced_lighting.create_gradient`
@@ -249,9 +364,12 @@ data:
 - `brightness` (optional): Brightness level (1-255)
 - `turn_on` (optional): Turn light on before applying gradient (default: false)
 - `turn_off_unspecified` (optional): Turn off segments not specified (default: false)
+</details>
 
-#### 4. Create Color Blocks
-
+<details>
+<summary>
+5. Create Color Blocks
+</summary>
 Create evenly spaced blocks of color.
 
 **Service:** `aqara_advanced_lighting.create_blocks`
@@ -278,9 +396,12 @@ data:
 - `brightness` (optional): Brightness level (1-255)
 - `turn_on` (optional): Turn light on before applying blocks (default: false)
 - `turn_off_unspecified` (optional): Turn off segments not specified (default: false)
+</details>
 
-#### 5. Start CCT Sequence
-
+<details>
+<summary>
+6. Start CCT Sequence
+</summary>
 Create and run dynamic CCT (color temperature) sequences with up to 20 customizable steps, or use built-in presets for common scenarios.
 
 **Service:** `aqara_advanced_lighting.start_cct_sequence`
@@ -346,9 +467,12 @@ data:
   - `"turn_off"`: Turn off the light
 
 **Note:** Each step consists of a transition period followed by a hold period. For example, if transition is 2s and hold is 10s, the light will fade for 2s then remain at those settings for 10s before the next step starts. Transitions use smooth step-based interpolation for gradual brightness and color temperature changes.
+</details>
 
-#### 6. Stop CCT Sequence
-
+<details>
+<summary>
+7. Stop CCT Sequence
+</summary>
 Stop a running CCT sequence on a light.
 
 **Service:** `aqara_advanced_lighting.stop_cct_sequence`
@@ -362,9 +486,12 @@ target:
 
 **Parameters:**
 - `entity_id` (required): Light entity or group to stop sequence on
+</details>
 
-#### 7. Pause CCT Sequence
-
+<details>
+<summary>
+8. Pause CCT Sequence
+</summary>
 Pause a running CCT sequence while maintaining its current state.
 
 **Service:** `aqara_advanced_lighting.pause_cct_sequence`
@@ -378,9 +505,12 @@ target:
 
 **Parameters:**
 - `entity_id` (required): Light entity or group to pause sequence on
+</details>
 
-#### 8. Resume CCT Sequence
-
+<details>
+<summary>
+9. Resume CCT Sequence
+</summary>
 Resume a paused CCT sequence from where it was paused.
 
 **Service:** `aqara_advanced_lighting.resume_cct_sequence`
@@ -394,9 +524,12 @@ target:
 
 **Parameters:**
 - `entity_id` (required): Light entity or group to resume sequence on
+</details>
 
-#### 9. Start RGB Segment Sequence
-
+<details>
+<summary>
+10. Start RGB Segment Sequence
+</summary>
 Create and run dynamic RGB segment sequences with up to 20 customizable steps on T1M and T1 Strip lights. Each step can have custom colors, activation patterns, and timing.
 
 **Service:** `aqara_advanced_lighting.start_segment_sequence`
@@ -482,9 +615,12 @@ data:
   - `"turn_off"`: Turn off the light
 
 **Note:** Each step consists of an activation period (duration) followed by a hold period. Activation patterns determine how segments light up during the duration phase.
+</details>
 
-#### 10. Stop RGB Segment Sequence
-
+<details>
+<summary>
+11. Stop RGB Segment Sequence
+</summary>
 Stop a running RGB segment sequence on a light.
 
 **Service:** `aqara_advanced_lighting.stop_segment_sequence`
@@ -498,9 +634,12 @@ target:
 
 **Parameters:**
 - `entity_id` (required): Light entity to stop sequence on
+</details>
 
-#### 11. Pause RGB Segment Sequence
-
+<details>
+<summary>
+12. Pause RGB Segment Sequence
+</summary>
 Pause a running RGB segment sequence while maintaining its current state.
 
 **Service:** `aqara_advanced_lighting.pause_segment_sequence`
@@ -514,9 +653,12 @@ target:
 
 **Parameters:**
 - `entity_id` (required): Light entity to pause sequence on
+</details>
 
-#### 12. Resume RGB Segment Sequence
-
+<details>
+<summary>
+13. Resume RGB Segment Sequence
+</summary>
 Resume a paused RGB segment sequence from where it was paused.
 
 **Service:** `aqara_advanced_lighting.resume_segment_sequence`
@@ -530,10 +672,11 @@ target:
 
 **Parameters:**
 - `entity_id` (required): Light entity to resume sequence on
+</details>
 
 ### Available Effects
 
-#### T1M Ceiling Light (ACN031/ACN032)
+#### T1M Ceiling Light
 - `flow1` - Flowing pattern 1
 - `flow2` - Flowing pattern 2
 - `fading` - Fading effect
@@ -557,9 +700,30 @@ target:
 - `fading` - Fading effect
 - `flash` - Flashing effect
 
-## Example Automations
+### Working with Light Groups
 
-### Sunset Effect
+All services support Home Assistant light groups. When you target a light group, the integration automatically:
+- Detects the group and expands it to individual light entities
+- Removes any duplicate entities
+- Applies the effect/pattern to all lights simultaneously (when sync parameter is true)
+- Uses batch MQTT publishing for optimal performance
+
+**Example - Applying an effect to a group:**
+```yaml
+service: aqara_advanced_lighting.set_dynamic_effect
+target:
+  entity_id: light.living_room_group  # Your light group
+data:
+  preset: "sunset"
+  sync: true  # Synchronized effect across all lights
+```
+
+## Example Automations YAML
+
+### RGB Dynamic Effects
+
+<details>
+<summary>Sunset Effect</summary>
 
 ```yaml
 automation:
@@ -582,8 +746,10 @@ automation:
               g: 50
               b: 0
 ```
+</details>
 
-### Party Mode
+<details>
+<summary>Party</summary>
 
 ```yaml
 script:
@@ -616,9 +782,10 @@ script:
               g: 0
               b: 255
 ```
+</details>
 
-### Morning Routine
-
+<details>
+<summary>Morning Routine</summary>
 ```yaml
 automation:
   - alias: "Morning wake up"
@@ -634,10 +801,12 @@ automation:
           color_2: [255, 255, 200]   # Soft white
           turn_on: true
 ```
+</details>
 
 ### CCT Preset Automations
 
-**Wakeup Sequence**
+<details>
+<summary>Wakeup Sequence</summary>
 ```yaml
 automation:
   - alias: "Sunrise wakeup"
@@ -652,8 +821,10 @@ automation:
           preset: "wakeup"
           turn_on: true
 ```
+</details>
 
-**Goodnight Sequence**
+<details>
+<summary>Goodnight Sequence</summary>
 ```yaml
 automation:
   - alias: "Bedtime routine"
@@ -668,8 +839,10 @@ automation:
           preset: "goodnight"
           turn_on: true
 ```
+</details>
 
-**Mindful Breathing**
+<details>
+<summary>Mindful Breathing</summary>
 ```yaml
 script:
   meditation_mode:
@@ -682,8 +855,10 @@ script:
           preset: "mindful_breathing"
           turn_on: true
 ```
+</details>
 
-### Circadian Rhythm CCT Sequence
+<details>
+<summary>Circadian Rhythm</summary>
 
 ```yaml
 automation:
@@ -720,8 +895,10 @@ automation:
           loop_mode: "once"
           end_behavior: "maintain"
 ```
+</details>
 
-### Reading Light Sequence
+<details>
+<summary>Reading Light</summary>
 
 ```yaml
 script:
@@ -748,10 +925,12 @@ script:
           loop_mode: "once"
           end_behavior: "maintain"
 ```
+</details>
 
 ### RGB Segment Sequence Examples
 
-**Wave Preset**
+<details>
+<summary>Wave</summary>
 ```yaml
 automation:
   - alias: "Party mode wave effect"
@@ -767,8 +946,10 @@ automation:
           preset: "wave"
           turn_on: true
 ```
+</details>
 
-**Loading Bar Preset**
+<details>
+<summary>Loading Bar</summary>
 ```yaml
 script:
   startup_sequence:
@@ -781,8 +962,10 @@ script:
           preset: "loading_bar"
           turn_on: true
 ```
+</details>
 
-**Custom Alert Sequence**
+<details>
+<summary>Alter</summary>
 ```yaml
 automation:
   - alias: "Security alert sequence"
@@ -818,8 +1001,10 @@ automation:
           loop_count: 5
           end_behavior: "turn_off"
 ```
+</details>
 
-**Custom Chase Sequence**
+<details>
+<summary>Chase</summary>
 ```yaml
 script:
   rainbow_chase:
@@ -881,8 +1066,10 @@ script:
           loop_mode: "continuous"
           end_behavior: "maintain"
 ```
+</details>
 
-**Startup Intro with Looping Pattern**
+<details>
+<summary>Startup Intro with Looping Patterns</summary>
 ```yaml
 automation:
   - alias: "Party lights with intro"
@@ -931,6 +1118,7 @@ automation:
           skip_first_in_loop: true  # Skip the white flash intro when looping
           end_behavior: "turn_off"
 ```
+</details>
 
 ## Troubleshooting
 
@@ -965,6 +1153,28 @@ automation:
 - T1 strip: 0.0.0_0027
 - T2 bulb: 0.0.0_0030
 
+## Contributing
+
+We welcome contributions from the community! Whether you want to fix a bug, add a new feature, or submit custom presets, your contributions are appreciated.
+
+### How to Contribute
+
+- **Code Contributions**: Bug fixes, new features, performance improvements
+- **Custom Presets**: Share your creative effect and sequence presets
+- **Documentation**: Improve guides, fix typos, add examples
+- **Testing**: Test on different hardware, report issues
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on:
+- Development setup and workflow
+- Code standards and best practices
+- How to submit custom presets for inclusion
+- Pull request process
+- Testing requirements
+
+### Preset Submissions
+
+Created an awesome lighting effect or sequence? Share it with the community! Submit your preset for potential inclusion in the default collection. See the [preset submissions guide](preset_submissions/README.md) for details.
+
 ## Disclaimer
 
 This is an unofficial integration and is not provided by or supported by Aqara.
@@ -973,3 +1183,4 @@ This is an unofficial integration and is not provided by or supported by Aqara.
 
 - **Issues**: [GitHub Issues](https://github.com/absent42/Aqara-Advanced-Lighting/issues)
 - **Documentation**: [GitHub Repository](https://github.com/absent42/Aqara-Advanced-Lighting)
+- **Contributing**: [Contribution Guidelines](CONTRIBUTING.md)

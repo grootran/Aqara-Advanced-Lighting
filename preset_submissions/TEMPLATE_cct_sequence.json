@@ -1,0 +1,36 @@
+{
+  "preset_type": "cct_sequence",
+  "name": "Your CCT Sequence Name",
+  "description": "Describe what this sequence does. For example: simulates sunrise over 30 minutes, creates a reading-to-sleep transition, etc.",
+  "author": "YourGitHubUsername",
+  "device_types": ["t2_bulb", "t1", "t1m", "t1_strip"],
+  "tested_on": ["T2 Bulb", "T1M CCT endpoint"],
+  "icon": "mdi:temperature-kelvin",
+  "preset_data": {
+    "name": "Your CCT Sequence Name",
+    "icon": "mdi:temperature-kelvin",
+    "steps": [
+      {
+        "color_temp": 2700,
+        "brightness": 10,
+        "transition": 15,
+        "hold": 60
+      },
+      {
+        "color_temp": 4000,
+        "brightness": 50,
+        "transition": 15,
+        "hold": 60
+      },
+      {
+        "color_temp": 6500,
+        "brightness": 100,
+        "transition": 15,
+        "hold": 60
+      }
+    ],
+    "loop_mode": "once",
+    "end_behavior": "maintain"
+  },
+  "notes": "Explain the intended use case and timing. For example: 'Run this 30 minutes before wake time for gradual sunrise simulation.'"
+}

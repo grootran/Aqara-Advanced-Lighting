@@ -1152,35 +1152,65 @@ export class AqaraPanel extends LitElement {
           </div>
         </div>
         <div class="section-content controls-content">
-          <div class="control-row">
-            <span class="control-label">Lights</span>
-            <div class="control-input target-input">
-              <div class="target-selector">
-                <ha-selector
-                  .hass=${this.hass}
-                  .selector=${{
-                    target: {
-                      entity: {
-                        domain: 'light',
+          <div class="target-favorites-grid">
+            <div class="control-row">
+              <span class="control-label">Lights</span>
+              <div class="control-input target-input">
+                <div class="target-selector">
+                  <ha-selector
+                    .hass=${this.hass}
+                    .selector=${{
+                      target: {
+                        entity: {
+                          domain: 'light',
+                        },
                       },
-                    },
-                  }}
-                  .value=${{ entity_id: this._selectedEntities }}
-                  @value-changed=${this._handleTargetChanged}
-                ></ha-selector>
+                    }}
+                    .value=${{ entity_id: this._selectedEntities }}
+                    @value-changed=${this._handleTargetChanged}
+                  ></ha-selector>
+                </div>
+                ${hasSelection && !this._showFavoriteInput
+                  ? html`
+                      <ha-icon-button
+                        class="add-favorite-btn"
+                        @click=${this._addFavorite}
+                        title="Save as favorite"
+                      >
+                        <ha-icon icon="mdi:star-plus"></ha-icon>
+                      </ha-icon-button>
+                    `
+                  : ''}
               </div>
-              ${hasSelection && !this._showFavoriteInput
-                ? html`
-                    <ha-icon-button
-                      class="add-favorite-btn"
-                      @click=${this._addFavorite}
-                      title="Save as favorite"
-                    >
-                      <ha-icon icon="mdi:star-plus"></ha-icon>
-                    </ha-icon-button>
-                  `
-                : ''}
             </div>
+
+            ${this._favorites.length > 0
+              ? html`
+                  <div class="control-row">
+                    <span class="control-label">Favorites</span>
+                    <div class="control-input favorites-container">
+                      ${this._favorites.map(
+                        (favorite) => html`
+                          <div class="favorite-chip" @click=${() => this._selectFavorite(favorite)}>
+                            <ha-icon icon="mdi:star" class="favorite-icon"></ha-icon>
+                            <span class="favorite-name">${favorite.name}</span>
+                            <ha-icon-button
+                              class="remove-favorite-btn"
+                              @click=${(e: Event) => {
+                                e.stopPropagation();
+                                this._removeFavorite(favorite.id);
+                              }}
+                              title="Remove favorite"
+                            >
+                              <ha-icon icon="mdi:close"></ha-icon>
+                            </ha-icon-button>
+                          </div>
+                        `
+                      )}
+                    </div>
+                  </div>
+                `
+              : ''}
           </div>
 
           ${this._showFavoriteInput
@@ -1205,34 +1235,6 @@ export class AqaraPanel extends LitElement {
                         Cancel
                       </ha-button>
                     </div>
-                  </div>
-                </div>
-              `
-            : ''}
-
-          ${this._favorites.length > 0
-            ? html`
-                <div class="control-row">
-                  <span class="control-label">Favorites</span>
-                  <div class="control-input favorites-container">
-                    ${this._favorites.map(
-                      (favorite) => html`
-                        <div class="favorite-chip" @click=${() => this._selectFavorite(favorite)}>
-                          <ha-icon icon="mdi:star" class="favorite-icon"></ha-icon>
-                          <span class="favorite-name">${favorite.name}</span>
-                          <ha-icon-button
-                            class="remove-favorite-btn"
-                            @click=${(e: Event) => {
-                              e.stopPropagation();
-                              this._removeFavorite(favorite.id);
-                            }}
-                            title="Remove favorite"
-                          >
-                            <ha-icon icon="mdi:close"></ha-icon>
-                          </ha-icon-button>
-                        </div>
-                      `
-                    )}
                   </div>
                 </div>
               `
