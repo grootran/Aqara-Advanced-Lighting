@@ -7,6 +7,7 @@ RELEASE_NOTES_v*.md
 CCT_PERSISTENCE_IDEAS.md
 FRONTEND_BUILD.md
 XY_COLOR_IMPLEMENTATION_GUIDE.md
+RELEASE_PROCESS.md
 
 # Python
 __pycache__/
@@ -45,3 +46,21 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
+# Home Assistant
+.storage/
+.HA_VERSION
+home-assistant.log
+home-assistant_v2.db
+*.db-shm
+*.db-wal
+
+# Frontend build artifacts
+custom_components/*/frontend_src/node_modules/
+custom_components/*/frontend_src/dist/
+*.js.map
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/

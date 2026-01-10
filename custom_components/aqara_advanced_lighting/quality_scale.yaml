@@ -32,14 +32,14 @@ rules:
     status: exempt
     comment: No authentication required, uses MQTT integration
 
-  # Gold tier rules (future)
+  # Gold tier rules
   devices:
-    status: todo
-    comment: Plan to add device entities for each discovered Aqara light
+    status: done
+    comment: Devices discovered and registered in device registry
 
   diagnostics:
-    status: todo
-    comment: Plan to implement diagnostic data collection
+    status: done
+    comment: Diagnostic data collection implemented in diagnostics.py
 
   entity-translations:
     status: exempt

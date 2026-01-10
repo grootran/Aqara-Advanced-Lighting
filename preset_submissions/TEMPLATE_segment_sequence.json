@@ -1,0 +1,43 @@
+{
+  "preset_type": "segment_sequence",
+  "name": "Your Segment Sequence Name",
+  "description": "Describe the animation and visual effect. What does it look like in motion? What mood does it create?",
+  "author": "YourGitHubUsername",
+  "device_types": ["t1", "t1m", "t1_strip"],
+  "tested_on": ["T1M"],
+  "icon": "mdi:animation-play",
+  "preset_data": {
+    "name": "Your Segment Sequence Name",
+    "icon": "mdi:animation-play",
+    "device_type": "t1m",
+    "steps": [
+      {
+        "segments": "1-10",
+        "mode": "blocks_expand",
+        "colors": [
+          [255, 0, 0],
+          [0, 255, 0]
+        ],
+        "duration": 15,
+        "hold": 60,
+        "activation_pattern": "sequential_forward"
+      },
+      {
+        "segments": "11-26",
+        "mode": "gradient",
+        "colors": [
+          [0, 0, 255],
+          [255, 0, 255]
+        ],
+        "duration": 15,
+        "hold": 60,
+        "activation_pattern": "all"
+      }
+    ],
+    "loop_mode": "continuous",
+    "end_behavior": "maintain",
+    "clear_segments": false,
+    "skip_first_in_loop": false
+  },
+  "notes": "Explain the creative intent and any special viewing recommendations. For example: 'Best viewed in a darkened room for maximum impact.'"
+}
