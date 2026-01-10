@@ -786,6 +786,7 @@ script:
 
 <details>
 <summary>Morning Routine</summary>
+
 ```yaml
 automation:
   - alias: "Morning wake up"
@@ -807,6 +808,7 @@ automation:
 
 <details>
 <summary>Wakeup Sequence</summary>
+
 ```yaml
 automation:
   - alias: "Sunrise wakeup"
@@ -825,6 +827,7 @@ automation:
 
 <details>
 <summary>Goodnight Sequence</summary>
+
 ```yaml
 automation:
   - alias: "Bedtime routine"
@@ -843,6 +846,7 @@ automation:
 
 <details>
 <summary>Mindful Breathing</summary>
+
 ```yaml
 script:
   meditation_mode:
@@ -931,6 +935,7 @@ script:
 
 <details>
 <summary>Wave</summary>
+
 ```yaml
 automation:
   - alias: "Party mode wave effect"
@@ -950,6 +955,7 @@ automation:
 
 <details>
 <summary>Loading Bar</summary>
+
 ```yaml
 script:
   startup_sequence:
@@ -966,6 +972,7 @@ script:
 
 <details>
 <summary>Alter</summary>
+
 ```yaml
 automation:
   - alias: "Security alert sequence"
@@ -1005,6 +1012,7 @@ automation:
 
 <details>
 <summary>Chase</summary>
+
 ```yaml
 script:
   rainbow_chase:
@@ -1070,6 +1078,7 @@ script:
 
 <details>
 <summary>Startup Intro with Looping Patterns</summary>
+
 ```yaml
 automation:
   - alias: "Party lights with intro"
