@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Panel UI**: Fixed active tab text color contrast issue in light mode - active tabs now use primary text color for better readability
 - **Segment Sequences**: Fixed Loop Count field not appearing when "Loop N Times" mode is selected
+- **Sequence Editors**: Fixed default time values for initial step (Step 1) to match steps 2-20
+  - CCT sequences: Transition 15 seconds, Hold 60 seconds
+  - Segment sequences: Duration 15 seconds, Hold 60 seconds
+- **Manifest**: Added `http` component to dependencies (required for panel API endpoints)
 
 ### Improvements
 
@@ -32,8 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Technical Changes
 
-- **Translations**: Migrated from `strings.json` to `translations/en.json` following Home Assistant's modern translation structure
-- **Frontend**: Build output updated with all UI improvements
+- **Translations**: Migrated from `strings.json` to `translations/en.json` following Home Assistant's translation structure
 - **Compatibility**: No breaking changes - fully backward compatible with v0.5.0
 
 ## [0.5.0] - 2026-01-09
