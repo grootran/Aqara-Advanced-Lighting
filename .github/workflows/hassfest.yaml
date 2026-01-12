@@ -1,22 +1,14 @@
-# Temporarily disabled due to pending HA branding pull request
-# Will be re-enabled once the branding PR is merged
 name: Validate with hassfest
 
-# Disabled triggers
-# on:
-#   push:
-#   pull_request:
-#   schedule:
-#     - cron: "0 0 * * *"
-on: workflow_dispatch
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 0 * * *"
 
 jobs:
   validate:
     runs-on: "ubuntu-latest"
-    name: Validate with hassfest
     steps:
-      - name: Checkout the repository
-        uses: "actions/checkout@v4"
-
-      - name: Hassfest validation
-        uses: "home-assistant/actions/hassfest@master"
+      - uses: "actions/checkout@v3"
+      - uses: home-assistant/actions/hassfest@master

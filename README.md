@@ -1,12 +1,8 @@
 # Aqara Advanced Lighting
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/absent42/Aqara-Advanced-Lighting/raw/8557477bd9846f2eb07e08986b6d7bc66036aacd/images/dark_logo%402x.png" width="75%">
-  <source media="(prefers-color-scheme: light)" srcset="https://github.com/absent42/Aqara-Advanced-Lighting/raw/8557477bd9846f2eb07e08986b6d7bc66036aacd/images/logo%402x.png" width="75%">
-  <img alt="Aqara Advanced Lighting" src="https://github.com/absent42/Aqara-Advanced-Lighting/raw/8557477bd9846f2eb07e08986b6d7bc66036aacd/images/all-logo.png" width="75%">
-</picture>
+![Aqara Advanced Lighting](https://github.com/absent42/Aqara-Advanced-Lighting/raw/8557477bd9846f2eb07e08986b6d7bc66036aacd/images/aqara-advanced-lighting.png "Aqara Advanced Lighting")
 
-Home Assistant HACS integration for advanced control of the Aqara T1M Ceiling Light, T1 LED Strip, and T2 bulbs via Zigbee2MQTT.
+Home Assistant HACS integration for advanced control of the Aqara [T1M Ceiling Light](https://www.aqara.com/en/product/ceiling-light-t1m/), [T1 LED Strip](https://www.aqara.com/en/product/led-strip-t1/), and [T2 bulbs](https://www.aqara.com/en/product/led-bulb-t2/) via [Zigbee2MQTT](https://www.zigbee2mqtt.io/).
 
 ## Overview
 
@@ -238,8 +234,7 @@ Create, organize, and use custom presets for all features:
 **Applying Presets**
 1. Select target light(s) from favorites or the dropdown
 2. Choose a preset from any category
-3. Click "Activate" to apply immediately
-4. Optionally enable "Turn on light" for automatic activation
+3. Click the preset to apply immediately
 
 #### Visual Editors
 
