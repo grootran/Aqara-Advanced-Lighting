@@ -10,7 +10,7 @@ set_dynamic_effect:
   fields:
     preset:
       name: Preset effect
-      description: Choose a preset effect from the Aqara mobile app. When selected, manual effect/speed/color parameters are ignored.
+      description: Choose a preset effect from the Aqara mobile app or type your custom preset name. When selected, manual effect/speed/color parameters are ignored.
       required: false
       selector:
         select:
@@ -59,6 +59,7 @@ set_dynamic_effect:
             - label: "T1 Strip: Colorful"
               value: "t1_strip_colorful"
           mode: dropdown
+          custom_value: true
     effect:
       name: Effect type
       description: Choose effect type manually (required if not using a preset). Available effects vary by light model.
@@ -236,7 +237,7 @@ set_segment_pattern:
   fields:
     preset:
       name: Preset pattern
-      description: Choose a preset segment pattern from the Aqara mobile app (Preset 1 through Preset 12). When selected, manual segment_colors parameter is ignored.
+      description: Choose a preset segment pattern from the Aqara mobile app (Preset 1 through Preset 12) or type your custom preset name. When selected, manual segment_colors parameter is ignored.
       required: false
       selector:
         select:
@@ -266,6 +267,7 @@ set_segment_pattern:
             - label: "Preset 12"
               value: "segment_12"
           mode: dropdown
+          custom_value: true
     segment_colors:
       name: Segment colors
       description: List of segment/color pairs. Each entry specifies a segment (number or range like "1-5", "odd", "even") and its RGB color. Required if not using a preset.
@@ -534,7 +536,7 @@ start_cct_sequence:
   fields:
     preset:
       name: Preset sequence
-      description: Choose a preset CCT sequence. When selected, manual step parameters are ignored.
+      description: Choose a preset CCT sequence or type your custom preset name. When selected, manual step parameters are ignored.
       required: false
       selector:
         select:
@@ -548,6 +550,7 @@ start_cct_sequence:
             - label: "Circadian rhythm"
               value: "circadian"
           mode: dropdown
+          custom_value: true
     turn_on:
       name: Turn on light
       description: Automatically turn on the light before starting the sequence if it is off.
@@ -1110,7 +1113,7 @@ start_segment_sequence:
   fields:
     preset:
       name: Preset sequence
-      description: Choose a preset segment sequence. When selected, manual step parameters are ignored.
+      description: Choose a preset segment sequence or type your custom preset name. When selected, manual step parameters are ignored.
       required: false
       selector:
         select:
@@ -1128,6 +1131,7 @@ start_segment_sequence:
             - label: "Comet"
               value: "comet"
           mode: dropdown
+          custom_value: true
     turn_on:
       name: Turn on light
       description: Turn on the light before starting the sequence if it is currently off.

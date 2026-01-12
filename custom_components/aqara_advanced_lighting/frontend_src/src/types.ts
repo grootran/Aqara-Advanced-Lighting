@@ -232,7 +232,7 @@ export interface UserPresetsData {
 }
 
 // Tab type for panel navigation
-export type PanelTab = 'activate' | 'effects' | 'patterns' | 'cct' | 'segments' | 'presets';
+export type PanelTab = 'activate' | 'effects' | 'patterns' | 'cct' | 'segments' | 'presets' | 'config';
 
 // Sort options for presets
 export type PresetSortOption = 'name-asc' | 'name-desc' | 'date-new' | 'date-old';

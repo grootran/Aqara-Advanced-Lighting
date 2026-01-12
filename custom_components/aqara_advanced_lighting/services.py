@@ -192,14 +192,15 @@ SERVICE_SET_DYNAMIC_EFFECT_SCHEMA = vol.Schema(
             vol.Coerce(int), vol.Range(MIN_SPEED, MAX_SPEED)
         ),
         # Individual color pickers (optional when using preset)
-        vol.Optional(ATTR_COLOR_1): RGB_COLOR_LIST_SCHEMA,
-        vol.Optional(ATTR_COLOR_2): RGB_COLOR_LIST_SCHEMA,
-        vol.Optional(ATTR_COLOR_3): RGB_COLOR_LIST_SCHEMA,
-        vol.Optional(ATTR_COLOR_4): RGB_COLOR_LIST_SCHEMA,
-        vol.Optional(ATTR_COLOR_5): RGB_COLOR_LIST_SCHEMA,
-        vol.Optional(ATTR_COLOR_6): RGB_COLOR_LIST_SCHEMA,
-        vol.Optional(ATTR_COLOR_7): RGB_COLOR_LIST_SCHEMA,
-        vol.Optional(ATTR_COLOR_8): RGB_COLOR_LIST_SCHEMA,
+        # Accept RGB list [r,g,b], RGB dict {r,g,b}, or XY dict {x,y}
+        vol.Optional(ATTR_COLOR_1): COLOR_SCHEMA,
+        vol.Optional(ATTR_COLOR_2): COLOR_SCHEMA,
+        vol.Optional(ATTR_COLOR_3): COLOR_SCHEMA,
+        vol.Optional(ATTR_COLOR_4): COLOR_SCHEMA,
+        vol.Optional(ATTR_COLOR_5): COLOR_SCHEMA,
+        vol.Optional(ATTR_COLOR_6): COLOR_SCHEMA,
+        vol.Optional(ATTR_COLOR_7): COLOR_SCHEMA,
+        vol.Optional(ATTR_COLOR_8): COLOR_SCHEMA,
         vol.Optional(ATTR_SEGMENTS): cv.string,
         vol.Optional(ATTR_BRIGHTNESS): vol.All(
             vol.Coerce(int), vol.Range(min=MIN_BRIGHTNESS_PERCENT, max=MAX_BRIGHTNESS_PERCENT)
@@ -237,12 +238,13 @@ SERVICE_CREATE_GRADIENT_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
         # Individual color pickers (color_1 and color_2 are required, 3-6 are optional)
-        vol.Required(ATTR_COLOR_1): RGB_COLOR_LIST_SCHEMA,
-        vol.Required(ATTR_COLOR_2): RGB_COLOR_LIST_SCHEMA,
-        vol.Optional(ATTR_COLOR_3): RGB_COLOR_LIST_SCHEMA,
-        vol.Optional(ATTR_COLOR_4): RGB_COLOR_LIST_SCHEMA,
-        vol.Optional(ATTR_COLOR_5): RGB_COLOR_LIST_SCHEMA,
-        vol.Optional(ATTR_COLOR_6): RGB_COLOR_LIST_SCHEMA,
+        # Accept RGB list [r,g,b], RGB dict {r,g,b}, or XY dict {x,y}
+        vol.Required(ATTR_COLOR_1): COLOR_SCHEMA,
+        vol.Required(ATTR_COLOR_2): COLOR_SCHEMA,
+        vol.Optional(ATTR_COLOR_3): COLOR_SCHEMA,
+        vol.Optional(ATTR_COLOR_4): COLOR_SCHEMA,
+        vol.Optional(ATTR_COLOR_5): COLOR_SCHEMA,
+        vol.Optional(ATTR_COLOR_6): COLOR_SCHEMA,
         vol.Optional(ATTR_SEGMENTS): cv.string,
         vol.Optional(ATTR_BRIGHTNESS): vol.All(
             vol.Coerce(int), vol.Range(min=MIN_BRIGHTNESS_PERCENT, max=MAX_BRIGHTNESS_PERCENT)
@@ -258,12 +260,13 @@ SERVICE_CREATE_BLOCKS_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
         # Individual color pickers (color_1 is required, 2-6 are optional)
-        vol.Required(ATTR_COLOR_1): RGB_COLOR_LIST_SCHEMA,
-        vol.Optional(ATTR_COLOR_2): RGB_COLOR_LIST_SCHEMA,
-        vol.Optional(ATTR_COLOR_3): RGB_COLOR_LIST_SCHEMA,
-        vol.Optional(ATTR_COLOR_4): RGB_COLOR_LIST_SCHEMA,
-        vol.Optional(ATTR_COLOR_5): RGB_COLOR_LIST_SCHEMA,
-        vol.Optional(ATTR_COLOR_6): RGB_COLOR_LIST_SCHEMA,
+        # Accept RGB list [r,g,b], RGB dict {r,g,b}, or XY dict {x,y}
+        vol.Required(ATTR_COLOR_1): COLOR_SCHEMA,
+        vol.Optional(ATTR_COLOR_2): COLOR_SCHEMA,
+        vol.Optional(ATTR_COLOR_3): COLOR_SCHEMA,
+        vol.Optional(ATTR_COLOR_4): COLOR_SCHEMA,
+        vol.Optional(ATTR_COLOR_5): COLOR_SCHEMA,
+        vol.Optional(ATTR_COLOR_6): COLOR_SCHEMA,
         vol.Optional(ATTR_SEGMENTS): cv.string,
         vol.Optional(ATTR_BRIGHTNESS): vol.All(
             vol.Coerce(int), vol.Range(min=MIN_BRIGHTNESS_PERCENT, max=MAX_BRIGHTNESS_PERCENT)
@@ -361,12 +364,12 @@ _segment_sequence_schema_dict["step_1_segments"] = vol.Optional(cv.string)
 _segment_sequence_schema_dict["step_1_mode"] = vol.Optional(
     vol.In([SEGMENT_MODE_BLOCKS_REPEAT, SEGMENT_MODE_BLOCKS_EXPAND, SEGMENT_MODE_GRADIENT])
 )
-_segment_sequence_schema_dict["step_1_color_1"] = vol.Optional(RGB_COLOR_LIST_SCHEMA)
-_segment_sequence_schema_dict["step_1_color_2"] = vol.Optional(RGB_COLOR_LIST_SCHEMA)
-_segment_sequence_schema_dict["step_1_color_3"] = vol.Optional(RGB_COLOR_LIST_SCHEMA)
-_segment_sequence_schema_dict["step_1_color_4"] = vol.Optional(RGB_COLOR_LIST_SCHEMA)
-_segment_sequence_schema_dict["step_1_color_5"] = vol.Optional(RGB_COLOR_LIST_SCHEMA)
-_segment_sequence_schema_dict["step_1_color_6"] = vol.Optional(RGB_COLOR_LIST_SCHEMA)
+_segment_sequence_schema_dict["step_1_color_1"] = vol.Optional(COLOR_SCHEMA)
+_segment_sequence_schema_dict["step_1_color_2"] = vol.Optional(COLOR_SCHEMA)
+_segment_sequence_schema_dict["step_1_color_3"] = vol.Optional(COLOR_SCHEMA)
+_segment_sequence_schema_dict["step_1_color_4"] = vol.Optional(COLOR_SCHEMA)
+_segment_sequence_schema_dict["step_1_color_5"] = vol.Optional(COLOR_SCHEMA)
+_segment_sequence_schema_dict["step_1_color_6"] = vol.Optional(COLOR_SCHEMA)
 _segment_sequence_schema_dict["step_1_duration"] = vol.Optional(
     vol.All(vol.Coerce(float), vol.Range(min=MIN_DURATION, max=MAX_DURATION))
 )
@@ -392,12 +395,12 @@ for step_num in range(2, 21):
     _segment_sequence_schema_dict[f"step_{step_num}_mode"] = vol.Optional(
         vol.In([SEGMENT_MODE_BLOCKS_REPEAT, SEGMENT_MODE_BLOCKS_EXPAND, SEGMENT_MODE_GRADIENT])
     )
-    _segment_sequence_schema_dict[f"step_{step_num}_color_1"] = vol.Optional(RGB_COLOR_LIST_SCHEMA)
-    _segment_sequence_schema_dict[f"step_{step_num}_color_2"] = vol.Optional(RGB_COLOR_LIST_SCHEMA)
-    _segment_sequence_schema_dict[f"step_{step_num}_color_3"] = vol.Optional(RGB_COLOR_LIST_SCHEMA)
-    _segment_sequence_schema_dict[f"step_{step_num}_color_4"] = vol.Optional(RGB_COLOR_LIST_SCHEMA)
-    _segment_sequence_schema_dict[f"step_{step_num}_color_5"] = vol.Optional(RGB_COLOR_LIST_SCHEMA)
-    _segment_sequence_schema_dict[f"step_{step_num}_color_6"] = vol.Optional(RGB_COLOR_LIST_SCHEMA)
+    _segment_sequence_schema_dict[f"step_{step_num}_color_1"] = vol.Optional(COLOR_SCHEMA)
+    _segment_sequence_schema_dict[f"step_{step_num}_color_2"] = vol.Optional(COLOR_SCHEMA)
+    _segment_sequence_schema_dict[f"step_{step_num}_color_3"] = vol.Optional(COLOR_SCHEMA)
+    _segment_sequence_schema_dict[f"step_{step_num}_color_4"] = vol.Optional(COLOR_SCHEMA)
+    _segment_sequence_schema_dict[f"step_{step_num}_color_5"] = vol.Optional(COLOR_SCHEMA)
+    _segment_sequence_schema_dict[f"step_{step_num}_color_6"] = vol.Optional(COLOR_SCHEMA)
     _segment_sequence_schema_dict[f"step_{step_num}_duration"] = vol.Optional(
         vol.All(vol.Coerce(float), vol.Range(min=MIN_DURATION, max=MAX_DURATION))
     )
@@ -791,8 +794,22 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             if user_preset:
                 # Use user preset
                 is_user_preset = True
-                effect_str: str = user_preset["effect"]
-                speed: int = user_preset["effect_speed"]
+
+                # Validate required preset fields
+                try:
+                    effect_str: str = user_preset["effect"]
+                    speed: int = user_preset["effect_speed"]
+                    colors_data: list[dict[str, Any]] = user_preset["effect_colors"]
+                except KeyError as ex:
+                    raise ServiceValidationError(
+                        f"User preset '{preset}' is missing required field: {ex}"
+                    ) from ex
+
+                # Validate colors list is not empty
+                if not colors_data:
+                    raise ServiceValidationError(
+                        f"User preset '{preset}' has no colors defined"
+                    )
 
                 # Use slider brightness if provided, otherwise use preset brightness
                 brightness_percent: int | None = call.data.get(ATTR_BRIGHTNESS)
@@ -802,12 +819,14 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 else:
                     brightness = user_preset.get("effect_brightness")
 
-                # User presets store colors as list of dicts
-                colors_data: list[dict[str, int]] = user_preset["effect_colors"]
-
                 # User presets may specify segments
                 if user_preset.get("effect_segments"):
                     segments = user_preset["effect_segments"]
+
+                _LOGGER.debug(
+                    "Using user preset '%s': effect=%s, speed=%d, colors=%d, brightness=%s",
+                    preset, effect_str, speed, len(colors_data), brightness
+                )
             elif preset in EFFECT_PRESETS:
                 # Use built-in preset
                 preset_data = EFFECT_PRESETS[preset]
@@ -1290,7 +1309,23 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             # If using preset, build segment_colors from preset data
             if user_preset:
                 # User presets store segments as list of dicts already
-                segment_colors_data = user_preset["segments"][:max_segments]
+                try:
+                    segments_list = user_preset["segments"]
+                except KeyError as ex:
+                    raise ServiceValidationError(
+                        f"User preset '{preset}' is missing required field: {ex}"
+                    ) from ex
+
+                if not segments_list:
+                    raise ServiceValidationError(
+                        f"User preset '{preset}' has no segments defined"
+                    )
+
+                segment_colors_data = segments_list[:max_segments]
+                _LOGGER.debug(
+                    "Using user segment pattern preset '%s' with %d segments",
+                    preset, len(segment_colors_data)
+                )
             elif preset_data:
                 preset_segments = preset_data["segments"]
                 # Build segment_colors_data from preset
@@ -1756,7 +1791,28 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 )
 
             if user_preset:
-                preset_data = user_preset
+                # Validate required preset fields
+                try:
+                    preset_data = {
+                        "steps": user_preset["steps"],
+                        "loop_mode": user_preset["loop_mode"],
+                        "loop_count": user_preset.get("loop_count"),
+                        "end_behavior": user_preset["end_behavior"],
+                    }
+                except KeyError as ex:
+                    raise ServiceValidationError(
+                        f"User preset '{preset}' is missing required field: {ex}"
+                    ) from ex
+
+                if not preset_data["steps"]:
+                    raise ServiceValidationError(
+                        f"User preset '{preset}' has no steps defined"
+                    )
+
+                _LOGGER.debug(
+                    "Using user CCT sequence preset '%s' with %d steps",
+                    preset, len(preset_data["steps"])
+                )
             elif preset in CCT_SEQUENCE_PRESETS:
                 preset_data = CCT_SEQUENCE_PRESETS[preset]
             else:
@@ -2046,7 +2102,30 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 )
 
             if user_preset:
-                preset_data = user_preset
+                # Validate required preset fields
+                try:
+                    preset_data = {
+                        "steps": user_preset["steps"],
+                        "loop_mode": user_preset["loop_mode"],
+                        "loop_count": user_preset.get("loop_count"),
+                        "end_behavior": user_preset["end_behavior"],
+                        "clear_segments": user_preset.get("clear_segments", False),
+                        "skip_first_in_loop": user_preset.get("skip_first_in_loop", False),
+                    }
+                except KeyError as ex:
+                    raise ServiceValidationError(
+                        f"User preset '{preset}' is missing required field: {ex}"
+                    ) from ex
+
+                if not preset_data["steps"]:
+                    raise ServiceValidationError(
+                        f"User preset '{preset}' has no steps defined"
+                    )
+
+                _LOGGER.debug(
+                    "Using user segment sequence preset '%s' with %d steps",
+                    preset, len(preset_data["steps"])
+                )
             elif preset in SEGMENT_SEQUENCE_PRESETS:
                 preset_data = SEGMENT_SEQUENCE_PRESETS[preset]
             else:

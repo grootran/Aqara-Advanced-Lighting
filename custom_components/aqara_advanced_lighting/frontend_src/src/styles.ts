@@ -1357,6 +1357,236 @@ export const panelStyles = css`
       --ha-dialog-border-radius: 0;
     }
   }
+
+  /* Version display in toolbar */
+  .version-display {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    font-size: var(--ha-font-size-xs, 11px);
+    color: var(--secondary-text-color);
+    margin-left: 8px;
+    white-space: nowrap;
+  }
+
+  .version-display ha-icon {
+    --mdc-icon-size: 14px;
+  }
+
+  .version-display .version-text {
+    line-height: 1.3;
+  }
+
+  .version-display.version-mismatch {
+    color: var(--warning-color);
+  }
+
+  /* Hide version on very narrow screens to prevent toolbar overflow */
+  @media (max-width: 500px) {
+    .version-display {
+      display: none;
+    }
+  }
+
+  /* Transition settings responsive grid - mobile first */
+  .transition-settings-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .transition-curve-column {
+    border-bottom: 1px solid var(--divider-color);
+  }
+
+  .initial-brightness-column {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .initial-brightness-content {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    box-sizing: border-box;
+  }
+
+  .initial-brightness-content .form-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .initial-brightness-content .form-label {
+    font-size: var(--ha-font-size-m, 14px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    color: var(--primary-text-color);
+    margin-bottom: 16px;
+  }
+
+  /* Desktop view - side by side layout */
+  @media (min-width: 768px) {
+    .transition-settings-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .transition-curve-column {
+      border-bottom: none;
+      border-right: 1px solid var(--divider-color);
+    }
+  }
+
+  :host([narrow]) .transition-settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  :host([narrow]) .transition-curve-column {
+    border-right: none;
+    border-bottom: 1px solid var(--divider-color);
+  }
+
+  /* Compatibility warning in editor tabs */
+  .compatibility-warning {
+    margin-bottom: 16px;
+  }
+
+  /* Dimming settings responsive grid - mobile first */
+  .dimming-settings-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .dimming-setting-item {
+    border-bottom: 1px solid var(--divider-color);
+  }
+
+  .dimming-setting-item:last-child {
+    border-bottom: none;
+  }
+
+  .dimming-setting-content {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .dimming-setting-content .form-label {
+    font-size: var(--ha-font-size-m, 14px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    color: var(--primary-text-color);
+  }
+
+  .entity-not-found {
+    font-size: var(--ha-font-size-s, 12px);
+    color: var(--secondary-text-color);
+  }
+
+  /* Desktop view - 2x2 grid layout for dimming settings */
+  @media (min-width: 768px) {
+    .dimming-settings-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .dimming-setting-item {
+      border-bottom: 1px solid var(--divider-color);
+    }
+
+    .dimming-setting-item:nth-child(odd) {
+      border-right: 1px solid var(--divider-color);
+    }
+
+    .dimming-setting-item:nth-last-child(-n+2) {
+      border-bottom: none;
+    }
+  }
+
+  :host([narrow]) .dimming-settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  :host([narrow]) .dimming-setting-item {
+    border-bottom: 1px solid var(--divider-color);
+  }
+
+  :host([narrow]) .dimming-setting-item:nth-child(odd) {
+    border-right: none;
+  }
+
+  :host([narrow]) .dimming-setting-item:last-child {
+    border-bottom: none;
+  }
+
+  /* Curve control styles for transition settings */
+  .curve-control-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 12px;
+  }
+
+  .curve-control-info {
+    flex: 1;
+  }
+
+  .curve-control-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .curve-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    font-size: var(--ha-font-size-xs, 11px);
+    color: var(--secondary-text-color);
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  .legend-dot.fast-slow {
+    background: var(--warning-color, #ffc107);
+  }
+
+  .legend-dot.linear {
+    background: var(--success-color, #4caf50);
+  }
+
+  .legend-dot.slow-fast {
+    background: var(--primary-color, #03a9f4);
+  }
+
+  /* Mobile: stack curve controls */
+  @media (max-width: 767px) {
+    .curve-control-row {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
+    }
+
+    .curve-control-actions {
+      justify-content: space-between;
+    }
+
+    .curve-legend {
+      justify-content: center;
+    }
+  }
 `;
 
 /**

@@ -2,17 +2,6 @@ import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, CCTSequenceStep, UserCCTSequencePreset } from './types';
 
-const LOOP_MODES = [
-  { value: 'once', label: 'Run Once' },
-  { value: 'loop', label: 'Loop N Times' },
-  { value: 'continuous', label: 'Continuous Loop' },
-];
-
-const END_BEHAVIORS = [
-  { value: 'maintain', label: 'Stay at Last Step' },
-  { value: 'turn_off', label: 'Turn Off Light' },
-];
-
 interface EditableStep extends CCTSequenceStep {
   id: string;
 }
@@ -21,8 +10,10 @@ interface EditableStep extends CCTSequenceStep {
 export class CCTSequenceEditor extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @property({ type: Object }) public preset?: UserCCTSequencePreset;
+  @property({ type: Object }) public translations: Record<string, any> = {};
   @property({ type: Boolean }) public editMode = false;
   @property({ type: Boolean }) public hasSelectedEntities = false;
+  @property({ type: Boolean }) public isCompatible = true;
   @property({ type: Array }) public selectedEntities: string[] = [];
   @property({ type: Boolean }) public previewActive = false;
 
@@ -34,6 +25,21 @@ export class CCTSequenceEditor extends LitElement {
   @state() private _endBehavior = 'maintain';
   @state() private _saving = false;
   @state() private _previewing = false;
+
+  private get _loopModeOptions() {
+    return [
+      { value: 'once', label: this._localize('options.loop_mode_once') },
+      { value: 'loop', label: this._localize('options.loop_mode_count') },
+      { value: 'continuous', label: this._localize('options.loop_mode_continuous') },
+    ];
+  }
+
+  private get _endBehaviorOptions() {
+    return [
+      { value: 'maintain', label: this._localize('options.end_behavior_maintain') },
+      { value: 'turn_off', label: this._localize('options.end_behavior_turn_off') },
+    ];
+  }
 
   static styles = css`
     :host {
@@ -467,28 +473,28 @@ export class CCTSequenceEditor extends LitElement {
             <ha-icon-button
               @click=${() => this._moveStepUp(index)}
               .disabled=${index === 0}
-              title="Move up"
+              title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.step_move_up')}"
             >
               <ha-icon icon="mdi:arrow-up"></ha-icon>
             </ha-icon-button>
             <ha-icon-button
               @click=${() => this._moveStepDown(index)}
               .disabled=${index === this._steps.length - 1}
-              title="Move down"
+              title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.step_move_down')}"
             >
               <ha-icon icon="mdi:arrow-down"></ha-icon>
             </ha-icon-button>
             <ha-icon-button
               @click=${() => this._duplicateStep(step)}
               .disabled=${this._steps.length >= 20}
-              title="Duplicate"
+              title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.step_duplicate')}"
             >
               <ha-icon icon="mdi:content-copy"></ha-icon>
             </ha-icon-button>
             <ha-icon-button
               @click=${() => this._removeStep(step.id)}
               .disabled=${this._steps.length <= 1}
-              title="Remove"
+              title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.step_remove')}"
             >
               <ha-icon icon="mdi:delete"></ha-icon>
             </ha-icon-button>
@@ -496,7 +502,7 @@ export class CCTSequenceEditor extends LitElement {
         </div>
         <div class="step-fields">
           <div class="step-field">
-            <span class="step-field-label">Color Temperature (${step.color_temp}K)</span>
+            <span class="step-field-label">${this._localize('editors.color_temperature_label', { value: step.color_temp.toString() })}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{
@@ -510,7 +516,7 @@ export class CCTSequenceEditor extends LitElement {
             ></ha-selector>
           </div>
           <div class="step-field">
-            <span class="step-field-label">Brightness (%)</span>
+            <span class="step-field-label">${this._localize('editors.brightness_percent_label')}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{
@@ -526,7 +532,7 @@ export class CCTSequenceEditor extends LitElement {
             ></ha-selector>
           </div>
           <div class="step-field">
-            <span class="step-field-label">Transition Time (seconds)</span>
+            <span class="step-field-label">${this._localize('editors.transition_time_label')}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{
@@ -543,7 +549,7 @@ export class CCTSequenceEditor extends LitElement {
             ></ha-selector>
           </div>
           <div class="step-field">
-            <span class="step-field-label">Hold Time (seconds)</span>
+            <span class="step-field-label">${this._localize('editors.hold_time_label')}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{
@@ -564,12 +570,34 @@ export class CCTSequenceEditor extends LitElement {
     `;
   }
 
+  private _localize(key: string, replacements?: Record<string, string>): string {
+    const keys = key.split('.');
+    let value: any = this.translations;
+    for (const k of keys) {
+      if (value && typeof value === 'object' && k in value) {
+        value = value[k];
+      } else {
+        return key;
+      }
+    }
+    let result = typeof value === 'string' ? value : key;
+
+    // Replace placeholders if provided
+    if (replacements) {
+      Object.entries(replacements).forEach(([placeholder, replacement]) => {
+        result = result.replace(`{${placeholder}}`, replacement);
+      });
+    }
+
+    return result;
+  }
+
   protected render() {
     return html`
       <div class="editor-content">
         <div class="form-row-pair">
           <div class="form-field">
-            <span class="form-label">Name</span>
+            <span class="form-label">${this._localize('editors.name_label')}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{ text: {} }}
@@ -578,7 +606,7 @@ export class CCTSequenceEditor extends LitElement {
             ></ha-selector>
           </div>
           <div class="form-field">
-            <span class="form-label">Icon</span>
+            <span class="form-label">${this._localize('editors.icon_label')}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{ icon: {} }}
@@ -590,12 +618,12 @@ export class CCTSequenceEditor extends LitElement {
 
         <div class="form-row-pair">
           <div class="form-field">
-            <span class="form-label">Loop Mode</span>
+            <span class="form-label">${this._localize('editors.loop_mode_label')}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{
                 select: {
-                  options: LOOP_MODES,
+                  options: this._loopModeOptions,
                   mode: 'dropdown',
                 },
               }}
@@ -604,12 +632,12 @@ export class CCTSequenceEditor extends LitElement {
             ></ha-selector>
           </div>
           <div class="form-field">
-            <span class="form-label">End Behavior</span>
+            <span class="form-label">${this._localize('editors.end_behavior_label')}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{
                 select: {
-                  options: END_BEHAVIORS,
+                  options: this._endBehaviorOptions,
                   mode: 'dropdown',
                 },
               }}
@@ -622,7 +650,7 @@ export class CCTSequenceEditor extends LitElement {
         ${this._loopMode === 'loop'
           ? html`
               <div class="form-row">
-                <span class="form-label">Loop Count</span>
+                <span class="form-label">${this._localize('editors.loop_count_label')}</span>
                 <div class="form-input">
                   <ha-selector
                     .hass=${this.hass}
@@ -642,12 +670,12 @@ export class CCTSequenceEditor extends LitElement {
           : ''}
 
         <div class="form-section">
-          <span class="form-label">Steps (1-20)</span>
+          <span class="form-label">${this._localize('editors.steps_label')}</span>
           <div class="step-list">
             ${this._steps.length === 0
               ? html`
                   <div class="empty-steps">
-                    No steps defined. Click "Add Step" to create your first step.
+                    ${this._localize('editors.no_steps_message')}
                   </div>
                 `
               : this._steps.map((step, index) => this._renderStep(step, index))}
@@ -658,7 +686,7 @@ export class CCTSequenceEditor extends LitElement {
               ?disabled=${this._steps.length >= 20}
             >
               <ha-icon icon="mdi:plus"></ha-icon>
-              Add Step
+              ${this._localize('editors.add_step_button')}
             </button>
           </div>
         </div>
@@ -676,13 +704,13 @@ export class CCTSequenceEditor extends LitElement {
           ? html`
               <div class="preview-warning">
                 <ha-icon icon="mdi:information"></ha-icon>
-                <span>Select light entities in the Activate tab to preview sequences on your devices.</span>
+                <span>${this._localize('editors.select_lights_for_preview_sequences')}</span>
               </div>
             `
           : ''}
 
         <div class="form-actions">
-          <ha-button @click=${this._cancel}>Cancel</ha-button>
+          <ha-button @click=${this._cancel}>${this._localize('editors.cancel_button')}</ha-button>
           ${this.previewActive
             ? html`
                 <ha-button @click=${this._stopPreview}>
@@ -693,8 +721,8 @@ export class CCTSequenceEditor extends LitElement {
             : html`
                 <ha-button
                   @click=${this._preview}
-                  .disabled=${this._previewing || this._steps.length === 0 || !this.hasSelectedEntities || this._hasIncompatibleEndpoints()}
-                  title=${!this.hasSelectedEntities ? 'Select entities in Activate tab first' : this._hasIncompatibleEndpoints() ? 'Selected light does not support color temperature' : ''}
+                  .disabled=${this._previewing || this._steps.length === 0 || !this.hasSelectedEntities || !this.isCompatible || this._hasIncompatibleEndpoints()}
+                  title=${!this.hasSelectedEntities ? 'Select entities in Activate tab first' : !this.isCompatible ? 'Selected light is not compatible' : this._hasIncompatibleEndpoints() ? 'Selected light does not support color temperature' : ''}
                 >
                   <ha-icon icon="mdi:play"></ha-icon>
                   Preview

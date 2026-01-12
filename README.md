@@ -1,5 +1,11 @@
 # Aqara Advanced Lighting
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/dark_logo@2x.png" width="50%">
+  <source media="(prefers-color-scheme: light)" srcset="images/logo@2x.png" width="50%">
+  <img alt="Aqara Advanced Lighting" src="images/all-logo.png" width="50%">
+</picture>
+
 Home Assistant HACS integration for advanced control of the Aqara T1M Ceiling Light, T1 LED Strip, and T2 bulbs via Zigbee2MQTT.
 
 ## Overview
@@ -82,16 +88,6 @@ _If you want to show your support please_
 
 Restart Home Assistant
 
-Alternatively:
-1. Open HACS in Home Assistant
-2. Go to "Integrations"
-3. Click the three dots menu (top right) → "Custom repositories"
-4. Add repository URL: `https://github.com/absent42/Aqara-Advanced-Lighting`
-5. Category: "Integration"
-6. Click "Add"
-7. Find "Aqara Advanced Lighting" in HACS and click "Download"
-8. Restart Home Assistant
-
 ### Manual Installation
 
 1. Copy the `custom_components/aqara_advanced_lighting` folder to your Home Assistant `custom_components` directory
@@ -116,6 +112,86 @@ To change the Z2M base topic:
 3. Click the three dots menu → "Reconfigure"
 4. Update the base topic
 5. Click "Submit"
+
+### Configuration Parameters
+
+The integration requires one configuration parameter during setup:
+
+#### Zigbee2MQTT Base Topic
+
+**Parameter**: `Zigbee2MQTT base topic`
+**Default**: `zigbee2mqtt`
+**Required**: Yes
+**Type**: String
+
+**Description**:
+The MQTT base topic used by your Zigbee2MQTT installation. This integration subscribes to MQTT messages under this topic to discover and communicate with Aqara lights. The base topic must match the `base_topic` configured in your Zigbee2MQTT `configuration.yaml`.
+
+**How it works**:
+- The integration listens to `{base_topic}/bridge/devices` for device discovery
+- Commands are published to `{base_topic}/{device_friendly_name}/set`
+- State updates are received from `{base_topic}/{device_friendly_name}`
+
+**Valid values**:
+- Must not be empty
+- Can contain letters, numbers, underscores, and hyphens
+- Common values: `zigbee2mqtt` (default), `z2m`, `zigbee`, `mqtt/zigbee`
+- Must match your Z2M configuration exactly
+
+**Examples**:
+- Default installation: `zigbee2mqtt`
+- Custom topic: `z2m`
+- Hierarchical topic: `home/zigbee2mqtt`
+
+**Finding your Z2M base topic**:
+1. Open your Zigbee2MQTT `configuration.yaml` file
+2. Look for the `mqtt` section
+3. Find the `base_topic` setting
+4. Use that exact value in this integration
+
+Example Z2M configuration:
+```yaml
+mqtt:
+  base_topic: zigbee2mqtt
+  server: mqtt://localhost:1883
+```
+
+**Troubleshooting**:
+- If devices are not discovered, verify the base topic matches your Z2M configuration
+- Check that MQTT integration is properly configured and connected
+- Ensure Zigbee2MQTT is running and connected to the same MQTT broker
+- Use the Reconfigure option to update the base topic if it changes
+
+### Removal
+
+To remove the integration from Home Assistant:
+
+1. **Remove the Integration**:
+   - Go to **Settings** → **Devices & Services**
+   - Find "Aqara Advanced Lighting"
+   - Click the three dots menu → **Delete**
+   - Confirm the removal
+
+2. **Remove Associated Devices** (Optional):
+   - After removing the integration, associated Aqara light devices will remain in the device registry
+   - To remove devices, go to **Settings** → **Devices & Services** → **Devices**
+   - Find each Aqara light device
+   - Click the device → Click the three dots menu → **Delete**
+   - Confirm the removal for each device
+
+3. **Uninstall Integration Files**:
+
+   **If installed via HACS**:
+   - Go to **HACS** → **Integrations**
+   - Find "Aqara Advanced Lighting"
+   - Click the three dots menu → **Remove**
+   - Restart Home Assistant
+
+   **If installed manually**:
+   - Delete the `custom_components/aqara_advanced_lighting` folder from your Home Assistant configuration directory
+   - Restart Home Assistant
+
+**Note**: Removing the integration does not affect your Zigbee2MQTT configuration or your Aqara lights themselves. The lights will continue to work with Zigbee2MQTT and the standard Home Assistant MQTT Light integration.
 
 ## Usage
 
@@ -241,7 +317,7 @@ data:
 
 **Parameters:**
 - `entity_id` (required): Light entity or group to control
-- `preset` (optional): Aqara app preset effect - dropdown selector with 24 presets
+- `preset` (optional): Aqara app preset effect - dropdown selector with 24 built-in presets. You can also type the name of a custom preset you created in the frontend panel (case-insensitive)
 - `effect` (required if no preset): Effect type - dropdown selector with all available effects
 - `speed` (required if no preset): Animation speed (1-100%)
 - `color_1` through `color_8`: RGB color pickers (color_1 required if no preset, others optional)
@@ -249,7 +325,7 @@ data:
 - `brightness` (optional): Brightness level (1-255)
 - `turn_on` (optional): Turn light on before applying effect (default: false)
 
-**Note:** When using `preset`, manual `effect`, `speed`, and `color` parameters are ignored.
+**Note:** When using `preset`, manual `effect`, `speed`, and `color` parameters are ignored. Custom presets created in the frontend panel can be used by typing their name exactly as you saved it (case doesn't matter).
 </details>
 
 <details>
@@ -324,7 +400,7 @@ data:
 
 **Parameters:**
 - `entity_id` (required): Light entity with segment support
-- `preset` (optional): Aqara app segment pattern preset (Preset 1 through Preset 12) - dropdown selector
+- `preset` (optional): Aqara app segment pattern preset (Preset 1 through Preset 12) - dropdown selector with 12 built-in presets. You can also type the name of a custom pattern preset you created in the frontend panel (case-insensitive)
 - `segment_colors` (required if no preset): List of segment/color pairs
   - `segment`: Segment number or range (e.g., 1, "5-10", "odd", "even")
   - `color`: RGB color dict with r, g, b values (0-255)
@@ -332,7 +408,7 @@ data:
 - `turn_on` (optional): Turn light on before applying pattern (default: false)
 - `turn_off_unspecified` (optional): Turn off segments not specified (default: false)
 
-**Note:** When using `preset`, the `segment_colors` parameter is ignored. Presets work on T1M (20 & 26 segment) and T1 Strip devices.
+**Note:** When using `preset`, the `segment_colors` parameter is ignored. Presets work on T1M (20 & 26 segment) and T1 Strip devices. Custom presets created in the frontend panel can be used by typing their name exactly as you saved it (case doesn't matter).
 </details>
 
 <details>
@@ -449,7 +525,7 @@ data:
 
 **Parameters:**
 - `entity_id` (required): Light entity or group to control
-- `preset` (optional): Use a built-in preset ("goodnight", "wakeup", "mindful_breathing"). When preset is selected, manual step/loop/end_behavior parameters are ignored
+- `preset` (optional): Use a built-in preset ("goodnight", "wakeup", "mindful_breathing", "circadian") - dropdown selector with 4 built-in presets. You can also type the name of a custom CCT sequence preset you created in the frontend panel (case-insensitive). When preset is selected, manual step/loop/end_behavior parameters are ignored
 - `turn_on` (optional): Turn light on before starting sequence (default: false)
 - **Step 1 fields** (required if not using preset):
   - `step_1_color_temp`: Color temperature in kelvin (2700-6500)
@@ -585,7 +661,7 @@ data:
 
 **Parameters:**
 - `entity_id` (required): Light entity with segment support (T1M or T1 Strip)
-- `preset` (optional): Use a built-in preset ("loading_bar", "wave", "sparkle"). When preset is selected, manual step parameters are ignored
+- `preset` (optional): Use a built-in preset ("loading_bar", "wave", "sparkle", "theater_chase", "rainbow_fill", "comet") - dropdown selector with 6 built-in presets. You can also type the name of a custom RGB segment sequence preset you created in the frontend panel (case-insensitive). When preset is selected, manual step parameters are ignored
 - `turn_on` (optional): Turn light on before starting sequence (default: false)
 - `clear_segments` (optional): Clear existing segment pattern before starting sequence (default: false)
 - `skip_first_in_loop` (optional): Skip the first step when looping (useful for initialization steps, default: false)
@@ -717,6 +793,15 @@ data:
   preset: "sunset"
   sync: true  # Synchronized effect across all lights
 ```
+
+### Custom Icons for Presets
+
+You can use custom icons with your user presets using the [Custom Icons integration](https://github.com/thomasloven/hass-custom_icons).
+
+**Using custom icons:**
+1. Install and configure the Custom Icons integration
+2. When creating or editing a preset, set the icon field to your custom icon identifier (e.g., `local:my_preset_icon`)
+3. Standard MDI icons use the format `mdi:icon-name`, while custom icons use `local:icon-name`
 
 ## Example Automations YAML
 

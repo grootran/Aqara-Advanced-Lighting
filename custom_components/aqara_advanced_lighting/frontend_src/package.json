@@ -1,6 +1,6 @@
 {
   "name": "aqara-advanced-lighting-panel",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Frontend panel for Aqara Advanced Lighting integration",
   "private": true,
   "type": "module",
@@ -13,6 +13,7 @@
     "@rollup/plugin-commonjs": "^26.0.0",
     "@rollup/plugin-json": "^6.1.0",
     "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-replace": "^6.0.3",
     "@rollup/plugin-terser": "^0.4.4",
     "@rollup/plugin-typescript": "^11.1.6",
     "@web/rollup-plugin-html": "^2.3.0",

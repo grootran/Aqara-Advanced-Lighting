@@ -1,67 +1,228 @@
 # Quality scale tracking for Aqara Advanced Lighting integration
-# Target: Bronze (initial release), path to Silver and Gold
+# Integration type: Service-only (no entities)
+# Current target: Bronze tier with Gold tier features
 
 rules:
-  # Bronze tier rules (mandatory)
-  config-flow:
-    status: done
-    comment: UI configuration implemented in config_flow.py
-
-  unique-id:
-    status: done
-    comment: Uses Z2M IEEE addresses as unique identifiers for device tracking
+  # ============================================================================
+  # BRONZE TIER RULES (Internal - ALL MANDATORY)
+  # ============================================================================
 
   action-setup:
     status: done
-    comment: Services registered in async_setup in __init__.py
+    comment: Service actions registered in async_setup in __init__.py
+
+  appropriate-polling:
+    status: exempt
+    comment: Not a polling-based integration - uses MQTT local_push
+
+  brands:
+    status: todo
+    comment: Branding assets not yet created
+
+  common-modules:
+    status: done
+    comment: Shared modules implemented (const.py, models.py, mqtt_client.py, state_manager.py, segment_utils.py)
+
+  config-flow-test-coverage:
+    status: done
+    comment: Comprehensive config flow tests implemented in tests/test_config_flow.py with 100% coverage of user flow, reconfigure flow, MQTT validation, and single instance enforcement
+
+  config-flow:
+    status: done
+    comment: UI configuration flow implemented in config_flow.py with reconfigure support
+
+  dependency-transparency:
+    status: done
+    comment: Dependencies documented in manifest.json (http, mqtt)
+
+  docs-actions:
+    status: done
+    comment: Service actions documented in services.yaml with full field definitions, selector options, and constraints. Translations provided in translations/en.json for multi-language support
+
+  docs-high-level-description:
+    status: done
+    comment: Overview provided in README.md
+
+  docs-installation-instructions:
+    status: done
+    comment: Installation steps documented in README.md
+
+  docs-removal-instructions:
+    status: done
+    comment: Comprehensive removal procedure documented in README.md with steps for integration, devices, and file removal
+
+  entity-event-setup:
+    status: exempt
+    comment: Service-only integration, no entities created
 
   entity-unique-id:
     status: exempt
-    comment: Service-only integration initially, no entities created
+    comment: Service-only integration, no entities created
 
-  # Silver tier rules (planned)
+  has-entity-name:
+    status: exempt
+    comment: Service-only integration, no entities created
+
+  runtime-data:
+    status: done
+    comment: ConfigEntry.runtime_data used for state management throughout
+
+  test-before-configure:
+    status: done
+    comment: Config flow validates MQTT integration availability before configuration
+
+  test-before-setup:
+    status: done
+    comment: async_setup_entry validates MQTT client initialization
+
+  unique-config-entry:
+    status: done
+    comment: Single instance restriction enforced via abort flow in config_flow.py
+
+  # ============================================================================
+  # SILVER TIER RULES
+  # ============================================================================
+
+  action-exceptions:
+    status: done
+    comment: All service actions raise appropriate exceptions (ServiceValidationError, HomeAssistantError, ConfigEntryAuthFailed, ConfigEntryNotReady, ConfigEntryError)
+
+  config-entry-unloading:
+    status: done
+    comment: async_unload_entry implemented in __init__.py with cleanup
+
+  docs-configuration-parameters:
+    status: done
+    comment: Comprehensive configuration parameter documentation in README.md including description, default value, valid values, examples, finding Z2M base topic, and troubleshooting
+
+  docs-installation-parameters:
+    status: done
+    comment: Z2M base topic parameter documented in README.md
+
   entity-unavailable:
     status: exempt
-    comment: No entities initially, will implement when entities are added
+    comment: Service-only integration, no entities created
+
+  integration-owner:
+    status: done
+    comment: Owner specified in manifest.json codeowners field
+
+  log-when-unavailable:
+    status: done
+    comment: MQTT connection failures and Z2M unavailability logged appropriately
 
   parallel-updates:
     status: exempt
-    comment: No platform entities initially
+    comment: Service-only integration, no platform entities
 
   reauthentication-flow:
     status: exempt
-    comment: No authentication required, uses MQTT integration
+    comment: No authentication required - uses existing MQTT integration
 
-  # Gold tier rules
+  test-coverage:
+    status: done
+    comment: Automated tests implemented with comprehensive coverage - config flow tests (100%), integration setup/unload tests, segment utility tests (comprehensive), test infrastructure with pytest, pytest-homeassistant-custom-component, and coverage tooling configured
+
+  # ============================================================================
+  # GOLD TIER RULES
+  # ============================================================================
+
   devices:
     status: done
-    comment: Devices discovered and registered in device registry
+    comment: Aqara light devices discovered via Z2M and registered in device registry
 
   diagnostics:
     status: done
     comment: Diagnostic data collection implemented in diagnostics.py
 
-  entity-translations:
+  discovery-update-info:
     status: exempt
-    comment: No entities initially, will implement when entities are added
+    comment: Relies on Z2M for discovery, not using HA discovery protocols
+
+  discovery:
+    status: exempt
+    comment: Device discovery handled by Zigbee2MQTT, not native HA discovery
+
+  docs-data-update:
+    status: todo
+    comment: Data refresh mechanisms need documentation
+
+  docs-examples:
+    status: done
+    comment: Usage examples provided in README.md and DEVELOPMENT.md
+
+  docs-known-limitations:
+    status: done
+    comment: Limitations documented in README.md (Z2M dependency, supported models)
+
+  docs-supported-devices:
+    status: done
+    comment: Supported Aqara models documented in README.md and types.py
+
+  docs-supported-functions:
+    status: done
+    comment: All 13 service actions documented in services.yaml with complete field definitions, selector options, constraints, and examples
+
+  docs-troubleshooting:
+    status: done
+    comment: Troubleshooting guidance in CONTRIBUTING.md
+
+  docs-use-cases:
+    status: done
+    comment: Use cases illustrated in README.md with automation examples
+
+  dynamic-devices:
+    status: done
+    comment: Devices dynamically discovered through Z2M MQTT messages
 
   entity-category:
     status: exempt
-    comment: No entities initially
+    comment: Service-only integration, no entities created
 
   entity-device-class:
     status: exempt
-    comment: No entities initially
+    comment: Service-only integration, no entities created
 
-  # Platinum tier rules (aspirational)
-  strict-typing:
+  entity-disabled-by-default:
+    status: exempt
+    comment: Service-only integration, no entities created
+
+  entity-translations:
+    status: exempt
+    comment: Service-only integration, no entities created
+
+  exception-translations:
     status: done
-    comment: Type hints used throughout, py.typed file to be added
+    comment: All service exceptions use translation keys with placeholders in translations/en.json
+
+  icon-translations:
+    status: exempt
+    comment: Service-only integration, no entities with dynamic icons
+
+  reconfiguration-flow:
+    status: done
+    comment: Reconfiguration flow implemented in config_flow.py (async_step_reconfigure)
+
+  repair-issues:
+    status: todo
+    comment: Repair flow integration not yet implemented
+
+  stale-devices:
+    status: todo
+    comment: Automatic stale device removal not yet implemented
+
+  # ============================================================================
+  # PLATINUM TIER RULES
+  # ============================================================================
 
   async-dependency:
     status: done
-    comment: All dependencies use asyncio, MQTT integration is async
+    comment: All dependencies use asyncio (aiomqtt via MQTT integration)
 
-  runtime-data:
+  inject-websession:
+    status: exempt
+    comment: No HTTP client dependencies requiring websession injection
+
+  strict-typing:
     status: done
-    comment: Uses ConfigEntry.runtime_data for state management
+    comment: Type hints used throughout all modules, mypy validation passing
