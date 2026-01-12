@@ -165,19 +165,18 @@ We welcome translations of the integration into other languages. Translations he
 
 ### What Gets Translated
 
-The integration has several components that support translation:
+The integration has two separate translation systems:
 
-1. **Service Actions** - Service names, descriptions, and field labels (13 services)
-2. **Configuration Flow** - Setup wizard text and options
-3. **Exception Messages** - Error messages shown to users
-4. **Frontend Panel** - UI labels, buttons, and tooltips in the Aqara Lighting panel
+1. **Backend Translations** - Service actions, config flow, and exception messages
+2. **Frontend Panel Translations** - UI labels, buttons, and tooltips in the Aqara Lighting panel
 
 ### Translation File Structure
 
-All translations are stored in JSON files in the `custom_components/aqara_advanced_lighting/translations/` directory:
+Translations are stored in two separate locations:
 
+**Backend Translations** (Home Assistant standard):
 ```
-translations/
+custom_components/aqara_advanced_lighting/translations/
 ├── en.json          # English (reference translation)
 ├── de.json          # German
 ├── fr.json          # French
@@ -185,44 +184,70 @@ translations/
 └── [language].json  # Your translation
 ```
 
+**Frontend Panel Translations** (embedded in compiled JavaScript):
+```
+custom_components/aqara_advanced_lighting/frontend_src/translations/
+├── panel.en.json    # English panel UI (reference)
+├── panel.de.json    # German panel UI
+├── panel.fr.json    # French panel UI
+└── panel.[lang].json  # Your panel translation
+```
+
 Each language file uses the ISO 639-1 language code (e.g., `de` for German, `fr` for French, `es` for Spanish).
+
+### Why Two Translation Systems?
+
+Home Assistant's translation API for custom integrations only serves standard sections (config, services, exceptions). Custom UI elements like the panel must embed their translations directly in the compiled JavaScript. This is why panel translations are separate and require a frontend rebuild.
 
 ### How to Create a Translation
 
-#### Step 1: Copy the English Template
+#### Step 1: Copy the English Templates
 
-Start by copying the English translation file as your template:
+You need to translate **both** backend and frontend files:
 
+**Backend Translation:**
 ```bash
 cd custom_components/aqara_advanced_lighting/translations/
 cp en.json [your_language_code].json
 ```
 
+**Frontend Panel Translation:**
+```bash
+cd custom_components/aqara_advanced_lighting/frontend_src/translations/
+cp panel.en.json panel.[your_language_code].json
+```
+
 For example, to create a German translation:
 ```bash
+# Backend
+cd custom_components/aqara_advanced_lighting/translations/
 cp en.json de.json
+
+# Frontend
+cd ../frontend_src/translations/
+cp panel.en.json panel.de.json
 ```
 
 #### Step 2: Translate the Content
 
-Open your new translation file and translate all text values while keeping the JSON structure and keys unchanged.
+Open your new translation files and translate all text values while keeping the JSON structure and keys unchanged.
 
-**Translation File Structure:**
+**Backend Translation Structure (en.json):**
 
 ```json
 {
   "config": {
     "step": {
       "user": {
-        "title": "Configure Aqara Advanced Lighting",
-        "description": "Enter your Zigbee2MQTT configuration.",
+        "title": "Set up Aqara Advanced Lighting",
+        "description": "Configure advanced lighting control for Aqara lights via Zigbee2MQTT.",
         "data": {
           "z2m_base_topic": "Zigbee2MQTT base topic"
         }
       }
     },
     "error": {
-      "mqtt_not_loaded": "MQTT integration is not configured.",
+      "mqtt_not_loaded": "MQTT integration is not loaded.",
       "unknown": "An unexpected error occurred."
     }
   },
@@ -231,24 +256,35 @@ Open your new translation file and translate all text values while keeping the J
       "name": "Set dynamic effect",
       "description": "Activate a dynamic RGB effect on Aqara lights.",
       "fields": {
-        "device_id": {
-          "name": "Device",
-          "description": "Select the Aqara light device."
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
         }
       }
     }
   },
   "exceptions": {
     "device_not_found": {
-      "message": "Device {device_name} not found in device registry."
+      "message": "Device {device} was not found."
     }
+  }
+}
+```
+
+**Frontend Panel Translation Structure (panel.en.json):**
+
+```json
+{
+  "title": "Aqara Advanced Lighting",
+  "tabs": {
+    "activate": "Activate",
+    "effects": "Effects",
+    "patterns": "Patterns"
   },
-  "panel": {
-    "title": "Aqara Advanced Lighting",
-    "sections": {
-      "effects": "Dynamic Effects",
-      "segments": "Segment Control"
-    }
+  "editors": {
+    "name_label": "Name",
+    "save_button": "Save",
+    "cancel_button": "Cancel"
   }
 }
 ```
@@ -302,56 +338,98 @@ Open your new translation file and translate all text values while keeping the J
 
 ### Complete Translation Sections
 
-Your translation file should include all these sections:
+**Backend Translation (en.json)** should include:
 
-1. **config** - Configuration flow text (setup wizard)
-2. **options** - Options flow text (reconfiguration)
-3. **services** - All 13 service action definitions
-4. **exceptions** - Error messages with placeholders
-5. **panel** - Frontend panel UI text (if applicable)
+1. **config** - Configuration flow text (setup wizard and reconfigure flow)
+2. **exceptions** - Error messages with placeholders
+3. **services** - All service action definitions
 
 **Services to Translate:**
 - `set_dynamic_effect` - Set dynamic effect
-- `set_segment_pattern` - Set segment pattern
-- `set_segment_gradient` - Set segment gradient
-- `set_segment_blocks` - Set segment blocks
-- `set_cct_sequence` - Set CCT sequence
-- `set_segment_sequence` - Set segment sequence
 - `stop_effect` - Stop effect
-- `restore_pre_effect_state` - Restore pre-effect state
-- `save_effect_preset` - Save effect preset
-- `save_segment_pattern_preset` - Save segment pattern preset
-- `save_cct_sequence_preset` - Save CCT sequence preset
-- `save_segment_sequence_preset` - Save segment sequence preset
-- `delete_preset` - Delete preset
+- `set_segment_pattern` - Set segment pattern
+- `create_gradient` - Create gradient
+- `create_blocks` - Create blocks
+- `start_cct_sequence` - Start CCT sequence
+- `stop_cct_sequence` - Stop CCT sequence
+- `pause_cct_sequence` - Pause CCT sequence
+- `resume_cct_sequence` - Resume CCT sequence
+- `start_segment_sequence` - Start RGB segment sequence
+- `stop_segment_sequence` - Stop RGB segment sequence
+- `pause_segment_sequence` - Pause RGB segment sequence
+- `resume_segment_sequence` - Resume RGB segment sequence
+
+**Frontend Panel Translation (panel.[lang].json)** should include:
+
+1. **title** - Panel title
+2. **tabs** - Tab labels (Activate, Effects, Patterns, CCT, Segments, Presets, Config)
+3. **errors** - Error messages shown in the panel
+4. **target** - Light selection UI
+5. **presets** - Preset management UI
+6. **dialogs** - Dialog titles and descriptions
+7. **config** - Device configuration UI
+8. **transition_curve** - Transition curve editor
+9. **tooltips** - Hover tooltips
+10. **options** - Dropdown options
+11. **editors** - Form field labels and buttons
 
 ### Testing Your Translation
 
-#### Visual Testing in Home Assistant
+#### Step 1: Rebuild the Frontend (Required for Panel Translations)
 
-1. **Copy the translation file:**
-   ```bash
-   # Copy your translation to your HA custom_components folder
-   cp translations/[language].json \
-     /config/custom_components/aqara_advanced_lighting/translations/
-   ```
+If you translated the frontend panel (`panel.[lang].json`), you must rebuild the frontend:
 
-2. **Set your language in Home Assistant:**
-   - Go to your user profile (click your username)
-   - Select Language
-   - Choose your translated language
+```bash
+cd custom_components/aqara_advanced_lighting/frontend_src
+npm install  # Only needed first time
+npm run build
+```
 
-3. **Test the translation appears:**
-   - **Configuration Flow**: Try adding the integration (Settings > Devices & Services > Add Integration)
-   - **Services**: Open Developer Tools > Actions and search for "Aqara" services
-   - **Frontend Panel**: Open the Aqara Lighting panel if you have it installed
-   - **Error Messages**: Trigger errors (try invalid device IDs) to see exception translations
+This compiles your panel translations into the JavaScript bundle.
 
-4. **Verify completeness:**
-   - All service names appear in your language
-   - All field descriptions are translated
-   - Error messages display in your language
-   - No English text appears where it shouldn't
+#### Step 2: Copy Translation Files to Home Assistant
+
+**Backend translation:**
+```bash
+# Copy your backend translation to your HA custom_components folder
+cp custom_components/aqara_advanced_lighting/translations/[language].json \
+  /config/custom_components/aqara_advanced_lighting/translations/
+```
+
+**Frontend panel (after rebuild):**
+```bash
+# Copy the rebuilt frontend with embedded translations
+cp custom_components/aqara_advanced_lighting/frontend/aqara_panel.js \
+  /config/custom_components/aqara_advanced_lighting/frontend/
+```
+
+#### Step 3: Set Your Language in Home Assistant
+
+- Go to your user profile (click your username)
+- Select Language
+- Choose your translated language
+- Restart Home Assistant to load the new translations
+
+#### Step 4: Test the Translation Appears
+
+**Backend translations:**
+- **Configuration Flow**: Try adding the integration (Settings > Devices & Services > Add Integration)
+- **Services**: Open Developer Tools > Actions and search for "Aqara" services
+- **Error Messages**: Trigger errors (try invalid device IDs) to see exception translations
+
+**Frontend panel translations:**
+- **Panel UI**: Open the Aqara Lighting panel and check all tabs, buttons, and labels
+- **Dialogs**: Open the effect/pattern editors to test dialog translations
+- **Tooltips**: Hover over UI elements to verify tooltip translations
+
+#### Step 5: Verify Completeness
+
+- [ ] All service names appear in your language
+- [ ] All field descriptions are translated
+- [ ] Error messages display in your language
+- [ ] Panel UI is fully translated (if applicable)
+- [ ] No English text appears where it shouldn't
+- [ ] Placeholders like `{device}` remain unchanged
 
 #### Common Issues
 
@@ -376,20 +454,26 @@ Your translation file should include all these sections:
 #### Prepare the Pull Request
 
 1. **Ensure completeness:**
-   - All sections translated
+   - All sections translated (both backend and frontend if applicable)
    - JSON syntax is valid
+   - Frontend rebuilt if panel translation was added
    - Tested in Home Assistant
    - No English text remains (except in placeholders/keys)
 
-2. **Create a pull request with:**
-   - Your translation file in `custom_components/aqara_advanced_lighting/translations/[language].json`
+2. **Files to include in your PR:**
+   - **Backend translation**: `custom_components/aqara_advanced_lighting/translations/[language].json`
+   - **Frontend panel translation** (optional): `custom_components/aqara_advanced_lighting/frontend_src/translations/panel.[language].json`
+   - **Rebuilt frontend** (if panel translation added): `custom_components/aqara_advanced_lighting/frontend/aqara_panel.js`
+
+3. **Create a pull request with:**
    - Clear PR title: "Add [Language Name] translation"
    - Description including:
      - Language name and code
+     - What was translated (backend only, or backend + frontend panel)
      - Confirmation of testing
      - Native language proficiency level
 
-**Example PR Description:**
+**Example PR Description (Backend + Frontend):**
 
 ```markdown
 ## Description
@@ -397,9 +481,40 @@ Add German (de) translation for Aqara Advanced Lighting integration
 
 ## Details
 - Language: German (de)
-- Translated sections: Config flow, services, exceptions, panel
+- Translated sections:
+  - Backend: Config flow, services, exceptions
+  - Frontend: Panel UI (all tabs, dialogs, tooltips)
 - Testing: Tested in Home Assistant 2025.12 with German locale
 - Native speaker: Yes
+
+## Files Changed
+- `translations/de.json` - Backend translation
+- `frontend_src/translations/panel.de.json` - Frontend panel translation
+- `frontend/aqara_panel.js` - Rebuilt frontend with German translations
+
+## Checklist
+- [x] All sections translated
+- [x] JSON syntax validated
+- [x] Frontend rebuilt (npm run build)
+- [x] Tested in Home Assistant
+- [x] No English text in values
+- [x] Follows translation best practices
+```
+
+**Example PR Description (Backend Only):**
+
+```markdown
+## Description
+Add German (de) translation for Aqara Advanced Lighting integration (backend only)
+
+## Details
+- Language: German (de)
+- Translated sections: Config flow, services, exceptions
+- Testing: Tested in Home Assistant 2025.12 with German locale
+- Native speaker: Yes
+
+## Files Changed
+- `translations/de.json` - Backend translation
 
 ## Checklist
 - [x] All sections translated
