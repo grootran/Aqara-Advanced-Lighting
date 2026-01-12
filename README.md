@@ -1,9 +1,9 @@
 # Aqara Advanced Lighting
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="images/dark_logo@2x.png" width="50%">
-  <source media="(prefers-color-scheme: light)" srcset="images/logo@2x.png" width="50%">
-  <img alt="Aqara Advanced Lighting" src="images/all-logo.png" width="50%">
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/absent42/Aqara-Advanced-Lighting/raw/8557477bd9846f2eb07e08986b6d7bc66036aacd/images/dark_logo%402x.png" width="75%">
+  <source media="(prefers-color-scheme: light)" srcset="https://github.com/absent42/Aqara-Advanced-Lighting/raw/8557477bd9846f2eb07e08986b6d7bc66036aacd/images/logo%402x.png" width="75%">
+  <img alt="Aqara Advanced Lighting" src="https://github.com/absent42/Aqara-Advanced-Lighting/raw/8557477bd9846f2eb07e08986b6d7bc66036aacd/images/all-logo.png" width="75%">
 </picture>
 
 Home Assistant HACS integration for advanced control of the Aqara T1M Ceiling Light, T1 LED Strip, and T2 bulbs via Zigbee2MQTT.
@@ -41,6 +41,13 @@ _If you want to show your support please_
     - Segment pattern editor with visual segment selection
     - CCT sequence editor with multi-step timeline
     - RGB segment sequence editor with animation patterns
+  - **Device Configuration Panel** - Configure device-specific settings directly from the panel
+    - **Multi-Device Configuration** - Push parameters to multiple devices simultaneously
+    - Transition curve editor for T2 bulbs (visual curve adjustment, 0.2-6.0 range)
+    - Initial brightness configuration for T2 bulbs (0-50%)
+    - Dimming settings for all devices (on-to-off duration, off-to-on duration, dimming range)
+    - T1 Strip length configuration with automatic segment count calculation
+    - Device detection shows only relevant settings for selected device type
   - **User Preset System** - Save, edit, and manage your custom presets
     - Create and save unlimited custom presets for all feature types
     - Edit existing presets with full customization options
@@ -273,6 +280,54 @@ Create custom effects and patterns with interactive builders:
 - Option to clear segments before starting
 - Skip first step option for initialization
 - Save sequences as custom presets
+
+#### Device Configuration
+
+Configure device-specific settings directly from the Device Config tab in the panel:
+
+**Multi-Device Configuration**
+- **Select multiple devices** to configure them simultaneously
+- Push the same settings to all selected devices at once
+- Ideal for maintaining consistent settings across multiple lights
+
+**For T2 Bulbs**
+
+**Transition Curve Editor**
+- Visual curve editor with interactive graph showing brightness vs time
+- Adjust transition curvature from 0.2 to 6.0
+- Three curve types:
+  - **0.2-1.0**: Fast then slow (quick start, gentle finish)
+  - **1.0**: Linear (constant speed)
+  - **1.0-6.0**: Slow then fast (gentle start, quick finish)
+- Supports multiple devices simultaneously for synchronized behavior
+- Apply button sends settings directly to your selected T2 bulbs
+
+**Initial Brightness**
+- Set startup brightness from 0-50%
+- Direct entity control via slider
+- Immediate feedback and updates
+- Apply to multiple devices simultaneously for synchronized behavior
+
+**For All Devices**
+
+**Dimming Settings**
+- **On-to-off duration**: Fade time when turning light off (0-10 seconds)
+- **Off-to-on duration**: Fade time when turning light on (0-10 seconds)
+- **Dimming range minimum**: Lowest brightness level (1-99%)
+- **Dimming range maximum**: Highest brightness level (2-100%)
+- Apply to multiple devices simultaneously for synchronized behavior
+
+**For T1 Strip**
+
+**Strip Length Configuration**
+- Set T1 Strip length directly from the panel
+- Automatic segment count calculation (5 segments per meter)
+
+**Smart Features**
+- Config tab automatically shows only settings relevant to your selected device type
+- Automatic entity discovery for configuration parameters
+- Clear messaging when entities are not found
+- Device type awareness adapts settings based on T2 RGB, T2 CCT, T1M, T1, or T1 Strip selection
 
 #### Quick Actions
 
