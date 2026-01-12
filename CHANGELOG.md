@@ -5,6 +5,106 @@ All notable changes to the Aqara Advanced Lighting integration will be documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-01-12
+
+### What's New
+
+Version 0.6.0 introduces a new device configuration panel alongside documentation improvements and workflow adjustments. This release adds device-specific settings accessible directly from the panel UI.
+
+### New Features
+
+#### Device Configuration Panel
+
+A new Config tab has been added to the sidebar panel, providing direct access to device-specific settings, having the ability to push parameters to multiple devices simultaneously:
+
+- **Transition Curve Editor** (T2 bulbs)
+  - Visual curve editor for transition curvature (0.2-6.0 range)
+  - Interactive graph showing brightness vs time curve
+  - Three curve types: Fast then slow (0.2-1), Linear (1), Slow then fast (1-6)
+  - Real-time preview with draggable adjustment
+  - Apply button to send settings to device
+
+- **Initial Brightness** (T2 bulbs)
+  - Configure startup brightness (0-50%)
+  - Direct entity control via slider
+  - Immediate feedback and updates
+
+- **Dimming Settings** (All devices)
+  - On-to-off duration (0-10 seconds)
+  - Off-to-on duration (0-10 seconds)
+  - Dimming range minimum (1-99%)
+  - Dimming range maximum (2-100%)
+
+- **T1 Strip Length** (T1 Strip only)
+  - Configure strip length directly from panel
+  - Automatic segment count calculation
+
+- **Smart Device Detection**
+  - Config tab only shows settings relevant to selected device type
+  - Automatic entity discovery for configuration parameters
+
+#### Version Display
+
+- **Integration Version Info**
+  - Backend version displayed in panel footer
+  - Frontend version tracking
+  - New API endpoint: `/api/aqara_advanced_lighting/version`
+  - Helps with troubleshooting and support
+
+#### Localization System
+
+- **Comprehensive Translation Support**
+  - Full localization framework for panel UI
+  - Translation keys for all user-facing text
+  - Placeholder support for dynamic values
+  - Foundation for future multi-language support
+
+### Improvements
+
+- **Color Accuracy**: Improved XY to RGB conversion algorithm
+  - Better color rendering matching frontend display
+  - Normalized color space transformation
+  - Vivid colors without washout
+  - Proper gamma correction for sRGB
+
+- **Device Compatibility Checks**: Enhanced validation for features
+  - Effects tab shows compatibility warnings
+  - Patterns tab shows compatibility warnings
+  - Only compatible devices receive commands
+  - Clear user feedback for device limitations
+
+### Technical Changes
+
+- **New Frontend Components**
+  - transition-curve-editor.ts - Visual curve editor for T2 transition settings
+  - panel-translations.ts - Centralized translation strings
+
+- **New API Endpoints**
+  - GET /api/aqara_advanced_lighting/version - Get integration version
+
+- **Model Updates**
+  - Enhanced XYColor.to_rgb() method with improved color conversion
+  - Better color space transformation algorithm
+
+### Compatibility
+
+- No breaking changes - fully backward compatible with v0.5.1
+- All features and APIs remain unchanged
+- No configuration changes required
+
+### Requirements
+
+- Home Assistant 2025.12.0 or newer
+- MQTT integration configured
+- Zigbee2MQTT 2.7.2 or newer
+- Supported Aqara devices (see README for full list)
+
+### Upgrade from v0.5.1
+
+1. Update the integration through HACS
+2. Reload the integration or restart Home Assistant to see the new Config tab
+3. All existing presets and configurations are preserved
+
 ## [0.5.1] - 2026-01-10
 
 ### Bug Fixes
@@ -542,3 +642,4 @@ One click HACS cutton
 [0.4.1]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.4.1
 [0.5.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.5.0
 [0.5.1]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.5.1
+[0.6.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.6.0

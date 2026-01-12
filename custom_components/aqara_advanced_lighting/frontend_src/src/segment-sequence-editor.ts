@@ -5,34 +5,6 @@ import { xyToHex, xyToRgb, rgbToXy, xyToHs, hsToXy } from './color-utils';
 import { colorPickerStyles } from './styles';
 import './hs-color-picker';
 
-const LOOP_MODES = [
-  { value: 'once', label: 'Run Once' },
-  { value: 'count', label: 'Loop N Times' },
-  { value: 'continuous', label: 'Continuous Loop' },
-];
-
-const END_BEHAVIORS = [
-  { value: 'maintain', label: 'Stay at Last Step' },
-  { value: 'turn_off', label: 'Turn Off Light' },
-];
-
-const STEP_MODES = [
-  { value: 'blocks_repeat', label: 'Blocks (Repeat)' },
-  { value: 'blocks_expand', label: 'Blocks (Expand)' },
-  { value: 'gradient', label: 'Gradient' },
-];
-
-const ACTIVATION_PATTERNS = [
-  { value: 'all', label: 'All at Once' },
-  { value: 'sequential_forward', label: 'Sequential Forward' },
-  { value: 'sequential_reverse', label: 'Sequential Reverse' },
-  { value: 'random', label: 'Random' },
-  { value: 'ping_pong', label: 'Ping Pong' },
-  { value: 'center_out', label: 'Center Out' },
-  { value: 'edges_in', label: 'Edges In' },
-  { value: 'paired', label: 'Paired' },
-];
-
 const DEVICE_LABELS: Record<string, string> = {
   t1: 'T1 (20 segments)',
   t1m: 'T1M (26 segments)',
@@ -48,8 +20,10 @@ interface EditableStep extends SegmentSequenceStep {
 export class SegmentSequenceEditor extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @property({ type: Object }) public preset?: UserSegmentSequencePreset;
+  @property({ type: Object }) public translations: Record<string, any> = {};
   @property({ type: Boolean }) public editMode = false;
   @property({ type: Boolean }) public hasSelectedEntities = false;
+  @property({ type: Boolean }) public isCompatible = true;
   @property({ type: Boolean }) public previewActive = false;
 
   @state() private _name = '';
@@ -68,6 +42,42 @@ export class SegmentSequenceEditor extends LitElement {
   @state() private _editingStepId: string | null = null;
   @state() private _editingColorIndex: number | null = null;
   @state() private _editingColor: HSColor | null = null;
+
+  private get _loopModeOptions() {
+    return [
+      { value: 'once', label: this._localize('options.loop_mode_once') },
+      { value: 'count', label: this._localize('options.loop_mode_count') },
+      { value: 'continuous', label: this._localize('options.loop_mode_continuous') },
+    ];
+  }
+
+  private get _endBehaviorOptions() {
+    return [
+      { value: 'maintain', label: this._localize('options.end_behavior_maintain') },
+      { value: 'turn_off', label: this._localize('options.end_behavior_turn_off') },
+    ];
+  }
+
+  private get _stepModeOptions() {
+    return [
+      { value: 'blocks_repeat', label: this._localize('options.pattern_mode_blocks_repeat') },
+      { value: 'blocks_expand', label: this._localize('options.pattern_mode_blocks_expand') },
+      { value: 'gradient', label: this._localize('options.pattern_mode_gradient') },
+    ];
+  }
+
+  private get _activationPatternOptions() {
+    return [
+      { value: 'all', label: this._localize('options.activation_all') },
+      { value: 'sequential_forward', label: this._localize('options.activation_sequential_forward') },
+      { value: 'sequential_reverse', label: this._localize('options.activation_sequential_reverse') },
+      { value: 'random', label: this._localize('options.activation_random') },
+      { value: 'ping_pong', label: this._localize('options.activation_ping_pong') },
+      { value: 'center_out', label: this._localize('options.activation_center_out') },
+      { value: 'edges_in', label: this._localize('options.activation_edges_in') },
+      { value: 'paired', label: this._localize('options.activation_paired') },
+    ];
+  }
 
   static styles = [
     colorPickerStyles,
@@ -638,28 +648,28 @@ export class SegmentSequenceEditor extends LitElement {
             <ha-icon-button
               @click=${() => this._moveStepUp(index)}
               .disabled=${index === 0}
-              title="Move up"
+              title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.step_move_up')}"
             >
               <ha-icon icon="mdi:arrow-up"></ha-icon>
             </ha-icon-button>
             <ha-icon-button
               @click=${() => this._moveStepDown(index)}
               .disabled=${index === this._steps.length - 1}
-              title="Move down"
+              title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.step_move_down')}"
             >
               <ha-icon icon="mdi:arrow-down"></ha-icon>
             </ha-icon-button>
             <ha-icon-button
               @click=${() => this._duplicateStep(step)}
               .disabled=${this._steps.length >= 20}
-              title="Duplicate"
+              title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.step_duplicate')}"
             >
               <ha-icon icon="mdi:content-copy"></ha-icon>
             </ha-icon-button>
             <ha-icon-button
               @click=${() => this._removeStep(step.id)}
               .disabled=${this._steps.length <= 1}
-              title="Remove"
+              title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.step_remove')}"
             >
               <ha-icon icon="mdi:delete"></ha-icon>
             </ha-icon-button>
@@ -667,7 +677,7 @@ export class SegmentSequenceEditor extends LitElement {
         </div>
         <div class="step-fields">
           <div class="step-field">
-            <span class="step-field-label">Segments (e.g., 1-5, 10, 15-20)</span>
+            <span class="step-field-label">${this._localize('editors.segments_input_label')}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{ text: {} }}
@@ -676,12 +686,12 @@ export class SegmentSequenceEditor extends LitElement {
             ></ha-selector>
           </div>
           <div class="step-field">
-            <span class="step-field-label">Mode</span>
+            <span class="step-field-label">${this._localize('editors.mode_label')}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{
                 select: {
-                  options: STEP_MODES,
+                  options: this._stepModeOptions,
                   mode: 'dropdown',
                 },
               }}
@@ -690,12 +700,12 @@ export class SegmentSequenceEditor extends LitElement {
             ></ha-selector>
           </div>
           <div class="step-field">
-            <span class="step-field-label">Activation Pattern</span>
+            <span class="step-field-label">${this._localize('editors.activation_pattern_label')}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{
                 select: {
-                  options: ACTIVATION_PATTERNS,
+                  options: this._activationPatternOptions,
                   mode: 'dropdown',
                 },
               }}
@@ -704,7 +714,7 @@ export class SegmentSequenceEditor extends LitElement {
             ></ha-selector>
           </div>
           <div class="step-field">
-            <span class="step-field-label">Duration (seconds)</span>
+            <span class="step-field-label">${this._localize('editors.duration_label')}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{
@@ -721,7 +731,7 @@ export class SegmentSequenceEditor extends LitElement {
             ></ha-selector>
           </div>
           <div class="step-field">
-            <span class="step-field-label">Hold Time (seconds)</span>
+            <span class="step-field-label">${this._localize('editors.hold_time_label')}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{
@@ -738,7 +748,7 @@ export class SegmentSequenceEditor extends LitElement {
             ></ha-selector>
           </div>
           <div class="step-field full-width">
-            <span class="step-field-label">Colors (1-8)</span>
+            <span class="step-field-label">${this._localize('editors.colors_label')}</span>
             <div class="color-picker-grid">
               ${step.colorsArray.map(
                 (color, colorIndex) => html`
@@ -747,14 +757,14 @@ export class SegmentSequenceEditor extends LitElement {
                       class="color-swatch"
                       style="background-color: ${this._colorToHex(color)}"
                       @click=${() => this._openStepColorPicker(step.id, colorIndex)}
-                      title="Click to edit color"
+                      title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_edit')}"
                     ></div>
                     ${step.colorsArray.length > 1
                       ? html`
                           <ha-icon-button
                             class="color-remove"
                             @click=${() => this._removeStepColor(step.id, colorIndex)}
-                            title="Remove color"
+                            title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_remove')}"
                           >
                             <ha-icon icon="mdi:close"></ha-icon>
                           </ha-icon-button>
@@ -768,7 +778,7 @@ export class SegmentSequenceEditor extends LitElement {
                     <div
                       class="add-color-btn"
                       @click=${() => this._addStepColor(step.id)}
-                      title="Add color"
+                      title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_add')}"
                     >
                       <ha-icon icon="mdi:plus"></ha-icon>
                     </div>
@@ -781,6 +791,28 @@ export class SegmentSequenceEditor extends LitElement {
     `;
   }
 
+  private _localize(key: string, replacements?: Record<string, string>): string {
+    const keys = key.split('.');
+    let value: any = this.translations;
+    for (const k of keys) {
+      if (value && typeof value === 'object' && k in value) {
+        value = value[k];
+      } else {
+        return key;
+      }
+    }
+    let result = typeof value === 'string' ? value : key;
+
+    // Replace placeholders if provided
+    if (replacements) {
+      Object.entries(replacements).forEach(([placeholder, replacement]) => {
+        result = result.replace(`{${placeholder}}`, replacement);
+      });
+    }
+
+    return result;
+  }
+
   protected render() {
     const deviceOptions = Object.entries(DEVICE_LABELS).map(([value, label]) => ({
       value,
@@ -791,7 +823,7 @@ export class SegmentSequenceEditor extends LitElement {
       <div class="editor-content">
         <div class="form-row-triple">
           <div class="form-field">
-            <span class="form-label">Name</span>
+            <span class="form-label">${this._localize('editors.name_label')}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{ text: {} }}
@@ -800,7 +832,7 @@ export class SegmentSequenceEditor extends LitElement {
             ></ha-selector>
           </div>
           <div class="form-field">
-            <span class="form-label">Icon</span>
+            <span class="form-label">${this._localize('editors.icon_label')}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{ icon: {} }}
@@ -809,7 +841,7 @@ export class SegmentSequenceEditor extends LitElement {
             ></ha-selector>
           </div>
           <div class="form-field">
-            <span class="form-label">Device Type</span>
+            <span class="form-label">${this._localize('editors.device_type_label')}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{
@@ -826,12 +858,12 @@ export class SegmentSequenceEditor extends LitElement {
 
         <div class="form-row-pair">
           <div class="form-field">
-            <span class="form-label">Loop Mode</span>
+            <span class="form-label">${this._localize('editors.loop_mode_label')}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{
                 select: {
-                  options: LOOP_MODES,
+                  options: this._loopModeOptions,
                   mode: 'dropdown',
                 },
               }}
@@ -840,12 +872,12 @@ export class SegmentSequenceEditor extends LitElement {
             ></ha-selector>
           </div>
           <div class="form-field">
-            <span class="form-label">End Behavior</span>
+            <span class="form-label">${this._localize('editors.end_behavior_label')}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{
                 select: {
-                  options: END_BEHAVIORS,
+                  options: this._endBehaviorOptions,
                   mode: 'dropdown',
                 },
               }}
@@ -858,7 +890,7 @@ export class SegmentSequenceEditor extends LitElement {
         ${this._loopMode === 'count'
           ? html`
               <div class="form-row">
-                <span class="form-label">Loop Count</span>
+                <span class="form-label">${this._localize('editors.loop_count_label')}</span>
                 <div class="form-input">
                   <ha-selector
                     .hass=${this.hass}
@@ -886,7 +918,7 @@ export class SegmentSequenceEditor extends LitElement {
             ></ha-switch>
           </div>
           <div class="toggle-item">
-            <span class="toggle-label">Skip First Step in Loop</span>
+            <span class="toggle-label">${this._localize('editors.skip_first_step_label')}</span>
             <ha-switch
               .checked=${this._skipFirstInLoop}
               @change=${this._handleSkipFirstInLoopChange}
@@ -895,12 +927,12 @@ export class SegmentSequenceEditor extends LitElement {
         </div>
 
         <div class="form-section">
-          <span class="form-label">Steps (1-20)</span>
+          <span class="form-label">${this._localize('editors.steps_label')}</span>
           <div class="step-list">
             ${this._steps.length === 0
               ? html`
                   <div class="empty-steps">
-                    No steps defined. Click "Add Step" to create your first step.
+                    ${this._localize('editors.no_steps_message')}
                   </div>
                 `
               : this._steps.map((step, index) => this._renderStep(step, index))}
@@ -911,7 +943,7 @@ export class SegmentSequenceEditor extends LitElement {
               ?disabled=${this._steps.length >= 20}
             >
               <ha-icon icon="mdi:plus"></ha-icon>
-              Add Step
+              ${this._localize('editors.add_step_button')}
             </button>
           </div>
         </div>
@@ -929,13 +961,13 @@ export class SegmentSequenceEditor extends LitElement {
           ? html`
               <div class="preview-warning">
                 <ha-icon icon="mdi:information"></ha-icon>
-                <span>Select light entities in the Activate tab to preview sequences on your devices.</span>
+                <span>${this._localize('editors.select_lights_for_preview_sequences')}</span>
               </div>
             `
           : ''}
 
         <div class="form-actions">
-          <ha-button @click=${this._cancel}>Cancel</ha-button>
+          <ha-button @click=${this._cancel}>${this._localize('editors.cancel_button')}</ha-button>
           ${this.previewActive
             ? html`
                 <ha-button @click=${this._stopPreview}>
@@ -946,8 +978,8 @@ export class SegmentSequenceEditor extends LitElement {
             : html`
                 <ha-button
                   @click=${this._preview}
-                  .disabled=${this._previewing || this._steps.length === 0 || !this.hasSelectedEntities || this._hasInvalidGradientSteps()}
-                  title=${!this.hasSelectedEntities ? 'Select entities in Activate tab first' : this._hasInvalidGradientSteps() ? 'Fix gradient validation errors first' : ''}
+                  .disabled=${this._previewing || this._steps.length === 0 || !this.hasSelectedEntities || !this.isCompatible || this._hasInvalidGradientSteps()}
+                  title=${!this.hasSelectedEntities ? 'Select entities in Activate tab first' : !this.isCompatible ? 'Selected light is not compatible' : this._hasInvalidGradientSteps() ? 'Fix gradient validation errors first' : ''}
                 >
                   <ha-icon icon="mdi:play"></ha-icon>
                   Preview
@@ -979,7 +1011,7 @@ export class SegmentSequenceEditor extends LitElement {
                     @color-changed=${this._handleColorPickerChange}
                   ></hs-color-picker>
                   <div class="color-picker-modal-actions">
-                    <ha-button @click=${this._closeColorPicker}>Cancel</ha-button>
+                    <ha-button @click=${this._closeColorPicker}>${this._localize('editors.cancel_button')}</ha-button>
                     <ha-button @click=${this._confirmColorPicker}>
                       <ha-icon icon="mdi:check"></ha-icon>
                       Apply

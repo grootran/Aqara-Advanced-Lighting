@@ -80,6 +80,9 @@ async def async_register_panel(hass: HomeAssistant) -> None:
     hass.http.register_view(UserPresetView)
     hass.http.register_view(UserPresetDuplicateView)
 
+    # Register version endpoint
+    hass.http.register_view(VersionView)
+
     _LOGGER.info("Aqara Advanced Lighting panel registered")
 
 
@@ -585,3 +588,37 @@ class UserPresetDuplicateView(HomeAssistantView):
             return web.Response(status=404, text="Source preset not found")
 
         return web.json_response({"preset": preset}, status=201)
+
+
+class VersionView(HomeAssistantView):
+    """View to get the integration version."""
+
+    url = f"/api/{DOMAIN}/version"
+    name = f"api:{DOMAIN}:version"
+    requires_auth = False
+
+    async def get(self, request: web.Request) -> web.Response:
+        """Get the integration version from manifest.json."""
+        hass = request.app["hass"]
+
+        manifest_path = Path(
+            hass.config.path(f"custom_components/{DOMAIN}/manifest.json")
+        )
+
+        if not manifest_path.exists():
+            _LOGGER.error("Manifest file not found: %s", manifest_path)
+            return web.Response(status=404, text="Manifest not found")
+
+        # Use executor to avoid blocking I/O
+        def read_manifest():
+            import json
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+
+        try:
+            manifest = await hass.async_add_executor_job(read_manifest)
+            version = manifest.get("version", "unknown")
+            return web.json_response({"version": version})
+        except (OSError, ValueError) as ex:
+            _LOGGER.error("Error reading manifest: %s", ex)
+            return web.Response(status=500, text="Error reading manifest")

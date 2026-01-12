@@ -34,8 +34,10 @@ type PatternMode = 'individual' | 'gradient' | 'blocks';
 export class PatternEditor extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @property({ type: Object }) public preset?: UserSegmentPatternPreset;
+  @property({ type: Object }) public translations: Record<string, any> = {};
   @property({ type: Boolean }) public editMode = false;
   @property({ type: Boolean }) public hasSelectedEntities = false;
+  @property({ type: Boolean }) public isCompatible = true;
   @property({ type: Number }) public stripSegmentCount = 50;
 
   @state() private _name = '';
@@ -908,12 +910,17 @@ export class PatternEditor extends LitElement {
       const isSelected = this._selectedSegments.has(i);
       const isColored = color !== undefined;
 
+      const segmentBaseKey = this._clearMode && isColored
+        ? 'component.aqara_advanced_lighting.panel.tooltips.segment_clear'
+        : 'component.aqara_advanced_lighting.panel.tooltips.segment_number';
+      const segmentTitle = this.hass.localize(segmentBaseKey).replace('{number}', (i + 1).toString());
+
       segmentCells.push(html`
         <div
           class="segment-cell ${isSelected ? 'selected' : ''} ${isColored ? 'colored' : ''}"
           style="${isColored ? `background-color: ${this._colorToHex(color)}` : ''}"
           @click=${(e: MouseEvent) => this._handleSegmentClick(i, e)}
-          title="Segment ${i + 1}${this._clearMode && isColored ? ' - Click to clear' : ''}"
+          title="${segmentTitle}"
         >
           ${i + 1}
         </div>
@@ -929,30 +936,30 @@ export class PatternEditor extends LitElement {
           <ha-button
             class="${this._selectMode ? 'select-mode-toggle active' : 'select-mode-toggle'}"
             @click=${this._toggleSelectMode}
-            title="Toggle select mode - when active, clicking segments toggles selection"
+            title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.mode_select')}"
           >
             <ha-icon icon="${this._selectMode ? 'mdi:selection-multiple' : 'mdi:selection'}"></ha-icon>
-            ${this._selectMode ? 'Select: ON' : 'Select: OFF'}
+            ${this._selectMode ? this._localize('editors.select_mode_on') : this._localize('editors.select_mode_off')}
           </ha-button>
           <ha-button
             class="${this._clearMode ? 'clear-mode-toggle active' : 'clear-mode-toggle'}"
             @click=${this._toggleClearMode}
-            title="Toggle clear mode - when active, clicking segments removes their color"
+            title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.mode_clear')}"
           >
             <ha-icon icon="${this._clearMode ? 'mdi:eraser' : 'mdi:eraser-variant'}"></ha-icon>
-            ${this._clearMode ? 'Clear: ON' : 'Clear: OFF'}
+            ${this._clearMode ? this._localize('editors.clear_mode_on') : this._localize('editors.clear_mode_off')}
           </ha-button>
-          <ha-button @click=${this._selectAll}>Select All</ha-button>
+          <ha-button @click=${this._selectAll}>${this._localize('editors.select_all_button')}</ha-button>
           <ha-button
             @click=${this._clearSelected}
             .disabled=${this._selectedSegments.size === 0}
           >
-            Clear Selected
+            ${this._localize('editors.clear_selected_button')}
           </ha-button>
-          <ha-button @click=${this._clearAll}>Clear All</ha-button>
+          <ha-button @click=${this._clearAll}>${this._localize('editors.clear_all_button')}</ha-button>
         </div>
         <div class="grid-info">
-          ${this._selectedSegments.size} selected
+          ${this._localize('editors.segments_selected', { count: this._selectedSegments.size.toString() })}
         </div>
       </div>
     `;
@@ -971,12 +978,12 @@ export class PatternEditor extends LitElement {
               class="palette-color ${this._selectedPaletteIndex === index ? 'selected' : ''}"
               style="background-color: ${this._colorToHex(color)}"
               @click=${() => this._selectPaletteColor(index)}
-              title="Color ${index + 1} - Click to select"
+              title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_select').replace('{index}', (index + 1).toString())}"
             ></div>
             <button
               class="palette-edit-btn"
               @click=${() => this._openPaletteColorPicker(index)}
-              title="Edit color ${index + 1}"
+              title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_edit_index').replace('{index}', (index + 1).toString())}"
             >
               <ha-icon icon="mdi:pencil"></ha-icon>
             </button>
@@ -987,7 +994,7 @@ export class PatternEditor extends LitElement {
           .disabled=${this._selectedSegments.size === 0}
         >
           <ha-icon icon="mdi:selection"></ha-icon>
-          Apply to Selected
+          ${this._localize('editors.apply_to_selected_button')}
         </ha-button>
       </div>
     `;
@@ -1005,7 +1012,7 @@ export class PatternEditor extends LitElement {
               class="color-swatch"
               style="background-color: ${this._colorToHex(color)}"
               @click=${() => this._openGradientColorPicker(index)}
-              title="Click to edit color"
+              title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_edit')}"
             ></div>
             ${this._gradientColors.length > 2
               ? html`
@@ -1024,7 +1031,7 @@ export class PatternEditor extends LitElement {
               <div
                 class="add-color-btn"
                 @click=${this._addGradientColor}
-                title="Add color"
+                title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_add')}"
               >
                 <ha-icon icon="mdi:plus"></ha-icon>
               </div>
@@ -1059,7 +1066,7 @@ export class PatternEditor extends LitElement {
               class="color-swatch"
               style="background-color: ${this._colorToHex(color)}"
               @click=${() => this._openBlockColorPicker(index)}
-              title="Click to edit color"
+              title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_edit')}"
             ></div>
             ${this._blockColors.length > 1
               ? html`
@@ -1078,7 +1085,7 @@ export class PatternEditor extends LitElement {
               <div
                 class="add-color-btn"
                 @click=${this._addBlockColor}
-                title="Add color"
+                title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_add')}"
               >
                 <ha-icon icon="mdi:plus"></ha-icon>
               </div>
@@ -1111,6 +1118,28 @@ export class PatternEditor extends LitElement {
     `;
   }
 
+  private _localize(key: string, replacements?: Record<string, string>): string {
+    const keys = key.split('.');
+    let value: any = this.translations;
+    for (const k of keys) {
+      if (value && typeof value === 'object' && k in value) {
+        value = value[k];
+      } else {
+        return key;
+      }
+    }
+    let result = typeof value === 'string' ? value : key;
+
+    // Replace placeholders if provided
+    if (replacements) {
+      Object.entries(replacements).forEach(([placeholder, replacement]) => {
+        result = result.replace(`{${placeholder}}`, replacement);
+      });
+    }
+
+    return result;
+  }
+
   protected render() {
     // Create device options with dynamic T1 Strip label based on detected segment count
     const deviceOptions = Object.entries(DEVICE_LABELS).map(([value, label]) => ({
@@ -1122,7 +1151,7 @@ export class PatternEditor extends LitElement {
       <div class="editor-content">
         <div class="form-row-triple">
           <div class="form-field">
-            <span class="form-label">Name</span>
+            <span class="form-label">${this._localize('editors.name_label')}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{ text: {} }}
@@ -1131,7 +1160,7 @@ export class PatternEditor extends LitElement {
             ></ha-selector>
           </div>
           <div class="form-field">
-            <span class="form-label">Icon</span>
+            <span class="form-label">${this._localize('editors.icon_label')}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{ icon: {} }}
@@ -1140,7 +1169,7 @@ export class PatternEditor extends LitElement {
             ></ha-selector>
           </div>
           <div class="form-field">
-            <span class="form-label">Device Type</span>
+            <span class="form-label">${this._localize('editors.device_type_label')}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{
@@ -1156,12 +1185,12 @@ export class PatternEditor extends LitElement {
         </div>
 
         <div class="form-section">
-          <span class="form-label">Segment Grid</span>
+          <span class="form-label">${this._localize('editors.segment_grid_label')}</span>
           ${this._renderSegmentGrid()}
         </div>
 
         <div class="form-section">
-          <span class="form-label">Pattern Mode</span>
+          <span class="form-label">${this._localize('editors.pattern_mode_label')}</span>
           <div class="mode-content">
               <div class="mode-tabs">
                 <button
@@ -1196,17 +1225,17 @@ export class PatternEditor extends LitElement {
           ? html`
               <div class="preview-warning">
                 <ha-icon icon="mdi:information"></ha-icon>
-                <span>Select light entities in the Activate tab to preview patterns on your devices.</span>
+                <span>${this._localize('editors.select_lights_for_preview_patterns')}</span>
               </div>
             `
           : ''}
 
         <div class="form-actions">
-          <ha-button @click=${this._cancel}>Cancel</ha-button>
+          <ha-button @click=${this._cancel}>${this._localize('editors.cancel_button')}</ha-button>
           <ha-button
             @click=${this._preview}
-            .disabled=${!this._canPreview() || this._previewing || !this.hasSelectedEntities}
-            title=${!this.hasSelectedEntities ? 'Select entities in Activate tab first' : ''}
+            .disabled=${!this._canPreview() || this._previewing || !this.hasSelectedEntities || !this.isCompatible}
+            title=${!this.hasSelectedEntities ? 'Select entities in Activate tab first' : !this.isCompatible ? 'Selected light is not compatible' : ''}
           >
             <ha-icon icon="mdi:play"></ha-icon>
             Preview
@@ -1237,7 +1266,7 @@ export class PatternEditor extends LitElement {
                     @color-changed=${this._handleColorPickerChange}
                   ></hs-color-picker>
                   <div class="color-picker-modal-actions">
-                    <ha-button @click=${this._closeColorPicker}>Cancel</ha-button>
+                    <ha-button @click=${this._closeColorPicker}>${this._localize('editors.cancel_button')}</ha-button>
                     <ha-button @click=${this._confirmColorPicker}>
                       <ha-icon icon="mdi:check"></ha-icon>
                       Apply

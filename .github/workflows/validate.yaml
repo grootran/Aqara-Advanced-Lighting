@@ -1,11 +1,15 @@
+# Temporarily disabled due to pending HA branding pull request
+# Will be re-enabled once the branding PR is merged
 name: Validate
 
-on:
-  push:
-  pull_request:
-  schedule:
-    - cron: "0 0 * * *"
-  workflow_dispatch:
+# Disabled triggers
+# on:
+#   push:
+#   pull_request:
+#   schedule:
+#     - cron: "0 0 * * *"
+#   workflow_dispatch:
+on: workflow_dispatch
 
 permissions: {}
 

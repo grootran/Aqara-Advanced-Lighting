@@ -1,12 +1,16 @@
+# Temporarily disabled due to pending HA branding pull request
+# Will be re-enabled once the branding PR is merged
 name: HACS Validation
 
-on:
-  push:
-    branches:
-      - main
-      - master
-  pull_request:
-  workflow_dispatch:
+# Disabled triggers
+# on:
+#   push:
+#     branches:
+#       - main
+#       - master
+#   pull_request:
+#   workflow_dispatch:
+on: workflow_dispatch
 
 jobs:
   hacs:

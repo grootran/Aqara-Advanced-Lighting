@@ -93,14 +93,64 @@ class XYColor:
         return cls(x=data["x"], y=data["y"], brightness=data.get("brightness", 255))
 
     def to_rgb(self) -> RGBColor:
-        """Convert XY to RGB using Home Assistant's built-in utilities.
+        """Convert XY to RGB using the same algorithm as frontend.
 
         Returns RGB at full brightness (0-255 range) suitable for MQTT.
+        Uses normalization to ensure vivid colors (matching frontend behavior).
         """
-        from homeassistant.util.color import color_xy_to_RGB
+        import math
 
-        r, g, b = color_xy_to_RGB(self.x, self.y, self.brightness)
-        return RGBColor(r=int(r), g=int(g), b=int(b))
+        # Prevent division by zero
+        if self.y == 0:
+            return RGBColor(r=0, g=0, b=0)
+
+        # Convert XY to XYZ color space (using Y=1 as reference)
+        z = 1.0 - self.x - self.y
+        Y = 1.0
+        X = (Y / self.y) * self.x
+        Z = (Y / self.y) * z
+
+        # Convert XYZ to linear RGB using sRGB D65 transformation matrix
+        r_linear = X * 3.2406 + Y * -1.5372 + Z * -0.4986
+        g_linear = X * -0.9689 + Y * 1.8758 + Z * 0.0415
+        b_linear = X * 0.0557 + Y * -0.2040 + Z * 1.0570
+
+        # Normalize so max component = 1.0 (preserves color ratios, fits in gamut)
+        # This is critical for vivid colors - without it, colors appear washed out
+        max_component = max(r_linear, g_linear, b_linear)
+        if max_component > 1:
+            r_linear /= max_component
+            g_linear /= max_component
+            b_linear /= max_component
+
+        # Clamp negative values (out of gamut colors)
+        r_linear = max(0, r_linear)
+        g_linear = max(0, g_linear)
+        b_linear = max(0, b_linear)
+
+        # Apply gamma correction for sRGB
+        r_srgb = (
+            12.92 * r_linear
+            if r_linear <= 0.0031308
+            else 1.055 * math.pow(r_linear, 1.0 / 2.4) - 0.055
+        )
+        g_srgb = (
+            12.92 * g_linear
+            if g_linear <= 0.0031308
+            else 1.055 * math.pow(g_linear, 1.0 / 2.4) - 0.055
+        )
+        b_srgb = (
+            12.92 * b_linear
+            if b_linear <= 0.0031308
+            else 1.055 * math.pow(b_linear, 1.0 / 2.4) - 0.055
+        )
+
+        # Convert to 0-255 range (full brightness)
+        return RGBColor(
+            r=max(0, min(255, round(r_srgb * 255))),
+            g=max(0, min(255, round(g_srgb * 255))),
+            b=max(0, min(255, round(b_srgb * 255))),
+        )
 
     @classmethod
     def from_rgb(cls, rgb: RGBColor) -> XYColor:

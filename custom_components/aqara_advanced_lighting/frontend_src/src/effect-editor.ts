@@ -27,8 +27,10 @@ const DEVICE_LABELS: Record<string, string> = {
 export class EffectEditor extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @property({ type: Object }) public preset?: UserEffectPreset;
+  @property({ type: Object }) public translations: Record<string, any> = {};
   @property({ type: Boolean }) public editMode = false;
   @property({ type: Boolean }) public hasSelectedEntities = false;
+  @property({ type: Boolean }) public isCompatible = true;
   @property({ type: Boolean }) public previewActive = false;
 
   @state() private _name = '';
@@ -397,6 +399,28 @@ export class EffectEditor extends LitElement {
     );
   }
 
+  private _localize(key: string, replacements?: Record<string, string>): string {
+    const keys = key.split('.');
+    let value: any = this.translations;
+    for (const k of keys) {
+      if (value && typeof value === 'object' && k in value) {
+        value = value[k];
+      } else {
+        return key;
+      }
+    }
+    let result = typeof value === 'string' ? value : key;
+
+    // Replace placeholders if provided
+    if (replacements) {
+      Object.entries(replacements).forEach(([placeholder, replacement]) => {
+        result = result.replace(`{${placeholder}}`, replacement);
+      });
+    }
+
+    return result;
+  }
+
   protected render() {
     const deviceOptions = Object.entries(DEVICE_LABELS).map(([value, label]) => ({
       value,
@@ -410,7 +434,7 @@ export class EffectEditor extends LitElement {
       <div class="editor-content">
         <div class="form-row-triple">
           <div class="form-field">
-            <span class="form-label">Name</span>
+            <span class="form-label">${this._localize('editors.name_label')}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{ text: {} }}
@@ -419,7 +443,7 @@ export class EffectEditor extends LitElement {
             ></ha-selector>
           </div>
           <div class="form-field">
-            <span class="form-label">Icon</span>
+            <span class="form-label">${this._localize('editors.icon_label')}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{ icon: {} }}
@@ -428,7 +452,7 @@ export class EffectEditor extends LitElement {
             ></ha-selector>
           </div>
           <div class="form-field">
-            <span class="form-label">Device Type</span>
+            <span class="form-label">${this._localize('editors.device_type_label')}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{
@@ -445,7 +469,7 @@ export class EffectEditor extends LitElement {
 
         <div class="form-row-pair">
           <div class="form-field">
-            <span class="form-label">Speed</span>
+            <span class="form-label">${this._localize('editors.speed_label')}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{
@@ -460,7 +484,7 @@ export class EffectEditor extends LitElement {
             ></ha-selector>
           </div>
           <div class="form-field">
-            <span class="form-label">Brightness</span>
+            <span class="form-label">${this._localize('editors.brightness_label')}</span>
             <ha-selector
               .hass=${this.hass}
               .selector=${{
@@ -480,20 +504,20 @@ export class EffectEditor extends LitElement {
         ${showSegments
           ? html`
               <div class="form-section">
-                <span class="form-label">Segments</span>
+                <span class="form-label">${this._localize('editors.segments_label')}</span>
                 <ha-selector
                   .hass=${this.hass}
                   .selector=${{ text: {} }}
                   .value=${this._segments}
                   @value-changed=${this._handleSegmentsChange}
                 ></ha-selector>
-                <span class="field-description">Segments to apply effect to (e.g., "1,2,3", "1-20", "odd", "even", "first-half", "last-third").</span>
+                <span class="field-description">${this._localize('editors.segments_description')}</span>
               </div>
             `
           : ''}
 
         <div class="form-section">
-          <span class="form-label">Effect</span>
+          <span class="form-label">${this._localize('editors.effect_label')}</span>
           <div class="effect-grid">
             ${availableEffects.map(
               (effect) => html`
@@ -517,7 +541,7 @@ export class EffectEditor extends LitElement {
         </div>
 
         <div class="form-section">
-          <span class="form-label">Colors (1-8)</span>
+          <span class="form-label">${this._localize('editors.colors_label')}</span>
           <div class="color-picker-grid">
             ${this._colors.map(
               (color, index) => html`
@@ -526,14 +550,14 @@ export class EffectEditor extends LitElement {
                     class="color-swatch"
                     style="background-color: ${this._colorToHex(color)}"
                     @click=${() => this._openColorPicker(index)}
-                    title="Click to edit color"
+                    title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_edit')}"
                   ></div>
                   ${this._colors.length > 1
                     ? html`
                         <ha-icon-button
                           class="color-remove"
                           @click=${() => this._removeColor(index)}
-                          title="Remove color"
+                          title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_remove')}"
                         >
                           <ha-icon icon="mdi:close"></ha-icon>
                         </ha-icon-button>
@@ -545,7 +569,7 @@ export class EffectEditor extends LitElement {
             <div
               class="add-color-btn ${this._colors.length >= 8 ? 'disabled' : ''}"
               @click=${this._addColor}
-              title="Add color"
+              title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_add')}"
             >
               <ha-icon icon="mdi:plus"></ha-icon>
             </div>
@@ -569,7 +593,7 @@ export class EffectEditor extends LitElement {
                     @color-changed=${this._handleColorPickerChange}
                   ></hs-color-picker>
                   <div class="color-picker-modal-actions">
-                    <ha-button @click=${this._closeColorPicker}>Cancel</ha-button>
+                    <ha-button @click=${this._closeColorPicker}>${this._localize('editors.cancel_button')}</ha-button>
                     <ha-button @click=${this._confirmColorPicker}>
                       <ha-icon icon="mdi:check"></ha-icon>
                       Apply
@@ -584,13 +608,13 @@ export class EffectEditor extends LitElement {
           ? html`
               <div class="preview-warning">
                 <ha-icon icon="mdi:information"></ha-icon>
-                <span>Select light entities in the Activate tab to preview effects on your devices.</span>
+                <span>${this._localize('editors.select_lights_for_preview_effects')}</span>
               </div>
             `
           : ''}
 
         <div class="form-actions">
-          <ha-button @click=${this._cancel}>Cancel</ha-button>
+          <ha-button @click=${this._cancel}>${this._localize('editors.cancel_button')}</ha-button>
           ${this.previewActive
             ? html`
                 <ha-button @click=${this._stopPreview}>
@@ -601,8 +625,8 @@ export class EffectEditor extends LitElement {
             : html`
                 <ha-button
                   @click=${this._preview}
-                  .disabled=${!this._effect || this._previewing || !this.hasSelectedEntities}
-                  title=${!this.hasSelectedEntities ? 'Select entities in Activate tab first' : ''}
+                  .disabled=${!this._effect || this._previewing || !this.hasSelectedEntities || !this.isCompatible}
+                  title=${!this.hasSelectedEntities ? 'Select entities in Activate tab first' : !this.isCompatible ? 'Selected light is not compatible' : ''}
                 >
                   <ha-icon icon="mdi:play"></ha-icon>
                   Preview
