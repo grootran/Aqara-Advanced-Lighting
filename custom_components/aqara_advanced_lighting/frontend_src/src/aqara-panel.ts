@@ -60,7 +60,10 @@ export class AqaraPanel extends LitElement {
   @state() private _frontendVersion = '__FRONTEND_VERSION__';
   @state() private _localCurvature = 1.0;
   @state() private _applyingCurvature = false;
+  @state() private _isExporting = false;
+  @state() private _isImporting = false;
   private _translations: Record<string, any> = PANEL_TRANSLATIONS;
+  private _fileInputRef: HTMLInputElement | null = null;
 
   private _tileCardRef: Ref<HTMLElement> = createRef();
   private _tileCards: Map<string, any> = new Map();
@@ -1424,11 +1427,11 @@ export class AqaraPanel extends LitElement {
                     <div class="favorite-input-buttons">
                       <ha-button @click=${this._saveFavorite}>
                         <ha-icon icon="mdi:check"></ha-icon>
-                        Save
+                        ${this._localize('editors.save_button')}
                       </ha-button>
                       <ha-button @click=${this._cancelFavoriteInput}>
                         <ha-icon icon="mdi:close"></ha-icon>
-                        Cancel
+                        ${this._localize('editors.cancel_button')}
                       </ha-button>
                     </div>
                   </div>
@@ -1443,62 +1446,78 @@ export class AqaraPanel extends LitElement {
                   <div class="control-input light-tile-container" ${ref(this._tileCardRef)}>
                   </div>
                 </div>
+              `
+            : ''}
+        </div>
+      </ha-expansion-panel>
 
+      ${hasSelection
+        ? html`
+            <ha-expansion-panel
+              outlined
+              .expanded=${!this._collapsed['controls']}
+              @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange('controls', e)}
+            >
+              <div slot="header" class="section-header">
+                <div>
+                  <div class="section-title">${this._localize('target.controls_card_title')}</div>
+                </div>
+              </div>
+              <div class="section-content controls-content">
                 <div class="control-row">
-                  <span class="control-label">${this._localize('target.quick_controls_label')}</span>
+                  <span class="control-label quick-controls-label">${this._localize('target.quick_controls_label')}</span>
                   <div class="control-input control-buttons">
                     ${filtered.showDynamicEffects
                       ? html`
                           <ha-button @click=${this._stopEffect}>
                             <ha-icon icon="mdi:stop"></ha-icon>
-                            Effect
+                            ${this._localize('target.effect_button')}
                           </ha-button>
                         `
                       : ''}
                     <ha-button @click=${this._pauseCCTSequence}>
                       <ha-icon icon="mdi:pause"></ha-icon>
-                      CCT
+                      ${this._localize('target.cct_button')}
                     </ha-button>
                     <ha-button @click=${this._resumeCCTSequence}>
                       <ha-icon icon="mdi:play"></ha-icon>
-                      CCT
+                      ${this._localize('target.cct_button')}
                     </ha-button>
                     <ha-button @click=${this._stopCCTSequence}>
                       <ha-icon icon="mdi:stop"></ha-icon>
-                      CCT
+                      ${this._localize('target.cct_button')}
                     </ha-button>
                     ${filtered.showSegmentSequences
                       ? html`
                           <ha-button @click=${this._pauseSegmentSequence}>
                             <ha-icon icon="mdi:pause"></ha-icon>
-                            Segment
+                            ${this._localize('target.segment_button')}
                           </ha-button>
                           <ha-button @click=${this._resumeSegmentSequence}>
                             <ha-icon icon="mdi:play"></ha-icon>
-                            Segment
+                            ${this._localize('target.segment_button')}
                           </ha-button>
                           <ha-button @click=${this._stopSegmentSequence}>
                             <ha-icon icon="mdi:stop"></ha-icon>
-                            Segment
+                            ${this._localize('target.segment_button')}
                           </ha-button>
                         `
                       : ''}
                   </div>
                 </div>
 
-                <div class="form-section">
-                  <span class="form-label">${this._localize('target.custom_brightness_label')}</span>
-                  <ha-switch
-                    .checked=${this._useCustomBrightness}
-                    @change=${this._handleCustomBrightnessToggle}
-                  ></ha-switch>
-                </div>
+                <div class="brightness-override-section">
+                  <div class="form-section">
+                    <span class="form-label">${this._localize('target.custom_brightness_label')}</span>
+                    <ha-switch
+                      .checked=${this._useCustomBrightness}
+                      @change=${this._handleCustomBrightnessToggle}
+                    ></ha-switch>
+                  </div>
 
-                ${this._useCustomBrightness
-                  ? html`
-                      <div class="control-row">
-                        <span class="control-label">${this._localize('target.brightness_label')}</span>
-                        <div class="control-input">
+                  ${this._useCustomBrightness
+                    ? html`
+                        <div class="brightness-slider">
                           <ha-selector
                             .hass=${this.hass}
                             .selector=${{
@@ -1513,16 +1532,16 @@ export class AqaraPanel extends LitElement {
                             @value-changed=${this._handleBrightnessChange}
                           ></ha-selector>
                         </div>
-                      </div>
-                    `
-                  : ''}
-              `
-            : ''}
-        </div>
-      </ha-expansion-panel>
+                      `
+                    : ''}
+                </div>
+              </div>
+            </ha-expansion-panel>
+          `
+        : ''}
 
       ${!hasSelection
-        ? html`<div class="no-lights">Please select one or more lights to view available presets</div>`
+        ? html`<div class="no-lights">${this._localize('target.no_lights_message')}</div>`
         : ''}
 
       ${this._hasIncompatibleLights
@@ -1940,6 +1959,130 @@ export class AqaraPanel extends LitElement {
     this._segmentSequencePreviewActive = false;
   }
 
+  private async _handleExportPresets(): Promise<void> {
+    this._isExporting = true;
+    this.requestUpdate();
+
+    try {
+      const response = await fetch('/api/aqara_advanced_lighting/presets/export', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${this.hass.auth.data.access_token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Export failed: ${response.statusText}`);
+      }
+
+      // Get filename from Content-Disposition header
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const filenameMatch = contentDisposition?.match(/filename="(.+)"/);
+      const filename = filenameMatch?.[1] || 'aqara_presets_backup.json';
+
+      // Download file
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      // Show success toast
+      this._showToast(this._localize('presets.export_success'));
+    } catch (err) {
+      this._showToast(this._localize('presets.export_error_network'));
+      console.error('Export error:', err);
+    } finally {
+      this._isExporting = false;
+      this.requestUpdate();
+    }
+  }
+
+  private _handleImportClick(): void {
+    // Trigger file input
+    if (!this._fileInputRef) {
+      this._fileInputRef = document.createElement('input');
+      this._fileInputRef.type = 'file';
+      this._fileInputRef.accept = '.json,application/json';
+      this._fileInputRef.addEventListener('change', (e) => {
+        const target = e.target as HTMLInputElement;
+        if (target.files && target.files[0]) {
+          this._handleImportFile(target.files[0]);
+        }
+      });
+    }
+    this._fileInputRef.click();
+  }
+
+  private async _handleImportFile(file: File): Promise<void> {
+    this._isImporting = true;
+    this.requestUpdate();
+
+    try {
+      // Read file content
+      const content = await file.text();
+      const importData = JSON.parse(content);
+
+      // Send to API
+      const response = await fetch('/api/aqara_advanced_lighting/presets/import', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.hass.auth.data.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(importData),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || response.statusText);
+      }
+
+      const result = await response.json();
+      const totalCount = Object.values(result.counts).reduce(
+        (sum: number, count) => sum + (count as number),
+        0
+      );
+
+      // Show success toast with count
+      this._showToast(this._localize('presets.import_success', { count: totalCount.toString() }));
+
+      // Refresh presets display
+      await this._loadUserPresets();
+    } catch (err) {
+      let errorMessage = this._localize('presets.import_error_unknown');
+
+      if (err instanceof SyntaxError) {
+        errorMessage = this._localize('presets.import_error_invalid_file');
+      } else if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+
+      this._showToast(errorMessage);
+      console.error('Import error:', err);
+    } finally {
+      this._isImporting = false;
+      this.requestUpdate();
+    }
+  }
+
+  private _showToast(message: string): void {
+    // Use Home Assistant's toast system
+    const event = new CustomEvent('hass-notification', {
+      detail: {
+        message: message,
+        duration: 3000,
+      },
+      bubbles: true,
+      composed: true,
+    });
+    this.dispatchEvent(event);
+  }
+
   private _renderPresetsTab() {
     const effectPresets = this._userPresets?.effect_presets || [];
     const patternPresets = this._userPresets?.segment_pattern_presets || [];
@@ -1960,6 +2103,30 @@ export class AqaraPanel extends LitElement {
         <p class="editor-description">
           ${this._localize('presets.manage_description')} ${hasSelection ? this._localize('presets.manage_description_with_selection') : 'Select lights in the Activate tab to enable activation.'}
         </p>
+
+        <div class="toolbar-actions">
+          <mwc-button
+            raised
+            @click=${this._handleExportPresets}
+            .disabled=${this._isExporting || this._isImporting}
+          >
+            <ha-icon icon="mdi:download" slot="icon"></ha-icon>
+            ${this._isExporting
+              ? this._localize('presets.export_progress')
+              : this._localize('presets.export_button')}
+          </mwc-button>
+
+          <mwc-button
+            raised
+            @click=${this._handleImportClick}
+            .disabled=${this._isExporting || this._isImporting}
+          >
+            <ha-icon icon="mdi:upload" slot="icon"></ha-icon>
+            ${this._isImporting
+              ? this._localize('presets.import_progress')
+              : this._localize('presets.import_button')}
+          </mwc-button>
+        </div>
 
         ${totalCount === 0
           ? html`
@@ -2470,7 +2637,7 @@ export class AqaraPanel extends LitElement {
             >
               <div slot="header" class="section-header">
                 <div>
-                  <div class="section-title">Transition settings</div>
+                  <div class="section-title">${this._localize('config.transition_settings')}</div>
                 </div>
               </div>
               <div class="section-content" style="display: block; padding: 0;">

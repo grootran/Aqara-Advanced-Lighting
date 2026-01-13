@@ -16,7 +16,14 @@
     "no_presets_title": "No presets available",
     "no_presets_message": "No built-in presets are available. Please check your configuration.",
     "incompatible_light_title": "Incompatible light selected",
-    "incompatible_light_message": "One or more selected lights are not supported Aqara models. Please select only T1M, T1 Strip, or T2 bulb lights."
+    "incompatible_light_message": "One or more selected lights are not supported Aqara models. Please select only T1M, T1 Strip, or T2 bulb lights.",
+    "invalid_backup_structure": "The backup file structure is invalid or corrupted",
+    "unsupported_backup_version": "Backup version {version} is not supported",
+    "invalid_preset_type": "Invalid preset type in backup file",
+    "missing_preset_fields": "Missing required fields: {fields}",
+    "invalid_color_format": "Invalid color format. Colors must be in XY format",
+    "invalid_json_format": "The file is not valid JSON",
+    "invalid_preset_structure": "Invalid preset structure in backup file"
   },
   "target": {
     "section_title": "Target",
@@ -28,10 +35,15 @@
     "favorite_name_label": "Favorite Name",
     "save_as_favorite": "Save as favorite",
     "remove_favorite": "Remove favorite",
-    "light_control_label": "Light Control",
-    "quick_controls_label": "Quick Controls",
-    "custom_brightness_label": "Custom Brightness",
-    "brightness_label": "Brightness"
+    "light_control_label": "Light control",
+    "quick_controls_label": "Quick controls",
+    "custom_brightness_label": "Brightness override",
+    "brightness_label": "Brightness",
+    "controls_card_title": "Controls",
+    "effect_button": "Effect",
+    "cct_button": "CCT",
+    "segment_button": "Segment",
+    "no_lights_message": "Please select one or more lights to view available presets"
   },
   "presets": {
     "manage_description": "Manage your saved presets.",
@@ -52,7 +64,19 @@
     "sort_name_asc": "Name (A-Z)",
     "sort_name_desc": "Name (Z-A)",
     "sort_date_new": "Newest first",
-    "sort_date_old": "Oldest first"
+    "sort_date_old": "Oldest first",
+    "export_button": "Export Presets",
+    "import_button": "Import Presets",
+    "export_success": "Presets exported successfully",
+    "import_success": "{count} presets imported successfully",
+    "import_progress": "Importing presets...",
+    "export_progress": "Exporting presets...",
+    "import_error_title": "Import Failed",
+    "import_error_invalid_file": "Invalid backup file format",
+    "import_error_network": "Network error during import",
+    "import_error_unknown": "An unexpected error occurred",
+    "export_error_title": "Export Failed",
+    "export_error_network": "Network error during export"
   },
   "dialogs": {
     "create_effect_title": "Create Effect Preset",
@@ -77,7 +101,7 @@
     "compatibility_warning_segments": "The selected light does not support segment sequences. Compatible models: T1M, T1 Strip."
   },
   "config": {
-    "transition_settings": "Transition Settings",
+    "transition_settings": "T2 transition settings",
     "transition_description": "Configure the transition curve for T2 bulbs when changing states.",
     "curvature_label": "Curvature",
     "custom_curvature_label": "Custom curvature",

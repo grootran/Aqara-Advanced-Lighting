@@ -150,19 +150,19 @@ export interface ColorGamut {
 // Color gamut triangles for Aqara lights
 export const AQARA_GAMUTS: Record<string, ColorGamut> = {
   T1M: {
-    red: [0.68, 0.31],
-    green: [0.15, 0.06],
-    blue: [0.15, 0.70],
+    red: [0.6800, 0.3100],
+    green: [0.1500, 0.0600],
+    blue: [0.1500, 0.7000],
   },
   T1_STRIP: {
-    red: [0.68, 0.31],
-    green: [0.15, 0.06],
-    blue: [0.15, 0.70],
+    red: [0.6800, 0.3100],
+    green: [0.1500, 0.0600],
+    blue: [0.1500, 0.7000],
   },
   T2_BULB: {
-    red: [0.68, 0.31],
-    green: [0.15, 0.06],
-    blue: [0.15, 0.70],
+    red: [0.6800, 0.3100],
+    green: [0.1500, 0.0600],
+    blue: [0.1500, 0.7000],
   },
 };
 
