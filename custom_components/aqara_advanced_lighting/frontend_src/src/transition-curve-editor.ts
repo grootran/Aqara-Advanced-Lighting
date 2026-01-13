@@ -36,7 +36,7 @@ export class TransitionCurveEditor extends LitElement {
     }
 
     .curve-header {
-      padding: 16px 16px 12px;
+      padding: 12px 8px 8px;
     }
 
     .curve-header .title {
@@ -54,7 +54,7 @@ export class TransitionCurveEditor extends LitElement {
 
     .curve-canvas-wrapper {
       position: relative;
-      padding: 16px;
+      padding: 8px;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -190,7 +190,7 @@ export class TransitionCurveEditor extends LitElement {
     if (!ctx) return;
 
     const { width, height } = this;
-    const padding = 40;
+    const padding = 24;
     const graphWidth = width - padding * 2;
     const graphHeight = height - padding * 2;
 
@@ -362,7 +362,7 @@ export class TransitionCurveEditor extends LitElement {
       clientY = e.clientY;
     }
 
-    const padding = 40;
+    const padding = 24;
     const graphHeight = this.height - padding * 2;
 
     // Calculate Y position relative to graph area

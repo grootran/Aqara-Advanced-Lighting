@@ -69,7 +69,7 @@ export const panelStyles = css`
 
   ha-tab-group-tab {
     --ha-tab-text-color: var(--secondary-text-color);
-    --ha-tab-active-text-color: var(--primary-text-color);
+    --ha-tab-active-text-color: var(--wa-color-brand-on-quiet);
   }
 
   /* Content area with padding for fixed header */
