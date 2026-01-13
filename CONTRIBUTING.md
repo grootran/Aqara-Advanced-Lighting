@@ -569,34 +569,35 @@ We welcome community-created presets that showcase creative uses of the lights. 
 1. Create your preset using the integration UI
 2. Export the preset configuration using one of these methods:
 
-**Method 1: Access Storage File (Recommended)**
-   - Navigate to your Home Assistant config directory (usually `/config/` or `~/.homeassistant/`)
-   - Open `.storage/aqara_advanced_lighting.presets` in a text editor
+**Method 1: Use the Export Feature (Recommended)**
+   - Open the Aqara Lighting panel in Home Assistant
+   - Navigate to the **My Presets** tab
+   - Click the **Export Presets** button at the top of the page
+   - A JSON backup file will be downloaded to your computer (e.g., `aqara_presets_backup_20260113_123456.json`)
+   - Open the downloaded file in a text editor
    - Find your preset by name in the appropriate section:
      - `effect_presets` - Dynamic RGB effects
      - `segment_pattern_presets` - Segment color patterns
      - `cct_sequence_presets` - CCT sequences
      - `segment_sequence_presets` - RGB segment sequences
-   - Copy your preset data (including all fields like name, icon, colors, steps, etc.)
-   - Note: The storage file is in JSON format with all your user-created presets
+   - Copy your preset data (all fields like id, name, icon, colors, steps, created_at, modified_at, etc.)
+   - Note: The export file contains all your user-created presets in a clean JSON format
 
-**Method 2: Use HTTP API**
-   - Open Developer Tools > Actions
-   - Create a REST API call (or use curl):
+**Method 2: Access Storage File (Advanced)**
+   - Navigate to your Home Assistant config directory (usually `/config/` or `~/.homeassistant/`)
+   - Open `.storage/aqara_advanced_lighting.presets` in a text editor
+   - Find your preset by name in the appropriate section
+   - Copy your preset data
+   - Note: This method requires direct filesystem access
+
+**Method 3: Use HTTP API (Advanced)**
+   - Create a REST API call using curl or Developer Tools:
      ```bash
      curl -H "Authorization: Bearer YOUR_LONG_LIVED_ACCESS_TOKEN" \
        http://YOUR_HA_IP:8123/api/aqara_advanced_lighting/user_presets?type=effect
      ```
    - Replace `type=effect` with your preset type: `effect`, `segment_pattern`, `cct_sequence`, or `segment_sequence`
    - Find your preset in the JSON response and copy the preset data
-
-**Method 3: Browser Developer Console**
-   - Open the Aqara Lighting panel in your browser
-   - Open browser Developer Tools (F12)
-   - Go to the Network tab
-   - Look for requests to `/api/aqara_advanced_lighting/user_presets`
-   - View the response to see all your presets
-   - Copy your preset data
 
 3. Create a preset submission file in `preset_submissions/` directory:
 
