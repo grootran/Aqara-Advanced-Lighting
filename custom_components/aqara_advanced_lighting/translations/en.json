@@ -109,6 +109,27 @@
     },
     "device_not_found": {
       "message": "Device {device} was not found in the Zigbee2MQTT registry. Please ensure the device is properly paired."
+    },
+    "invalid_backup_structure": {
+      "message": "The backup file structure is invalid or corrupted. Please ensure you are using a valid preset backup file exported from this integration."
+    },
+    "unsupported_backup_version": {
+      "message": "Backup version {version} is not supported by this version of the integration. Please export a new backup file or update the integration."
+    },
+    "invalid_preset_type": {
+      "message": "Invalid preset type found in backup file. The file may be corrupted or incompatible."
+    },
+    "missing_preset_fields": {
+      "message": "Missing required fields in preset: {fields}. The backup file may be corrupted or from an incompatible version."
+    },
+    "invalid_color_format": {
+      "message": "Invalid color format in preset. Colors must be in XY format with x and y coordinates. The backup file may be from an older version."
+    },
+    "invalid_json_format": {
+      "message": "The uploaded file is not valid JSON. Please ensure you are uploading a preset backup file exported from this integration."
+    },
+    "invalid_preset_structure": {
+      "message": "The preset structure in the backup file is invalid. The file may be corrupted or from an incompatible version."
     }
   },
   "services": {

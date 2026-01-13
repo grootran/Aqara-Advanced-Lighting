@@ -8,6 +8,7 @@ import uuid
 from typing import Any, NotRequired, TypedDict
 
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.storage import Store
 
 from .const import (
@@ -448,3 +449,311 @@ class PresetStore:
             preset_data["name"] = f"{source_preset['name']} (copy)"
 
         return await self.add_preset(preset_type, preset_data)
+
+    async def export_all_user_presets(self) -> dict[str, Any]:
+        """Export all user-created presets to a dictionary.
+
+        Excludes built-in presets, includes only user-created presets.
+
+        Returns:
+            Dictionary with version, timestamp, counts, and preset data
+        """
+        # Get all presets (only user-created presets are in storage)
+        all_presets = self.get_all_presets()
+
+        # Calculate counts
+        preset_counts = {
+            "effect_presets": len(all_presets.get("effect_presets", [])),
+            "segment_pattern_presets": len(
+                all_presets.get("segment_pattern_presets", [])
+            ),
+            "cct_sequence_presets": len(all_presets.get("cct_sequence_presets", [])),
+            "segment_sequence_presets": len(
+                all_presets.get("segment_sequence_presets", [])
+            ),
+        }
+
+        # Build export structure
+        export_data = {
+            "version": 1,
+            "timestamp": self._get_timestamp(),
+            "preset_counts": preset_counts,
+            "data": all_presets,
+        }
+
+        _LOGGER.debug(
+            "Exported %d presets (%d effects, %d patterns, %d CCT sequences, %d segment sequences)",
+            sum(preset_counts.values()),
+            preset_counts["effect_presets"],
+            preset_counts["segment_pattern_presets"],
+            preset_counts["cct_sequence_presets"],
+            preset_counts["segment_sequence_presets"],
+        )
+
+        return export_data
+
+    def _generate_unique_name(self, base_name: str, existing_names: set[str]) -> str:
+        """Generate a unique preset name by appending (2), (3), etc.
+
+        Args:
+            base_name: The original preset name
+            existing_names: Set of names already in use
+
+        Returns:
+            Unique name not in existing_names set
+        """
+        if base_name not in existing_names:
+            return base_name
+
+        counter = 2
+        while True:
+            new_name = f"{base_name} ({counter})"
+            if new_name not in existing_names:
+                return new_name
+            counter += 1
+
+    def _validate_preset_structure(
+        self, preset_data: dict[str, Any], preset_type: str
+    ) -> None:
+        """Validate preset structure matches expected TypedDict format.
+
+        Args:
+            preset_data: The preset dictionary to validate
+            preset_type: One of: effect, segment_pattern, cct_sequence, segment_sequence
+
+        Raises:
+            ServiceValidationError: If validation fails
+        """
+        # Required fields for each preset type
+        required_fields = {
+            PRESET_TYPE_EFFECT: {"name", "effect", "effect_speed", "effect_colors"},
+            PRESET_TYPE_SEGMENT_PATTERN: {"name", "segments"},
+            PRESET_TYPE_CCT_SEQUENCE: {
+                "name",
+                "steps",
+                "loop_mode",
+                "end_behavior",
+            },
+            PRESET_TYPE_SEGMENT_SEQUENCE: {
+                "name",
+                "steps",
+                "loop_mode",
+                "end_behavior",
+            },
+        }
+
+        if preset_type not in required_fields:
+            raise ServiceValidationError(
+                f"Invalid preset type: {preset_type}",
+                translation_domain=DOMAIN,
+                translation_key="invalid_preset_type",
+            )
+
+        # Check required fields
+        missing_fields = required_fields[preset_type] - preset_data.keys()
+        if missing_fields:
+            raise ServiceValidationError(
+                f"Missing required fields for {preset_type}: {missing_fields}",
+                translation_domain=DOMAIN,
+                translation_key="missing_preset_fields",
+                translation_placeholders={"fields": ", ".join(missing_fields)},
+            )
+
+        # Validate color format for effect presets
+        if preset_type == PRESET_TYPE_EFFECT:
+            if not isinstance(preset_data.get("effect_colors"), list):
+                raise ServiceValidationError(
+                    "Colors must be a list",
+                    translation_domain=DOMAIN,
+                    translation_key="invalid_color_format",
+                )
+            for color in preset_data["effect_colors"]:
+                if not isinstance(color, dict) or "x" not in color or "y" not in color:
+                    raise ServiceValidationError(
+                        "Each color must be in XY format with x and y keys",
+                        translation_domain=DOMAIN,
+                        translation_key="invalid_color_format",
+                    )
+
+        # Validate segment sequence colors
+        if preset_type == PRESET_TYPE_SEGMENT_SEQUENCE:
+            if not isinstance(preset_data.get("steps"), list):
+                raise ServiceValidationError(
+                    "Steps must be a list",
+                    translation_domain=DOMAIN,
+                    translation_key="invalid_preset_structure",
+                )
+            for step in preset_data["steps"]:
+                if "colors" in step:
+                    if not isinstance(step["colors"], list):
+                        raise ServiceValidationError(
+                            "Step colors must be a list",
+                            translation_domain=DOMAIN,
+                            translation_key="invalid_color_format",
+                        )
+                    for color in step["colors"]:
+                        if (
+                            not isinstance(color, dict)
+                            or "x" not in color
+                            or "y" not in color
+                        ):
+                            raise ServiceValidationError(
+                                "Each color must be in XY format with x and y keys",
+                                translation_domain=DOMAIN,
+                                translation_key="invalid_color_format",
+                            )
+
+    async def import_presets(self, import_data: dict[str, Any]) -> dict[str, int]:
+        """Import presets from backup data with conflict resolution.
+
+        Args:
+            import_data: Dictionary matching export format
+
+        Returns:
+            Dictionary with counts of imported presets per type
+
+        Raises:
+            ServiceValidationError: If data structure is invalid
+            HomeAssistantError: If storage operations fail
+        """
+        # Validate top-level structure
+        required_top_keys = {"version", "data"}
+        if not all(key in import_data for key in required_top_keys):
+            raise ServiceValidationError(
+                "Invalid backup file structure",
+                translation_domain=DOMAIN,
+                translation_key="invalid_backup_structure",
+            )
+
+        if import_data["version"] != 1:
+            raise ServiceValidationError(
+                f"Unsupported backup version: {import_data['version']}",
+                translation_domain=DOMAIN,
+                translation_key="unsupported_backup_version",
+                translation_placeholders={"version": str(import_data["version"])},
+            )
+
+        data = import_data["data"]
+
+        # Get current presets to check for name conflicts
+        current_presets = self.get_all_presets()
+
+        # Track import counts
+        imported_counts = {
+            "effect_presets": 0,
+            "segment_pattern_presets": 0,
+            "cct_sequence_presets": 0,
+            "segment_sequence_presets": 0,
+        }
+
+        # Import effect presets
+        if "effect_presets" in data:
+            existing_names = {p["name"] for p in current_presets["effect_presets"]}
+            for preset in data["effect_presets"]:
+                self._validate_preset_structure(preset, PRESET_TYPE_EFFECT)
+
+                # Generate unique name if conflict
+                original_name = preset["name"]
+                unique_name = self._generate_unique_name(original_name, existing_names)
+
+                # Create new preset with unique ID and name
+                new_preset_data = {
+                    "name": unique_name,
+                    "icon": preset.get("icon"),
+                    "device_type": preset.get("device_type"),
+                    "effect": preset["effect"],
+                    "effect_speed": preset["effect_speed"],
+                    "effect_brightness": preset.get("effect_brightness"),
+                    "effect_colors": preset["effect_colors"],
+                    "effect_segments": preset.get("effect_segments"),
+                }
+
+                await self.add_preset(PRESET_TYPE_EFFECT, new_preset_data)
+                existing_names.add(unique_name)
+                imported_counts["effect_presets"] += 1
+
+        # Import segment pattern presets
+        if "segment_pattern_presets" in data:
+            existing_names = {
+                p["name"] for p in current_presets["segment_pattern_presets"]
+            }
+            for preset in data["segment_pattern_presets"]:
+                self._validate_preset_structure(preset, PRESET_TYPE_SEGMENT_PATTERN)
+
+                original_name = preset["name"]
+                unique_name = self._generate_unique_name(original_name, existing_names)
+
+                new_preset_data = {
+                    "name": unique_name,
+                    "icon": preset.get("icon"),
+                    "device_type": preset.get("device_type"),
+                    "segments": preset["segments"],
+                }
+
+                await self.add_preset(PRESET_TYPE_SEGMENT_PATTERN, new_preset_data)
+                existing_names.add(unique_name)
+                imported_counts["segment_pattern_presets"] += 1
+
+        # Import CCT sequence presets
+        if "cct_sequence_presets" in data:
+            existing_names = {
+                p["name"] for p in current_presets["cct_sequence_presets"]
+            }
+            for preset in data["cct_sequence_presets"]:
+                self._validate_preset_structure(preset, PRESET_TYPE_CCT_SEQUENCE)
+
+                original_name = preset["name"]
+                unique_name = self._generate_unique_name(original_name, existing_names)
+
+                new_preset_data = {
+                    "name": unique_name,
+                    "icon": preset.get("icon"),
+                    "steps": preset["steps"],
+                    "loop_mode": preset["loop_mode"],
+                    "loop_count": preset.get("loop_count"),
+                    "end_behavior": preset["end_behavior"],
+                }
+
+                await self.add_preset(PRESET_TYPE_CCT_SEQUENCE, new_preset_data)
+                existing_names.add(unique_name)
+                imported_counts["cct_sequence_presets"] += 1
+
+        # Import segment sequence presets
+        if "segment_sequence_presets" in data:
+            existing_names = {
+                p["name"] for p in current_presets["segment_sequence_presets"]
+            }
+            for preset in data["segment_sequence_presets"]:
+                self._validate_preset_structure(preset, PRESET_TYPE_SEGMENT_SEQUENCE)
+
+                original_name = preset["name"]
+                unique_name = self._generate_unique_name(original_name, existing_names)
+
+                new_preset_data = {
+                    "name": unique_name,
+                    "icon": preset.get("icon"),
+                    "device_type": preset.get("device_type"),
+                    "steps": preset["steps"],
+                    "loop_mode": preset["loop_mode"],
+                    "loop_count": preset.get("loop_count"),
+                    "end_behavior": preset["end_behavior"],
+                }
+
+                # Include clear_segments if present
+                if "clear_segments" in preset:
+                    new_preset_data["clear_segments"] = preset["clear_segments"]
+
+                await self.add_preset(PRESET_TYPE_SEGMENT_SEQUENCE, new_preset_data)
+                existing_names.add(unique_name)
+                imported_counts["segment_sequence_presets"] += 1
+
+        _LOGGER.info(
+            "Imported %d presets (%d effects, %d patterns, %d CCT sequences, %d segment sequences)",
+            sum(imported_counts.values()),
+            imported_counts["effect_presets"],
+            imported_counts["segment_pattern_presets"],
+            imported_counts["cct_sequence_presets"],
+            imported_counts["segment_sequence_presets"],
+        )
+
+        return imported_counts
