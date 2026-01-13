@@ -135,8 +135,12 @@ export const panelStyles = css`
   .control-label {
     font-size: var(--ha-font-size-m, 14px);
     font-weight: var(--ha-font-weight-medium, 500);
-    color: var(--primary-text-color);
+    color: var(--secondary-text-color);
     line-height: var(--ha-line-height-condensed, 1.2);
+  }
+
+  .quick-controls-label {
+    color: var(--secondary-text-color);
   }
 
   .control-input {
@@ -566,6 +570,17 @@ export const panelStyles = css`
     min-width: unset;
   }
 
+  /* Brightness override section - vertical stacking */
+  .brightness-override-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 16px;
+  }
+
+  .brightness-slider {
+    padding-left: 0;
+  }
 
   /* Two-column form row for Name/Icon on desktop */
   .form-row-pair {
@@ -1057,6 +1072,31 @@ export const panelStyles = css`
     font-size: var(--ha-font-size-m, 14px);
   }
 
+  /* Toolbar actions for export/import buttons */
+  .toolbar-actions {
+    display: flex;
+    gap: 8px;
+    margin: 16px 0;
+  }
+
+  .toolbar-actions mwc-button {
+    --mdc-button-disabled-fill-color: var(--disabled-color);
+    --mdc-theme-primary: var(--secondary-text-color);
+    transition: all 0.2s ease;
+  }
+
+  .toolbar-actions mwc-button:not([disabled]):hover {
+    --mdc-theme-primary: var(--primary-color);
+  }
+
+  .toolbar-actions mwc-button:not([disabled]):hover ha-icon {
+    color: var(--primary-color);
+  }
+
+  .toolbar-actions mwc-button:not([disabled]):active {
+    opacity: 0.9;
+  }
+
   /* No presets empty state - follows HA empty state patterns */
   .no-presets {
     text-align: center;
@@ -1382,13 +1422,6 @@ export const panelStyles = css`
     color: var(--warning-color);
   }
 
-  /* Hide version on very narrow screens to prevent toolbar overflow */
-  @media (max-width: 500px) {
-    .version-display {
-      display: none;
-    }
-  }
-
   /* Transition settings responsive grid - mobile first */
   .transition-settings-grid {
     display: grid;
@@ -1422,7 +1455,7 @@ export const panelStyles = css`
   .initial-brightness-content .form-label {
     font-size: var(--ha-font-size-m, 14px);
     font-weight: var(--ha-font-weight-medium, 500);
-    color: var(--primary-text-color);
+    color: var(--secondary-text-color);
     margin-bottom: 16px;
   }
 
@@ -1477,7 +1510,7 @@ export const panelStyles = css`
   .dimming-setting-content .form-label {
     font-size: var(--ha-font-size-m, 14px);
     font-weight: var(--ha-font-weight-medium, 500);
-    color: var(--primary-text-color);
+    color: var(--secondary-text-color);
   }
 
   .entity-not-found {
@@ -1808,6 +1841,18 @@ export const colorPickerStyles = css`
     border-radius: 50%;
     border: 3px solid var(--divider-color);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  .color-picker-value-display {
+    font-size: var(--ha-font-size-m, 14px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    font-family: var(--code-font-family, monospace);
+    color: var(--primary-text-color);
+    text-align: center;
+    padding: 8px 16px;
+    background: var(--secondary-background-color);
+    border-radius: var(--ha-border-radius-sm, 4px);
+    letter-spacing: 0.5px;
   }
 
   .color-picker-modal-actions {
