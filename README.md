@@ -1,8 +1,10 @@
 # Aqara Advanced Lighting
 
+[![GitHub Release][releases-shield]][releases]
+
 ![Aqara Advanced Lighting](https://github.com/absent42/Aqara-Advanced-Lighting/raw/8557477bd9846f2eb07e08986b6d7bc66036aacd/images/aqara-advanced-lighting.png "Aqara Advanced Lighting")
 
-Home Assistant HACS integration for advanced control of the Aqara [T1M Ceiling Light](https://www.aqara.com/en/product/ceiling-light-t1m/), [T1 LED Strip](https://www.aqara.com/en/product/led-strip-t1/), and [T2 bulbs](https://www.aqara.com/en/product/led-bulb-t2/) via [Zigbee2MQTT](https://www.zigbee2mqtt.io/).
+[Home Assistant](https://www.home-assistant.io/) integration for advanced control of the Aqara [T1M Ceiling Light](https://www.aqara.com/en/product/ceiling-light-t1m/), [T1 LED Strip](https://www.aqara.com/en/product/led-strip-t1/), and [T2 bulbs](https://www.aqara.com/en/product/led-bulb-t2/) via [Zigbee2MQTT](https://www.zigbee2mqtt.io/).
 
 ## Overview
 
@@ -1328,3 +1330,6 @@ This is an unofficial integration and is not provided by or supported by Aqara.
 - **Issues**: [GitHub Issues](https://github.com/absent42/Aqara-Advanced-Lighting/issues)
 - **Documentation**: [GitHub Repository](https://github.com/absent42/Aqara-Advanced-Lighting)
 - **Contributing**: [Contribution Guidelines](CONTRIBUTING.md)
+
+[releases-shield]: https://img.shields.io/github/release/absent42/Aqara-Advanced-Lighting?style=for-the-badge
+[releases]: https://github.com/absent42/Aqara-Advanced-Lighting/releases
