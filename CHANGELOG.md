@@ -5,6 +5,113 @@ All notable changes to the Aqara Advanced Lighting integration will be documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-01-14
+
+### What's New
+
+Version 0.6.1 introduces preset backup and restore functionality, enhanced visual styling throughout the panel, and improved user experience with better contrast and color-coded feedback.
+
+### New Features
+
+#### Preset Backup and Restore
+
+- **Export Presets**: Backup all user-created presets to JSON file
+  - One-click export from My Presets tab
+  - Preserves all effect, pattern, CCT, and segment sequence configurations
+  - Portable backup files for saving or sharing
+
+- **Import Presets**: Restore presets from backup files
+  - Validates backup structure and version compatibility
+  - Progress indicator during import
+  - Shows count of successfully restored presets
+  - Comprehensive error handling
+
+#### Version Mismatch Detection
+
+- **Frontend-Backend Version Monitoring**
+  - Automatic version comparison between components
+  - Warning banner when versions don't match
+  - Helps troubleshoot cache-related issues after updates
+  - Clear instructions to resolve mismatches
+
+### Improvements
+
+#### Visual Enhancements
+
+- **Transition Curve Graph** (Device Config tab)
+  - Increased graph size with reduced border padding
+  - Better horizontal centering with balanced spacing
+  - Improved grid contrast for all themes
+  - Dynamic curve coloring based on curvature value (amber/green/blue)
+  - Optimized mobile spacing for small screens
+
+- **Color Pickers**
+  - RGB value display in all color picker dialogs
+  - Real-time color values as you select
+  - Monospace font for easy reading
+
+- **Panel Styling**
+  - Active tab text uses brand color for better visibility
+  - Secondary text color applied to labels for better hierarchy
+  - Improved hover effects on Export/Import buttons
+  - Better visual consistency across all tabs
+
+- **Favorites Display**
+  - Redesigned with button-style layout
+  - Icon-based visual design with color-coded state indicators
+  - Smooth hover transitions and better touch targets
+
+#### User Experience
+
+- Better contrast and readability throughout
+- Graph grid lines optimized for light and dark modes
+- Consistent label styling across all tabs
+- Improved responsive layout for mobile devices
+
+#### Documentation
+
+- **Comprehensive Update Guide** in README
+  - Step-by-step HACS update instructions
+  - Version mismatch troubleshooting guide
+  - Cache clearing for desktop and mobile platforms
+  - Manual update instructions
+- Added panel screenshots for all tabs
+- Updated integration logo
+
+### Bug Fixes
+
+- Fixed graph container horizontal overflow on mobile
+- Resolved canvas padding inconsistencies
+- Improved responsive layout for small screens
+
+### Technical Changes
+
+- **Frontend**
+  - New backup/restore UI in My Presets tab
+  - Enhanced transition-curve-editor with dynamic coloring
+  - RGB color display in effect, pattern, and segment editors
+  - Updated translations for backup/restore
+
+- **Backend**
+  - New `import_presets` and `export_presets` API endpoints
+  - Backup file validation with version checking
+  - Preset serialization/deserialization support
+  - Enhanced error handling
+
+### Compatibility
+
+- Fully backward compatible with v0.6.0
+- All existing presets and configurations preserved
+- No configuration changes required
+- Preset backup files are forward-compatible
+
+### Requirements
+
+- Home Assistant 2025.12.0 or newer
+- MQTT integration configured
+- Zigbee2MQTT 2.7.2 or newer
+- Supported Aqara devices (see README)
+
 ## [0.6.0] - 2026-01-12
 
 ### What's New
