@@ -42,6 +42,7 @@ export class AqaraPanel extends LitElement {
   @state() private _collapsed: Record<string, boolean> = {};
   @state() private _hasIncompatibleLights = false;
   @state() private _favorites: Favorite[] = [];
+  @state() private _activeFavoriteId: string | null = null;
   @state() private _showFavoriteInput = false;
   @state() private _favoriteInputName = '';
   @state() private _activeTab: PanelTab = 'activate';
@@ -603,6 +604,7 @@ export class AqaraPanel extends LitElement {
 
   private _selectFavorite(favorite: Favorite): void {
     this._selectedEntities = [...favorite.entities];
+    this._activeFavoriteId = favorite.id;
     // Load curvature from first T2 entity when favorite is selected
     this._loadCurvatureFromEntity();
   }
@@ -614,6 +616,66 @@ export class AqaraPanel extends LitElement {
       return state.attributes.friendly_name as string;
     }
     return entityId.split('.')[1]?.replace(/_/g, ' ') || entityId;
+  }
+
+  private _getEntityIcon(entityId: string): string {
+    if (!this.hass) return 'mdi:lightbulb';
+    const state = this.hass.states[entityId];
+    if (state) {
+      // Use the entity's icon if available
+      if (state.attributes.icon) {
+        return state.attributes.icon as string;
+      }
+      // Use default icon based on entity domain
+      const domain = entityId.split('.')[0];
+      if (domain === 'light') {
+        return 'mdi:lightbulb';
+      }
+    }
+    return 'mdi:lightbulb';
+  }
+
+  private _getEntityState(entityId: string): string {
+    if (!this.hass) return 'unavailable';
+    const state = this.hass.states[entityId];
+    return state ? state.state : 'unavailable';
+  }
+
+  private _getEntityColor(entityId: string): string | null {
+    if (!this.hass) return null;
+    const state = this.hass.states[entityId];
+    if (!state || state.state !== 'on') return null;
+
+    // Try to get RGB color
+    if (state.attributes.rgb_color) {
+      const [r, g, b] = state.attributes.rgb_color as number[];
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    // Try to get HS color and convert to RGB (simplified)
+    if (state.attributes.hs_color && Array.isArray(state.attributes.hs_color)) {
+      const hsColor = state.attributes.hs_color as number[];
+      if (hsColor.length >= 2 && typeof hsColor[0] === 'number' && typeof hsColor[1] === 'number') {
+        const h = hsColor[0];
+        const s = hsColor[1];
+        // Convert HS to RGB for display
+        const c = (s / 100) * 255;
+        const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+        const m = 255 - c;
+        let r = 0, g = 0, b = 0;
+
+        if (h < 60) { r = c; g = x; b = 0; }
+        else if (h < 120) { r = x; g = c; b = 0; }
+        else if (h < 180) { r = 0; g = c; b = x; }
+        else if (h < 240) { r = 0; g = x; b = c; }
+        else if (h < 300) { r = x; g = 0; b = c; }
+        else { r = c; g = 0; b = x; }
+
+        return `rgb(${Math.round(r + m)}, ${Math.round(g + m)}, ${Math.round(b + m)})`;
+      }
+    }
+
+    return null;
   }
 
   private _getSelectedDeviceTypes(): string[] {
@@ -851,6 +913,9 @@ export class AqaraPanel extends LitElement {
       showSegmentPatterns,
       showCCTSequences,
       showSegmentSequences,
+      hasT2,
+      hasT1M,
+      hasT1Strip,
       t2Presets: hasT2 ? (this._presets?.dynamic_effects.t2_bulb || []) : [],
       t1mPresets: hasT1M ? (this._presets?.dynamic_effects.t1m || []) : [],
       t1StripPresets: hasT1Strip ? (this._presets?.dynamic_effects.t1_strip || []) : [],
@@ -861,6 +926,7 @@ export class AqaraPanel extends LitElement {
     const value = e.detail.value;
     if (!value) {
       this._selectedEntities = [];
+      this._activeFavoriteId = null;
       return;
     }
 
@@ -868,6 +934,7 @@ export class AqaraPanel extends LitElement {
     const entityIds = value.entity_id;
     if (!entityIds) {
       this._selectedEntities = [];
+      this._activeFavoriteId = null;
       return;
     }
 
@@ -877,6 +944,9 @@ export class AqaraPanel extends LitElement {
     } else {
       this._selectedEntities = [entityIds];
     }
+
+    // Clear active favorite when manually changing selection
+    this._activeFavoriteId = null;
 
     // Load curvature from first T2 entity when selection changes
     this._loadCurvatureFromEntity();
@@ -1268,7 +1338,10 @@ export class AqaraPanel extends LitElement {
           <ha-menu-button .hass=${this.hass} .narrow=${this.narrow}></ha-menu-button>
           <div class="main-title">Aqara Advanced Lighting</div>
           ${this._backendVersion ? html`
-            <div class="version-display ${versionMismatch ? 'version-mismatch' : ''}">
+            <div
+              class="version-display ${versionMismatch ? 'version-mismatch' : ''}"
+              title="${versionMismatch ? this._localize('tooltips.version_mismatch', { backend: this._backendVersion, frontend: this._frontendVersion }) : `v${this._backendVersion}`}"
+            >
               ${versionMismatch ? html`
                 <ha-icon icon="mdi:alert-circle-outline"></ha-icon>
                 <span class="version-text">v${this._backendVersion} / v${this._frontendVersion}</span>
@@ -1388,13 +1461,34 @@ export class AqaraPanel extends LitElement {
                   <div class="control-row">
                     <span class="control-label">${this._localize('target.favorites_label')}</span>
                     <div class="control-input favorites-container">
-                      ${this._favorites.map(
-                        (favorite) => html`
-                          <div class="favorite-chip" @click=${() => this._selectFavorite(favorite)}>
-                            <ha-icon icon="mdi:star" class="favorite-icon"></ha-icon>
-                            <span class="favorite-name">${favorite.name}</span>
+                      ${this._favorites.map((favorite) => {
+                        const firstEntity = favorite.entities[0] || '';
+                        const entityIcon = this._getEntityIcon(firstEntity);
+                        const entityCount = favorite.entities.length;
+                        const entityState = this._getEntityState(firstEntity);
+                        const entityColor = this._getEntityColor(firstEntity);
+                        const isOn = entityState === 'on';
+                        const isUnavailable = entityState === 'unavailable' || entityState === 'unknown';
+                        const isActive = this._activeFavoriteId === favorite.id;
+
+                        // Determine icon background style
+                        const iconStyle = entityColor
+                          ? `background: ${entityColor};`
+                          : '';
+
+                        return html`
+                          <div class="favorite-button ${isOn ? 'state-on' : 'state-off'} ${isUnavailable ? 'state-unavailable' : ''} ${isActive ? 'selected' : ''}" @click=${() => this._selectFavorite(favorite)}>
+                            <div class="favorite-button-icon" style="${iconStyle}">
+                              <ha-icon icon="${entityIcon}"></ha-icon>
+                            </div>
+                            <div class="favorite-button-content">
+                              <div class="favorite-button-name">${favorite.name}</div>
+                              ${entityCount > 1
+                                ? html`<div class="favorite-button-count">${entityCount} lights</div>`
+                                : ''}
+                            </div>
                             <ha-icon-button
-                              class="remove-favorite-btn"
+                              class="favorite-button-remove"
                               @click=${(e: Event) => {
                                 e.stopPropagation();
                                 this._removeFavorite(favorite.id);
@@ -1404,8 +1498,8 @@ export class AqaraPanel extends LitElement {
                               <ha-icon icon="mdi:close"></ha-icon>
                             </ha-icon-button>
                           </div>
-                        `
-                      )}
+                        `;
+                      })}
                     </div>
                   </div>
                 `
@@ -1554,13 +1648,13 @@ export class AqaraPanel extends LitElement {
 
       ${filtered.showDynamicEffects && !this._hasIncompatibleLights
         ? html`
-            ${filtered.t2Presets.length > 0 || this._getUserEffectPresetsForDeviceType('t2_bulb').length > 0
+            ${filtered.hasT2 && (filtered.t2Presets.length > 0 || this._getUserEffectPresetsForDeviceType('t2_bulb').length > 0)
               ? this._renderDynamicEffectsSection('T2 Bulb', filtered.t2Presets, 't2_bulb')
               : ''}
-            ${filtered.t1mPresets.length > 0 || this._getUserEffectPresetsForDeviceType('t1m').length > 0
+            ${filtered.hasT1M && (filtered.t1mPresets.length > 0 || this._getUserEffectPresetsForDeviceType('t1m').length > 0)
               ? this._renderDynamicEffectsSection('T1M', filtered.t1mPresets, 't1m')
               : ''}
-            ${filtered.t1StripPresets.length > 0 || this._getUserEffectPresetsForDeviceType('t1_strip').length > 0
+            ${filtered.hasT1Strip && (filtered.t1StripPresets.length > 0 || this._getUserEffectPresetsForDeviceType('t1_strip').length > 0)
               ? this._renderDynamicEffectsSection('T1 Strip', filtered.t1StripPresets, 't1_strip')
               : ''}
           `

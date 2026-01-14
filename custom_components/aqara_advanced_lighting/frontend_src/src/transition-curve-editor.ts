@@ -13,8 +13,8 @@ import { HomeAssistant } from './types';
 export class TransitionCurveEditor extends LitElement {
   @property({ attribute: false }) hass!: HomeAssistant;
   @property({ type: Number }) curvature = 1.0;  // Controlled from parent
-  @property({ type: Number }) width = 320;
-  @property({ type: Number }) height = 320;
+  @property({ type: Number }) width = 300;
+  @property({ type: Number }) height = 300;
 
   @state() private _isDragging = false;
 

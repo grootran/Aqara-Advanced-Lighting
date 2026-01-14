@@ -110,6 +110,9 @@ export interface FilteredPresets {
   showSegmentPatterns: boolean;
   showCCTSequences: boolean;
   showSegmentSequences: boolean;
+  hasT2: boolean;
+  hasT1M: boolean;
+  hasT1Strip: boolean;
   t2Presets: DynamicEffectPreset[];
   t1mPresets: DynamicEffectPreset[];
   t1StripPresets: DynamicEffectPreset[];

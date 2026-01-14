@@ -65,18 +65,18 @@
     "sort_name_desc": "Name (Z-A)",
     "sort_date_new": "Newest first",
     "sort_date_old": "Oldest first",
-    "export_button": "Export Presets",
-    "import_button": "Import Presets",
-    "export_success": "Presets exported successfully",
-    "import_success": "{count} presets imported successfully",
-    "import_progress": "Importing presets...",
-    "export_progress": "Exporting presets...",
-    "import_error_title": "Import Failed",
+    "export_button": "Backup Presets",
+    "import_button": "Restore Presets",
+    "export_success": "Presets backed up successfully",
+    "import_success": "{count} presets restored successfully",
+    "import_progress": "Restoring presets...",
+    "export_progress": "Backing up presets...",
+    "import_error_title": "Restore Failed",
     "import_error_invalid_file": "Invalid backup file format",
-    "import_error_network": "Network error during import",
+    "import_error_network": "Network error during restore",
     "import_error_unknown": "An unexpected error occurred",
-    "export_error_title": "Export Failed",
-    "export_error_network": "Network error during export"
+    "export_error_title": "Backup Failed",
+    "export_error_network": "Network error during backup"
   },
   "dialogs": {
     "create_effect_title": "Create Effect Preset",
@@ -141,7 +141,8 @@
     "favorite_save": "Save as favorite",
     "favorite_remove": "Remove favorite",
     "preset_edit": "Edit preset",
-    "preset_delete": "Delete preset"
+    "preset_delete": "Delete preset",
+    "version_mismatch": "Version mismatch detected: Backend (v{backend}) and frontend (v{frontend}) versions differ. Please refresh the page or restart Home Assistant to resolve this issue."
   },
   "options": {
     "loop_mode_once": "Run once",
