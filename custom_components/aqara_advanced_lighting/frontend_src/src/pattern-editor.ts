@@ -1,7 +1,7 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, RGBColor, XYColor, HSColor, SegmentColorEntry, UserSegmentPatternPreset } from './types';
-import { xyToHex, xyToRgb, rgbToXy, xyToHs, hsToXy } from './color-utils';
+import { xyToHex, xyToRgb, rgbToXy, xyToHs, hsToXy, hsToRgb } from './color-utils';
 import { colorPickerStyles } from './styles';
 import './hs-color-picker';
 
@@ -20,12 +20,12 @@ const DEVICE_LABELS: Record<string, string> = {
 
 // Default palette colors in XY space
 const DEFAULT_PALETTE: XYColor[] = [
-  { x: 0.68, y: 0.31 },    // Red
-  { x: 0.17, y: 0.70 },    // Green
-  { x: 0.15, y: 0.06 },    // Blue
-  { x: 0.42, y: 0.51 },    // Yellow
-  { x: 0.38, y: 0.16 },    // Magenta
-  { x: 0.22, y: 0.33 },    // Cyan
+  { x: 0.6800, y: 0.3100 },    // Red
+  { x: 0.1700, y: 0.7000 },    // Green
+  { x: 0.1500, y: 0.0600 },    // Blue
+  { x: 0.4200, y: 0.5100 },    // Yellow
+  { x: 0.3800, y: 0.1600 },    // Magenta
+  { x: 0.2200, y: 0.3300 },    // Cyan
 ];
 
 type PatternMode = 'individual' | 'gradient' | 'blocks';
@@ -62,14 +62,14 @@ export class PatternEditor extends LitElement {
 
   // Gradient colors (2-6) in XY space
   @state() private _gradientColors: XYColor[] = [
-    { x: 0.68, y: 0.31 },  // Red
-    { x: 0.15, y: 0.06 },  // Blue
+    { x: 0.6800, y: 0.3100 },  // Red
+    { x: 0.1500, y: 0.0600 },  // Blue
   ];
 
   // Block colors (1-6) in XY space
   @state() private _blockColors: XYColor[] = [
-    { x: 0.68, y: 0.31 },  // Red
-    { x: 0.17, y: 0.70 },  // Green
+    { x: 0.6800, y: 0.3100 },  // Red
+    { x: 0.1700, y: 0.7000 },  // Green
   ];
   @state() private _expandBlocks = false;
 
@@ -522,7 +522,7 @@ export class PatternEditor extends LitElement {
   private _addGradientColor(): void {
     if (this._gradientColors.length >= 6) return;
     // Add yellow in XY space
-    this._gradientColors = [...this._gradientColors, { x: 0.42, y: 0.51 }];
+    this._gradientColors = [...this._gradientColors, { x: 0.4200, y: 0.5100 }];
   }
 
   private _removeGradientColor(index: number): void {
@@ -533,7 +533,7 @@ export class PatternEditor extends LitElement {
   private _addBlockColor(): void {
     if (this._blockColors.length >= 6) return;
     // Add cyan in XY space
-    this._blockColors = [...this._blockColors, { x: 0.22, y: 0.33 }];
+    this._blockColors = [...this._blockColors, { x: 0.2200, y: 0.3300 }];
   }
 
   private _removeBlockColor(index: number): void {
@@ -1265,6 +1265,12 @@ export class PatternEditor extends LitElement {
                     .size=${220}
                     @color-changed=${this._handleColorPickerChange}
                   ></hs-color-picker>
+                  <div class="color-picker-value-display">
+                    ${this._editingColor ? (() => {
+                      const rgb = hsToRgb(this._editingColor.h, this._editingColor.s);
+                      return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+                    })() : ''}
+                  </div>
                   <div class="color-picker-modal-actions">
                     <ha-button @click=${this._closeColorPicker}>${this._localize('editors.cancel_button')}</ha-button>
                     <ha-button @click=${this._confirmColorPicker}>

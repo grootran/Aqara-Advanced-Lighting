@@ -69,7 +69,7 @@ export const panelStyles = css`
 
   ha-tab-group-tab {
     --ha-tab-text-color: var(--secondary-text-color);
-    --ha-tab-active-text-color: var(--primary-text-color);
+    --ha-tab-active-text-color: var(--wa-color-brand-on-quiet);
   }
 
   /* Content area with padding for fixed header */
@@ -135,8 +135,12 @@ export const panelStyles = css`
   .control-label {
     font-size: var(--ha-font-size-m, 14px);
     font-weight: var(--ha-font-weight-medium, 500);
-    color: var(--primary-text-color);
+    color: var(--secondary-text-color);
     line-height: var(--ha-line-height-condensed, 1.2);
+  }
+
+  .quick-controls-label {
+    color: var(--secondary-text-color);
   }
 
   .control-input {
@@ -227,57 +231,162 @@ export const panelStyles = css`
     width: 100%;
   }
 
-  /* Favorites container - uses HA chip pattern */
+  /* Favorites container - compact grid layout */
   .favorites-container {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 8px;
   }
 
-  .favorite-chip {
-    display: inline-flex;
+  .favorite-button {
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 6px;
-    padding: 6px 8px 6px 12px;
+    gap: 8px;
+    padding: 12px 8px 8px 8px;
     background: var(--card-background-color);
     border: 1px solid var(--divider-color);
-    border-radius: 20px;
+    border-radius: var(--ha-card-border-radius, 12px);
     cursor: pointer;
-    transition: all 0.15s ease-in-out;
-    font-size: var(--ha-font-size-s, 13px);
+    transition: all 0.2s ease-in-out;
+    position: relative;
+    overflow: hidden;
   }
 
-  .favorite-chip:hover {
+  .favorite-button::before {
+    content: '';
+    position: absolute;
+    inset: 0;
     background: var(--primary-color);
-    color: var(--text-primary-color);
+    opacity: 0;
+    transition: opacity 0.15s ease-in-out;
+  }
+
+  .favorite-button:hover::before {
+    opacity: 0.08;
+  }
+
+  .favorite-button:hover {
     border-color: var(--primary-color);
+    transform: translateY(-2px);
+    box-shadow: var(--ha-card-box-shadow, 0 4px 8px rgba(0, 0, 0, 0.1));
   }
 
-  .favorite-icon {
-    --mdc-icon-size: 16px;
-    color: var(--warning-color, #ff9800);
+  .favorite-button:active {
+    transform: translateY(0);
   }
 
-  .favorite-chip:hover .favorite-icon {
+  .favorite-button.selected {
+    border-color: var(--primary-color);
+    border-width: 2px;
+  }
+
+  .favorite-button.selected::before {
+    opacity: 0.12;
+  }
+
+  .favorite-button-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: var(--primary-color);
+    border-radius: var(--ha-card-border-radius, 10px);
+    flex-shrink: 0;
+    transition: all 0.2s ease-in-out;
+    position: relative;
+    z-index: 1;
+  }
+
+  .favorite-button-icon ha-icon {
+    --mdc-icon-size: 24px;
     color: var(--text-primary-color);
   }
 
-  .favorite-name {
-    max-width: 150px;
+  .favorite-button:hover .favorite-button-icon {
+    background: var(--text-primary-color);
+  }
+
+  .favorite-button:hover .favorite-button-icon ha-icon {
+    color: var(--primary-color);
+  }
+
+  .favorite-button-content {
+    flex: 1;
+    width: 100%;
+    text-align: center;
+    min-width: 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .favorite-button-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--primary-text-color);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    line-height: 1.3;
   }
 
-  .remove-favorite-btn {
-    --mdc-icon-button-size: 24px;
+  .favorite-button-count {
+    font-size: 11px;
+    color: var(--secondary-text-color);
+    margin-top: 2px;
+  }
+
+  .favorite-button-remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    --mdc-icon-button-size: 28px;
     --mdc-icon-size: 16px;
-    margin: -4px -4px -4px 0;
-    opacity: 0.7;
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+    z-index: 2;
   }
 
-  .remove-favorite-btn:hover {
+  .favorite-button:hover .favorite-button-remove {
+    opacity: 0.6;
+  }
+
+  .favorite-button-remove ha-icon {
+    color: var(--primary-text-color);
+  }
+
+  .favorite-button:hover .favorite-button-remove ha-icon {
+    color: var(--text-primary-color);
+  }
+
+  .favorite-button-remove:hover {
+    opacity: 1 !important;
+  }
+
+  /* Favorite button states */
+  .favorite-button.state-off .favorite-button-icon {
+    opacity: 0.4;
+  }
+
+  .favorite-button.state-off .favorite-button-count {
+    opacity: 0.6;
+  }
+
+  .favorite-button.state-unavailable .favorite-button-icon {
+    opacity: 0.3;
+    filter: grayscale(100%);
+  }
+
+  .favorite-button.state-unavailable .favorite-button-count {
+    opacity: 0.5;
+  }
+
+  .favorite-button.state-on:hover .favorite-button-icon,
+  .favorite-button.state-off:hover .favorite-button-icon,
+  .favorite-button.state-unavailable:hover .favorite-button-icon {
     opacity: 1;
+    filter: none;
   }
 
   /* ha-expansion-panel styling for sections - follows HA patterns */
@@ -566,6 +675,17 @@ export const panelStyles = css`
     min-width: unset;
   }
 
+  /* Brightness override section - vertical stacking */
+  .brightness-override-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 16px;
+  }
+
+  .brightness-slider {
+    padding-left: 0;
+  }
 
   /* Two-column form row for Name/Icon on desktop */
   .form-row-pair {
@@ -1057,6 +1177,31 @@ export const panelStyles = css`
     font-size: var(--ha-font-size-m, 14px);
   }
 
+  /* Toolbar actions for export/import buttons */
+  .toolbar-actions {
+    display: flex;
+    gap: 8px;
+    margin: 16px 0;
+  }
+
+  .toolbar-actions mwc-button {
+    --mdc-button-disabled-fill-color: var(--disabled-color);
+    --mdc-theme-primary: var(--secondary-text-color);
+    transition: all 0.2s ease;
+  }
+
+  .toolbar-actions mwc-button:not([disabled]):hover {
+    --mdc-theme-primary: var(--primary-color);
+  }
+
+  .toolbar-actions mwc-button:not([disabled]):hover ha-icon {
+    color: var(--primary-color);
+  }
+
+  .toolbar-actions mwc-button:not([disabled]):active {
+    opacity: 0.9;
+  }
+
   /* No presets empty state - follows HA empty state patterns */
   .no-presets {
     text-align: center;
@@ -1382,13 +1527,6 @@ export const panelStyles = css`
     color: var(--warning-color);
   }
 
-  /* Hide version on very narrow screens to prevent toolbar overflow */
-  @media (max-width: 500px) {
-    .version-display {
-      display: none;
-    }
-  }
-
   /* Transition settings responsive grid - mobile first */
   .transition-settings-grid {
     display: grid;
@@ -1422,7 +1560,7 @@ export const panelStyles = css`
   .initial-brightness-content .form-label {
     font-size: var(--ha-font-size-m, 14px);
     font-weight: var(--ha-font-weight-medium, 500);
-    color: var(--primary-text-color);
+    color: var(--secondary-text-color);
     margin-bottom: 16px;
   }
 
@@ -1477,7 +1615,7 @@ export const panelStyles = css`
   .dimming-setting-content .form-label {
     font-size: var(--ha-font-size-m, 14px);
     font-weight: var(--ha-font-weight-medium, 500);
-    color: var(--primary-text-color);
+    color: var(--secondary-text-color);
   }
 
   .entity-not-found {
@@ -1808,6 +1946,18 @@ export const colorPickerStyles = css`
     border-radius: 50%;
     border: 3px solid var(--divider-color);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  .color-picker-value-display {
+    font-size: var(--ha-font-size-m, 14px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    font-family: var(--code-font-family, monospace);
+    color: var(--primary-text-color);
+    text-align: center;
+    padding: 8px 16px;
+    background: var(--secondary-background-color);
+    border-radius: var(--ha-border-radius-sm, 4px);
+    letter-spacing: 0.5px;
   }
 
   .color-picker-modal-actions {

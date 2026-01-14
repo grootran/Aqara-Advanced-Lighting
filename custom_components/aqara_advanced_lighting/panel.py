@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+import json
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -79,6 +81,10 @@ async def async_register_panel(hass: HomeAssistant) -> None:
     hass.http.register_view(UserPresetsView)
     hass.http.register_view(UserPresetView)
     hass.http.register_view(UserPresetDuplicateView)
+
+    # Register preset backup/restore endpoints
+    hass.http.register_view(ExportPresetsView)
+    hass.http.register_view(ImportPresetsView)
 
     # Register version endpoint
     hass.http.register_view(VersionView)
@@ -622,3 +628,97 @@ class VersionView(HomeAssistantView):
         except (OSError, ValueError) as ex:
             _LOGGER.error("Error reading manifest: %s", ex)
             return web.Response(status=500, text="Error reading manifest")
+
+
+class ExportPresetsView(HomeAssistantView):
+    """View to export all user presets as JSON file."""
+
+    url = f"/api/{DOMAIN}/presets/export"
+    name = f"api:{DOMAIN}:presets_export"
+    requires_auth = True
+
+    async def get(self, request: web.Request) -> web.Response:
+        """Export all user presets.
+
+        Returns:
+            JSON file download with all user presets
+        """
+        hass = request.app["hass"]
+
+        preset_store = _get_preset_store(hass)
+        if not preset_store:
+            return web.Response(status=503, text="Preset store not initialized")
+
+        try:
+            # Export all presets
+            export_data = await preset_store.export_all_user_presets()
+
+            # Generate filename with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"aqara_presets_backup_{timestamp}.json"
+
+            # Return as downloadable JSON file
+            return web.Response(
+                body=json.dumps(export_data, indent=2, ensure_ascii=False),
+                content_type="application/json",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"',
+                },
+            )
+
+        except Exception as ex:
+            _LOGGER.exception("Failed to export presets: %s", ex)
+            return web.Response(
+                status=500, text=f"Failed to export presets: {ex}"
+            )
+
+
+class ImportPresetsView(HomeAssistantView):
+    """View to import presets from JSON backup file."""
+
+    url = f"/api/{DOMAIN}/presets/import"
+    name = f"api:{DOMAIN}:presets_import"
+    requires_auth = True
+
+    async def post(self, request: web.Request) -> web.Response:
+        """Import presets from uploaded JSON file.
+
+        Expects:
+            JSON body with backup data matching export format
+
+        Returns:
+            JSON with import results and counts
+        """
+        hass = request.app["hass"]
+
+        preset_store = _get_preset_store(hass)
+        if not preset_store:
+            return web.Response(status=503, text="Preset store not initialized")
+
+        try:
+            # Parse request body
+            import_data = await request.json()
+        except (json.JSONDecodeError, ValueError) as ex:
+            _LOGGER.warning("Invalid JSON in import request: %s", ex)
+            return web.Response(status=400, text="Invalid JSON format")
+
+        try:
+            # Import presets with validation and conflict resolution
+            imported_counts = await preset_store.import_presets(import_data)
+
+            # Calculate total imported
+            total_imported = sum(imported_counts.values())
+
+            return web.json_response(
+                {
+                    "success": True,
+                    "message": f"Successfully imported {total_imported} presets",
+                    "counts": imported_counts,
+                },
+                status=200,
+            )
+
+        except Exception as ex:
+            _LOGGER.exception("Failed to import presets: %s", ex)
+            # Return the error message to the frontend
+            return web.Response(status=400, text=str(ex))

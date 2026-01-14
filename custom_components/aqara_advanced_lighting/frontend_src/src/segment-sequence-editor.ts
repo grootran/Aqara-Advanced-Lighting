@@ -1,7 +1,7 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, SegmentSequenceStep, XYColor, HSColor, UserSegmentSequencePreset } from './types';
-import { xyToHex, xyToRgb, rgbToXy, xyToHs, hsToXy } from './color-utils';
+import { xyToHex, xyToRgb, rgbToXy, xyToHs, hsToXy, hsToRgb } from './color-utils';
 import { colorPickerStyles } from './styles';
 import './hs-color-picker';
 
@@ -361,7 +361,7 @@ export class SegmentSequenceEditor extends LitElement {
         id: `step-0-${Date.now()}`,
         segments: '1-5',
         colors: [[255, 0, 0]],
-        colorsArray: [{ x: 0.68, y: 0.31 }],  // Red in XY space
+        colorsArray: [{ x: 0.6800, y: 0.3100 }],  // Red in XY space
         mode: 'blocks_expand',
         duration: 15,
         hold: 60,
@@ -504,7 +504,7 @@ export class SegmentSequenceEditor extends LitElement {
       id: this._generateStepId(),
       segments: '1-5',
       colors: [[255, 0, 0]],
-      colorsArray: [{ x: 0.68, y: 0.31 }],  // Red in XY space
+      colorsArray: [{ x: 0.6800, y: 0.3100 }],  // Red in XY space
       mode: 'blocks_expand',
       duration: 15,
       hold: 60,
@@ -720,7 +720,7 @@ export class SegmentSequenceEditor extends LitElement {
               .selector=${{
                 number: {
                   min: 0,
-                  max: 60,
+                  max: 3600,
                   step: 0.5,
                   mode: 'box',
                   unit_of_measurement: 's',
@@ -737,7 +737,7 @@ export class SegmentSequenceEditor extends LitElement {
               .selector=${{
                 number: {
                   min: 0,
-                  max: 300,
+                  max: 3600,
                   step: 1,
                   mode: 'box',
                   unit_of_measurement: 's',
@@ -1010,6 +1010,12 @@ export class SegmentSequenceEditor extends LitElement {
                     .size=${220}
                     @color-changed=${this._handleColorPickerChange}
                   ></hs-color-picker>
+                  <div class="color-picker-value-display">
+                    ${this._editingColor ? (() => {
+                      const rgb = hsToRgb(this._editingColor.h, this._editingColor.s);
+                      return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+                    })() : ''}
+                  </div>
                   <div class="color-picker-modal-actions">
                     <ha-button @click=${this._closeColorPicker}>${this._localize('editors.cancel_button')}</ha-button>
                     <ha-button @click=${this._confirmColorPicker}>

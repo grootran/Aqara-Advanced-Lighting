@@ -1,7 +1,7 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, RGBColor, XYColor, HSColor, UserEffectPreset } from './types';
-import { xyToHex, rgbToXy, xyToHs, hsToXy } from './color-utils';
+import { xyToHex, rgbToXy, xyToHs, hsToXy, hsToRgb } from './color-utils';
 import { colorPickerStyles } from './styles';
 import './hs-color-picker';
 
@@ -39,7 +39,7 @@ export class EffectEditor extends LitElement {
   @state() private _effect = '';
   @state() private _speed = 50;
   @state() private _brightness = 100;
-  @state() private _colors: XYColor[] = [{ x: 0.68, y: 0.31 }];  // Red in XY space
+  @state() private _colors: XYColor[] = [{ x: 0.6800, y: 0.3100 }];  // Red in XY space
   @state() private _segments = '';
   @state() private _saving = false;
   @state() private _previewing = false;
@@ -243,7 +243,7 @@ export class EffectEditor extends LitElement {
         return rgbToXy((c as RGBColor).r, (c as RGBColor).g, (c as RGBColor).b);
       }
       // Fallback to red
-      return { x: 0.68, y: 0.31 };
+      return { x: 0.6800, y: 0.3100 };
     });
     this._segments = preset.effect_segments || '';
   }
@@ -592,6 +592,12 @@ export class EffectEditor extends LitElement {
                     .size=${220}
                     @color-changed=${this._handleColorPickerChange}
                   ></hs-color-picker>
+                  <div class="color-picker-value-display">
+                    ${this._editingColor ? (() => {
+                      const rgb = hsToRgb(this._editingColor.h, this._editingColor.s);
+                      return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+                    })() : ''}
+                  </div>
                   <div class="color-picker-modal-actions">
                     <ha-button @click=${this._closeColorPicker}>${this._localize('editors.cancel_button')}</ha-button>
                     <ha-button @click=${this._confirmColorPicker}>

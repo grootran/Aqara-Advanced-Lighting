@@ -6,6 +6,18 @@
 import { RGBColor, XYColor, HSColor } from './types';
 
 /**
+ * Round XY coordinate to 4 decimal places for consistency
+ * This matches industry standards and provides sufficient precision
+ * for Zigbee color control while reducing storage overhead.
+ *
+ * @param value - Coordinate value to round
+ * @returns Rounded value to 4 decimal places
+ */
+function roundXY(value: number): number {
+  return Math.round(value * 10000) / 10000;
+}
+
+/**
  * Convert XY color (CIE 1931) to RGB (sRGB color space)
  *
  * @param x - X coordinate (0.0-1.0)
@@ -91,8 +103,8 @@ export function rgbToXy(r: number, g: number, b: number): XYColor {
   }
 
   return {
-    x: X / sum,
-    y: Y / sum,
+    x: roundXY(X / sum),
+    y: roundXY(Y / sum),
   };
 }
 

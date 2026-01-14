@@ -9,6 +9,21 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 
 
+def round_xy(value: float) -> float:
+    """Round XY coordinate to 4 decimal places for consistency.
+
+    This matches industry standards and provides sufficient precision
+    for Zigbee color control while reducing storage overhead.
+
+    Args:
+        value: Coordinate value to round
+
+    Returns:
+        Rounded value to 4 decimal places
+    """
+    return round(value, 4)
+
+
 class AqaraLightModel(StrEnum):
     """Supported Aqara light models."""
 
@@ -85,7 +100,7 @@ class XYColor:
 
     def to_dict(self) -> dict[str, float]:
         """Convert to dictionary for API/storage."""
-        return {"x": self.x, "y": self.y}
+        return {"x": round_xy(self.x), "y": round_xy(self.y)}
 
     @classmethod
     def from_dict(cls, data: dict[str, float | int]) -> XYColor:
@@ -160,7 +175,7 @@ class XYColor:
         x, y = color_RGB_to_xy(rgb.r, rgb.g, rgb.b)
         # Calculate brightness from RGB (max channel value)
         brightness = max(rgb.r, rgb.g, rgb.b)
-        return cls(x=x, y=y, brightness=brightness)
+        return cls(x=round_xy(x), y=round_xy(y), brightness=brightness)
 
     def __post_init__(self) -> None:
         """Validate XY values."""

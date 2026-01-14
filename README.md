@@ -1,12 +1,10 @@
 # Aqara Advanced Lighting
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/absent42/Aqara-Advanced-Lighting/raw/8557477bd9846f2eb07e08986b6d7bc66036aacd/images/dark_logo%402x.png" width="75%">
-  <source media="(prefers-color-scheme: light)" srcset="https://github.com/absent42/Aqara-Advanced-Lighting/raw/8557477bd9846f2eb07e08986b6d7bc66036aacd/images/logo%402x.png" width="75%">
-  <img alt="Aqara Advanced Lighting" src="https://github.com/absent42/Aqara-Advanced-Lighting/raw/8557477bd9846f2eb07e08986b6d7bc66036aacd/images/all-logo.png" width="75%">
-</picture>
+[![GitHub Release][releases-shield]][releases]
 
-Home Assistant HACS integration for advanced control of the Aqara T1M Ceiling Light, T1 LED Strip, and T2 bulbs via Zigbee2MQTT.
+![Aqara Advanced Lighting](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/main/images/aqara-advanced-lighting.png "Aqara Advanced Lighting")
+
+[Home Assistant](https://www.home-assistant.io/) integration for advanced control of the Aqara [T1M Ceiling Light](https://www.aqara.com/en/product/ceiling-light-t1m/), [T1 LED Strip](https://www.aqara.com/en/product/led-strip-t1/), and [T2 bulbs](https://www.aqara.com/en/product/led-bulb-t2/) via [Zigbee2MQTT](https://www.zigbee2mqtt.io/).
 
 ## Overview
 
@@ -99,6 +97,49 @@ Restart Home Assistant
 
 1. Copy the `custom_components/aqara_advanced_lighting` folder to your Home Assistant `custom_components` directory
 2. Restart Home Assistant
+
+## Updating
+
+### Update via HACS
+
+1. Go to **HACS**
+2. Find "Aqara Advanced Lighting"
+3. Click **Update** if an update is available
+4. **Restart Home Assistant**
+5. **Clear your browser cache** (see below)
+
+### Version Mismatch Warning
+
+If you see a version mismatch warning in the panel after updating, this means the backend and frontend versions don't match. This can happen when the browser cache is serving an old version of the frontend.
+
+**To resolve:**
+
+**Desktop Browser:**
+1. Perform a hard refresh to clear the cache:
+   - **Windows/Linux**: `Ctrl + Shift + R` or `Ctrl + F5`
+   - **Mac**: `Cmd + Shift + R`
+2. If the warning persists, clear your browser cache completely:
+   - **Chrome/Edge**: Settings → Privacy and security → Clear browsing data → Cached images and files
+   - **Firefox**: Settings → Privacy & Security → Cookies and Site Data → Clear Data → Cached Web Content
+   - **Safari**: Develop → Empty Caches (or Settings → Advanced → Show Develop menu)
+3. Close and reopen the browser tab
+4. If still showing, restart Home Assistant
+
+**Mobile App (Home Assistant Companion):**
+1. **iOS**:
+   - Go to **Settings** → **Apps** → **Home Assistant** → **Clear cache**
+   - Force close the app and reopen
+2. **Android**:
+   - Go to **Settings** → **Apps** → **Home Assistant** → **Clear cache**
+   - Force close the app and reopen
+
+### Manual Update
+
+If you installed manually:
+1. Download the latest release from [GitHub Releases](https://github.com/absent42/Aqara-Advanced-Lighting/releases)
+2. Replace the `custom_components/aqara_advanced_lighting` folder
+3. Restart Home Assistant
+4. Clear browser cache (see above)
 
 ## Configuration
 
@@ -206,6 +247,8 @@ The features of Advanced Aqara Lighting can be used in multiple ways: with the f
 
 ### Frontend Panel
 
+![Aqara Advanced Lighting Frontend UI](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/activate.png "Aqara Advanced Lighting Frontend UI")
+
 Access the Aqara Lighting panel from the Home Assistant sidebar for a user-friendly interface to control your lights and create effects and patterns.
 
 #### Favorite Lights
@@ -218,6 +261,8 @@ Save your frequently used lights and light groups as favorites for quick access:
 - Adjust brightness with the slider
 
 #### Preset Management
+
+![Aqara Advanced Lighting Presets Manager](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/presets.png " Aqara Advanced Lighting Presets Manager")
 
 Create, organize, and use custom presets for all features:
 
@@ -234,18 +279,21 @@ Create, organize, and use custom presets for all features:
 - Delete presets you no longer need
 - Sort presets alphabetically or by date
 - All presets persist across restarts
+- Backup and restore functions for user saved presets
 
 **Applying Presets**
-1. Select target light(s) from favorites or the dropdown
+1. Select target light(s) from favorites or target searchbar
 2. Choose a preset from any category
-3. Click "Activate" to apply immediately
-4. Optionally enable "Turn on light" for automatic activation
+3. Click the preset to apply immediately
 
-#### Visual Editors
+### Visual Editors
 
 Create custom effects and patterns with interactive builders:
 
 **Effect Editor**
+
+![Aqara Advanced Lighting Effects Editor](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/effects.png " Aqara Advanced Lighting Effects Editor")
+
 - Select from 13 effect types
 - Add up to 8 colors using color pickers
 - Adjust speed and brightness with sliders
@@ -254,6 +302,9 @@ Create custom effects and patterns with interactive builders:
 - Save as custom preset for reuse
 
 **Segment Pattern Editor**
+
+![Aqara Advanced Lighting Pattern Editor](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/pattern.png " Aqara Advanced Lighting Pattern Editor")
+
 - Visual segment selector shows all available segments
 - Click segments to assign colors
 - Create gradients across multiple segments
@@ -263,6 +314,9 @@ Create custom effects and patterns with interactive builders:
 - Save patterns as custom presets
 
 **CCT Sequence Editor**
+
+![Aqara Advanced Lighting CCT Sequencer](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/cct.png " Aqara Advanced Lighting CCT Sequencer")
+
 - Build multi-step sequences (up to 20 steps)
 - Set color temperature and brightness per step
 - Configure transition and hold durations
@@ -272,6 +326,9 @@ Create custom effects and patterns with interactive builders:
 - Save sequences as custom presets
 
 **RGB Segment Sequence Editor**
+
+![Aqara Advanced Lighting Segment Sequencer](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/segments.png " Aqara Advanced Lighting Segment Sequencer")
+
 - Create animated segment patterns (up to 20 steps)
 - Choose color mode: gradient, blocks, or individual
 - Select activation pattern: sequential, random, simultaneous, and more
@@ -282,6 +339,8 @@ Create custom effects and patterns with interactive builders:
 - Save sequences as custom presets
 
 #### Device Configuration
+
+![Aqara Advanced Lighting evice Configuration](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/devices.png " Aqara Advanced Lighting evice Configuration")
 
 Configure device-specific settings directly from the Device Config tab in the panel:
 
@@ -1333,3 +1392,6 @@ This is an unofficial integration and is not provided by or supported by Aqara.
 - **Issues**: [GitHub Issues](https://github.com/absent42/Aqara-Advanced-Lighting/issues)
 - **Documentation**: [GitHub Repository](https://github.com/absent42/Aqara-Advanced-Lighting)
 - **Contributing**: [Contribution Guidelines](CONTRIBUTING.md)
+
+[releases-shield]: https://img.shields.io/github/release/absent42/Aqara-Advanced-Lighting?style=for-the-badge
+[releases]: https://github.com/absent42/Aqara-Advanced-Lighting/releases

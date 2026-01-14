@@ -13,8 +13,8 @@ import { HomeAssistant } from './types';
 export class TransitionCurveEditor extends LitElement {
   @property({ attribute: false }) hass!: HomeAssistant;
   @property({ type: Number }) curvature = 1.0;  // Controlled from parent
-  @property({ type: Number }) width = 320;
-  @property({ type: Number }) height = 320;
+  @property({ type: Number }) width = 300;
+  @property({ type: Number }) height = 300;
 
   @state() private _isDragging = false;
 
@@ -36,7 +36,7 @@ export class TransitionCurveEditor extends LitElement {
     }
 
     .curve-header {
-      padding: 16px 16px 12px;
+      padding: 12px 8px 8px;
     }
 
     .curve-header .title {
@@ -54,7 +54,7 @@ export class TransitionCurveEditor extends LitElement {
 
     .curve-canvas-wrapper {
       position: relative;
-      padding: 16px;
+      padding: 8px;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -78,6 +78,11 @@ export class TransitionCurveEditor extends LitElement {
       align-items: center;
       color: var(--secondary-text-color);
       --mdc-icon-size: 20px;
+    }
+
+    .graph-spacer {
+      width: 20px;
+      flex-shrink: 0;
     }
 
     .x-axis-label {
@@ -156,6 +161,27 @@ export class TransitionCurveEditor extends LitElement {
     return 2 * oneMinusT * t * cx + t * t;
   }
 
+  /**
+   * Get the color for the curve based on the current curvature value.
+   * - 0.2-0.95: Fast then slow (warning color)
+   * - 0.95-1.05: Linear (success color)
+   * - 1.05-6.0: Slow then fast (primary color)
+   */
+  private _getCurveColor(): string {
+    const computedStyle = getComputedStyle(this);
+
+    if (this.curvature < 0.95) {
+      // Fast then slow - warning color
+      return computedStyle.getPropertyValue('--warning-color').trim() || '#ffc107';
+    } else if (this.curvature > 1.05) {
+      // Slow then fast - primary color
+      return computedStyle.getPropertyValue('--primary-color').trim() || '#03a9f4';
+    } else {
+      // Linear - success color
+      return computedStyle.getPropertyValue('--success-color').trim() || '#4caf50';
+    }
+  }
+
   private _drawCurve(): void {
     const canvas = this._canvas;
     if (!canvas) return;
@@ -164,7 +190,7 @@ export class TransitionCurveEditor extends LitElement {
     if (!ctx) return;
 
     const { width, height } = this;
-    const padding = 40;
+    const padding = 24;
     const graphWidth = width - padding * 2;
     const graphHeight = height - padding * 2;
 
@@ -180,6 +206,23 @@ export class TransitionCurveEditor extends LitElement {
 
     // Get control point based on curvature
     const { cx, cy } = this._getControlPoint();
+
+    // Get curve color based on curvature value
+    const curveColor = this._getCurveColor();
+
+    // Parse the color to create gradient with same hue
+    // Extract RGB values from the color (works for both hex and rgb formats)
+    const tempDiv = document.createElement('div');
+    tempDiv.style.color = curveColor;
+    document.body.appendChild(tempDiv);
+    const computedColor = getComputedStyle(tempDiv).color;
+    document.body.removeChild(tempDiv);
+
+    // Extract RGB values
+    const rgbMatch = computedColor.match(/\d+/g);
+    const r = rgbMatch ? rgbMatch[0] : '3';
+    const g = rgbMatch ? rgbMatch[1] : '169';
+    const b = rgbMatch ? rgbMatch[2] : '244';
 
     // Draw curve fill (area under curve)
     ctx.beginPath();
@@ -198,10 +241,10 @@ export class TransitionCurveEditor extends LitElement {
     ctx.lineTo(padding + graphWidth, height - padding);
     ctx.closePath();
 
-    // Fill with gradient
+    // Fill with gradient using the curve color
     const gradient = ctx.createLinearGradient(0, padding, 0, height - padding);
-    gradient.addColorStop(0, 'rgba(3, 169, 244, 0.15)');
-    gradient.addColorStop(1, 'rgba(3, 169, 244, 0.02)');
+    gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.15)`);
+    gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0.02)`);
     ctx.fillStyle = gradient;
     ctx.fill();
 
@@ -221,11 +264,8 @@ export class TransitionCurveEditor extends LitElement {
       }
     }
 
-    // Get computed primary color or use default
-    const computedStyle = getComputedStyle(this);
-    const primaryColor = computedStyle.getPropertyValue('--primary-color').trim() || '#03a9f4';
-
-    ctx.strokeStyle = primaryColor;
+    // Use the curve color we already retrieved
+    ctx.strokeStyle = curveColor;
     ctx.lineWidth = 3;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -235,7 +275,7 @@ export class TransitionCurveEditor extends LitElement {
     const endY = height - padding - graphHeight;
     ctx.beginPath();
     ctx.arc(padding + graphWidth, endY, 6, 0, Math.PI * 2);
-    ctx.fillStyle = primaryColor;
+    ctx.fillStyle = curveColor;
     ctx.fill();
     ctx.strokeStyle = 'white';
     ctx.lineWidth = 2;
@@ -244,9 +284,12 @@ export class TransitionCurveEditor extends LitElement {
 
   private _drawGrid(ctx: CanvasRenderingContext2D, padding: number, graphWidth: number, graphHeight: number): void {
     const computedStyle = getComputedStyle(this);
-    const dividerColor = computedStyle.getPropertyValue('--divider-color').trim() || '#e0e0e0';
+    const secondaryTextColor = computedStyle.getPropertyValue('--secondary-text-color').trim() || 'rgba(128, 128, 128, 0.5)';
 
-    ctx.strokeStyle = dividerColor;
+    // Create a more contrasting grid color by using secondary text color with lower opacity
+    // This works well in both light and dark modes
+    ctx.strokeStyle = secondaryTextColor;
+    ctx.globalAlpha = 0.3;
     ctx.lineWidth = 1;
     ctx.setLineDash([4, 4]);
 
@@ -271,6 +314,8 @@ export class TransitionCurveEditor extends LitElement {
       ctx.stroke();
     }
 
+    // Reset global alpha and line dash
+    ctx.globalAlpha = 1.0;
     ctx.setLineDash([]);
   }
 
@@ -317,7 +362,7 @@ export class TransitionCurveEditor extends LitElement {
       clientY = e.clientY;
     }
 
-    const padding = 40;
+    const padding = 24;
     const graphHeight = this.height - padding * 2;
 
     // Calculate Y position relative to graph area
@@ -373,6 +418,7 @@ export class TransitionCurveEditor extends LitElement {
                 @mousedown=${this._handleCanvasPointerDown}
                 @touchstart=${this._handleCanvasPointerDown}
               ></canvas>
+              <div class="graph-spacer"></div>
             </div>
             <div class="x-axis-label">
               <ha-icon icon="mdi:clock-outline"></ha-icon>

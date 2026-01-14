@@ -110,6 +110,9 @@ export interface FilteredPresets {
   showSegmentPatterns: boolean;
   showCCTSequences: boolean;
   showSegmentSequences: boolean;
+  hasT2: boolean;
+  hasT1M: boolean;
+  hasT1Strip: boolean;
   t2Presets: DynamicEffectPreset[];
   t1mPresets: DynamicEffectPreset[];
   t1StripPresets: DynamicEffectPreset[];
@@ -150,19 +153,19 @@ export interface ColorGamut {
 // Color gamut triangles for Aqara lights
 export const AQARA_GAMUTS: Record<string, ColorGamut> = {
   T1M: {
-    red: [0.68, 0.31],
-    green: [0.15, 0.06],
-    blue: [0.15, 0.70],
+    red: [0.6800, 0.3100],
+    green: [0.1500, 0.0600],
+    blue: [0.1500, 0.7000],
   },
   T1_STRIP: {
-    red: [0.68, 0.31],
-    green: [0.15, 0.06],
-    blue: [0.15, 0.70],
+    red: [0.6800, 0.3100],
+    green: [0.1500, 0.0600],
+    blue: [0.1500, 0.7000],
   },
   T2_BULB: {
-    red: [0.68, 0.31],
-    green: [0.15, 0.06],
-    blue: [0.15, 0.70],
+    red: [0.6800, 0.3100],
+    green: [0.1500, 0.0600],
+    blue: [0.1500, 0.7000],
   },
 };
 
