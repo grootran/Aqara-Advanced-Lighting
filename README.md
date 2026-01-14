@@ -2,7 +2,7 @@
 
 [![GitHub Release][releases-shield]][releases]
 
-![Aqara Advanced Lighting](https://github.com/absent42/Aqara-Advanced-Lighting/raw/8557477bd9846f2eb07e08986b6d7bc66036aacd/images/aqara-advanced-lighting.png "Aqara Advanced Lighting")
+![Aqara Advanced Lighting](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/main/images/aqara-advanced-lighting.png "Aqara Advanced Lighting")
 
 [Home Assistant](https://www.home-assistant.io/) integration for advanced control of the Aqara [T1M Ceiling Light](https://www.aqara.com/en/product/ceiling-light-t1m/), [T1 LED Strip](https://www.aqara.com/en/product/led-strip-t1/), and [T2 bulbs](https://www.aqara.com/en/product/led-bulb-t2/) via [Zigbee2MQTT](https://www.zigbee2mqtt.io/).
 
@@ -204,6 +204,8 @@ The features of Advanced Aqara Lighting can be used in multiple ways: with the f
 
 ### Frontend Panel
 
+![Aqara Advanced Lighting Frontend UI](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/activate.png "Aqara Advanced Lighting Frontend UI")
+
 Access the Aqara Lighting panel from the Home Assistant sidebar for a user-friendly interface to control your lights and create effects and patterns.
 
 #### Favorite Lights
@@ -216,6 +218,8 @@ Save your frequently used lights and light groups as favorites for quick access:
 - Adjust brightness with the slider
 
 #### Preset Management
+
+![Aqara Advanced Lighting Presets Manager](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/presets.png " Aqara Advanced Lighting Presets Manager")
 
 Create, organize, and use custom presets for all features:
 
@@ -232,17 +236,21 @@ Create, organize, and use custom presets for all features:
 - Delete presets you no longer need
 - Sort presets alphabetically or by date
 - All presets persist across restarts
+- Backup and restore functions for user saved presets
 
 **Applying Presets**
-1. Select target light(s) from favorites or the dropdown
+1. Select target light(s) from favorites or target searchbar
 2. Choose a preset from any category
 3. Click the preset to apply immediately
 
-#### Visual Editors
+### Visual Editors
 
 Create custom effects and patterns with interactive builders:
 
 **Effect Editor**
+
+![Aqara Advanced Lighting Effects Editor](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/effects.png " Aqara Advanced Lighting Effects Editor")
+
 - Select from 13 effect types
 - Add up to 8 colors using color pickers
 - Adjust speed and brightness with sliders
@@ -251,6 +259,9 @@ Create custom effects and patterns with interactive builders:
 - Save as custom preset for reuse
 
 **Segment Pattern Editor**
+
+![Aqara Advanced Lighting Pattern Editor](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/pattern.png " Aqara Advanced Lighting Pattern Editor")
+
 - Visual segment selector shows all available segments
 - Click segments to assign colors
 - Create gradients across multiple segments
@@ -260,6 +271,9 @@ Create custom effects and patterns with interactive builders:
 - Save patterns as custom presets
 
 **CCT Sequence Editor**
+
+![Aqara Advanced Lighting CCT Sequencer](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/cct.png " Aqara Advanced Lighting CCT Sequencer")
+
 - Build multi-step sequences (up to 20 steps)
 - Set color temperature and brightness per step
 - Configure transition and hold durations
@@ -269,6 +283,9 @@ Create custom effects and patterns with interactive builders:
 - Save sequences as custom presets
 
 **RGB Segment Sequence Editor**
+
+![Aqara Advanced Lighting Segment Sequencer](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/segments.png " Aqara Advanced Lighting Segment Sequencer")
+
 - Create animated segment patterns (up to 20 steps)
 - Choose color mode: gradient, blocks, or individual
 - Select activation pattern: sequential, random, simultaneous, and more
@@ -279,6 +296,8 @@ Create custom effects and patterns with interactive builders:
 - Save sequences as custom presets
 
 #### Device Configuration
+
+![Aqara Advanced Lighting evice Configuration](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/devices.png " Aqara Advanced Lighting evice Configuration")
 
 Configure device-specific settings directly from the Device Config tab in the panel:
 
