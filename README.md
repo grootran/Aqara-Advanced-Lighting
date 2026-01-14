@@ -98,6 +98,49 @@ Restart Home Assistant
 1. Copy the `custom_components/aqara_advanced_lighting` folder to your Home Assistant `custom_components` directory
 2. Restart Home Assistant
 
+## Updating
+
+### Update via HACS
+
+1. Go to **HACS**
+2. Find "Aqara Advanced Lighting"
+3. Click **Update** if an update is available
+4. **Restart Home Assistant**
+5. **Clear your browser cache** (see below)
+
+### Version Mismatch Warning
+
+If you see a version mismatch warning in the panel after updating, this means the backend and frontend versions don't match. This can happen when the browser cache is serving an old version of the frontend.
+
+**To resolve:**
+
+**Desktop Browser:**
+1. Perform a hard refresh to clear the cache:
+   - **Windows/Linux**: `Ctrl + Shift + R` or `Ctrl + F5`
+   - **Mac**: `Cmd + Shift + R`
+2. If the warning persists, clear your browser cache completely:
+   - **Chrome/Edge**: Settings → Privacy and security → Clear browsing data → Cached images and files
+   - **Firefox**: Settings → Privacy & Security → Cookies and Site Data → Clear Data → Cached Web Content
+   - **Safari**: Develop → Empty Caches (or Settings → Advanced → Show Develop menu)
+3. Close and reopen the browser tab
+4. If still showing, restart Home Assistant
+
+**Mobile App (Home Assistant Companion):**
+1. **iOS**:
+   - Go to **Settings** → **Apps** → **Home Assistant** → **Clear cache**
+   - Force close the app and reopen
+2. **Android**:
+   - Go to **Settings** → **Apps** → **Home Assistant** → **Clear cache**
+   - Force close the app and reopen
+
+### Manual Update
+
+If you installed manually:
+1. Download the latest release from [GitHub Releases](https://github.com/absent42/Aqara-Advanced-Lighting/releases)
+2. Replace the `custom_components/aqara_advanced_lighting` folder
+3. Restart Home Assistant
+4. Clear browser cache (see above)
+
 ## Configuration
 
 ### Setup
