@@ -1,6 +1,8 @@
 # Aqara Advanced Lighting
 
 [![GitHub Release][releases-shield]][releases]
+[![License][license-shield]](LICENSE)
+[![hacs][hacsbadge]][hacs]
 
 ![Aqara Advanced Lighting](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/main/images/aqara-advanced-lighting.png "Aqara Advanced Lighting")
 
@@ -108,7 +110,17 @@ Restart Home Assistant
 4. **Restart Home Assistant**
 5. **Clear your browser cache** (see below)
 
-### Version Mismatch Warning
+### Manual Update
+
+If you installed manually:
+1. Download the latest release from [GitHub Releases](https://github.com/absent42/Aqara-Advanced-Lighting/releases)
+2. Replace the `custom_components/aqara_advanced_lighting` folder
+3. Restart Home Assistant
+4. Clear browser cache (see above)
+
+<details>
+<summary>Version Mismatch Warning
+</summary>
 
 If you see a version mismatch warning in the panel after updating, this means the backend and frontend versions don't match. This can happen when the browser cache is serving an old version of the frontend.
 
@@ -132,14 +144,7 @@ If you see a version mismatch warning in the panel after updating, this means th
 2. **Android**:
    - Go to **Settings** → **Apps** → **Home Assistant** → **Clear cache**
    - Force close the app and reopen
-
-### Manual Update
-
-If you installed manually:
-1. Download the latest release from [GitHub Releases](https://github.com/absent42/Aqara-Advanced-Lighting/releases)
-2. Replace the `custom_components/aqara_advanced_lighting` folder
-3. Restart Home Assistant
-4. Clear browser cache (see above)
+</details>
 
 ## Configuration
 
@@ -152,6 +157,38 @@ If you installed manually:
 
 The integration will automatically discover your Aqara lights through Zigbee2MQTT.
 
+### Configuration Parameters
+
+The integration requires one configuration parameter during setup:
+
+#### Zigbee2MQTT Base Topic
+
+- **Parameter**: `Zigbee2MQTT base topic`
+- **Default**: `zigbee2mqtt`
+- **Required**: Yes
+- **Type**: String
+
+**Description**:
+The MQTT base topic used by your Zigbee2MQTT installation. This integration subscribes to MQTT messages under this topic to discover and communicate with Aqara lights. The base topic must match the `base_topic` configured in your Zigbee2MQTT `configuration.yaml`.
+
+**Examples**:
+- Default installation: `zigbee2mqtt`
+- Custom topic: `z2m`
+- Hierarchical topic: `home/zigbee2mqtt`
+
+**Finding your Z2M base topic**:
+
+1. Open your Zigbee2MQTT `configuration.yaml` file
+2. Look for the `mqtt` section
+3. Find the `base_topic` setting
+4. Use that exact value in this integration
+
+**Troubleshooting**:
+- If devices are not discovered, verify the base topic matches your Z2M configuration
+- Check that MQTT integration is properly configured and connected
+- Ensure Zigbee2MQTT is running and connected to the same MQTT broker
+- Use the Reconfigure option to update the base topic if it changes
+
 ### Reconfiguration
 
 To change the Z2M base topic:
@@ -160,55 +197,6 @@ To change the Z2M base topic:
 3. Click the three dots menu → "Reconfigure"
 4. Update the base topic
 5. Click "Submit"
-
-### Configuration Parameters
-
-The integration requires one configuration parameter during setup:
-
-#### Zigbee2MQTT Base Topic
-
-**Parameter**: `Zigbee2MQTT base topic`
-**Default**: `zigbee2mqtt`
-**Required**: Yes
-**Type**: String
-
-**Description**:
-The MQTT base topic used by your Zigbee2MQTT installation. This integration subscribes to MQTT messages under this topic to discover and communicate with Aqara lights. The base topic must match the `base_topic` configured in your Zigbee2MQTT `configuration.yaml`.
-
-**How it works**:
-- The integration listens to `{base_topic}/bridge/devices` for device discovery
-- Commands are published to `{base_topic}/{device_friendly_name}/set`
-- State updates are received from `{base_topic}/{device_friendly_name}`
-
-**Valid values**:
-- Must not be empty
-- Can contain letters, numbers, underscores, and hyphens
-- Common values: `zigbee2mqtt` (default), `z2m`, `zigbee`, `mqtt/zigbee`
-- Must match your Z2M configuration exactly
-
-**Examples**:
-- Default installation: `zigbee2mqtt`
-- Custom topic: `z2m`
-- Hierarchical topic: `home/zigbee2mqtt`
-
-**Finding your Z2M base topic**:
-1. Open your Zigbee2MQTT `configuration.yaml` file
-2. Look for the `mqtt` section
-3. Find the `base_topic` setting
-4. Use that exact value in this integration
-
-Example Z2M configuration:
-```yaml
-mqtt:
-  base_topic: zigbee2mqtt
-  server: mqtt://localhost:1883
-```
-
-**Troubleshooting**:
-- If devices are not discovered, verify the base topic matches your Z2M configuration
-- Check that MQTT integration is properly configured and connected
-- Ensure Zigbee2MQTT is running and connected to the same MQTT broker
-- Use the Reconfigure option to update the base topic if it changes
 
 ### Removal
 
@@ -241,6 +229,7 @@ To remove the integration from Home Assistant:
 
 **Note**: Removing the integration does not affect your Zigbee2MQTT configuration or your Aqara lights themselves. The lights will continue to work with Zigbee2MQTT and the standard Home Assistant MQTT Light integration.
 
+
 ## Usage
 
 The features of Advanced Aqara Lighting can be used in multiple ways: with the frontend sidebar UI panel for quick access and preset creation through visual editors, or through Home Assistant services for use in automations and scripts. Presets created in the frontend are also available in backend services.
@@ -250,6 +239,8 @@ The features of Advanced Aqara Lighting can be used in multiple ways: with the f
 ![Aqara Advanced Lighting Frontend UI](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/activate.png "Aqara Advanced Lighting Frontend UI")
 
 Access the Aqara Lighting panel from the Home Assistant sidebar for a user-friendly interface to control your lights and create effects and patterns.
+
+![Aqara Advanced Lighting Sidebar](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/sidebar.png "Aqara Advanced Lighting Sidebar")
 
 #### Favorite Lights
 
@@ -1395,3 +1386,6 @@ This is an unofficial integration and is not provided by or supported by Aqara.
 
 [releases-shield]: https://img.shields.io/github/release/absent42/Aqara-Advanced-Lighting?style=for-the-badge
 [releases]: https://github.com/absent42/Aqara-Advanced-Lighting/releases
+[license-shield]: https://img.shields.io/github/license/absent42/Aqara-Advanced-Lighting?style=for-the-badge
+[hacsbadge]: https://img.shields.io/badge/HACS-Default-41BDF5?style=for-the-badge
+[hacs]: https://github.com/hacs/integration
