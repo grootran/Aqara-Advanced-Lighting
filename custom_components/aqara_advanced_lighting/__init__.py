@@ -160,21 +160,17 @@ async def async_unload_entry(
     if DATA_SEGMENT_SEQUENCE_MANAGER in hass.data[DOMAIN]:
         del hass.data[DOMAIN][DATA_SEGMENT_SEQUENCE_MANAGER]
 
-    # Check if this is the last config entry
-    remaining_entries = [
-        e for e in hass.config_entries.async_entries(DOMAIN) if e.entry_id != entry.entry_id
-    ]
+    # NOTE: Services are NOT unloaded here because they are integration-level
+    # (registered in async_setup) and should persist even when config entries
+    # are removed or reloaded. Unloading services during config entry reload
+    # causes "Unable to remove unknown service" warnings because async_setup()
+    # is not called again during reload to re-register them.
+    #
+    # Integration-level resources (preset_store, favorites_store, services, panel)
+    # persist for the lifetime of the integration in Home Assistant and are
+    # automatically cleaned up when HA shuts down.
 
-    # Unload services only if no more config entries
-    # NOTE: Do NOT remove hass.data[DOMAIN] entirely because it contains
-    # integration-level data (preset_store, favorites_store) that should
-    # persist even when no config entries exist. The panel and services
-    # still need access to these stores.
-    if not remaining_entries:
-        await async_unload_services(hass)
-        _LOGGER.info(
-            "Last config entry removed, but keeping integration-level data (presets, favorites)"
-        )
+    _LOGGER.info("Config entry unloaded, integration-level resources preserved")
 
     return True
 
