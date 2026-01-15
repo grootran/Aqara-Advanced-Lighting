@@ -5,6 +5,36 @@ All notable changes to the Aqara Advanced Lighting integration will be documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] - 2026-01-15
+
+### Bug Fixes
+
+#### Fixed Preset Store Initialization Error
+
+- **Resolved "Preset store not initialized" errors** in panel and services
+  - Preset store was being deleted when config entries were removed
+  - Integration-level data (preset_store, favorites_store) now persists independently of config entries
+  - Panel and services remain functional even without active config entries
+  - Added prevention of re-initialization if stores already exist
+  - Improved error logging for easier debugging
+
+#### Fixed Service Unload Warnings During Reload
+
+- **Eliminated "Unable to remove unknown service" warnings** during config entry reload
+  - Services are now correctly managed as integration-level resources
+  - Services persist for the integration's lifetime instead of being unloaded with config entries
+  - Fixed lifecycle mismatch where services were registered once but unloaded on each reload
+  - All 13 integration services now remain available throughout HA session
+
+### Technical Improvements
+
+- **Integration Resource Management**
+  - Clear separation between integration-level and config-entry-level resources
+  - Integration-level (persistent): Services, panel, preset store, favorites store
+  - Config-entry-level (per-entry): MQTT client, state manager, sequence managers
+  - Improved lifecycle management and cleanup procedures
+  - Better alignment with Home Assistant integration best practices
+
 ## [0.6.1] - 2026-01-14
 
 ### What's New

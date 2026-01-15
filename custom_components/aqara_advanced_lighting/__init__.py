@@ -43,14 +43,20 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     hass.data.setdefault(DOMAIN, {})
 
     # Initialize favorites store (per-user favorites for the panel)
-    favorites_store = FavoritesStore(hass)
-    await favorites_store.async_load()
-    hass.data[DOMAIN][DATA_FAVORITES_STORE] = favorites_store
+    # Only initialize if not already present (handles config entry removal/re-add)
+    if DATA_FAVORITES_STORE not in hass.data[DOMAIN]:
+        favorites_store = FavoritesStore(hass)
+        await favorites_store.async_load()
+        hass.data[DOMAIN][DATA_FAVORITES_STORE] = favorites_store
+        _LOGGER.debug("Favorites store initialized")
 
     # Initialize preset store (global user-created presets)
-    preset_store = PresetStore(hass)
-    await preset_store.async_load()
-    hass.data[DOMAIN][DATA_PRESET_STORE] = preset_store
+    # Only initialize if not already present (handles config entry removal/re-add)
+    if DATA_PRESET_STORE not in hass.data[DOMAIN]:
+        preset_store = PresetStore(hass)
+        await preset_store.async_load()
+        hass.data[DOMAIN][DATA_PRESET_STORE] = preset_store
+        _LOGGER.debug("Preset store initialized")
 
     # Register services
     await async_setup_services(hass)
@@ -154,15 +160,17 @@ async def async_unload_entry(
     if DATA_SEGMENT_SEQUENCE_MANAGER in hass.data[DOMAIN]:
         del hass.data[DOMAIN][DATA_SEGMENT_SEQUENCE_MANAGER]
 
-    # Check if this is the last config entry
-    remaining_entries = [
-        e for e in hass.config_entries.async_entries(DOMAIN) if e.entry_id != entry.entry_id
-    ]
+    # NOTE: Services are NOT unloaded here because they are integration-level
+    # (registered in async_setup) and should persist even when config entries
+    # are removed or reloaded. Unloading services during config entry reload
+    # causes "Unable to remove unknown service" warnings because async_setup()
+    # is not called again during reload to re-register them.
+    #
+    # Integration-level resources (preset_store, favorites_store, services, panel)
+    # persist for the lifetime of the integration in Home Assistant and are
+    # automatically cleaned up when HA shuts down.
 
-    # Unload services only if no more config entries
-    if not remaining_entries:
-        await async_unload_services(hass)
-        hass.data.pop(DOMAIN, None)
+    _LOGGER.info("Config entry unloaded, integration-level resources preserved")
 
     return True
 
