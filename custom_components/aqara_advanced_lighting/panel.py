@@ -398,8 +398,19 @@ class FavoriteView(HomeAssistantView):
 def _get_preset_store(hass: HomeAssistant) -> PresetStore | None:
     """Get the preset store from hass.data."""
     if DOMAIN not in hass.data:
+        _LOGGER.error(
+            "Integration domain not found in hass.data - integration may not be set up"
+        )
         return None
-    return hass.data[DOMAIN].get(DATA_PRESET_STORE)
+    preset_store = hass.data[DOMAIN].get(DATA_PRESET_STORE)
+    if preset_store is None:
+        _LOGGER.error(
+            "Preset store not found in hass.data[%s] - this should not happen. "
+            "Available keys: %s",
+            DOMAIN,
+            list(hass.data[DOMAIN].keys()),
+        )
+    return preset_store
 
 
 class UserPresetsView(HomeAssistantView):
