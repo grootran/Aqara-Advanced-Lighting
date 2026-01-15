@@ -2,7 +2,6 @@
 
 [![GitHub Release][releases-shield]][releases]
 [![License][license-shield]](LICENSE)
-[![hacs][hacsbadge]][hacs]
 
 ![Aqara Advanced Lighting](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/main/images/aqara-advanced-lighting.png "Aqara Advanced Lighting")
 
