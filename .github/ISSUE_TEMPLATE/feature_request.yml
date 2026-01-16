@@ -1,0 +1,164 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for the integration
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new feature! Please provide as much detail as possible to help us understand your request.
+
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: Prerequisites
+      description: Please confirm the following before submitting a feature request
+      options:
+        - label: I have searched existing issues to ensure this is not a duplicate
+          required: true
+        - label: I have reviewed the documentation to confirm this feature doesn't already exist
+          required: true
+
+  - type: dropdown
+    id: feature_category
+    attributes:
+      label: Feature Category
+      description: What category does this feature fall under?
+      options:
+        - New device support
+        - New effect type
+        - New service
+        - Panel UI enhancement
+        - Preset management
+        - Automation capabilities
+        - Configuration options
+        - Performance improvement
+        - Integration with other systems
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: |
+        Is your feature request related to a problem? Please describe.
+        Example: "I'm always frustrated when..."
+      placeholder: Describe the problem or limitation you're facing
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution you'd like to see implemented
+      placeholder: A clear and concise description of what you want to happen
+    validations:
+      required: true
+
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Use Case
+      description: |
+        Describe your use case and how this feature would be used.
+        Provide specific examples or scenarios where this would be beneficial.
+      placeholder: |
+        Example:
+        1. I want to create a sunrise simulation that gradually changes both color and brightness
+        2. This would allow more natural wake-up lighting
+        3. Currently I can only do this with complex automations
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: |
+        Have you considered any alternative solutions or workarounds?
+        What are you currently doing to work around this limitation?
+      placeholder: Describe any alternative solutions or features you've considered
+    validations:
+      required: false
+
+  - type: dropdown
+    id: device_models
+    attributes:
+      label: Applicable Device Models
+      description: Which device models would this feature apply to?
+      multiple: true
+      options:
+        - T1M (20/26 segment ring light)
+        - T1 Strip (RGB LED strip)
+        - T2 RGB/CCT bulb
+        - All devices
+        - Not device-specific
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical_details
+    attributes:
+      label: Technical Details
+      description: |
+        If you have technical knowledge, provide details about how this might be implemented:
+        - MQTT messages or commands
+        - Zigbee2MQTT capabilities
+        - Home Assistant patterns
+        - API considerations
+      placeholder: Any technical details or implementation ideas
+      render: markdown
+    validations:
+      required: false
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: Examples from Other Integrations
+      description: |
+        Are there similar features in other integrations that could serve as examples?
+        (e.g., WLED, Philips Hue, other lighting integrations)
+      placeholder: References to similar features in other integrations
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this feature to you?
+      options:
+        - Nice to have
+        - Would significantly improve my setup
+        - Critical for my use case
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional Context
+      description: |
+        Add any other context about the feature request:
+        - Screenshots or mockups
+        - Links to related discussions
+        - Example configurations
+        - Related features or dependencies
+      placeholder: Any additional information that might help
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      description: Would you be willing to help implement this feature?
+      options:
+        - label: I am willing to test this feature
+        - label: I am willing to contribute code (with guidance)
+        - label: I am willing to contribute documentation
+        - label: I can provide device hardware for testing
