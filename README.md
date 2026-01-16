@@ -386,7 +386,16 @@ Configure device-specific settings directly from the Device Config tab in the pa
 
 ### Backend Services
 
-Call these services from automations, scripts, or the Developer Tools.
+In addition to the frontend, features are also available as service actions from within Home Assistant. Call these services from automations, scripts, or the Developer Tools.
+
+To use the services within an automation, when adding a "Then do" action scroll down to other actions - Aqara Advanced Lighting, and select an action.
+
+![Aqara Advanced Lighting](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/main/images/automation.png "Aqara Advanced Lighting Automation")
+
+A UI will pop up showing the parameters for configuring the action. To edit the yaml directly, click the 3 dots on the upper left and select "Edit in YAML".
+
+![Aqara Advanced Lighting](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/main/images/action.png "Aqara Advanced Lighting Action")
+
 
 <details>
 <summary>

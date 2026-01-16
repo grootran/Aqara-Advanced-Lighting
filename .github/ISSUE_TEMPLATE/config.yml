@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/absent42/Aqara-Advanced-Lighting/blob/main/README.md
+    about: View the integration documentation and setup guide
+  - name: Troubleshooting Guide
+    url: https://github.com/absent42/Aqara-Advanced-Lighting/blob/main/README.md#troubleshooting
+    about: Common issues and solutions
+  - name: Home Assistant Community
+    url: https://community.home-assistant.io/
+    about: Ask questions and discuss with the Home Assistant community
+  - name: Zigbee2MQTT Documentation
+    url: https://www.zigbee2mqtt.io/
+    about: Zigbee2MQTT setup and device-specific information
