@@ -9,24 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### What's New
 
-Version 0.7.0 introduces enhanced color accuracy with a new XY-based color picker, visual segment selection, and improved segment sequence capabilities. This release focuses on user experience improvements and color fidelity.
+Version 0.7.0 introduces enhanced color accuracy with a new XY-based color picker, visual segment pattern edtior for segment sequences,visual segment selection for T1 Strip effects, and improved segment sequence capabilities. This release focuses on user experience improvements and color fidelity.
 
 ### New Features
 
-#### XY Color Picker Component
-
-- **Replaced HS Color Picker** with more accurate XY-based circular color wheel
-  - Uses CIE 1931 XY color space for device-independent color representation
-  - Improved color accuracy and consistency across devices
-  - Real-time RGB input fields for precise color specification
-  - Smooth gradient rendering from white center to fully saturated edges
-  - Visual feedback when RGB-to-XY conversion adjusts values
-  - Touch-friendly interface with draggable marker
-  - Responsive design adapts to different screen sizes
-
 #### Segment Selector Component
 
-- **Visual Segment Selection** for patterns and sequences
+- **Visual Segment Selection** for segment sequences
   - Interactive visual representation of all available segments
   - Click or tap segments to select/deselect
   - Visual feedback showing selected segments
@@ -34,6 +23,16 @@ Version 0.7.0 introduces enhanced color accuracy with a new XY-based color picke
   - Support for T1M (20 or 26 segments) and T1 Strip (variable length)
   - Clear selected segments button for quick reset
   - Compact display optimized for mobile and desktop
+
+#### XY Color Picker Component
+
+- **Replaced HS Color Picker** with more accurate XY-based circular color wheel
+  - Uses CIE 1931 XY color space for device-independent color representation
+  - Improved color accuracy and consistency across devices
+  - RGB input fields for precise color specification
+  - Visual feedback when RGB-to-XY conversion adjusts values
+  - Touch-friendly interface with draggable marker
+  - Responsive design adapts to different screen sizes
 
 #### Enhanced Segment Sequences
 
@@ -71,7 +70,7 @@ Version 0.7.0 introduces enhanced color accuracy with a new XY-based color picke
 
 - **Frontend Refactoring**
   - Removed deprecated hs-color-picker.ts component
-  - Added modern xy-color-picker.ts with better performance
+  - Added xy-color-picker.ts with better performance
   - Added reusable segment-selector.js component
   - Cleaner code structure with better separation of concerns
   - Reduced duplication across editor components
@@ -127,13 +126,6 @@ None. This release is fully backward compatible with v0.6.2.
 - All existing presets and configurations preserved
 - No configuration changes required
 - Preset backup files are forward-compatible
-
-### Requirements
-
-- Home Assistant 2025.12.0 or newer
-- MQTT integration configured
-- Zigbee2MQTT 2.7.2 or newer
-- Supported Aqara devices (see README)
 
 ### Upgrade from v0.6.2
 
