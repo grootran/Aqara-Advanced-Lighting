@@ -143,6 +143,15 @@ function hsToRgb(h, s) {
 }
 
 /**
+ * Calculate complementary color by rotating hue by 180 degrees
+ */
+function getComplementaryColor(xy) {
+  const hs = xyToHs(xy);
+  const newHue = (hs.h + 180) % 360;
+  return hsToXy({ h: newHue, s: hs.s });
+}
+
+/**
  * Convert RGB to XY color space
  */
 function rgbToXy(r, g, b) {
@@ -699,10 +708,6 @@ class SegmentSelector extends LitElement {
           width: calc(50% - 4px);
         }
 
-        .color-palette {
-          justify-content: center;
-        }
-
         .mode-tabs {
           overflow-x: auto;
         }
@@ -1100,7 +1105,9 @@ class SegmentSelector extends LitElement {
 
   _addGradientColor() {
     if (this.gradientColors.length >= 6) return;
-    this.gradientColors = [...this.gradientColors, { x: 0.4200, y: 0.5100 }];
+    const lastColor = this.gradientColors[this.gradientColors.length - 1];
+    const newColor = getComplementaryColor(lastColor);
+    this.gradientColors = [...this.gradientColors, newColor];
     this._fireGradientColorsChanged();
   }
 
@@ -1112,7 +1119,9 @@ class SegmentSelector extends LitElement {
 
   _addBlockColor() {
     if (this.blockColors.length >= 6) return;
-    this.blockColors = [...this.blockColors, { x: 0.2200, y: 0.3300 }];
+    const lastColor = this.blockColors[this.blockColors.length - 1];
+    const newColor = getComplementaryColor(lastColor);
+    this.blockColors = [...this.blockColors, newColor];
     this._fireBlockColorsChanged();
   }
 
@@ -1680,6 +1689,8 @@ class SegmentSelector extends LitElement {
             </button>
           </div>
         `)}
+      </div>
+      <div class="generated-actions">
         <ha-button
           @click=${this._applyToSelected}
           .disabled=${this._selectedSegments.size === 0}
@@ -1796,12 +1807,6 @@ class SegmentSelector extends LitElement {
       return html`
         <span class="hint">
           Click to select, Shift+click for range, Ctrl/Cmd+click to toggle multiple
-        </span>
-      `;
-    } else if (this.mode === 'color' || this.mode === 'sequence') {
-      return html`
-        <span class="hint">
-          Select a color from palette, then click segments to apply. Use Select/Clear modes for bulk operations.
         </span>
       `;
     }

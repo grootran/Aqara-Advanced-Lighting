@@ -1,7 +1,7 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, RGBColor, XYColor, UserEffectPreset } from './types';
-import { xyToHex, rgbToXy } from './color-utils';
+import { xyToHex, rgbToXy, getComplementaryColor } from './color-utils';
 import { colorPickerStyles } from './styles';
 import './xy-color-picker';
 
@@ -302,8 +302,10 @@ export class EffectEditor extends LitElement {
 
   private _addColor(): void {
     if (this._colors.length < 8) {
-      // Add white in XY space (D65 white point)
-      this._colors = [...this._colors, { x: 0.3127, y: 0.3290 }];
+      // Get the last color and calculate its complementary color
+      const lastColor = this._colors[this._colors.length - 1] || { x: 0.6800, y: 0.3100 }; // Default to red if undefined
+      const newColor = getComplementaryColor(lastColor);
+      this._colors = [...this._colors, newColor];
     }
   }
 
