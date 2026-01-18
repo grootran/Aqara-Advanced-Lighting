@@ -5,6 +5,143 @@ All notable changes to the Aqara Advanced Lighting integration will be documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-01-18
+
+### What's New
+
+Version 0.7.0 introduces enhanced color accuracy with a new XY-based color picker, visual segment selection, and improved segment sequence capabilities. This release focuses on user experience improvements and color fidelity.
+
+### New Features
+
+#### XY Color Picker Component
+
+- **Replaced HS Color Picker** with more accurate XY-based circular color wheel
+  - Uses CIE 1931 XY color space for device-independent color representation
+  - Improved color accuracy and consistency across devices
+  - Real-time RGB input fields for precise color specification
+  - Smooth gradient rendering from white center to fully saturated edges
+  - Visual feedback when RGB-to-XY conversion adjusts values
+  - Touch-friendly interface with draggable marker
+  - Responsive design adapts to different screen sizes
+
+#### Segment Selector Component
+
+- **Visual Segment Selection** for patterns and sequences
+  - Interactive visual representation of all available segments
+  - Click or tap segments to select/deselect
+  - Visual feedback showing selected segments
+  - Automatic segment count detection based on device type
+  - Support for T1M (20 or 26 segments) and T1 Strip (variable length)
+  - Clear selected segments button for quick reset
+  - Compact display optimized for mobile and desktop
+
+#### Enhanced Segment Sequences
+
+- **Direct Segment Color Assignment** in RGB segment sequences
+  - New `segment_colors` field for explicit segment-to-color mapping
+  - Simplifies sequence creation with direct control
+  - Backward compatible with existing mode/colors/gradient approach
+  - More flexible than pattern modes for complex animations
+  - Backend validation ensures data integrity
+
+### Improvements
+
+#### Frontend Enhancements
+
+- **Color Picker UX**
+  - Replaced all HS color pickers with XY color pickers throughout panel
+  - Consistent color behavior across effects, patterns, and sequences
+  - RGB input fields provide precise numerical color control
+  - Visual marker shows exact selected color on wheel
+  - Improved accessibility with clear visual indicators
+
+- **Pattern Editor**
+  - New segment selector replaces text input for segment ranges
+  - Visual representation makes it easier to design patterns
+  - See exactly which segments will be affected before applying
+  - Cleaner interface with reduced clutter
+
+- **Segment Sequence Editor**
+  - Segment selector integrated for each sequence step
+  - Visual feedback for segment assignments
+  - Easier to create complex multi-step sequences
+  - Improved step management UI
+
+#### Code Quality
+
+- **Frontend Refactoring**
+  - Removed deprecated hs-color-picker.ts component
+  - Added modern xy-color-picker.ts with better performance
+  - Added reusable segment-selector.js component
+  - Cleaner code structure with better separation of concerns
+  - Reduced duplication across editor components
+  - Improved type safety with TypeScript
+
+- **Backend Improvements**
+  - Enhanced SegmentSequenceStep model to support direct segment colors
+  - Backward compatible validation for legacy sequence formats
+  - Improved error messaging for validation failures
+  - Better code organization in segment sequence manager
+
+### Technical Changes
+
+#### New Files
+
+- `frontend_src/src/xy-color-picker.ts` - XY-based circular color wheel component
+- `frontend/segment-selector.js` - Visual segment selection component (compiled)
+
+#### Removed Files
+
+- `frontend_src/src/hs-color-picker.ts` - Replaced by XY color picker
+
+#### Updated Files
+
+- **Frontend**
+  - `aqara-panel.ts` - Integrated XY color picker and segment selector
+  - `effect-editor.ts` - Updated to use XY color picker
+  - `pattern-editor.ts` - Updated to use segment selector and XY color picker
+  - `segment-sequence-editor.ts` - Updated to use segment selector and XY color picker
+  - `styles.ts` - Updated styles for new components
+  - `types.ts` - Added XYColor type definitions
+  - `index.ts` - Registered new XY color picker component
+
+- **Backend**
+  - `models.py` - Enhanced SegmentSequenceStep with segment_colors field
+  - `panel.py` - Added segment selector JavaScript endpoint
+  - `services.py` - Updated to handle new segment sequence format
+  - `segment_sequence_manager.py` - Enhanced step execution for direct segment colors
+  - `const.py` - Updated constants for new features
+
+### Breaking Changes
+
+None. This release is fully backward compatible with v0.6.2.
+
+- Existing sequences using mode/colors/gradient continue to work
+- New segment_colors field is optional
+- Frontend automatically uses XY color picker without user intervention
+- All saved presets remain compatible
+
+### Compatibility
+
+- Fully backward compatible with v0.6.2
+- All existing presets and configurations preserved
+- No configuration changes required
+- Preset backup files are forward-compatible
+
+### Requirements
+
+- Home Assistant 2025.12.0 or newer
+- MQTT integration configured
+- Zigbee2MQTT 2.7.2 or newer
+- Supported Aqara devices (see README)
+
+### Upgrade from v0.6.2
+
+1. Update the integration through HACS
+2. Restart Home Assistant
+3. Clear browser cache (Ctrl+Shift+R or Cmd+Shift+R)
+4. All existing presets and configurations are preserved
+
 ## [0.6.2] - 2026-01-15
 
 ### Bug Fixes
@@ -782,3 +919,4 @@ One click HACS cutton
 [0.6.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.6.0
 [0.6.1]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.6.1
 [0.6.2]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.6.2
+[0.7.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.7.0

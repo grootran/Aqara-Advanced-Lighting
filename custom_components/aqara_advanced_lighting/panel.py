@@ -64,8 +64,9 @@ async def async_register_panel(hass: HomeAssistant) -> None:
         require_admin=False,
     )
 
-    # Register the frontend JavaScript file endpoint
+    # Register the frontend JavaScript file endpoints
     hass.http.register_view(PanelJavaScriptView)
+    hass.http.register_view(SegmentSelectorJavaScriptView)
 
     # Register the presets data endpoint
     hass.http.register_view(PresetsDataView)
@@ -111,6 +112,40 @@ class PanelJavaScriptView(HomeAssistantView):
         if not file_path.exists():
             _LOGGER.error("Panel JavaScript file not found: %s", file_path)
             return web.Response(status=404, text="Panel JavaScript file not found")
+
+        # Use executor to avoid blocking I/O
+        def read_file():
+            with open(file_path, "r", encoding="utf-8") as f:
+                return f.read()
+
+        content = await hass.async_add_executor_job(read_file)
+
+        return web.Response(
+            text=content,
+            content_type="application/javascript",
+            headers={"Cache-Control": "no-cache"},
+        )
+
+
+class SegmentSelectorJavaScriptView(HomeAssistantView):
+    """View to serve the segment selector component JavaScript file."""
+
+    url = f"/api/{DOMAIN}/segment-selector.js"
+    name = f"api:{DOMAIN}:segment_selector_js"
+    requires_auth = False
+
+    async def get(self, request: web.Request) -> web.Response:
+        """Serve the segment selector JavaScript file."""
+        hass = request.app["hass"]
+        file_path = Path(
+            hass.config.path(
+                f"custom_components/{DOMAIN}/frontend/segment-selector.js"
+            )
+        )
+
+        if not file_path.exists():
+            _LOGGER.error("Segment selector JavaScript file not found: %s", file_path)
+            return web.Response(status=404, text="Segment selector JavaScript file not found")
 
         # Use executor to avoid blocking I/O
         def read_file():

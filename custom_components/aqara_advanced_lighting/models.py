@@ -367,22 +367,30 @@ class CCTSequence:
 class SegmentSequenceStep:
     """Single step in an RGB segment sequence."""
 
-    segments: str  # Segment range: "1-20", "odd", "even", "1,5,10"
-    colors: list[RGBColor]  # 1-6 colors for blocks or gradient
-    mode: str  # "blocks_repeat", "blocks_expand", or "gradient"
+    segments: str  # Segment range: "1-20", "odd", "even", "1,5,10" (legacy when using segment_colors)
+    colors: list[RGBColor]  # 1-6 colors for blocks or gradient (legacy when using segment_colors)
+    mode: str  # "blocks_repeat", "blocks_expand", or "gradient" (legacy when using segment_colors)
     duration: float  # Total time to activate all segments (seconds)
     hold: float  # Hold time after activation completes before next step (seconds)
     activation_pattern: str  # "all", "sequential_forward", "sequential_reverse", "random"
+    segment_colors: list[SegmentColor] | None = None  # Direct segment assignments (preferred)
 
     def __post_init__(self) -> None:
         """Validate step parameters."""
-        if not (1 <= len(self.colors) <= 6):
-            msg = f"Step must have 1-6 colors, got {len(self.colors)}"
-            raise ValueError(msg)
+        # If using direct segment_colors, skip legacy field validation
+        if self.segment_colors is not None:
+            if not self.segment_colors:
+                msg = "segment_colors cannot be empty when provided"
+                raise ValueError(msg)
+        else:
+            # Legacy mode validation
+            if not (1 <= len(self.colors) <= 6):
+                msg = f"Step must have 1-6 colors, got {len(self.colors)}"
+                raise ValueError(msg)
 
-        if self.mode not in ("blocks_repeat", "blocks_expand", "gradient"):
-            msg = f"Mode must be 'blocks_repeat', 'blocks_expand', or 'gradient', got {self.mode}"
-            raise ValueError(msg)
+            if self.mode not in ("blocks_repeat", "blocks_expand", "gradient"):
+                msg = f"Mode must be 'blocks_repeat', 'blocks_expand', or 'gradient', got {self.mode}"
+                raise ValueError(msg)
 
         if self.duration < 0:
             msg = "Duration cannot be negative"

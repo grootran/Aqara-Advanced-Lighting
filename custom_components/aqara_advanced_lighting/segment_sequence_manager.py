@@ -370,7 +370,7 @@ class SegmentSequenceManager:
         Args:
             segments: List of segment numbers to assign colors to
             colors: List of RGB colors to use
-            mode: "blocks_repeat", "blocks_expand", or "gradient"
+            mode: "individual", "blocks_repeat", "blocks_expand", or "gradient"
 
         Returns:
             List of SegmentColor assignments
@@ -380,7 +380,15 @@ class SegmentSequenceManager:
 
         segment_colors = []
 
-        if mode == "blocks_repeat":
+        if mode == "individual":
+            # Direct 1:1 mapping - colors[i] maps to segments[i]
+            # Only map as many segments as we have colors for
+            for i in range(min(len(segments), len(colors))):
+                segment_colors.append(
+                    SegmentColor(segment=segments[i], color=colors[i])
+                )
+
+        elif mode == "blocks_repeat":
             # Repeat color pattern across segments
             for i, segment in enumerate(segments):
                 color = colors[i % len(colors)]
@@ -613,16 +621,25 @@ class SegmentSequenceManager:
                         )
                         continue
 
-                    # Parse segments
-                    segments = self._parse_segment_range(step.segments, total_segments)
-                    if not segments:
-                        _LOGGER.warning("No valid segments for step %d", step_index + 1)
-                        continue
+                    # Use direct segment assignments if provided (like pattern editor)
+                    # Otherwise generate from mode (legacy)
+                    if step.segment_colors:
+                        segment_colors = step.segment_colors
+                        _LOGGER.debug(
+                            "Using direct segment assignments: %d segments",
+                            len(segment_colors),
+                        )
+                    else:
+                        # Parse segments
+                        segments = self._parse_segment_range(step.segments, total_segments)
+                        if not segments:
+                            _LOGGER.warning("No valid segments for step %d", step_index + 1)
+                            continue
 
-                    # Generate segment colors
-                    segment_colors = self._generate_segment_colors(
-                        segments, step.colors, step.mode
-                    )
+                        # Generate segment colors
+                        segment_colors = self._generate_segment_colors(
+                            segments, step.colors, step.mode
+                        )
 
                     # Apply activation pattern
                     if step.activation_pattern == "all":
@@ -637,8 +654,21 @@ class SegmentSequenceManager:
                                 entity_id,
                                 ex,
                             )
+
+                        # Wait for duration (transition/application time)
+                        if step.duration > 0:
+                            try:
+                                await asyncio.wait_for(
+                                    stop_event.wait(), timeout=step.duration
+                                )
+                                _LOGGER.debug("Sequence stopped during step duration for %s", entity_id)
+                                return
+                            except asyncio.TimeoutError:
+                                pass  # Normal - duration elapsed
                     else:
                         # Sequential activation
+                        # Extract segment numbers from segment_colors for ordering
+                        segments = [sc.segment for sc in segment_colors if isinstance(sc.segment, int)]
                         ordered_segments = self._order_segments_by_pattern(
                             segments, step.activation_pattern
                         )

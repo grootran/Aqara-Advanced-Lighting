@@ -726,8 +726,8 @@ export class AqaraPanel extends LitElement {
   }
 
   private _getT1StripSegmentCount(): number {
-    // Default to 50 segments (10 meters max)
-    const defaultSegments = 50;
+    // Default to 10 segments (2 meters - standard out-of-box T1 Strip length)
+    const defaultSegments = 10;
 
     if (!this._selectedEntities.length || !this.hass) {
       return defaultSegments;
@@ -768,8 +768,8 @@ export class AqaraPanel extends LitElement {
           }
 
           if (lengthMeters !== undefined && lengthMeters > 0) {
-            // 5 segments per meter
-            return Math.round(lengthMeters * 5);
+            // 5 segments per meter - use Math.floor to match backend's int() behavior
+            return Math.floor(lengthMeters * 5);
           }
         }
       }
@@ -1471,15 +1471,23 @@ export class AqaraPanel extends LitElement {
                         const isUnavailable = entityState === 'unavailable' || entityState === 'unknown';
                         const isActive = this._activeFavoriteId === favorite.id;
 
-                        // Determine icon background style
-                        const iconStyle = entityColor
-                          ? `background: ${entityColor};`
-                          : '';
+                        // Determine icon background and color styles
+                        let iconBackgroundStyle = '';
+                        let iconColorStyle = '';
+                        if (entityColor) {
+                          // Extract RGB values and create rgba with 0.2 opacity for background
+                          const rgbMatch = entityColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                          if (rgbMatch) {
+                            const [, r, g, b] = rgbMatch;
+                            iconBackgroundStyle = `background: rgba(${r}, ${g}, ${b}, 0.2);`;
+                            iconColorStyle = `color: ${entityColor};`;
+                          }
+                        }
 
                         return html`
                           <div class="favorite-button ${isOn ? 'state-on' : 'state-off'} ${isUnavailable ? 'state-unavailable' : ''} ${isActive ? 'selected' : ''}" @click=${() => this._selectFavorite(favorite)}>
-                            <div class="favorite-button-icon" style="${iconStyle}">
-                              <ha-icon icon="${entityIcon}"></ha-icon>
+                            <div class="favorite-button-icon" style="${iconBackgroundStyle}">
+                              <ha-icon icon="${entityIcon}" style="${iconColorStyle}"></ha-icon>
                             </div>
                             <div class="favorite-button-content">
                               <div class="favorite-button-name">${favorite.name}</div>
@@ -1698,6 +1706,7 @@ export class AqaraPanel extends LitElement {
           .hasSelectedEntities=${hasSelection}
           .isCompatible=${isCompatible}
           .previewActive=${this._effectPreviewActive}
+          .stripSegmentCount=${this._getT1StripSegmentCount()}
           @save=${this._handleEffectSave}
           @preview=${this._handleEffectPreview}
           @stop-preview=${this._handleEffectStopPreview}
@@ -1973,6 +1982,7 @@ export class AqaraPanel extends LitElement {
           .hasSelectedEntities=${hasSelection}
           .isCompatible=${isCompatible}
           .previewActive=${this._segmentSequencePreviewActive}
+          .stripSegmentCount=${this._getT1StripSegmentCount()}
           @save=${this._handleSegmentSequenceSave}
           @preview=${this._handleSegmentSequencePreview}
           @stop-preview=${this._handleSegmentSequenceStopPreview}
@@ -2018,7 +2028,7 @@ export class AqaraPanel extends LitElement {
 
     // Convert steps array to individual step fields
     if (data.steps && Array.isArray(data.steps)) {
-      data.steps.forEach((step: { segments: string; mode: string; colors: number[][]; duration: number; hold: number; activation_pattern: string }, index: number) => {
+      data.steps.forEach((step: { segments: string; mode: string; colors: number[][]; segment_colors?: Array<{segment: number, color: {r: number, g: number, b: number}}>; duration: number; hold: number; activation_pattern: string }, index: number) => {
         const stepNum = index + 1;
         if (stepNum <= 20) {
           serviceData[`step_${stepNum}_segments`] = step.segments;
@@ -2027,13 +2037,18 @@ export class AqaraPanel extends LitElement {
           serviceData[`step_${stepNum}_hold`] = step.hold;
           serviceData[`step_${stepNum}_activation_pattern`] = step.activation_pattern;
 
-          // Add individual color parameters (up to 6 colors per step)
-          if (step.colors && Array.isArray(step.colors)) {
-            step.colors.forEach((color: number[], colorIndex: number) => {
-              if (colorIndex < 6) {
-                serviceData[`step_${stepNum}_color_${colorIndex + 1}`] = color;
-              }
-            });
+          // Add segment_colors if provided (new format)
+          if (step.segment_colors && Array.isArray(step.segment_colors) && step.segment_colors.length > 0) {
+            serviceData[`step_${stepNum}_segment_colors`] = step.segment_colors;
+          } else {
+            // Fallback to individual color parameters (legacy format, up to 6 colors per step)
+            if (step.colors && Array.isArray(step.colors)) {
+              step.colors.forEach((color: number[], colorIndex: number) => {
+                if (colorIndex < 6) {
+                  serviceData[`step_${stepNum}_color_${colorIndex + 1}`] = color;
+                }
+              });
+            }
           }
         }
       });

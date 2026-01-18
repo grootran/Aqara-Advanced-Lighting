@@ -1,9 +1,9 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { HomeAssistant, SegmentSequenceStep, XYColor, HSColor, UserSegmentSequencePreset } from './types';
-import { xyToHex, xyToRgb, rgbToXy, xyToHs, hsToXy, hsToRgb } from './color-utils';
+import { HomeAssistant, SegmentSequenceStep, XYColor, UserSegmentSequencePreset } from './types';
+import { xyToRgb, rgbToXy } from './color-utils';
 import { colorPickerStyles } from './styles';
-import './hs-color-picker';
+// Note: hs-color-picker import removed - now handled by segment-selector
 
 const DEVICE_LABELS: Record<string, string> = {
   t1: 'T1 (20 segments)',
@@ -11,9 +11,35 @@ const DEVICE_LABELS: Record<string, string> = {
   t1_strip: 'T1 Strip (up to 50 segments)',
 };
 
+// Default palette colors in XY space (same as pattern editor)
+const DEFAULT_PALETTE: XYColor[] = [
+  { x: 0.6800, y: 0.3100 },    // Red
+  { x: 0.1700, y: 0.7000 },    // Green
+  { x: 0.1500, y: 0.0600 },    // Blue
+  { x: 0.4200, y: 0.5100 },    // Yellow
+  { x: 0.3800, y: 0.1600 },    // Magenta
+  { x: 0.2200, y: 0.3300 },    // Cyan
+];
+
+const DEFAULT_GRADIENT_COLORS: XYColor[] = [
+  { x: 0.6800, y: 0.3100 },  // Red
+  { x: 0.1500, y: 0.0600 },  // Blue
+];
+
+const DEFAULT_BLOCK_COLORS: XYColor[] = [
+  { x: 0.6800, y: 0.3100 },  // Red
+  { x: 0.1700, y: 0.7000 },  // Green
+];
+
 interface EditableStep extends SegmentSequenceStep {
   id: string;
-  colorsArray: XYColor[];
+  // Color management for segment-selector component
+  coloredSegments: Map<number, XYColor>;  // The actual colored segments
+  colorPalette: XYColor[];  // Palette for individual mode
+  gradientColors: XYColor[];  // Colors for gradient mode
+  blockColors: XYColor[];  // Colors for blocks mode
+  expandBlocks: boolean;  // Block expansion toggle
+  patternMode: string;  // 'individual' | 'gradient' | 'blocks'
 }
 
 @customElement('segment-sequence-editor')
@@ -25,6 +51,7 @@ export class SegmentSequenceEditor extends LitElement {
   @property({ type: Boolean }) public hasSelectedEntities = false;
   @property({ type: Boolean }) public isCompatible = true;
   @property({ type: Boolean }) public previewActive = false;
+  @property({ type: Number }) public stripSegmentCount = 10; // Default 2 meters (out-of-box T1 Strip length)
 
   @state() private _name = '';
   @state() private _icon = '';
@@ -38,10 +65,8 @@ export class SegmentSequenceEditor extends LitElement {
   @state() private _saving = false;
   @state() private _previewing = false;
 
-  // Color picker modal state
-  @state() private _editingStepId: string | null = null;
-  @state() private _editingColorIndex: number | null = null;
-  @state() private _editingColor: HSColor | null = null;
+  // Note: Color picker modal is now handled by segment-selector component
+  // No need for local color picker state
 
   private get _loopModeOptions() {
     return [
@@ -58,13 +83,7 @@ export class SegmentSequenceEditor extends LitElement {
     ];
   }
 
-  private get _stepModeOptions() {
-    return [
-      { value: 'blocks_repeat', label: this._localize('options.pattern_mode_blocks_repeat') },
-      { value: 'blocks_expand', label: this._localize('options.pattern_mode_blocks_expand') },
-      { value: 'gradient', label: this._localize('options.pattern_mode_gradient') },
-    ];
-  }
+  // Note: Step mode options removed - now handled by segment-selector sub-tabs (Individual/Gradient/Blocks)
 
   private get _activationPatternOptions() {
     return [
@@ -192,6 +211,11 @@ export class SegmentSequenceEditor extends LitElement {
     .step-actions ha-icon-button {
       --mdc-icon-button-size: 32px;
       --mdc-icon-size: 18px;
+    }
+
+    .step-segment-selector {
+      width: 100%;
+      margin-bottom: 16px;
     }
 
     .step-fields {
@@ -335,6 +359,25 @@ export class SegmentSequenceEditor extends LitElement {
     }
   }
 
+  /**
+   * Get the current segment count based on device type.
+   * T1: 20 segments (fixed)
+   * T1M: 26 segments (fixed)
+   * T1 Strip: Dynamic based on stripSegmentCount from parent (defaults to 10)
+   */
+  private _getCurrentSegmentCount(): number {
+    switch (this._deviceType) {
+      case 't1':
+        return 20;
+      case 't1m':
+        return 26;
+      case 't1_strip':
+        return this.stripSegmentCount; // Use value from parent (dynamic or default 10)
+      default:
+        return 26;
+    }
+  }
+
   private _loadPreset(preset: UserSegmentSequencePreset): void {
     this._name = preset.name;
     this._icon = preset.icon || '';
@@ -344,28 +387,67 @@ export class SegmentSequenceEditor extends LitElement {
     this._endBehavior = preset.end_behavior;
     this._clearSegments = preset.clear_segments || false;
     this._skipFirstInLoop = preset.skip_first_in_loop || false;
-    this._steps = preset.steps.map((step, index) => ({
-      ...step,
-      id: `step-${index}-${Date.now()}`,
-      // Convert RGB arrays from preset to XY colors
-      colorsArray: step.colors.map((c) => {
+    this._steps = preset.steps.map((step, index) => {
+      // Convert RGB arrays from preset to XY colors for colored segments
+      const xyColors = step.colors.map((c) => {
         const rgb = { r: c[0] ?? 0, g: c[1] ?? 0, b: c[2] ?? 0 };
         return rgbToXy(rgb.r, rgb.g, rgb.b);
-      }),
-    }));
+      });
+
+      // Determine pattern mode from step.mode (map backend modes to frontend pattern modes)
+      let patternMode = 'individual';  // default
+      if (step.mode === 'gradient') {
+        patternMode = 'gradient';
+      } else if (step.mode === 'blocks_expand' || step.mode === 'blocks_repeat') {
+        patternMode = 'blocks';
+      } else if (step.mode === 'individual') {
+        patternMode = 'individual';
+      }
+
+      // Populate coloredSegments from preset data (similar to pattern-editor)
+      const coloredSegments = new Map<number, XYColor>();
+      if (step.segment_colors && Array.isArray(step.segment_colors)) {
+        // New format: use segment_colors array
+        for (const entry of step.segment_colors) {
+          // Convert from 1-based backend indexing to 0-based internal indexing
+          const segNum = typeof entry.segment === 'number' ? entry.segment : parseInt(entry.segment, 10);
+          const color = entry.color;
+          if ('r' in color && 'g' in color && 'b' in color) {
+            coloredSegments.set(segNum - 1, rgbToXy(color.r, color.g, color.b));
+          }
+        }
+      }
+
+      return {
+        ...step,
+        id: `step-${index}-${Date.now()}`,
+        coloredSegments,  // Now properly populated from preset data
+        colorPalette: [...DEFAULT_PALETTE],
+        gradientColors: xyColors.length >= 2 ? xyColors : [...DEFAULT_GRADIENT_COLORS],
+        blockColors: xyColors.length >= 1 ? xyColors : [...DEFAULT_BLOCK_COLORS],
+        expandBlocks: step.mode === 'blocks_expand',
+        patternMode,
+      };
+    });
   }
 
   private _addDefaultStep(): void {
     this._steps = [
       {
         id: `step-0-${Date.now()}`,
-        segments: '1-5',
+        segments: 'all',  // Default to all segments
         colors: [[255, 0, 0]],
-        colorsArray: [{ x: 0.6800, y: 0.3100 }],  // Red in XY space
-        mode: 'blocks_expand',
+        mode: 'blocks_expand',  // Backend still uses mode field
         duration: 15,
         hold: 60,
         activation_pattern: 'all',
+        // New segment-selector fields
+        coloredSegments: new Map(),
+        colorPalette: [...DEFAULT_PALETTE],
+        gradientColors: [...DEFAULT_GRADIENT_COLORS],
+        blockColors: [...DEFAULT_BLOCK_COLORS],
+        expandBlocks: false,
+        patternMode: 'individual',
       },
     ];
   }
@@ -408,7 +490,7 @@ export class SegmentSequenceEditor extends LitElement {
 
   private _hasInvalidGradientSteps(): boolean {
     // Check if any steps use gradient mode with less than 2 colors
-    return this._steps.some((step) => step.mode === 'gradient' && step.colorsArray.length < 2);
+    return this._steps.some((step) => step.patternMode === 'gradient' && step.gradientColors.length < 2);
   }
 
   private _handleStepFieldChange(stepId: string, field: string, e: CustomEvent): void {
@@ -417,98 +499,90 @@ export class SegmentSequenceEditor extends LitElement {
     );
   }
 
-  private _openStepColorPicker(stepId: string, colorIndex: number): void {
-    const step = this._steps.find((s) => s.id === stepId);
-    if (!step) return;
+  // Note: Color picker and color management methods removed - now handled by segment-selector component
 
-    const xyColor = step.colorsArray[colorIndex];
-    if (!xyColor) return;
-    this._editingStepId = stepId;
-    this._editingColorIndex = colorIndex;
-    this._editingColor = xyToHs(xyColor);
-  }
-
-  private _handleColorPickerChange(e: CustomEvent): void {
-    this._editingColor = e.detail.color;
-  }
-
-  private _confirmColorPicker(): void {
-    if (this._editingStepId === null || this._editingColorIndex === null || this._editingColor === null) {
-      this._closeColorPicker();
-      return;
-    }
-
-    const xyColor = hsToXy(this._editingColor);
-    const stepId = this._editingStepId;
-    const colorIndex = this._editingColorIndex;
+  private _handleStepColorValueChange(stepId: string, e: CustomEvent): void {
+    // Handle color-value-changed event from segment-selector (individual mode)
+    const { value } = e.detail;
 
     this._steps = this._steps.map((step) => {
       if (step.id !== stepId) return step;
 
-      const newColorsArray = step.colorsArray.map((c, i) =>
-        i === colorIndex ? xyColor : c
-      );
-      // Convert XY to RGB for the colors array (backend format)
-      const newColors = newColorsArray.map((c) => {
-        const rgb = xyToRgb(c.x, c.y, 255);
-        return [rgb.r, rgb.g, rgb.b] as number[];
-      });
+      if (value instanceof Map) {
+        // Build segments string from Map keys (sorted)
+        const segmentNumbers = Array.from(value.keys()).sort((a, b) => a - b);
 
-      return { ...step, colorsArray: newColorsArray, colors: newColors };
-    });
+        // Convert from 0-based internal indexing to 1-based backend indexing
+        // If no segments are colored, default to 'all' to avoid backend parsing errors
+        const segmentsValue = segmentNumbers.length > 0
+          ? segmentNumbers.map(n => n + 1).join(',')
+          : 'all';
 
-    this._closeColorPicker();
-  }
+        // Update step with grid data
+        // Note: We don't update the colors array here because segment_colors
+        // will be sent to the backend directly from the grid data.
+        // The old colors array would contain one color per segment, which is
+        // incorrect for blocks/gradient patterns and can cause issues if the
+        // backend falls back to legacy mode.
+        return {
+          ...step,
+          coloredSegments: value,
+          segments: segmentsValue,
+        };
+      }
 
-  private _closeColorPicker(): void {
-    this._editingStepId = null;
-    this._editingColorIndex = null;
-    this._editingColor = null;
-  }
-
-  private _addStepColor(stepId: string): void {
-    this._steps = this._steps.map((step) => {
-      if (step.id !== stepId || step.colorsArray.length >= 8) return step;
-
-      // Add white in XY space (D65 white point)
-      const newColorsArray = [...step.colorsArray, { x: 0.3127, y: 0.3290 }];
-      // Convert XY to RGB for the colors array (backend format)
-      const newColors = newColorsArray.map((c) => {
-        const rgb = xyToRgb(c.x, c.y, 255);
-        return [rgb.r, rgb.g, rgb.b] as number[];
-      });
-
-      return { ...step, colorsArray: newColorsArray, colors: newColors };
+      return step;
     });
   }
 
-  private _removeStepColor(stepId: string, colorIndex: number): void {
-    this._steps = this._steps.map((step) => {
-      if (step.id !== stepId || step.colorsArray.length <= 1) return step;
+  private _handleStepGradientColorsChange(stepId: string, e: CustomEvent): void {
+    const { colors } = e.detail;
+    if (!Array.isArray(colors)) return;
 
-      const newColorsArray = step.colorsArray.filter((_, i) => i !== colorIndex);
-      // Convert XY to RGB for the colors array (backend format)
-      const newColors = newColorsArray.map((c) => {
-        const rgb = xyToRgb(c.x, c.y, 255);
-        return [rgb.r, rgb.g, rgb.b] as number[];
-      });
+    this._steps = this._steps.map((step) =>
+      step.id === stepId ? { ...step, gradientColors: colors } : step
+    );
+  }
 
-      return { ...step, colorsArray: newColorsArray, colors: newColors };
-    });
+  private _handleStepBlockColorsChange(stepId: string, e: CustomEvent): void {
+    const { colors } = e.detail;
+    if (!Array.isArray(colors)) return;
+
+    this._steps = this._steps.map((step) =>
+      step.id === stepId ? { ...step, blockColors: colors } : step
+    );
+  }
+
+  private _handleStepColorPaletteChange(stepId: string, e: CustomEvent): void {
+    const { colors } = e.detail;
+    if (!Array.isArray(colors)) return;
+
+    this._steps = this._steps.map((step) =>
+      step.id === stepId ? { ...step, colorPalette: colors } : step
+    );
   }
 
   private _addStep(): void {
     if (this._steps.length >= 20) return;
 
+    // Get previous step to copy its settings
+    const previousStep = this._steps[this._steps.length - 1];
+
     const newStep: EditableStep = {
       id: this._generateStepId(),
-      segments: '1-5',
-      colors: [[255, 0, 0]],
-      colorsArray: [{ x: 0.6800, y: 0.3100 }],  // Red in XY space
-      mode: 'blocks_expand',
+      segments: previousStep?.segments || 'all',  // Copy segments from previous step
+      colors: previousStep?.colors.map((c) => [...c]) || [[255, 0, 0]],  // Deep copy colors array
+      mode: previousStep?.mode || 'blocks_expand',
       duration: 15,
       hold: 60,
       activation_pattern: 'all',
+      // Copy segment-selector fields from previous step
+      coloredSegments: previousStep ? new Map(previousStep.coloredSegments) : new Map(),
+      colorPalette: previousStep ? previousStep.colorPalette.map((c) => ({ ...c })) : [...DEFAULT_PALETTE],
+      gradientColors: previousStep ? previousStep.gradientColors.map((c) => ({ ...c })) : [...DEFAULT_GRADIENT_COLORS],
+      blockColors: previousStep ? previousStep.blockColors.map((c) => ({ ...c })) : [...DEFAULT_BLOCK_COLORS],
+      expandBlocks: previousStep?.expandBlocks || false,
+      patternMode: previousStep?.patternMode || 'individual',
     };
 
     this._steps = [...this._steps, newStep];
@@ -543,8 +617,12 @@ export class SegmentSequenceEditor extends LitElement {
     const newStep: EditableStep = {
       ...step,
       id: this._generateStepId(),
-      colorsArray: step.colorsArray.map((c) => ({ ...c })),
       colors: step.colors.map((c) => [...c]),
+      // Deep copy Map and arrays for new step
+      coloredSegments: new Map(step.coloredSegments),
+      colorPalette: step.colorPalette.map((c) => ({ ...c })),
+      gradientColors: step.gradientColors.map((c) => ({ ...c })),
+      blockColors: step.blockColors.map((c) => ({ ...c })),
     };
 
     const index = this._steps.findIndex((s) => s.id === step.id);
@@ -555,14 +633,41 @@ export class SegmentSequenceEditor extends LitElement {
 
 
   private _getPresetData(): Record<string, unknown> {
-    const steps = this._steps.map(({ id, colorsArray, ...step }) => ({
-      ...step,
-      // Convert XY colors to RGB arrays for backend
-      colors: colorsArray.map((c) => {
-        const rgb = xyToRgb(c.x, c.y, 255);
-        return [rgb.r, rgb.g, rgb.b];
-      }),
-    }));
+    const maxSegments = this._getCurrentSegmentCount();
+
+    const steps = this._steps.map(({
+      id,
+      coloredSegments,
+      colorPalette,
+      gradientColors,
+      blockColors,
+      expandBlocks,
+      patternMode,
+      ...step
+    }) => {
+      // Generate segment_colors from the grid (like pattern editor)
+      // Convert from 0-based internal indexing to 1-based backend indexing
+      const segment_colors: Array<{segment: number, color: {r: number, g: number, b: number}}> = [];
+      const specifiedSegments = new Set<number>();
+
+      for (const [segment, xyColor] of coloredSegments) {
+        const rgb = xyToRgb(xyColor.x, xyColor.y, 255);
+        segment_colors.push({ segment: segment + 1, color: { r: rgb.r, g: rgb.g, b: rgb.b } });
+        specifiedSegments.add(segment + 1);
+      }
+
+      // Turn off all unspecified segments by setting them to black
+      for (let seg = 1; seg <= maxSegments; seg++) {
+        if (!specifiedSegments.has(seg)) {
+          segment_colors.push({ segment: seg, color: { r: 0, g: 0, b: 0 } });
+        }
+      }
+
+      return {
+        ...step,
+        segment_colors,  // Send actual colored segments from grid
+      };
+    });
 
     const data: Record<string, unknown> = {
       name: this._name,
@@ -582,10 +687,7 @@ export class SegmentSequenceEditor extends LitElement {
     return data;
   }
 
-  // Convert XY color to hex for display
-  private _colorToHex(color: XYColor): string {
-    return xyToHex(color, 255);
-  }
+  // Note: _colorToHex removed - no longer needed with segment-selector
 
   private async _preview(): Promise<void> {
     if (!this.hass || this._previewing) return;
@@ -675,30 +777,24 @@ export class SegmentSequenceEditor extends LitElement {
             </ha-icon-button>
           </div>
         </div>
+        <div class="step-segment-selector">
+          <segment-selector
+            .hass=${this.hass}
+            .mode=${'color'}
+            .maxSegments=${this._getCurrentSegmentCount()}
+            .colorValue=${step.coloredSegments}
+            .colorPalette=${step.colorPalette}
+            .gradientColors=${step.gradientColors}
+            .blockColors=${step.blockColors}
+            .expandBlocks=${step.expandBlocks}
+            .label=${this._localize('editors.segment_grid_label')}
+            @color-value-changed=${(e: CustomEvent) => this._handleStepColorValueChange(step.id, e)}
+            @color-palette-changed=${(e: CustomEvent) => this._handleStepColorPaletteChange(step.id, e)}
+            @gradient-colors-changed=${(e: CustomEvent) => this._handleStepGradientColorsChange(step.id, e)}
+            @block-colors-changed=${(e: CustomEvent) => this._handleStepBlockColorsChange(step.id, e)}
+          ></segment-selector>
+        </div>
         <div class="step-fields">
-          <div class="step-field">
-            <span class="step-field-label">${this._localize('editors.segments_input_label')}</span>
-            <ha-selector
-              .hass=${this.hass}
-              .selector=${{ text: {} }}
-              .value=${step.segments}
-              @value-changed=${(e: CustomEvent) => this._handleStepFieldChange(step.id, 'segments', e)}
-            ></ha-selector>
-          </div>
-          <div class="step-field">
-            <span class="step-field-label">${this._localize('editors.mode_label')}</span>
-            <ha-selector
-              .hass=${this.hass}
-              .selector=${{
-                select: {
-                  options: this._stepModeOptions,
-                  mode: 'dropdown',
-                },
-              }}
-              .value=${step.mode}
-              @value-changed=${(e: CustomEvent) => this._handleStepFieldChange(step.id, 'mode', e)}
-            ></ha-selector>
-          </div>
           <div class="step-field">
             <span class="step-field-label">${this._localize('editors.activation_pattern_label')}</span>
             <ha-selector
@@ -746,45 +842,6 @@ export class SegmentSequenceEditor extends LitElement {
               .value=${step.hold}
               @value-changed=${(e: CustomEvent) => this._handleStepFieldChange(step.id, 'hold', e)}
             ></ha-selector>
-          </div>
-          <div class="step-field full-width">
-            <span class="step-field-label">${this._localize('editors.colors_label')}</span>
-            <div class="color-picker-grid">
-              ${step.colorsArray.map(
-                (color, colorIndex) => html`
-                  <div class="color-item">
-                    <div
-                      class="color-swatch"
-                      style="background-color: ${this._colorToHex(color)}"
-                      @click=${() => this._openStepColorPicker(step.id, colorIndex)}
-                      title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_edit')}"
-                    ></div>
-                    ${step.colorsArray.length > 1
-                      ? html`
-                          <ha-icon-button
-                            class="color-remove"
-                            @click=${() => this._removeStepColor(step.id, colorIndex)}
-                            title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_remove')}"
-                          >
-                            <ha-icon icon="mdi:close"></ha-icon>
-                          </ha-icon-button>
-                        `
-                      : ''}
-                  </div>
-                `
-              )}
-              ${step.colorsArray.length < 8
-                ? html`
-                    <div
-                      class="add-color-btn"
-                      @click=${() => this._addStepColor(step.id)}
-                      title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_add')}"
-                    >
-                      <ha-icon icon="mdi:plus"></ha-icon>
-                    </div>
-                  `
-                : ''}
-            </div>
           </div>
         </div>
       </div>
@@ -993,40 +1050,6 @@ export class SegmentSequenceEditor extends LitElement {
             ${this.editMode ? 'Update' : 'Save'}
           </ha-button>
         </div>
-
-        ${this._editingStepId !== null && this._editingColor !== null
-          ? html`
-              <div class="color-picker-modal-overlay" @click=${this._closeColorPicker}>
-                <div class="color-picker-modal" @click=${(e: Event) => e.stopPropagation()}>
-                  <div class="color-picker-modal-header">
-                    <span class="color-picker-modal-title">Select color</span>
-                    <div
-                      class="color-picker-modal-preview"
-                      style="background-color: ${this._editingColor ? `hsl(${this._editingColor.h}, ${this._editingColor.s}%, 50%)` : '#fff'}"
-                    ></div>
-                  </div>
-                  <hs-color-picker
-                    .color=${this._editingColor}
-                    .size=${220}
-                    @color-changed=${this._handleColorPickerChange}
-                  ></hs-color-picker>
-                  <div class="color-picker-value-display">
-                    ${this._editingColor ? (() => {
-                      const rgb = hsToRgb(this._editingColor.h, this._editingColor.s);
-                      return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
-                    })() : ''}
-                  </div>
-                  <div class="color-picker-modal-actions">
-                    <ha-button @click=${this._closeColorPicker}>${this._localize('editors.cancel_button')}</ha-button>
-                    <ha-button @click=${this._confirmColorPicker}>
-                      <ha-icon icon="mdi:check"></ha-icon>
-                      Apply
-                    </ha-button>
-                  </div>
-                </div>
-              </div>
-            `
-          : ''}
       </div>
     `;
   }

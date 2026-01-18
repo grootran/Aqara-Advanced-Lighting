@@ -234,8 +234,14 @@ export const panelStyles = css`
   /* Favorites container - compact grid layout */
   .favorites-container {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    grid-template-columns: repeat(2, 1fr);
     gap: 8px;
+  }
+
+  @media (min-width: 768px) {
+    .favorites-container {
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    }
   }
 
   .favorite-button {
@@ -291,7 +297,7 @@ export const panelStyles = css`
     justify-content: center;
     width: 40px;
     height: 40px;
-    background: var(--primary-color);
+    background: rgba(var(--rgb-primary-color), 0.2);
     border-radius: var(--ha-card-border-radius, 10px);
     flex-shrink: 0;
     transition: all 0.2s ease-in-out;
@@ -301,11 +307,11 @@ export const panelStyles = css`
 
   .favorite-button-icon ha-icon {
     --mdc-icon-size: 24px;
-    color: var(--text-primary-color);
+    color: var(--primary-color);
   }
 
   .favorite-button:hover .favorite-button-icon {
-    background: var(--text-primary-color);
+    background: rgba(var(--rgb-primary-color), 0.3);
   }
 
   .favorite-button:hover .favorite-button-icon ha-icon {
@@ -382,8 +388,15 @@ export const panelStyles = css`
     opacity: 0.5;
   }
 
-  .favorite-button.state-on:hover .favorite-button-icon,
-  .favorite-button.state-off:hover .favorite-button-icon,
+  .favorite-button.state-on:hover .favorite-button-icon {
+    filter: none;
+  }
+
+  .favorite-button.state-off:hover .favorite-button-icon {
+    opacity: 1;
+    filter: none;
+  }
+
   .favorite-button.state-unavailable:hover .favorite-button-icon {
     opacity: 1;
     filter: none;
@@ -731,34 +744,24 @@ export const panelStyles = css`
   /* Individual color item wrapper */
   .color-item {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 6px;
-    padding: 6px;
-    background: var(--card-background-color);
-    border-radius: 8px;
-    border: 1px solid var(--divider-color);
+    gap: 4px;
   }
 
-  /* Color swatch - 40px for good touch targets (Apple HIG recommends 44px minimum) */
+  /* Color swatch - 48px for good touch targets */
   .color-swatch {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    border: 2px solid var(--divider-color);
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
     cursor: pointer;
-    position: relative;
-    overflow: hidden;
-    transition: transform 0.15s ease, border-color 0.15s ease;
-    flex-shrink: 0;
+    border: 2px solid var(--divider-color);
+    transition: all 0.2s ease;
   }
 
   .color-swatch:hover {
-    transform: scale(1.08);
+    transform: scale(1.05);
     border-color: var(--primary-color);
-  }
-
-  .color-swatch:active {
-    transform: scale(0.95);
   }
 
   /* Hidden native input overlays the swatch */
@@ -774,39 +777,75 @@ export const panelStyles = css`
     padding: 0;
   }
 
-  /* Remove button */
-  .color-remove {
-    --mdc-icon-button-size: 28px;
-    --mdc-icon-size: 16px;
-    opacity: 0.6;
+  /* Edit/Remove button below color swatch */
+  .color-edit-btn {
+    padding: 4px;
+    background: var(--secondary-background-color);
+    border: 1px solid var(--divider-color);
+    border-radius: 4px;
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: opacity 0.15s ease, color 0.15s ease;
+    transition: all 0.2s ease;
+  }
+
+  .color-edit-btn:hover {
+    background: var(--primary-color);
+    color: var(--text-primary-color);
+  }
+
+  .color-edit-btn ha-icon {
+    --mdc-icon-size: 16px;
+  }
+
+  /* Delete button variant */
+  .color-remove {
+    padding: 4px;
+    background: var(--secondary-background-color);
+    border: 1px solid var(--divider-color);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
   }
 
   .color-remove:hover {
-    opacity: 1;
-    color: var(--error-color);
+    background: var(--error-color);
+    color: white;
   }
 
-  /* Add color button - 44px minimum for touch */
+  .color-remove ha-icon {
+    --mdc-icon-size: 16px;
+  }
+
+  /* Add color button - matches color-item layout */
   .add-color-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .add-color-btn > * {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 44px;
-    height: 44px;
+    width: 48px;
+    height: 48px;
     border: 2px dashed var(--divider-color);
     border-radius: 8px;
     cursor: pointer;
     color: var(--secondary-text-color);
     background: transparent;
     transition: all 0.15s ease;
-    flex-shrink: 0;
   }
 
-  .add-color-btn:hover {
+  .add-color-btn:not(.disabled):hover > * {
     border-color: var(--primary-color);
     color: var(--primary-color);
     background: var(--secondary-background-color);
@@ -897,27 +936,22 @@ export const panelStyles = css`
   }
 
   .color-picker-modal {
-    background: var(--card-background-color, #fff);
-    border-radius: 16px;
+    background: var(--card-background-color);
+    border-radius: 8px;
     padding: 24px;
+    max-width: 400px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 16px;
-    max-width: 90vw;
   }
 
   .color-picker-modal-header {
     display: flex;
-    align-items: center;
     justify-content: space-between;
-    width: 100%;
-    margin-bottom: 8px;
+    align-items: center;
+    margin-bottom: 16px;
   }
 
   .color-picker-modal-title {
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 500;
     color: var(--primary-text-color);
   }
@@ -925,15 +959,15 @@ export const panelStyles = css`
   .color-picker-modal-preview {
     width: 48px;
     height: 48px;
-    border-radius: 50%;
-    border: 3px solid var(--divider-color);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    border-radius: 8px;
+    border: 2px solid var(--divider-color);
   }
 
   .color-picker-modal-actions {
     display: flex;
-    gap: 12px;
-    margin-top: 8px;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 20px;
   }
 
   /* Step list styles - follows HA list patterns */
@@ -1749,34 +1783,24 @@ export const colorPickerStyles = css`
   /* Individual color item wrapper */
   .color-item {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 6px;
-    padding: 6px;
-    background: var(--card-background-color);
-    border-radius: 8px;
-    border: 1px solid var(--divider-color);
+    gap: 4px;
   }
 
-  /* Color swatch - 40px for good touch targets (Apple HIG recommends 44px minimum) */
+  /* Color swatch - 48px for good touch targets */
   .color-swatch {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    border: 2px solid var(--divider-color);
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
     cursor: pointer;
-    position: relative;
-    overflow: hidden;
-    transition: transform 0.15s ease, border-color 0.15s ease;
-    flex-shrink: 0;
+    border: 2px solid var(--divider-color);
+    transition: all 0.2s ease;
   }
 
   .color-swatch:hover {
-    transform: scale(1.08);
+    transform: scale(1.05);
     border-color: var(--primary-color);
-  }
-
-  .color-swatch:active {
-    transform: scale(0.95);
   }
 
   /* Hidden native input overlays the swatch */
@@ -1792,39 +1816,75 @@ export const colorPickerStyles = css`
     padding: 0;
   }
 
-  /* Remove button */
-  .color-remove {
-    --mdc-icon-button-size: 28px;
-    --mdc-icon-size: 16px;
-    opacity: 0.6;
+  /* Edit/Remove button below color swatch */
+  .color-edit-btn {
+    padding: 4px;
+    background: var(--secondary-background-color);
+    border: 1px solid var(--divider-color);
+    border-radius: 4px;
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: opacity 0.15s ease, color 0.15s ease;
+    transition: all 0.2s ease;
+  }
+
+  .color-edit-btn:hover {
+    background: var(--primary-color);
+    color: var(--text-primary-color);
+  }
+
+  .color-edit-btn ha-icon {
+    --mdc-icon-size: 16px;
+  }
+
+  /* Delete button variant */
+  .color-remove {
+    padding: 4px;
+    background: var(--secondary-background-color);
+    border: 1px solid var(--divider-color);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
   }
 
   .color-remove:hover {
-    opacity: 1;
-    color: var(--error-color);
+    background: var(--error-color);
+    color: white;
   }
 
-  /* Add color button - 44px minimum for touch */
+  .color-remove ha-icon {
+    --mdc-icon-size: 16px;
+  }
+
+  /* Add color button - matches color-item layout */
   .add-color-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .add-color-btn > * {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 44px;
-    height: 44px;
+    width: 48px;
+    height: 48px;
     border: 2px dashed var(--divider-color);
     border-radius: 8px;
     cursor: pointer;
     color: var(--secondary-text-color);
     background: transparent;
     transition: all 0.15s ease;
-    flex-shrink: 0;
   }
 
-  .add-color-btn:hover {
+  .add-color-btn:not(.disabled):hover > * {
     border-color: var(--primary-color);
     color: var(--primary-color);
     background: var(--secondary-background-color);
@@ -1915,27 +1975,22 @@ export const colorPickerStyles = css`
   }
 
   .color-picker-modal {
-    background: var(--card-background-color, #fff);
-    border-radius: 16px;
+    background: var(--card-background-color);
+    border-radius: 8px;
     padding: 24px;
+    max-width: 400px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 16px;
-    max-width: 90vw;
   }
 
   .color-picker-modal-header {
     display: flex;
-    align-items: center;
     justify-content: space-between;
-    width: 100%;
-    margin-bottom: 8px;
+    align-items: center;
+    margin-bottom: 16px;
   }
 
   .color-picker-modal-title {
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 500;
     color: var(--primary-text-color);
   }
@@ -1943,9 +1998,8 @@ export const colorPickerStyles = css`
   .color-picker-modal-preview {
     width: 48px;
     height: 48px;
-    border-radius: 50%;
-    border: 3px solid var(--divider-color);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    border-radius: 8px;
+    border: 2px solid var(--divider-color);
   }
 
   .color-picker-value-display {
@@ -1962,7 +2016,8 @@ export const colorPickerStyles = css`
 
   .color-picker-modal-actions {
     display: flex;
-    gap: 12px;
-    margin-top: 8px;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 20px;
   }
 `;

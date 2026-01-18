@@ -408,7 +408,7 @@ EFFECT_PRESETS: Final = {
     # T1 Strip presets (all use same decoded colors)
     PRESET_T1_STRIP_RAINBOW: {
         "name": "Rainbow",
-        "icon": "mdi:rainbow",
+        "icon": "mdi:looks",
         "effect": EFFECT_T1_RAINBOW1,
         "colors": [
             [255, 0, 0],      # Red

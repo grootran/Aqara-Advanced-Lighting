@@ -1,9 +1,9 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { HomeAssistant, RGBColor, XYColor, HSColor, SegmentColorEntry, UserSegmentPatternPreset } from './types';
-import { xyToHex, xyToRgb, rgbToXy, xyToHs, hsToXy, hsToRgb } from './color-utils';
+import { HomeAssistant, RGBColor, XYColor, SegmentColorEntry, UserSegmentPatternPreset } from './types';
+import { xyToRgb, rgbToXy } from './color-utils';
 import { colorPickerStyles } from './styles';
-import './hs-color-picker';
+// Note: hs-color-picker import removed - color picking handled by segment-selector
 
 // Segment counts per device type
 const SEGMENT_COUNTS: Record<string, number> = {
@@ -28,8 +28,6 @@ const DEFAULT_PALETTE: XYColor[] = [
   { x: 0.2200, y: 0.3300 },    // Cyan
 ];
 
-type PatternMode = 'individual' | 'gradient' | 'blocks';
-
 @customElement('pattern-editor')
 export class PatternEditor extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
@@ -38,7 +36,7 @@ export class PatternEditor extends LitElement {
   @property({ type: Boolean }) public editMode = false;
   @property({ type: Boolean }) public hasSelectedEntities = false;
   @property({ type: Boolean }) public isCompatible = true;
-  @property({ type: Number }) public stripSegmentCount = 50;
+  @property({ type: Number }) public stripSegmentCount = 10; // Default 2 meters (out-of-box T1 Strip length)
 
   @state() private _name = '';
   @state() private _icon = '';
@@ -48,17 +46,11 @@ export class PatternEditor extends LitElement {
   @state() private _saving = false;
   @state() private _previewing = false;
 
-  // Clear mode for mobile-friendly clearing (instead of right-click)
-  @state() private _clearMode = false;
-  // Select mode for mobile-friendly multi-select (instead of ctrl/shift-click)
-  @state() private _selectMode = false;
-
-  // Pattern mode state
-  @state() private _patternMode: PatternMode = 'individual';
+  // Note: Pattern mode, clear mode, select mode, and palette selection
+  // are now managed by the segment-selector component
 
   // Color palette for Individual mode (6 colors)
   @state() private _colorPalette: XYColor[] = [...DEFAULT_PALETTE];
-  @state() private _selectedPaletteIndex = 0;
 
   // Gradient colors (2-6) in XY space
   @state() private _gradientColors: XYColor[] = [
@@ -72,11 +64,6 @@ export class PatternEditor extends LitElement {
     { x: 0.1700, y: 0.7000 },  // Green
   ];
   @state() private _expandBlocks = false;
-
-  // Color picker modal state
-  @state() private _editingColorSource: 'palette' | 'gradient' | 'blocks' | null = null;
-  @state() private _editingColorIndex: number | null = null;
-  @state() private _editingColor: HSColor | null = null;
 
   static styles = [
     colorPickerStyles,
@@ -424,8 +411,6 @@ export class PatternEditor extends LitElement {
     this._deviceType = preset.device_type || 't1m';
     this._segments = new Map();
     this._selectedSegments = new Set();
-    this._patternMode = 'individual';
-    this._clearMode = false;
 
     for (const entry of preset.segments) {
       // Convert from 1-based backend indexing to 0-based internal indexing
@@ -464,362 +449,54 @@ export class PatternEditor extends LitElement {
     this._selectedSegments = new Set();
   }
 
-  private _handlePatternModeChange(mode: PatternMode): void {
-    this._patternMode = mode;
-    this._clearMode = false; // Reset clear mode when switching tabs
-    this._selectMode = false; // Reset select mode when switching tabs
-  }
-
-  private _toggleClearMode(): void {
-    this._clearMode = !this._clearMode;
-    if (this._clearMode) {
-      this._selectMode = false; // Disable select mode when enabling clear mode
+  private _handleColorValueChange(e: CustomEvent): void {
+    // Handle color-value-changed event from segment-selector
+    const { value } = e.detail;
+    if (value instanceof Map) {
+      this._segments = value;
     }
   }
 
-  private _toggleSelectMode(): void {
-    this._selectMode = !this._selectMode;
-    if (this._selectMode) {
-      this._clearMode = false; // Disable clear mode when enabling select mode
+  private _handleGradientColorsChange(e: CustomEvent): void {
+    // Handle gradient-colors-changed event from segment-selector
+    const { colors } = e.detail;
+    if (Array.isArray(colors)) {
+      this._gradientColors = colors;
     }
   }
 
-  private _handleSegmentClick(segNum: number, e: MouseEvent): void {
-    // Clear mode: clicking clears the segment
-    if (this._clearMode) {
-      const newSegments = new Map(this._segments);
-      newSegments.delete(segNum);
-      this._segments = newSegments;
-      return;
-    }
-
-    // Select mode or shift-click: toggle selection
-    if (this._selectMode || e.shiftKey) {
-      const newSelection = new Set(this._selectedSegments);
-      if (newSelection.has(segNum)) {
-        newSelection.delete(segNum);
-      } else {
-        newSelection.add(segNum);
-      }
-      this._selectedSegments = newSelection;
-    } else if (e.ctrlKey || e.metaKey) {
-      // Ctrl-click: add to selection
-      this._selectedSegments = new Set([...this._selectedSegments, segNum]);
-    } else {
-      // Regular click: apply current palette color
-      const currentColor = this._colorPalette[this._selectedPaletteIndex]!;
-      const newSegments = new Map(this._segments);
-      newSegments.set(segNum, { ...currentColor });
-      this._segments = newSegments;
+  private _handleBlockColorsChange(e: CustomEvent): void {
+    // Handle block-colors-changed event from segment-selector
+    const { colors } = e.detail;
+    if (Array.isArray(colors)) {
+      this._blockColors = colors;
     }
   }
 
-  // Palette color handlers
-  private _selectPaletteColor(index: number): void {
-    this._selectedPaletteIndex = index;
-  }
-
-  private _addGradientColor(): void {
-    if (this._gradientColors.length >= 6) return;
-    // Add yellow in XY space
-    this._gradientColors = [...this._gradientColors, { x: 0.4200, y: 0.5100 }];
-  }
-
-  private _removeGradientColor(index: number): void {
-    if (this._gradientColors.length <= 2) return;
-    this._gradientColors = this._gradientColors.filter((_, i) => i !== index);
-  }
-
-  private _addBlockColor(): void {
-    if (this._blockColors.length >= 6) return;
-    // Add cyan in XY space
-    this._blockColors = [...this._blockColors, { x: 0.2200, y: 0.3300 }];
-  }
-
-  private _removeBlockColor(index: number): void {
-    if (this._blockColors.length <= 1) return;
-    this._blockColors = this._blockColors.filter((_, i) => i !== index);
-  }
-
-  private _handleExpandBlocksChange(e: Event): void {
-    const checkbox = e.target as HTMLInputElement;
-    this._expandBlocks = checkbox.checked;
-  }
-
-  private _applyToSelected(): void {
-    if (this._selectedSegments.size === 0) return;
-
-    const currentColor = this._colorPalette[this._selectedPaletteIndex]!;
-    const newSegments = new Map(this._segments);
-    for (const seg of this._selectedSegments) {
-      newSegments.set(seg, { ...currentColor });
+  private _handleColorPaletteChange(e: CustomEvent): void {
+    // Handle color-palette-changed event from segment-selector
+    const { colors } = e.detail;
+    if (Array.isArray(colors)) {
+      this._colorPalette = colors;
     }
-    this._segments = newSegments;
-    this._selectedSegments = new Set();
   }
 
-  private _clearSelected(): void {
-    if (this._selectedSegments.size === 0) return;
-
-    const newSegments = new Map(this._segments);
-    for (const seg of this._selectedSegments) {
-      newSegments.delete(seg);
-    }
-    this._segments = newSegments;
-    this._selectedSegments = new Set();
-  }
-
-  private _selectAll(): void {
-    const maxSegments = this._getMaxSegments();
-    const newSelection = new Set<number>();
-    for (let i = 0; i < maxSegments; i++) {
-      newSelection.add(i);
-    }
-    this._selectedSegments = newSelection;
-  }
-
-  private _clearAll(): void {
-    this._segments = new Map();
-    this._selectedSegments = new Set();
-  }
-
-  // Interpolate hue values, taking the shortest path around the color wheel
-  private _interpolateHue(h1: number, h2: number, t: number): number {
-    // Calculate the difference
-    let diff = h2 - h1;
-
-    // Take the shortest path around the wheel
-    if (diff > 180) {
-      diff -= 360;
-    } else if (diff < -180) {
-      diff += 360;
-    }
-
-    let result = h1 + diff * t;
-
-    // Normalize to 0-360 range
-    if (result < 0) result += 360;
-    if (result >= 360) result -= 360;
-
-    return result;
-  }
-
-  // Generate gradient pattern - interpolates colors across all segments in HS space
-  private _generateGradientPattern(): Map<number, XYColor> {
-    const maxSegments = this._getMaxSegments();
-    const colors = this._gradientColors;
-    const numColors = colors.length;
-    const pattern = new Map<number, XYColor>();
-
-    if (numColors < 2 || maxSegments === 0) return pattern;
-
-    // Convert all gradient colors to HS space for interpolation
-    const hsColors = colors.map(c => xyToHs(c));
-
-    for (let i = 0; i < maxSegments; i++) {
-      // Calculate position in the gradient (0 to 1)
-      const t = i / (maxSegments - 1);
-      // Map to color index
-      const colorPosition = t * (numColors - 1);
-      const colorIndex = Math.floor(colorPosition);
-      const colorT = colorPosition - colorIndex;
-
-      // Get the two colors to interpolate between
-      const c1 = hsColors[Math.min(colorIndex, numColors - 1)]!;
-      const c2 = hsColors[Math.min(colorIndex + 1, numColors - 1)]!;
-
-      // Interpolate in HS space (hue uses shortest path)
-      const interpolatedHS: HSColor = {
-        h: Math.round(this._interpolateHue(c1.h, c2.h, colorT)),
-        s: Math.round(c1.s + (c2.s - c1.s) * colorT),
-      };
-
-      // Convert back to XY for storage
-      pattern.set(i, hsToXy(interpolatedHS));
-    }
-
-    return pattern;
-  }
-
-  // Generate blocks pattern - evenly distributes color blocks across segments
-  private _generateBlocksPattern(): Map<number, XYColor> {
-    const maxSegments = this._getMaxSegments();
-    const colors = this._blockColors;
-    const numColors = colors.length;
-    const pattern = new Map<number, XYColor>();
-
-    if (numColors === 0 || maxSegments === 0) return pattern;
-
-    if (this._expandBlocks) {
-      // Expand: each color fills an equal portion of the strip
-      const segmentsPerColor = maxSegments / numColors;
-      for (let i = 0; i < maxSegments; i++) {
-        const colorIndex = Math.min(Math.floor(i / segmentsPerColor), numColors - 1);
-        pattern.set(i, { ...colors[colorIndex]! });
-      }
-    } else {
-      // No expand: colors repeat in sequence
-      for (let i = 0; i < maxSegments; i++) {
-        const colorIndex = i % numColors;
-        pattern.set(i, { ...colors[colorIndex]! });
-      }
-    }
-
-    return pattern;
-  }
-
-  // Apply generated pattern to the grid (stays on current tab)
-  private _applyToGrid(): void {
-    let generatedPattern: Map<number, XYColor>;
-
-    if (this._patternMode === 'gradient') {
-      generatedPattern = this._generateGradientPattern();
-    } else if (this._patternMode === 'blocks') {
-      generatedPattern = this._generateBlocksPattern();
-    } else {
-      return;
-    }
-
-    this._segments = generatedPattern;
-    // Don't switch tabs - user can see the grid update and continue editing
-  }
-
-  // Apply generated pattern only to selected segments
-  private _applyToSelectedSegments(): void {
-    if (this._selectedSegments.size === 0) return;
-
-    // Get selected segments as sorted array
-    const selectedArray = Array.from(this._selectedSegments).sort((a, b) => a - b);
-    const selectedCount = selectedArray.length;
-
-    let colors: XYColor[] = [];
-    if (this._patternMode === 'gradient') {
-      colors = this._gradientColors;
-    } else if (this._patternMode === 'blocks') {
-      colors = this._blockColors;
-    } else {
-      return;
-    }
-
-    const numColors = colors.length;
-    const newSegments = new Map(this._segments);
-
-    if (this._patternMode === 'gradient') {
-      // Generate gradient across selected segments in HS space
-      const hsColors = colors.map(c => xyToHs(c));
-
-      for (let i = 0; i < selectedCount; i++) {
-        const segNum = selectedArray[i]!;
-        const t = selectedCount > 1 ? i / (selectedCount - 1) : 0;
-        const colorPosition = t * (numColors - 1);
-        const colorIndex = Math.floor(colorPosition);
-        const colorT = colorPosition - colorIndex;
-
-        const c1 = hsColors[Math.min(colorIndex, numColors - 1)]!;
-        const c2 = hsColors[Math.min(colorIndex + 1, numColors - 1)]!;
-
-        // Interpolate in HS space (hue uses shortest path)
-        const interpolatedHS: HSColor = {
-          h: Math.round(this._interpolateHue(c1.h, c2.h, colorT)),
-          s: Math.round(c1.s + (c2.s - c1.s) * colorT),
-        };
-
-        newSegments.set(segNum, hsToXy(interpolatedHS));
-      }
-    } else if (this._patternMode === 'blocks') {
-      // Generate blocks across selected segments
-      if (this._expandBlocks) {
-        const blockSize = Math.ceil(selectedCount / numColors);
-        for (let i = 0; i < selectedCount; i++) {
-          const segNum = selectedArray[i]!;
-          const colorIndex = Math.min(Math.floor(i / blockSize), numColors - 1);
-          newSegments.set(segNum, { ...colors[colorIndex]! });
-        }
-      } else {
-        for (let i = 0; i < selectedCount; i++) {
-          const segNum = selectedArray[i]!;
-          const colorIndex = i % numColors;
-          newSegments.set(segNum, { ...colors[colorIndex]! });
-        }
-      }
-    }
-
-    this._segments = newSegments;
-    this._selectedSegments = new Set(); // Clear selection after applying
-  }
-
-  // Open color picker for a palette color
-  private _openPaletteColorPicker(index: number): void {
-    const xyColor = this._colorPalette[index];
-    if (!xyColor) return;
-    this._editingColorSource = 'palette';
-    this._editingColorIndex = index;
-    this._editingColor = xyToHs(xyColor);
-  }
-
-  // Open color picker for a gradient color
-  private _openGradientColorPicker(index: number): void {
-    const xyColor = this._gradientColors[index];
-    if (!xyColor) return;
-    this._editingColorSource = 'gradient';
-    this._editingColorIndex = index;
-    this._editingColor = xyToHs(xyColor);
-  }
-
-  // Open color picker for a block color
-  private _openBlockColorPicker(index: number): void {
-    const xyColor = this._blockColors[index];
-    if (!xyColor) return;
-    this._editingColorSource = 'blocks';
-    this._editingColorIndex = index;
-    this._editingColor = xyToHs(xyColor);
-  }
-
-  private _handleColorPickerChange(e: CustomEvent): void {
-    this._editingColor = e.detail.color;
-  }
-
-  private _confirmColorPicker(): void {
-    if (this._editingColorIndex === null || this._editingColor === null || !this._editingColorSource) {
-      this._closeColorPicker();
-      return;
-    }
-
-    const xyColor = hsToXy(this._editingColor);
-
-    if (this._editingColorSource === 'palette') {
-      this._colorPalette = this._colorPalette.map((c, i) =>
-        i === this._editingColorIndex ? xyColor : c
-      );
-    } else if (this._editingColorSource === 'gradient') {
-      this._gradientColors = this._gradientColors.map((c, i) =>
-        i === this._editingColorIndex ? xyColor : c
-      );
-    } else if (this._editingColorSource === 'blocks') {
-      this._blockColors = this._blockColors.map((c, i) =>
-        i === this._editingColorIndex ? xyColor : c
-      );
-    }
-
-    this._closeColorPicker();
-  }
-
-  private _closeColorPicker(): void {
-    this._editingColorSource = null;
-    this._editingColorIndex = null;
-    this._editingColor = null;
-  }
+  // Note: All pattern generation, color management, selection, and UI rendering
+  // are now handled by the segment-selector component in color mode.
+  // Methods that were removed:
+  // - Pattern generation: _generateGradientPattern, _generateBlocksPattern, _interpolateHue
+  // - Color management: _addGradientColor, _removeGradientColor, _addBlockColor, _removeBlockColor
+  // - Selection: _selectAll, _clearAll, _clearSelected, _applyToSelected
+  // - Pattern application: _applyToGrid, _applyToSelectedSegments
+  // - Color picker: _openPaletteColorPicker, _openGradientColorPicker, _openBlockColorPicker,
+  //   _handleColorPickerChange, _confirmColorPicker, _closeColorPicker
+  // - Other: _handleExpandBlocksChange, _colorToHex
 
 
   // Get the current pattern data (always returns what's in the grid)
   private _getCurrentPattern(): Map<number, XYColor> {
     // Always return the segments grid - this is what's displayed and should be previewed/saved
     return this._segments;
-  }
-
-  // Convert XY color to hex for display
-  private _colorToHex(color: XYColor): string {
-    return xyToHex(color, 255);
   }
 
   private _getPresetData(): Record<string, unknown> {
@@ -901,222 +578,12 @@ export class PatternEditor extends LitElement {
     return pattern.size > 0;
   }
 
-  private _renderSegmentGrid() {
-    const maxSegments = this._getMaxSegments();
-    const segmentCells = [];
-
-    for (let i = 0; i < maxSegments; i++) {
-      const color = this._segments.get(i);
-      const isSelected = this._selectedSegments.has(i);
-      const isColored = color !== undefined;
-
-      const segmentBaseKey = this._clearMode && isColored
-        ? 'component.aqara_advanced_lighting.panel.tooltips.segment_clear'
-        : 'component.aqara_advanced_lighting.panel.tooltips.segment_number';
-      const segmentTitle = this.hass.localize(segmentBaseKey).replace('{number}', (i + 1).toString());
-
-      segmentCells.push(html`
-        <div
-          class="segment-cell ${isSelected ? 'selected' : ''} ${isColored ? 'colored' : ''}"
-          style="${isColored ? `background-color: ${this._colorToHex(color)}` : ''}"
-          @click=${(e: MouseEvent) => this._handleSegmentClick(i, e)}
-          title="${segmentTitle}"
-        >
-          ${i + 1}
-        </div>
-      `);
-    }
-
-    return html`
-      <div class="segment-grid-container">
-        <div class="segment-grid ${this._clearMode ? 'clear-mode' : ''} ${this._selectMode ? 'select-mode' : ''}">
-          ${segmentCells}
-        </div>
-        <div class="grid-controls">
-          <ha-button
-            class="${this._selectMode ? 'select-mode-toggle active' : 'select-mode-toggle'}"
-            @click=${this._toggleSelectMode}
-            title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.mode_select')}"
-          >
-            <ha-icon icon="${this._selectMode ? 'mdi:selection-multiple' : 'mdi:selection'}"></ha-icon>
-            ${this._selectMode ? this._localize('editors.select_mode_on') : this._localize('editors.select_mode_off')}
-          </ha-button>
-          <ha-button
-            class="${this._clearMode ? 'clear-mode-toggle active' : 'clear-mode-toggle'}"
-            @click=${this._toggleClearMode}
-            title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.mode_clear')}"
-          >
-            <ha-icon icon="${this._clearMode ? 'mdi:eraser' : 'mdi:eraser-variant'}"></ha-icon>
-            ${this._clearMode ? this._localize('editors.clear_mode_on') : this._localize('editors.clear_mode_off')}
-          </ha-button>
-          <ha-button @click=${this._selectAll}>${this._localize('editors.select_all_button')}</ha-button>
-          <ha-button
-            @click=${this._clearSelected}
-            .disabled=${this._selectedSegments.size === 0}
-          >
-            ${this._localize('editors.clear_selected_button')}
-          </ha-button>
-          <ha-button @click=${this._clearAll}>${this._localize('editors.clear_all_button')}</ha-button>
-        </div>
-        <div class="grid-info">
-          ${this._localize('editors.segments_selected', { count: this._selectedSegments.size.toString() })}
-        </div>
-      </div>
-    `;
-  }
-
-  private _renderIndividualMode() {
-    return html`
-      <div class="mode-description">
-        Click a color to select it, click the pencil to change it. Then click segments to apply.
-      </div>
-      <div class="color-palette">
-        <span class="palette-label">Colors:</span>
-        ${this._colorPalette.map((color, index) => html`
-          <div class="palette-color-wrapper">
-            <div
-              class="palette-color ${this._selectedPaletteIndex === index ? 'selected' : ''}"
-              style="background-color: ${this._colorToHex(color)}"
-              @click=${() => this._selectPaletteColor(index)}
-              title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_select').replace('{index}', (index + 1).toString())}"
-            ></div>
-            <button
-              class="palette-edit-btn"
-              @click=${() => this._openPaletteColorPicker(index)}
-              title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_edit_index').replace('{index}', (index + 1).toString())}"
-            >
-              <ha-icon icon="mdi:pencil"></ha-icon>
-            </button>
-          </div>
-        `)}
-        <ha-button
-          @click=${this._applyToSelected}
-          .disabled=${this._selectedSegments.size === 0}
-        >
-          <ha-icon icon="mdi:selection"></ha-icon>
-          ${this._localize('editors.apply_to_selected_button')}
-        </ha-button>
-      </div>
-    `;
-  }
-
-  private _renderGradientMode() {
-    return html`
-      <div class="mode-description">
-        Create a smooth color gradient across all segments. Add 2-6 colors to blend.
-      </div>
-      <div class="color-array">
-        ${this._gradientColors.map((color, index) => html`
-          <div class="color-item">
-            <div
-              class="color-swatch"
-              style="background-color: ${this._colorToHex(color)}"
-              @click=${() => this._openGradientColorPicker(index)}
-              title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_edit')}"
-            ></div>
-            ${this._gradientColors.length > 2
-              ? html`
-                  <ha-icon-button
-                    class="color-remove"
-                    @click=${() => this._removeGradientColor(index)}
-                  >
-                    <ha-icon icon="mdi:close"></ha-icon>
-                  </ha-icon-button>
-                `
-              : ''}
-          </div>
-        `)}
-        ${this._gradientColors.length < 6
-          ? html`
-              <div
-                class="add-color-btn"
-                @click=${this._addGradientColor}
-                title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_add')}"
-              >
-                <ha-icon icon="mdi:plus"></ha-icon>
-              </div>
-            `
-          : ''}
-      </div>
-      <div class="generated-actions">
-        <ha-button @click=${this._applyToGrid}>
-          <ha-icon icon="mdi:grid"></ha-icon>
-          Apply to Grid
-        </ha-button>
-        <ha-button
-          @click=${this._applyToSelectedSegments}
-          .disabled=${this._selectedSegments.size === 0}
-        >
-          <ha-icon icon="mdi:selection"></ha-icon>
-          Apply to Selected
-        </ha-button>
-      </div>
-    `;
-  }
-
-  private _renderBlocksMode() {
-    return html`
-      <div class="mode-description">
-        Create evenly spaced blocks of color across all segments. Add 1-6 colors.
-      </div>
-      <div class="color-array">
-        ${this._blockColors.map((color, index) => html`
-          <div class="color-item">
-            <div
-              class="color-swatch"
-              style="background-color: ${this._colorToHex(color)}"
-              @click=${() => this._openBlockColorPicker(index)}
-              title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_edit')}"
-            ></div>
-            ${this._blockColors.length > 1
-              ? html`
-                  <ha-icon-button
-                    class="color-remove"
-                    @click=${() => this._removeBlockColor(index)}
-                  >
-                    <ha-icon icon="mdi:close"></ha-icon>
-                  </ha-icon-button>
-                `
-              : ''}
-          </div>
-        `)}
-        ${this._blockColors.length < 6
-          ? html`
-              <div
-                class="add-color-btn"
-                @click=${this._addBlockColor}
-                title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_add')}"
-              >
-                <ha-icon icon="mdi:plus"></ha-icon>
-              </div>
-            `
-          : ''}
-      </div>
-      <div class="options-row">
-        <label class="option-item">
-          <input
-            type="checkbox"
-            .checked=${this._expandBlocks}
-            @change=${this._handleExpandBlocksChange}
-          />
-          <span class="option-label">Expand blocks to fill segments evenly</span>
-        </label>
-      </div>
-      <div class="generated-actions">
-        <ha-button @click=${this._applyToGrid}>
-          <ha-icon icon="mdi:grid"></ha-icon>
-          Apply to Grid
-        </ha-button>
-        <ha-button
-          @click=${this._applyToSelectedSegments}
-          .disabled=${this._selectedSegments.size === 0}
-        >
-          <ha-icon icon="mdi:selection"></ha-icon>
-          Apply to Selected
-        </ha-button>
-      </div>
-    `;
-  }
+  // Note: Grid rendering and pattern mode UI are now handled by the segment-selector component in color mode
+  // The component provides all the functionality that was previously in these methods:
+  // - _renderSegmentGrid() - segment grid with color display
+  // - _renderIndividualMode() - color palette selection
+  // - _renderGradientMode() - gradient color configuration
+  // - _renderBlocksMode() - blocks color configuration
 
   private _localize(key: string, replacements?: Record<string, string>): string {
     const keys = key.split('.');
@@ -1186,39 +653,20 @@ export class PatternEditor extends LitElement {
 
         <div class="form-section">
           <span class="form-label">${this._localize('editors.segment_grid_label')}</span>
-          ${this._renderSegmentGrid()}
-        </div>
-
-        <div class="form-section">
-          <span class="form-label">${this._localize('editors.pattern_mode_label')}</span>
-          <div class="mode-content">
-              <div class="mode-tabs">
-                <button
-                  class="mode-tab ${this._patternMode === 'individual' ? 'active' : ''}"
-                  @click=${() => this._handlePatternModeChange('individual')}
-                >
-                  Individual
-                </button>
-                <button
-                  class="mode-tab ${this._patternMode === 'gradient' ? 'active' : ''}"
-                  @click=${() => this._handlePatternModeChange('gradient')}
-                >
-                  Gradient
-                </button>
-                <button
-                  class="mode-tab ${this._patternMode === 'blocks' ? 'active' : ''}"
-                  @click=${() => this._handlePatternModeChange('blocks')}
-                >
-                  Blocks
-                </button>
-              </div>
-
-              ${this._patternMode === 'individual'
-                ? this._renderIndividualMode()
-                : this._patternMode === 'gradient'
-                ? this._renderGradientMode()
-                : this._renderBlocksMode()}
-            </div>
+          <segment-selector
+            .hass=${this.hass}
+            .mode=${'color'}
+            .maxSegments=${this._getMaxSegments()}
+            .colorValue=${this._segments}
+            .colorPalette=${this._colorPalette}
+            .gradientColors=${this._gradientColors}
+            .blockColors=${this._blockColors}
+            .expandBlocks=${this._expandBlocks}
+            @color-value-changed=${this._handleColorValueChange}
+            @color-palette-changed=${this._handleColorPaletteChange}
+            @gradient-colors-changed=${this._handleGradientColorsChange}
+            @block-colors-changed=${this._handleBlockColorsChange}
+          ></segment-selector>
         </div>
 
         ${!this.hasSelectedEntities
@@ -1248,40 +696,6 @@ export class PatternEditor extends LitElement {
             ${this.editMode ? 'Update' : 'Save'}
           </ha-button>
         </div>
-
-        ${this._editingColorSource !== null && this._editingColor !== null
-          ? html`
-              <div class="color-picker-modal-overlay" @click=${this._closeColorPicker}>
-                <div class="color-picker-modal" @click=${(e: Event) => e.stopPropagation()}>
-                  <div class="color-picker-modal-header">
-                    <span class="color-picker-modal-title">Select color</span>
-                    <div
-                      class="color-picker-modal-preview"
-                      style="background-color: ${this._editingColor ? `hsl(${this._editingColor.h}, ${this._editingColor.s}%, 50%)` : '#fff'}"
-                    ></div>
-                  </div>
-                  <hs-color-picker
-                    .color=${this._editingColor}
-                    .size=${220}
-                    @color-changed=${this._handleColorPickerChange}
-                  ></hs-color-picker>
-                  <div class="color-picker-value-display">
-                    ${this._editingColor ? (() => {
-                      const rgb = hsToRgb(this._editingColor.h, this._editingColor.s);
-                      return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
-                    })() : ''}
-                  </div>
-                  <div class="color-picker-modal-actions">
-                    <ha-button @click=${this._closeColorPicker}>${this._localize('editors.cancel_button')}</ha-button>
-                    <ha-button @click=${this._confirmColorPicker}>
-                      <ha-icon icon="mdi:check"></ha-icon>
-                      Apply
-                    </ha-button>
-                  </div>
-                </div>
-              </div>
-            `
-          : ''}
       </div>
     `;
   }

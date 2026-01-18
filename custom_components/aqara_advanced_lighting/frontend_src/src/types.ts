@@ -75,13 +75,14 @@ export interface CCTSequencePreset {
 }
 
 export interface SegmentSequenceStep {
-  segments: string;
-  colors: number[][];
-  mode: string;
+  segments: string;  // Legacy field (unused when segment_colors is provided)
+  colors: number[][];  // Legacy field (unused when segment_colors is provided)
+  mode: string;  // Legacy field (unused when segment_colors is provided)
   duration: number;
   hold: number;
   activation_pattern: string;
   transition?: number;
+  segment_colors?: SegmentColorEntry[];  // Direct segment assignments (preferred)
 }
 
 export interface SegmentSequencePreset {
