@@ -189,6 +189,8 @@
     "segments_description": "Segments to apply effect to (e.g., \"1,2,3\", \"1-20\", \"odd\", \"even\", \"first-half\", \"last-third\").",
     "segments_input_label": "Segments (e.g., 1-5, 10, 15-20)",
     "colors_label": "Colors (1-8)",
+    "color_picker_title": "Select color",
+    "apply_button": "Apply",
     "color_temperature_label": "Color temperature ({value}K)",
     "transition_time_label": "Transition time (seconds)",
     "hold_time_label": "Hold time (seconds)",

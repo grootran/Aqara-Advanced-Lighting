@@ -25,21 +25,15 @@ export const panelStyles = css`
     color: var(--app-header-text-color, var(--text-primary-color));
     border-bottom: 1px solid var(--divider-color);
     position: fixed;
-    top: env(safe-area-inset-top, 0px);
+    top: 0;
     left: var(--mdc-drawer-width, 0px);
     right: 0;
     z-index: 4;
+    padding-top: env(safe-area-inset-top, 0px);
   }
 
   :host([narrow]) .header {
     left: 0;
-  }
-
-  /* Safe area padding for iOS notch */
-  @supports (padding-top: env(safe-area-inset-top)) {
-    .header {
-      padding-top: 0;
-    }
   }
 
   /* Toolbar - hamburger menu and title */
@@ -821,6 +815,12 @@ export const panelStyles = css`
     --mdc-icon-size: 16px;
   }
 
+  /* Invisible spacer to maintain alignment when delete button is hidden */
+  .color-remove-spacer {
+    height: 26px;
+    visibility: hidden;
+  }
+
   /* Add color button - matches color-item layout */
   .add-color-btn {
     display: flex;
@@ -831,7 +831,7 @@ export const panelStyles = css`
     flex-shrink: 0;
   }
 
-  .add-color-btn > * {
+  .add-color-icon {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -845,7 +845,7 @@ export const panelStyles = css`
     transition: all 0.15s ease;
   }
 
-  .add-color-btn:not(.disabled):hover > * {
+  .add-color-btn:not(.disabled):hover .add-color-icon {
     border-color: var(--primary-color);
     color: var(--primary-color);
     background: var(--secondary-background-color);
@@ -1860,6 +1860,12 @@ export const colorPickerStyles = css`
     --mdc-icon-size: 16px;
   }
 
+  /* Invisible spacer to maintain alignment when delete button is hidden */
+  .color-remove-spacer {
+    height: 26px;
+    visibility: hidden;
+  }
+
   /* Add color button - matches color-item layout */
   .add-color-btn {
     display: flex;
@@ -1870,7 +1876,7 @@ export const colorPickerStyles = css`
     flex-shrink: 0;
   }
 
-  .add-color-btn > * {
+  .add-color-icon {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1884,7 +1890,7 @@ export const colorPickerStyles = css`
     transition: all 0.15s ease;
   }
 
-  .add-color-btn:not(.disabled):hover > * {
+  .add-color-btn:not(.disabled):hover .add-color-icon {
     border-color: var(--primary-color);
     color: var(--primary-color);
     background: var(--secondary-background-color);

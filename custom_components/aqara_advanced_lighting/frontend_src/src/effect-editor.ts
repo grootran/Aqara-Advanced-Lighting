@@ -510,7 +510,6 @@ export class EffectEditor extends LitElement {
                   .maxSegments=${this.stripSegmentCount}
                   .value=${this._segments}
                   .label=${this._localize('editors.segments_label')}
-                  .description=${this._localize('editors.segments_description')}
                   @value-changed=${this._handleSegmentsChange}
                 ></segment-selector>
               </div>
@@ -563,16 +562,19 @@ export class EffectEditor extends LitElement {
                           <ha-icon icon="mdi:close"></ha-icon>
                         </button>
                       `
-                    : ''}
+                    : html`<div class="color-remove-spacer"></div>`}
                 </div>
               `
             )}
-            <div
-              class="add-color-btn ${this._colors.length >= 8 ? 'disabled' : ''}"
-              @click=${this._addColor}
-              title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_add')}"
-            >
-              <ha-icon icon="mdi:plus"></ha-icon>
+            <div class="add-color-btn ${this._colors.length >= 8 ? 'disabled' : ''}">
+              <div
+                class="add-color-icon"
+                @click=${this._addColor}
+                title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_add')}"
+              >
+                <ha-icon icon="mdi:plus"></ha-icon>
+              </div>
+              <div class="color-remove-spacer"></div>
             </div>
           </div>
         </div>
@@ -582,7 +584,7 @@ export class EffectEditor extends LitElement {
               <div class="color-picker-modal-overlay" @click=${this._closeColorPicker}>
                 <div class="color-picker-modal" @click=${(e: Event) => e.stopPropagation()}>
                   <div class="color-picker-modal-header">
-                    <span class="color-picker-modal-title">Select color</span>
+                    <span class="color-picker-modal-title">${this._localize('editors.color_picker_title')}</span>
                     <div
                       class="color-picker-modal-preview"
                       style="background-color: ${this._colorToHex(this._editingColor)}"
@@ -598,7 +600,7 @@ export class EffectEditor extends LitElement {
                     <ha-button @click=${this._closeColorPicker}>${this._localize('editors.cancel_button')}</ha-button>
                     <ha-button @click=${this._confirmColorPicker}>
                       <ha-icon icon="mdi:check"></ha-icon>
-                      Apply
+                      ${this._localize('editors.apply_button')}
                     </ha-button>
                   </div>
                 </div>

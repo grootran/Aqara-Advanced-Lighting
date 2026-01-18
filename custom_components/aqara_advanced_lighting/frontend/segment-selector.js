@@ -529,6 +529,11 @@ class SegmentSelector extends LitElement {
         --mdc-icon-size: 16px;
       }
 
+      .color-remove-spacer {
+        height: 26px;
+        visibility: hidden;
+      }
+
       .add-color-btn {
         display: flex;
         flex-direction: column;
@@ -537,7 +542,7 @@ class SegmentSelector extends LitElement {
         gap: 4px;
       }
 
-      .add-color-btn > * {
+      .add-color-icon {
         display: flex;
         align-items: center;
         justify-content: center;
@@ -550,13 +555,13 @@ class SegmentSelector extends LitElement {
         transition: all 0.2s ease;
       }
 
-      .add-color-btn:hover > * {
+      .add-color-btn:hover .add-color-icon {
         border-color: var(--primary-color);
         color: var(--primary-color);
         transform: scale(1.05);
       }
 
-      .add-color-btn ha-icon {
+      .add-color-icon ha-icon {
         --mdc-icon-size: 24px;
       }
 
@@ -690,12 +695,8 @@ class SegmentSelector extends LitElement {
           font-size: 9px;
         }
 
-        .controls {
-          flex-direction: column;
-        }
-
         .controls ha-button {
-          width: 100%;
+          width: calc(50% - 4px);
         }
 
         .color-palette {
@@ -1664,7 +1665,6 @@ class SegmentSelector extends LitElement {
         Click a color to select it, then click segments to apply.
       </div>
       <div class="color-palette">
-        <span class="palette-label">Colors:</span>
         ${this.colorPalette.map((color, index) => html`
           <div class="palette-color-wrapper">
             <div
@@ -1708,12 +1708,15 @@ class SegmentSelector extends LitElement {
               <button class="color-remove" @click=${() => this._removeGradientColor(index)}>
                 <ha-icon icon="mdi:close"></ha-icon>
               </button>
-            ` : ''}
+            ` : html`<div class="color-remove-spacer"></div>`}
           </div>
         `)}
         ${this.gradientColors.length < 6 ? html`
-          <div class="add-color-btn" @click=${this._addGradientColor}>
-            <ha-icon icon="mdi:plus"></ha-icon>
+          <div class="add-color-btn">
+            <div class="add-color-icon" @click=${this._addGradientColor}>
+              <ha-icon icon="mdi:plus"></ha-icon>
+            </div>
+            <div class="color-remove-spacer"></div>
           </div>
         ` : ''}
       </div>
@@ -1750,12 +1753,15 @@ class SegmentSelector extends LitElement {
               <button class="color-remove" @click=${() => this._removeBlockColor(index)}>
                 <ha-icon icon="mdi:close"></ha-icon>
               </button>
-            ` : ''}
+            ` : html`<div class="color-remove-spacer"></div>`}
           </div>
         `)}
         ${this.blockColors.length < 6 ? html`
-          <div class="add-color-btn" @click=${this._addBlockColor}>
-            <ha-icon icon="mdi:plus"></ha-icon>
+          <div class="add-color-btn">
+            <div class="add-color-icon" @click=${this._addBlockColor}>
+              <ha-icon icon="mdi:plus"></ha-icon>
+            </div>
+            <div class="color-remove-spacer"></div>
           </div>
         ` : ''}
       </div>
