@@ -64,4 +64,4 @@ custom_components/*/frontend_src/dist/
 # Testing
 .pytest_cache/
 .coverage
-htmlcov/
+htmlcov/aqara_advanced_lighting.zip
