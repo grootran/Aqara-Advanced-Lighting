@@ -63,10 +63,10 @@
       "message": "Invalid effect type: {effect}. This effect is not supported. Please choose from the available effects for your device."
     },
     "preset_not_compatible": {
-      "message": "The preset \"{preset}\" is not compatible with device {device} (model: {model}). Please select a preset designed for this device type."
+      "message": "The preset {preset} is not compatible with device {device} (model: {model}). Please select a preset designed for this device type."
     },
     "effect_not_supported": {
-      "message": "The effect \"{effect}\" is not supported by device {device}. {reason}"
+      "message": "The effect {effect} is not supported by device {device}. {reason}"
     },
     "segment_addressing_not_supported": {
       "message": "Device {device} does not support segment addressing. Only T1M ceiling lights and T1 LED strips support this feature."
@@ -135,16 +135,16 @@
       "message": "The following entities are not supported Aqara devices: {entity_list}. Please select only Aqara T1, T1M, T1 Strip, or T2 bulb entities that are connected via Zigbee2MQTT."
     },
     "user_preset_missing_field": {
-      "message": "User preset '{preset}' is missing required field: {field}. Please check the preset configuration."
+      "message": "User preset {preset} is missing required field: {field}. Please check the preset configuration."
     },
     "user_preset_no_colors": {
-      "message": "User preset '{preset}' has no colors defined. Please add at least one color to the preset."
+      "message": "User preset {preset} has no colors defined. Please add at least one color to the preset."
     },
     "user_preset_no_segments": {
-      "message": "User preset '{preset}' has no segments defined. Please add segment configuration to the preset."
+      "message": "User preset {preset} has no segments defined. Please add segment configuration to the preset."
     },
     "user_preset_no_steps": {
-      "message": "User preset '{preset}' has no steps defined. Please add at least one step to the sequence."
+      "message": "User preset {preset} has no steps defined. Please add at least one step to the sequence."
     },
     "start_segment_sequence_failed": {
       "message": "Failed to start segment sequence for {entity_id}: {error}. Please check that the device is available and try again."
