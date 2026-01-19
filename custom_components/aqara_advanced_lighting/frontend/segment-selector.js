@@ -972,6 +972,27 @@ class SegmentSelector extends LitElement {
   }
 
   /**
+   * Translation helper
+   */
+  _localize(key, replacements) {
+    const keys = key.split('.');
+    let value = this.translations;
+    for (const k of keys) {
+      if (!value || typeof value !== 'object' || !(k in value)) {
+        return key;
+      }
+      value = value[k];
+    }
+    let result = typeof value === 'string' ? value : key;
+    if (replacements) {
+      Object.entries(replacements).forEach(([placeholder, replacement]) => {
+        result = result.replace(`{${placeholder}}`, replacement);
+      });
+    }
+    return result;
+  }
+
+  /**
    * Quick actions
    */
   _selectAll() {
@@ -1556,31 +1577,31 @@ class SegmentSelector extends LitElement {
         <div class="controls">
           <ha-button @click=${this._selectAll} .disabled=${this.disabled}>
             <ha-icon icon="mdi:select-all"></ha-icon>
-            Select All
+            ${this._localize('editors.select_all_button')}
           </ha-button>
           <ha-button @click=${this._clearAll} .disabled=${this.disabled || !hasSelection}>
             <ha-icon icon="mdi:selection-off"></ha-icon>
-            Clear
+            ${this._localize('editors.clear_all_button')}
           </ha-button>
           <ha-button @click=${this._selectFirstHalf} .disabled=${this.disabled}>
             <ha-icon icon="mdi:arrow-left-bold"></ha-icon>
-            First Half
+            ${this._localize('editors.first_half_button')}
           </ha-button>
           <ha-button @click=${this._selectSecondHalf} .disabled=${this.disabled}>
             <ha-icon icon="mdi:arrow-right-bold"></ha-icon>
-            Second Half
+            ${this._localize('editors.second_half_button')}
           </ha-button>
           <ha-button @click=${this._selectOdd} .disabled=${this.disabled}>
             <ha-icon icon="mdi:numeric-1"></ha-icon>
-            Odd
+            ${this._localize('editors.odd_button')}
           </ha-button>
           <ha-button @click=${this._selectEven} .disabled=${this.disabled}>
             <ha-icon icon="mdi:numeric-2"></ha-icon>
-            Even
+            ${this._localize('editors.even_button')}
           </ha-button>
           <div class="selection-info">
             <ha-icon icon="mdi:information-outline"></ha-icon>
-            <span>${count} of ${this.maxSegments} selected</span>
+            <span>${this._localize('editors.segments_selected', {count: count})}</span>
           </div>
         </div>
       `;
@@ -1593,7 +1614,7 @@ class SegmentSelector extends LitElement {
             .disabled=${this.disabled}
           >
             <ha-icon icon="${this._selectMode ? 'mdi:selection-multiple' : 'mdi:selection'}"></ha-icon>
-            ${this._selectMode ? 'Select On' : 'Select Off'}
+            ${this._selectMode ? this._localize('editors.select_mode_on') : this._localize('editors.select_mode_off')}
           </ha-button>
           <ha-button
             class="${this._clearMode ? 'clear-mode-toggle active' : 'clear-mode-toggle'}"
@@ -1601,19 +1622,19 @@ class SegmentSelector extends LitElement {
             .disabled=${this.disabled}
           >
             <ha-icon icon="${this._clearMode ? 'mdi:eraser' : 'mdi:eraser-variant'}"></ha-icon>
-            ${this._clearMode ? 'Clear On' : 'Clear Off'}
+            ${this._clearMode ? this._localize('editors.clear_mode_on') : this._localize('editors.clear_mode_off')}
           </ha-button>
           <ha-button @click=${this._selectAll} .disabled=${this.disabled}>
-            Select All
+            ${this._localize('editors.select_all_button')}
           </ha-button>
           <ha-button @click=${this._clearSelected} .disabled=${this.disabled || !hasSelection}>
-            Clear Selected
+            ${this._localize('editors.clear_selected_button')}
           </ha-button>
           <ha-button @click=${this._clearAll} .disabled=${this.disabled}>
-            Clear All
+            ${this._localize('editors.clear_all_button')}
           </ha-button>
           <div class="selection-info">
-            <span>${count} selected</span>
+            <span>${this._localize('editors.segments_selected', {count: count})}</span>
           </div>
         </div>
       `;
@@ -1640,19 +1661,19 @@ class SegmentSelector extends LitElement {
           class="mode-tab ${this._patternMode === 'individual' ? 'active' : ''}"
           @click=${() => this._setPatternMode('individual')}
         >
-          Individual
+          ${this._localize('editors.individual_tab')}
         </button>
         <button
           class="mode-tab ${this._patternMode === 'gradient' ? 'active' : ''}"
           @click=${() => this._setPatternMode('gradient')}
         >
-          Gradient
+          ${this._localize('editors.gradient_tab')}
         </button>
         <button
           class="mode-tab ${this._patternMode === 'blocks' ? 'active' : ''}"
           @click=${() => this._setPatternMode('blocks')}
         >
-          Blocks
+          ${this._localize('editors.blocks_tab')}
         </button>
       </div>
     `;
@@ -1696,7 +1717,7 @@ class SegmentSelector extends LitElement {
           .disabled=${this._selectedSegments.size === 0}
         >
           <ha-icon icon="mdi:selection"></ha-icon>
-          Apply to Selected
+          ${this._localize('editors.apply_to_selected_button')}
         </ha-button>
       </div>
     `;
@@ -1705,7 +1726,7 @@ class SegmentSelector extends LitElement {
   _renderGradientMode() {
     return html`
       <div class="mode-description">
-        Create a smooth color gradient. Add 2-6 colors to blend.
+        ${this._localize('editors.gradient_mode_description')}
       </div>
       <div class="color-array">
         ${this.gradientColors.map((color, index) => html`
@@ -1734,14 +1755,14 @@ class SegmentSelector extends LitElement {
       <div class="generated-actions">
         <ha-button @click=${this._applyToGrid}>
           <ha-icon icon="mdi:grid"></ha-icon>
-          Apply to Grid
+          ${this._localize('editors.apply_to_grid_button')}
         </ha-button>
         <ha-button
           @click=${this._applyToSelectedSegments}
           .disabled=${this._selectedSegments.size === 0}
         >
           <ha-icon icon="mdi:selection"></ha-icon>
-          Apply to Selected
+          ${this._localize('editors.apply_to_selected_button')}
         </ha-button>
       </div>
     `;
@@ -1750,7 +1771,7 @@ class SegmentSelector extends LitElement {
   _renderBlocksMode() {
     return html`
       <div class="mode-description">
-        Create evenly spaced blocks of color. Add 1-6 colors.
+        ${this._localize('editors.blocks_mode_description')}
       </div>
       <div class="color-array">
         ${this.blockColors.map((color, index) => html`
@@ -1783,33 +1804,26 @@ class SegmentSelector extends LitElement {
             .checked=${this.expandBlocks}
             @change=${this._handleExpandBlocksChange}
           />
-          <span class="option-label">Expand blocks to fill segments evenly</span>
+          <span class="option-label">${this._localize('editors.expand_blocks_label')}</span>
         </label>
       </div>
       <div class="generated-actions">
         <ha-button @click=${this._applyToGrid}>
           <ha-icon icon="mdi:grid"></ha-icon>
-          Apply to Grid
+          ${this._localize('editors.apply_to_grid_button')}
         </ha-button>
         <ha-button
           @click=${this._applyToSelectedSegments}
           .disabled=${this._selectedSegments.size === 0}
         >
           <ha-icon icon="mdi:selection"></ha-icon>
-          Apply to Selected
+          ${this._localize('editors.apply_to_selected_button')}
         </ha-button>
       </div>
     `;
   }
 
   _renderHint() {
-    if (this.mode === 'selection') {
-      return html`
-        <span class="hint">
-          Click to select, Shift+click for range, Ctrl/Cmd+click to toggle multiple
-        </span>
-      `;
-    }
     return '';
   }
 
@@ -1828,7 +1842,7 @@ class SegmentSelector extends LitElement {
       <div class="color-picker-modal-overlay" @click=${this._closeColorPicker}>
         <div class="color-picker-modal" @click=${(e) => e.stopPropagation()}>
           <div class="color-picker-modal-header">
-            <span class="color-picker-modal-title">Select Color</span>
+            <span class="color-picker-modal-title">${this._localize('editors.color_picker_title')}</span>
             <div
               class="color-picker-modal-preview"
               style="background-color: ${accurateHex}"
@@ -1873,10 +1887,10 @@ class SegmentSelector extends LitElement {
             </label>
           </div>
           <div class="color-picker-modal-actions">
-            <ha-button @click=${this._closeColorPicker}>Cancel</ha-button>
+            <ha-button @click=${this._closeColorPicker}>${this._localize('editors.cancel_button')}</ha-button>
             <ha-button @click=${this._confirmColorPicker}>
               <ha-icon icon="mdi:check"></ha-icon>
-              Apply
+              ${this._localize('editors.apply_button')}
             </ha-button>
           </div>
         </div>

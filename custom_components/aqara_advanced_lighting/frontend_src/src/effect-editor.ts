@@ -512,6 +512,7 @@ export class EffectEditor extends LitElement {
                   .maxSegments=${this.stripSegmentCount}
                   .value=${this._segments}
                   .label=${this._localize('editors.segments_label')}
+                  .translations=${this.translations}
                   @value-changed=${this._handleSegmentsChange}
                 ></segment-selector>
               </div>

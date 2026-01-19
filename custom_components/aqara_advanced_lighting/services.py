@@ -491,8 +491,11 @@ def _normalize_color_to_rgb(color_data: dict[str, Any] | list[int]) -> RGBColor:
         # RGB list format [r, g, b]
         if len(color_data) == 3:
             return RGBColor(r=color_data[0], g=color_data[1], b=color_data[2])
-        msg = f"RGB list must have exactly 3 values, got {len(color_data)}"
-        raise ServiceValidationError(msg)
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="rgb_list_invalid_length",
+            translation_placeholders={"count": str(len(color_data))},
+        )
 
     if isinstance(color_data, dict):
         # Check for XY format
@@ -506,11 +509,16 @@ def _normalize_color_to_rgb(color_data: dict[str, Any] | list[int]) -> RGBColor:
             # RGB dict format - use directly
             return RGBColor.from_dict(color_data)
 
-        msg = "Color dict must have either 'x'/'y' keys (XY) or 'r'/'g'/'b' keys (RGB)"
-        raise ServiceValidationError(msg)
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="color_dict_invalid_format",
+        )
 
-    msg = f"Invalid color format: expected dict or list, got {type(color_data)}"
-    raise ServiceValidationError(msg)
+    raise ServiceValidationError(
+        translation_domain=DOMAIN,
+        translation_key="color_invalid_type",
+        translation_placeholders={"type": str(type(color_data).__name__)},
+    )
 
 
 def _get_mqtt_client_and_state_manager(
@@ -621,11 +629,11 @@ def _validate_supported_entities(
     if unsupported_entities:
         # Build detailed error message
         entity_list = ", ".join([e["entity_id"] for e in unsupported_entities])
-        reason_summary = unsupported_entities[0]["reason"]  # Use first reason for translation key
 
         raise ServiceValidationError(
-            f"The following entities are not supported Aqara devices: {entity_list}. "
-            f"Please select only Aqara T1, T1M, T1 Strip, or T2 bulb entities that are connected via Zigbee2MQTT."
+            translation_domain=DOMAIN,
+            translation_key="unsupported_entities",
+            translation_placeholders={"entity_list": entity_list},
         )
 
 
@@ -825,13 +833,17 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     colors_data: list[dict[str, Any]] = user_preset["effect_colors"]
                 except KeyError as ex:
                     raise ServiceValidationError(
-                        f"User preset '{preset}' is missing required field: {ex}"
+                        translation_domain=DOMAIN,
+                        translation_key="user_preset_missing_field",
+                        translation_placeholders={"preset": preset, "field": str(ex)},
                     ) from ex
 
                 # Validate colors list is not empty
                 if not colors_data:
                     raise ServiceValidationError(
-                        f"User preset '{preset}' has no colors defined"
+                        translation_domain=DOMAIN,
+                        translation_key="user_preset_no_colors",
+                        translation_placeholders={"preset": preset},
                     )
 
                 # Use slider brightness if provided, otherwise use preset brightness
@@ -1336,12 +1348,16 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     segments_list = user_preset["segments"]
                 except KeyError as ex:
                     raise ServiceValidationError(
-                        f"User preset '{preset}' is missing required field: {ex}"
+                        translation_domain=DOMAIN,
+                        translation_key="user_preset_missing_field",
+                        translation_placeholders={"preset": preset, "field": str(ex)},
                     ) from ex
 
                 if not segments_list:
                     raise ServiceValidationError(
-                        f"User preset '{preset}' has no segments defined"
+                        translation_domain=DOMAIN,
+                        translation_key="user_preset_no_segments",
+                        translation_placeholders={"preset": preset},
                     )
 
                 segment_colors_data = segments_list[:max_segments]
@@ -1828,12 +1844,16 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     }
                 except KeyError as ex:
                     raise ServiceValidationError(
-                        f"User preset '{preset}' is missing required field: {ex}"
+                        translation_domain=DOMAIN,
+                        translation_key="user_preset_missing_field",
+                        translation_placeholders={"preset": preset, "field": str(ex)},
                     ) from ex
 
                 if not preset_data["steps"]:
                     raise ServiceValidationError(
-                        f"User preset '{preset}' has no steps defined"
+                        translation_domain=DOMAIN,
+                        translation_key="user_preset_no_steps",
+                        translation_placeholders={"preset": preset},
                     )
 
                 _LOGGER.debug(
@@ -2141,12 +2161,16 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     }
                 except KeyError as ex:
                     raise ServiceValidationError(
-                        f"User preset '{preset}' is missing required field: {ex}"
+                        translation_domain=DOMAIN,
+                        translation_key="user_preset_missing_field",
+                        translation_placeholders={"preset": preset, "field": str(ex)},
                     ) from ex
 
                 if not preset_data["steps"]:
                     raise ServiceValidationError(
-                        f"User preset '{preset}' has no steps defined"
+                        translation_domain=DOMAIN,
+                        translation_key="user_preset_no_steps",
+                        translation_placeholders={"preset": preset},
                     )
 
                 _LOGGER.debug(
@@ -2355,7 +2379,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     "Failed to start segment sequence for %s: %s", entity_id, ex
                 )
                 raise HomeAssistantError(
-                    f"Failed to start segment sequence for {entity_id}: {ex}"
+                    translation_domain=DOMAIN,
+                    translation_key="start_segment_sequence_failed",
+                    translation_placeholders={"entity_id": entity_id, "error": str(ex)},
                 ) from ex
 
     async def handle_stop_segment_sequence(call: ServiceCall) -> None:

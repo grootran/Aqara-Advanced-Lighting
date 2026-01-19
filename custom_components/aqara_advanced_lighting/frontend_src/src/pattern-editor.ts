@@ -662,6 +662,7 @@ export class PatternEditor extends LitElement {
             .gradientColors=${this._gradientColors}
             .blockColors=${this._blockColors}
             .expandBlocks=${this._expandBlocks}
+            .translations=${this.translations}
             @color-value-changed=${this._handleColorValueChange}
             @color-palette-changed=${this._handleColorPaletteChange}
             @gradient-colors-changed=${this._handleGradientColorsChange}

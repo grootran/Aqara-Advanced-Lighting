@@ -788,6 +788,7 @@ export class SegmentSequenceEditor extends LitElement {
             .blockColors=${step.blockColors}
             .expandBlocks=${step.expandBlocks}
             .label=${this._localize('editors.segment_grid_label')}
+            .translations=${this.translations}
             @color-value-changed=${(e: CustomEvent) => this._handleStepColorValueChange(step.id, e)}
             @color-palette-changed=${(e: CustomEvent) => this._handleStepColorPaletteChange(step.id, e)}
             @gradient-colors-changed=${(e: CustomEvent) => this._handleStepGradientColorsChange(step.id, e)}
