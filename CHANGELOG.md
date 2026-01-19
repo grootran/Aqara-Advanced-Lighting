@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### What's New
 
-Version 0.7.0 introduces enhanced color accuracy with a new XY-based color picker, visual segment pattern edtior for segment sequences,visual segment selection for T1 Strip effects, and improved segment sequence capabilities. This release focuses on user experience improvements and color fidelity.
+Version 0.7.0 introduces enhanced color accuracy with a new XY-based color picker, visual segment pattern edtior for segment sequences, visual segment selection for T1 Strip effects, and improved segment sequence capabilities. This release focuses on user experience improvements and color fidelity.
 
 ### New Features
 
