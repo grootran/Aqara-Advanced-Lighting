@@ -384,3 +384,24 @@ export function clampToGamut(
 
   return { x: closestPoint[0], y: closestPoint[1] };
 }
+
+/**
+ * Calculate a complementary color from the given XY color
+ * Uses hue rotation by 180 degrees on the color wheel
+ *
+ * @param color - XY color object
+ * @returns Complementary XY color object
+ */
+export function getComplementaryColor(color: XYColor): XYColor {
+  // Convert to HS color space
+  const hs = xyToHs(color);
+
+  // Rotate hue by 180 degrees for complementary color
+  let newHue = (hs.h + 180) % 360;
+
+  // Keep same saturation
+  const complementary = { h: newHue, s: hs.s };
+
+  // Convert back to XY
+  return hsToXy(complementary);
+}

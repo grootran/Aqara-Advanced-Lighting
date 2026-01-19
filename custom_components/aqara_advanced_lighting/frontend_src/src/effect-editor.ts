@@ -1,9 +1,9 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { HomeAssistant, RGBColor, XYColor, HSColor, UserEffectPreset } from './types';
-import { xyToHex, rgbToXy, xyToHs, hsToXy, hsToRgb } from './color-utils';
+import { HomeAssistant, RGBColor, XYColor, UserEffectPreset } from './types';
+import { xyToHex, rgbToXy, getComplementaryColor } from './color-utils';
 import { colorPickerStyles } from './styles';
-import './hs-color-picker';
+import './xy-color-picker';
 
 // Effect types available for each device
 const EFFECT_TYPES: Record<string, string[]> = {
@@ -32,6 +32,7 @@ export class EffectEditor extends LitElement {
   @property({ type: Boolean }) public hasSelectedEntities = false;
   @property({ type: Boolean }) public isCompatible = true;
   @property({ type: Boolean }) public previewActive = false;
+  @property({ type: Number }) public stripSegmentCount = 10; // Default 2 meters (out-of-box T1 Strip length)
 
   @state() private _name = '';
   @state() private _icon = '';
@@ -44,7 +45,7 @@ export class EffectEditor extends LitElement {
   @state() private _saving = false;
   @state() private _previewing = false;
   @state() private _editingColorIndex: number | null = null;
-  @state() private _editingColor: HSColor | null = null;
+  @state() private _editingColor: XYColor | null = null;
 
   static styles = [
     colorPickerStyles,
@@ -278,7 +279,7 @@ export class EffectEditor extends LitElement {
     const xyColor = this._colors[index];
     if (!xyColor) return;
     this._editingColorIndex = index;
-    this._editingColor = xyToHs(xyColor);
+    this._editingColor = xyColor;
   }
 
   private _handleColorPickerChange(e: CustomEvent): void {
@@ -287,9 +288,8 @@ export class EffectEditor extends LitElement {
 
   private _confirmColorPicker(): void {
     if (this._editingColorIndex !== null && this._editingColor !== null) {
-      const xyColor = hsToXy(this._editingColor);
       this._colors = this._colors.map((c, i) =>
-        i === this._editingColorIndex ? xyColor : c
+        i === this._editingColorIndex ? this._editingColor! : c
       );
     }
     this._closeColorPicker();
@@ -302,8 +302,10 @@ export class EffectEditor extends LitElement {
 
   private _addColor(): void {
     if (this._colors.length < 8) {
-      // Add white in XY space (D65 white point)
-      this._colors = [...this._colors, { x: 0.3127, y: 0.3290 }];
+      // Get the last color and calculate its complementary color
+      const lastColor = this._colors[this._colors.length - 1] || { x: 0.6800, y: 0.3100 }; // Default to red if undefined
+      const newColor = getComplementaryColor(lastColor);
+      this._colors = [...this._colors, newColor];
     }
   }
 
@@ -504,14 +506,15 @@ export class EffectEditor extends LitElement {
         ${showSegments
           ? html`
               <div class="form-section">
-                <span class="form-label">${this._localize('editors.segments_label')}</span>
-                <ha-selector
+                <segment-selector
                   .hass=${this.hass}
-                  .selector=${{ text: {} }}
+                  .mode=${'selection'}
+                  .maxSegments=${this.stripSegmentCount}
                   .value=${this._segments}
+                  .label=${this._localize('editors.segments_label')}
+                  .translations=${this.translations}
                   @value-changed=${this._handleSegmentsChange}
-                ></ha-selector>
-                <span class="field-description">${this._localize('editors.segments_description')}</span>
+                ></segment-selector>
               </div>
             `
           : ''}
@@ -554,24 +557,27 @@ export class EffectEditor extends LitElement {
                   ></div>
                   ${this._colors.length > 1
                     ? html`
-                        <ha-icon-button
+                        <button
                           class="color-remove"
                           @click=${() => this._removeColor(index)}
                           title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_remove')}"
                         >
                           <ha-icon icon="mdi:close"></ha-icon>
-                        </ha-icon-button>
+                        </button>
                       `
-                    : ''}
+                    : html`<div class="color-remove-spacer"></div>`}
                 </div>
               `
             )}
-            <div
-              class="add-color-btn ${this._colors.length >= 8 ? 'disabled' : ''}"
-              @click=${this._addColor}
-              title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_add')}"
-            >
-              <ha-icon icon="mdi:plus"></ha-icon>
+            <div class="add-color-btn ${this._colors.length >= 8 ? 'disabled' : ''}">
+              <div
+                class="add-color-icon"
+                @click=${this._addColor}
+                title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_add')}"
+              >
+                <ha-icon icon="mdi:plus"></ha-icon>
+              </div>
+              <div class="color-remove-spacer"></div>
             </div>
           </div>
         </div>
@@ -581,28 +587,23 @@ export class EffectEditor extends LitElement {
               <div class="color-picker-modal-overlay" @click=${this._closeColorPicker}>
                 <div class="color-picker-modal" @click=${(e: Event) => e.stopPropagation()}>
                   <div class="color-picker-modal-header">
-                    <span class="color-picker-modal-title">Select color</span>
+                    <span class="color-picker-modal-title">${this._localize('editors.color_picker_title')}</span>
                     <div
                       class="color-picker-modal-preview"
-                      style="background-color: ${this._editingColor ? `hsl(${this._editingColor.h}, ${this._editingColor.s}%, 50%)` : '#fff'}"
+                      style="background-color: ${this._colorToHex(this._editingColor)}"
                     ></div>
                   </div>
-                  <hs-color-picker
+                  <xy-color-picker
                     .color=${this._editingColor}
                     .size=${220}
+                    .showRgbInputs=${true}
                     @color-changed=${this._handleColorPickerChange}
-                  ></hs-color-picker>
-                  <div class="color-picker-value-display">
-                    ${this._editingColor ? (() => {
-                      const rgb = hsToRgb(this._editingColor.h, this._editingColor.s);
-                      return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
-                    })() : ''}
-                  </div>
+                  ></xy-color-picker>
                   <div class="color-picker-modal-actions">
                     <ha-button @click=${this._closeColorPicker}>${this._localize('editors.cancel_button')}</ha-button>
                     <ha-button @click=${this._confirmColorPicker}>
                       <ha-icon icon="mdi:check"></ha-icon>
-                      Apply
+                      ${this._localize('editors.apply_button')}
                     </ha-button>
                   </div>
                 </div>

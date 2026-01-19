@@ -2,6 +2,7 @@
 
 [![GitHub Release][releases-shield]][releases]
 [![License][license-shield]](LICENSE)
+[![hacs][hacsbadge]][hacs]
 
 ![Aqara Advanced Lighting](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/main/images/aqara-advanced-lighting.png "Aqara Advanced Lighting")
 
@@ -390,11 +391,11 @@ In addition to the frontend, features are also available as service actions from
 
 To use the services within an automation, when adding a "Then do" action scroll down to other actions - Aqara Advanced Lighting, and select an action.
 
-![Aqara Advanced Lighting](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/main/images/automation.png "Aqara Advanced Lighting Automation")
+![Aqara Advanced Lighting Automation](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/main/images/automation.png "Aqara Advanced Lighting Automation")
 
-A UI will pop up showing the parameters for configuring the action. To edit the yaml directly, click the 3 dots on the upper left and select "Edit in YAML".
+A UI will pop up showing the parameters for configuring the action. To edit the YAML directly, click the 3 dots on the upper right and select "Edit in YAML". To use a saved preset that was created via the frontend, tick Preset, type the name of the preset (case insensitive) and click "Add custom item".
 
-![Aqara Advanced Lighting](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/main/images/action.png "Aqara Advanced Lighting Action")
+![Aqara Advanced Lighting Action](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/main/images/action.png "Aqara Advanced Lighting Action")
 
 
 <details>

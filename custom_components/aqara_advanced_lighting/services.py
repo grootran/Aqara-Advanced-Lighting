@@ -370,6 +370,12 @@ _segment_sequence_schema_dict["step_1_color_3"] = vol.Optional(COLOR_SCHEMA)
 _segment_sequence_schema_dict["step_1_color_4"] = vol.Optional(COLOR_SCHEMA)
 _segment_sequence_schema_dict["step_1_color_5"] = vol.Optional(COLOR_SCHEMA)
 _segment_sequence_schema_dict["step_1_color_6"] = vol.Optional(COLOR_SCHEMA)
+_segment_sequence_schema_dict["step_1_segment_colors"] = vol.Optional(
+    vol.All(cv.ensure_list, [vol.Schema({
+        vol.Required("segment"): vol.Coerce(int),
+        vol.Required("color"): RGB_COLOR_SCHEMA,
+    })])
+)
 _segment_sequence_schema_dict["step_1_duration"] = vol.Optional(
     vol.All(vol.Coerce(float), vol.Range(min=MIN_DURATION, max=MAX_DURATION))
 )
@@ -401,6 +407,12 @@ for step_num in range(2, 21):
     _segment_sequence_schema_dict[f"step_{step_num}_color_4"] = vol.Optional(COLOR_SCHEMA)
     _segment_sequence_schema_dict[f"step_{step_num}_color_5"] = vol.Optional(COLOR_SCHEMA)
     _segment_sequence_schema_dict[f"step_{step_num}_color_6"] = vol.Optional(COLOR_SCHEMA)
+    _segment_sequence_schema_dict[f"step_{step_num}_segment_colors"] = vol.Optional(
+        vol.All(cv.ensure_list, [vol.Schema({
+            vol.Required("segment"): vol.Coerce(int),
+            vol.Required("color"): RGB_COLOR_SCHEMA,
+        })])
+    )
     _segment_sequence_schema_dict[f"step_{step_num}_duration"] = vol.Optional(
         vol.All(vol.Coerce(float), vol.Range(min=MIN_DURATION, max=MAX_DURATION))
     )
@@ -479,8 +491,11 @@ def _normalize_color_to_rgb(color_data: dict[str, Any] | list[int]) -> RGBColor:
         # RGB list format [r, g, b]
         if len(color_data) == 3:
             return RGBColor(r=color_data[0], g=color_data[1], b=color_data[2])
-        msg = f"RGB list must have exactly 3 values, got {len(color_data)}"
-        raise ServiceValidationError(msg)
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="rgb_list_invalid_length",
+            translation_placeholders={"count": str(len(color_data))},
+        )
 
     if isinstance(color_data, dict):
         # Check for XY format
@@ -494,11 +509,16 @@ def _normalize_color_to_rgb(color_data: dict[str, Any] | list[int]) -> RGBColor:
             # RGB dict format - use directly
             return RGBColor.from_dict(color_data)
 
-        msg = "Color dict must have either 'x'/'y' keys (XY) or 'r'/'g'/'b' keys (RGB)"
-        raise ServiceValidationError(msg)
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="color_dict_invalid_format",
+        )
 
-    msg = f"Invalid color format: expected dict or list, got {type(color_data)}"
-    raise ServiceValidationError(msg)
+    raise ServiceValidationError(
+        translation_domain=DOMAIN,
+        translation_key="color_invalid_type",
+        translation_placeholders={"type": str(type(color_data).__name__)},
+    )
 
 
 def _get_mqtt_client_and_state_manager(
@@ -609,11 +629,11 @@ def _validate_supported_entities(
     if unsupported_entities:
         # Build detailed error message
         entity_list = ", ".join([e["entity_id"] for e in unsupported_entities])
-        reason_summary = unsupported_entities[0]["reason"]  # Use first reason for translation key
 
         raise ServiceValidationError(
-            f"The following entities are not supported Aqara devices: {entity_list}. "
-            f"Please select only Aqara T1, T1M, T1 Strip, or T2 bulb entities that are connected via Zigbee2MQTT."
+            translation_domain=DOMAIN,
+            translation_key="unsupported_entities",
+            translation_placeholders={"entity_list": entity_list},
         )
 
 
@@ -813,13 +833,17 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     colors_data: list[dict[str, Any]] = user_preset["effect_colors"]
                 except KeyError as ex:
                     raise ServiceValidationError(
-                        f"User preset '{preset}' is missing required field: {ex}"
+                        translation_domain=DOMAIN,
+                        translation_key="user_preset_missing_field",
+                        translation_placeholders={"preset": preset, "field": str(ex)},
                     ) from ex
 
                 # Validate colors list is not empty
                 if not colors_data:
                     raise ServiceValidationError(
-                        f"User preset '{preset}' has no colors defined"
+                        translation_domain=DOMAIN,
+                        translation_key="user_preset_no_colors",
+                        translation_placeholders={"preset": preset},
                     )
 
                 # Use slider brightness if provided, otherwise use preset brightness
@@ -1324,12 +1348,16 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     segments_list = user_preset["segments"]
                 except KeyError as ex:
                     raise ServiceValidationError(
-                        f"User preset '{preset}' is missing required field: {ex}"
+                        translation_domain=DOMAIN,
+                        translation_key="user_preset_missing_field",
+                        translation_placeholders={"preset": preset, "field": str(ex)},
                     ) from ex
 
                 if not segments_list:
                     raise ServiceValidationError(
-                        f"User preset '{preset}' has no segments defined"
+                        translation_domain=DOMAIN,
+                        translation_key="user_preset_no_segments",
+                        translation_placeholders={"preset": preset},
                     )
 
                 segment_colors_data = segments_list[:max_segments]
@@ -1529,8 +1557,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 segment_count = _get_actual_segment_count(hass, entity_id, device.model_id)
                 segment_list = list(range(1, segment_count + 1))
 
-            # Generate gradient
-            gradient_data = generate_gradient_colors(colors_rgb, segment_count)
+            # Generate gradient (convert RGBColor objects to dicts)
+            gradient_data = generate_gradient_colors(
+                [c.to_dict() for c in colors_rgb], segment_count
+            )
 
             # Map gradient positions to actual segment numbers
             if segments_str:
@@ -1697,8 +1727,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 segment_count = _get_actual_segment_count(hass, entity_id, device.model_id)
                 segment_list = list(range(1, segment_count + 1))
 
-            # Generate blocks
-            blocks_data = generate_block_colors(colors_rgb, segment_count, expand)
+            # Generate blocks (convert RGBColor objects to dicts)
+            blocks_data = generate_block_colors(
+                [c.to_dict() for c in colors_rgb], segment_count, expand
+            )
 
             # Map block positions to actual segment numbers
             if segments_str:
@@ -1812,12 +1844,16 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     }
                 except KeyError as ex:
                     raise ServiceValidationError(
-                        f"User preset '{preset}' is missing required field: {ex}"
+                        translation_domain=DOMAIN,
+                        translation_key="user_preset_missing_field",
+                        translation_placeholders={"preset": preset, "field": str(ex)},
                     ) from ex
 
                 if not preset_data["steps"]:
                     raise ServiceValidationError(
-                        f"User preset '{preset}' has no steps defined"
+                        translation_domain=DOMAIN,
+                        translation_key="user_preset_no_steps",
+                        translation_placeholders={"preset": preset},
                     )
 
                 _LOGGER.debug(
@@ -2125,12 +2161,16 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     }
                 except KeyError as ex:
                     raise ServiceValidationError(
-                        f"User preset '{preset}' is missing required field: {ex}"
+                        translation_domain=DOMAIN,
+                        translation_key="user_preset_missing_field",
+                        translation_placeholders={"preset": preset, "field": str(ex)},
                     ) from ex
 
                 if not preset_data["steps"]:
                     raise ServiceValidationError(
-                        f"User preset '{preset}' has no steps defined"
+                        translation_domain=DOMAIN,
+                        translation_key="user_preset_no_steps",
+                        translation_placeholders={"preset": preset},
                     )
 
                 _LOGGER.debug(
@@ -2150,14 +2190,35 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             sequence_steps = []
             for step_data in preset_data["steps"]:
                 try:
-                    colors = [RGBColor(**color) if isinstance(color, dict) else RGBColor(r=color[0], g=color[1], b=color[2]) for color in step_data["colors"]]
+                    # Check if step uses direct segment assignments (new method)
+                    segment_colors = None
+                    if "segment_colors" in step_data and step_data["segment_colors"]:
+                        # Convert segment_colors from dicts to SegmentColor objects
+                        segment_colors = [
+                            SegmentColor(
+                                segment=sc["segment"],
+                                color=RGBColor(**sc["color"]),
+                            )
+                            for sc in step_data["segment_colors"]
+                        ]
+                        # For legacy compatibility, provide defaults for required fields
+                        colors = [RGBColor(r=255, g=0, b=0)]  # Default, not used
+                        segments = "all"  # Default, not used
+                        mode = "individual"  # Default, not used
+                    else:
+                        # Legacy mode: use segments + colors + mode
+                        colors = [RGBColor(**color) if isinstance(color, dict) else RGBColor(r=color[0], g=color[1], b=color[2]) for color in step_data["colors"]]
+                        segments = step_data["segments"]
+                        mode = step_data["mode"]
+
                     step = SegmentSequenceStep(
-                        segments=step_data["segments"],
+                        segments=segments,
                         colors=colors,
-                        mode=step_data["mode"],
+                        mode=mode,
                         duration=step_data["duration"],
                         hold=step_data["hold"],
                         activation_pattern=step_data["activation_pattern"],
+                        segment_colors=segment_colors,
                     )
                     sequence_steps.append(step)
                 except (ValueError, KeyError) as ex:
@@ -2196,20 +2257,36 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
                 # Check if this step is provided
                 if segments_key in call.data and mode_key in call.data:
-                    # Extract colors for this step (supports both RGB and XY formats)
-                    step_colors = []
-                    for color_num in range(1, 7):
-                        color_key = f"step_{step_num}_color_{color_num}"
-                        if color_key in call.data:
-                            color_data = call.data[color_key]
-                            step_colors.append(_normalize_color_to_rgb(color_data))
+                    # Check for new segment_colors format first
+                    segment_colors_key = f"step_{step_num}_segment_colors"
+                    segment_colors = None
 
-                    if not step_colors:
-                        raise ServiceValidationError(
-                            translation_domain=DOMAIN,
-                            translation_key="step_requires_colors",
-                            translation_placeholders={"step": str(step_num)},
-                        )
+                    if segment_colors_key in call.data and call.data[segment_colors_key]:
+                        # Convert segment_colors from dicts to SegmentColor objects
+                        segment_colors = [
+                            SegmentColor(
+                                segment=sc["segment"],
+                                color=RGBColor(**sc["color"]),
+                            )
+                            for sc in call.data[segment_colors_key]
+                        ]
+                        # Provide defaults for required fields when using segment_colors
+                        step_colors = [RGBColor(r=255, g=0, b=0)]  # Default, not used
+                    else:
+                        # Legacy format: Extract colors for this step (supports both RGB and XY formats)
+                        step_colors = []
+                        for color_num in range(1, 7):
+                            color_key = f"step_{step_num}_color_{color_num}"
+                            if color_key in call.data:
+                                color_data = call.data[color_key]
+                                step_colors.append(_normalize_color_to_rgb(color_data))
+
+                        if not step_colors:
+                            raise ServiceValidationError(
+                                translation_domain=DOMAIN,
+                                translation_key="step_requires_colors",
+                                translation_placeholders={"step": str(step_num)},
+                            )
 
                     duration = call.data.get(f"step_{step_num}_duration", 0.0)
                     hold = call.data.get(f"step_{step_num}_hold", 0.0)
@@ -2223,6 +2300,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                             duration=duration,
                             hold=hold,
                             activation_pattern=activation_pattern,
+                            segment_colors=segment_colors,
                         )
                         sequence_steps.append(step)
                     except ValueError as ex:
@@ -2301,7 +2379,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     "Failed to start segment sequence for %s: %s", entity_id, ex
                 )
                 raise HomeAssistantError(
-                    f"Failed to start segment sequence for {entity_id}: {ex}"
+                    translation_domain=DOMAIN,
+                    translation_key="start_segment_sequence_failed",
+                    translation_placeholders={"entity_id": entity_id, "error": str(ex)},
                 ) from ex
 
     async def handle_stop_segment_sequence(call: ServiceCall) -> None:
