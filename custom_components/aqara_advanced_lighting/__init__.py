@@ -37,6 +37,33 @@ PLATFORMS: list[Platform] = []
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate old config entries to new format."""
+    _LOGGER.debug("Migrating entry %s from version %s", entry.entry_id, entry.version)
+
+    # Migrate from version 1.0 to 1.1: Add unique_id based on z2m_base_topic
+    if entry.version == 1 and entry.minor_version < 1:
+        # Get the z2m_base_topic from entry data
+        z2m_base_topic = entry.data.get(CONF_Z2M_BASE_TOPIC, DEFAULT_Z2M_BASE_TOPIC)
+
+        # Set unique_id if not already set
+        if not entry.unique_id:
+            _LOGGER.info(
+                "Migrating config entry %s to add unique_id: %s",
+                entry.entry_id,
+                z2m_base_topic,
+            )
+            hass.config_entries.async_update_entry(
+                entry,
+                unique_id=z2m_base_topic,
+                minor_version=1,
+            )
+
+        return True
+
+    return True
+
+
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the Aqara Advanced Lighting integration."""
     # Initialize domain data storage with multi-instance support
