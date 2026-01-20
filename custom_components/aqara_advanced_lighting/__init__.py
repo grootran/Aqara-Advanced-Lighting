@@ -39,8 +39,11 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the Aqara Advanced Lighting integration."""
-    # Initialize domain data storage
-    hass.data.setdefault(DOMAIN, {})
+    # Initialize domain data storage with multi-instance support
+    hass.data.setdefault(DOMAIN, {
+        "entries": {},  # entry_id -> instance components (mqtt_client, managers, etc.)
+        "entity_routing": {},  # entity_id -> entry_id (for service routing)
+    })
 
     # Initialize favorites store (per-user favorites for the panel)
     # Only initialize if not already present (handles config entry removal/re-add)
@@ -109,17 +112,30 @@ async def async_setup_entry(
     # Initialize segment sequence manager (needs mqtt_client for direct Z2M communication)
     segment_sequence_manager = SegmentSequenceManager(hass, mqtt_client)
 
-    # Store components in hass.data for service access
-    # Ensure DOMAIN key exists in hass.data
+    # Ensure domain data structure exists (handles case where async_setup wasn't called)
     if DOMAIN not in hass.data:
-        hass.data[DOMAIN] = {}
+        hass.data[DOMAIN] = {
+            "entries": {},
+            "entity_routing": {},
+        }
+    if "entries" not in hass.data[DOMAIN]:
+        hass.data[DOMAIN]["entries"] = {}
+    if "entity_routing" not in hass.data[DOMAIN]:
+        hass.data[DOMAIN]["entity_routing"] = {}
 
-    hass.data[DOMAIN]["mqtt_client"] = mqtt_client
-    hass.data[DOMAIN]["state_manager"] = state_manager
-    hass.data[DOMAIN][DATA_CCT_SEQUENCE_MANAGER] = cct_sequence_manager
-    hass.data[DOMAIN][DATA_SEGMENT_SEQUENCE_MANAGER] = segment_sequence_manager
+    # Store components per-entry for multi-instance support
+    hass.data[DOMAIN]["entries"][entry.entry_id] = {
+        "mqtt_client": mqtt_client,
+        "state_manager": state_manager,
+        DATA_CCT_SEQUENCE_MANAGER: cct_sequence_manager,
+        DATA_SEGMENT_SEQUENCE_MANAGER: segment_sequence_manager,
+    }
 
-    _LOGGER.info("Aqara Advanced Lighting integration setup complete")
+    _LOGGER.info(
+        "Aqara Advanced Lighting instance setup complete (entry: %s, topic: %s)",
+        entry.entry_id,
+        z2m_base_topic,
+    )
 
     return True
 
@@ -128,37 +144,43 @@ async def async_unload_entry(
     hass: HomeAssistant, entry: AqaraLightingConfigEntry
 ) -> bool:
     """Unload a config entry."""
-    _LOGGER.info("Unloading Aqara Advanced Lighting integration")
+    _LOGGER.info("Unloading Aqara Advanced Lighting instance: %s", entry.entry_id)
 
-    # Get managers from hass.data and cleanup
-    cct_manager = hass.data[DOMAIN].get(DATA_CCT_SEQUENCE_MANAGER)
-    if cct_manager:
-        # Stop all running sequences
-        await cct_manager.stop_all_sequences()
-        # Cleanup state listeners
-        cct_manager.cleanup()
+    # Get instance data for this entry
+    instance_data = hass.data[DOMAIN].get("entries", {}).get(entry.entry_id)
+    if instance_data:
+        # Get managers from instance data and cleanup
+        cct_manager = instance_data.get(DATA_CCT_SEQUENCE_MANAGER)
+        if cct_manager:
+            # Stop all running sequences
+            await cct_manager.stop_all_sequences()
+            # Cleanup state listeners
+            cct_manager.cleanup()
 
-    segment_manager = hass.data[DOMAIN].get(DATA_SEGMENT_SEQUENCE_MANAGER)
-    if segment_manager:
-        # Stop all running sequences
-        await segment_manager.stop_all_sequences()
-        # Cleanup state listeners
-        segment_manager.cleanup()
+        segment_manager = instance_data.get(DATA_SEGMENT_SEQUENCE_MANAGER)
+        if segment_manager:
+            # Stop all running sequences
+            await segment_manager.stop_all_sequences()
+            # Cleanup state listeners
+            segment_manager.cleanup()
 
-    # Get MQTT client from hass.data
-    mqtt_client = hass.data[DOMAIN].get("mqtt_client")
-    if mqtt_client:
-        await mqtt_client.async_teardown()
+        # Get MQTT client from instance data
+        mqtt_client = instance_data.get("mqtt_client")
+        if mqtt_client:
+            await mqtt_client.async_teardown()
 
-    # Clean up hass.data
-    if "mqtt_client" in hass.data[DOMAIN]:
-        del hass.data[DOMAIN]["mqtt_client"]
-    if "state_manager" in hass.data[DOMAIN]:
-        del hass.data[DOMAIN]["state_manager"]
-    if DATA_CCT_SEQUENCE_MANAGER in hass.data[DOMAIN]:
-        del hass.data[DOMAIN][DATA_CCT_SEQUENCE_MANAGER]
-    if DATA_SEGMENT_SEQUENCE_MANAGER in hass.data[DOMAIN]:
-        del hass.data[DOMAIN][DATA_SEGMENT_SEQUENCE_MANAGER]
+        # Remove this entry's data
+        del hass.data[DOMAIN]["entries"][entry.entry_id]
+
+    # Clean up entity routing for this entry
+    entity_routing = hass.data[DOMAIN].get("entity_routing", {})
+    entities_to_remove = [
+        entity_id
+        for entity_id, eid in entity_routing.items()
+        if eid == entry.entry_id
+    ]
+    for entity_id in entities_to_remove:
+        del entity_routing[entity_id]
 
     # NOTE: Services are NOT unloaded here because they are integration-level
     # (registered in async_setup) and should persist even when config entries
@@ -170,7 +192,10 @@ async def async_unload_entry(
     # persist for the lifetime of the integration in Home Assistant and are
     # automatically cleaned up when HA shuts down.
 
-    _LOGGER.info("Config entry unloaded, integration-level resources preserved")
+    _LOGGER.info(
+        "Config entry %s unloaded, integration-level resources preserved",
+        entry.entry_id,
+    )
 
     return True
 
