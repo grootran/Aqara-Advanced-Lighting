@@ -59,6 +59,14 @@ export class AqaraPanel extends LitElement {
   };
   @state() private _backendVersion?: string;
   @state() private _frontendVersion = '__FRONTEND_VERSION__';
+  @state() private _supportedEntities: Map<string, { device_type: string; model_id: string; z2m_friendly_name: string }> = new Map();
+  @state() private _z2mInstances: Array<{
+    entry_id: string;
+    title: string;
+    z2m_base_topic: string;
+    device_counts: { t2_rgb: number; t2_cct: number; t1m: number; t1_strip: number; other: number; total: number };
+    devices: string[];
+  }> = [];
   @state() private _localCurvature = 1.0;
   @state() private _applyingCurvature = false;
   @state() private _isExporting = false;
@@ -113,6 +121,7 @@ export class AqaraPanel extends LitElement {
     this._loadUserPresets();
     this._loadSortPreferences();
     this._loadBackendVersion();
+    this._loadSupportedEntities();
   }
 
   protected updated(changedProps: PropertyValues): void {
@@ -123,6 +132,7 @@ export class AqaraPanel extends LitElement {
       this._loadPresets();
       this._loadFavorites();
       this._loadUserPresets();
+      this._loadSupportedEntities();
     }
 
     // Update tile card when selection or hass changes
@@ -281,6 +291,32 @@ export class AqaraPanel extends LitElement {
       this._backendVersion = data.version;
     } catch (err) {
       console.warn('Failed to load backend version:', err);
+    }
+  }
+
+  private async _loadSupportedEntities(): Promise<void> {
+    try {
+      const response = await fetch('/api/aqara_advanced_lighting/supported_entities');
+      if (!response.ok) {
+        console.warn('Failed to load supported entities:', response.status);
+        return;
+      }
+      const data = await response.json();
+      // Build a map for fast lookup
+      const entityMap = new Map<string, { device_type: string; model_id: string; z2m_friendly_name: string }>();
+      for (const entity of data.entities || []) {
+        entityMap.set(entity.entity_id, {
+          device_type: entity.device_type,
+          model_id: entity.model_id,
+          z2m_friendly_name: entity.z2m_friendly_name,
+        });
+      }
+      this._supportedEntities = entityMap;
+
+      // Store instances data
+      this._z2mInstances = data.instances || [];
+    } catch (err) {
+      console.warn('Failed to load supported entities:', err);
     }
   }
 
@@ -693,7 +729,18 @@ export class AqaraPanel extends LitElement {
         continue;
       }
 
-      // Try to detect device type from effect_list (Zigbee2MQTT doesn't expose model in entity attributes)
+      // First, check if this entity is in the backend's supported entities map
+      const supportedEntity = this._supportedEntities.get(entityId);
+      if (supportedEntity) {
+        // Use the device type from the backend - this is authoritative
+        if (supportedEntity.device_type && supportedEntity.device_type !== 'unknown') {
+          deviceTypes.add(supportedEntity.device_type);
+          continue;
+        }
+      }
+
+      // Fallback: Try to detect device type from effect_list
+      // (Zigbee2MQTT doesn't expose model in entity attributes)
       const effectList = entity.attributes.effect_list as string[] | undefined;
 
       if (effectList && Array.isArray(effectList)) {
@@ -922,7 +969,7 @@ export class AqaraPanel extends LitElement {
     };
   }
 
-  private _handleTargetChanged(e: CustomEvent): void {
+  private _handleEntityChanged(e: CustomEvent): void {
     const value = e.detail.value;
     if (!value) {
       this._selectedEntities = [];
@@ -930,19 +977,12 @@ export class AqaraPanel extends LitElement {
       return;
     }
 
-    // Target selector returns { entity_id: string | string[], device_id?: ..., area_id?: ... }
-    const entityIds = value.entity_id;
-    if (!entityIds) {
-      this._selectedEntities = [];
-      this._activeFavoriteId = null;
-      return;
-    }
-
-    // Normalize to array
-    if (Array.isArray(entityIds)) {
-      this._selectedEntities = entityIds;
+    // Entity selector with multiple: true returns string[] directly
+    if (Array.isArray(value)) {
+      this._selectedEntities = value;
     } else {
-      this._selectedEntities = [entityIds];
+      // Single entity case (shouldn't happen with multiple: true, but handle it)
+      this._selectedEntities = [value];
     }
 
     // Clear active favorite when manually changing selection
@@ -1432,14 +1472,17 @@ export class AqaraPanel extends LitElement {
                   <ha-selector
                     .hass=${this.hass}
                     .selector=${{
-                      target: {
-                        entity: {
-                          domain: 'light',
-                        },
+                      entity: {
+                        multiple: true,
+                        domain: 'light',
+                        // Filter to only show supported Aqara entities
+                        ...(this._supportedEntities.size > 0
+                          ? { include_entities: Array.from(this._supportedEntities.keys()) }
+                          : {}),
                       },
                     }}
-                    .value=${{ entity_id: this._selectedEntities }}
-                    @value-changed=${this._handleTargetChanged}
+                    .value=${this._selectedEntities}
+                    @value-changed=${this._handleEntityChanged}
                   ></ha-selector>
                 </div>
                 ${hasSelection && !this._showFavoriteInput
@@ -2724,13 +2767,105 @@ export class AqaraPanel extends LitElement {
     const hasDimmingEntities = onOffDurationEntity || offOnDurationEntity || dimmingRangeMinEntity || dimmingRangeMaxEntity;
 
     return html`
+      <!-- Z2M Instances Info Section -->
+      <ha-expansion-panel
+        outlined
+        .expanded=${false}
+      >
+        <div slot="header" class="section-header">
+          <div>
+            <div class="section-title">${this._localize('instances.section_title')}</div>
+            <div class="section-subtitle">${(() => {
+              const instanceCount = this._z2mInstances.length;
+              const deviceCount = this._z2mInstances.reduce((sum, i) => sum + i.device_counts.total, 0);
+              const key = instanceCount === 1 && deviceCount === 1 ? 'instances.subtitle_single' : 'instances.subtitle_plural';
+              return this._localize(key, { count: String(instanceCount), devices: String(deviceCount) });
+            })()}</div>
+          </div>
+        </div>
+        <div class="section-content" style="display: block; padding: 0;">
+          ${this._z2mInstances.length === 0
+            ? html`
+                <div style="padding: 16px; text-align: center; color: var(--secondary-text-color);">
+                  <ha-icon icon="mdi:information-outline" style="margin-right: 8px;"></ha-icon>
+                  ${this._localize('instances.no_instances')}
+                </div>
+              `
+            : html`
+                <div class="z2m-instances-grid">
+                  ${this._z2mInstances.map(instance => html`
+                    <div class="z2m-instance-card">
+                      <div class="z2m-instance-header">
+                        <ha-icon icon="mdi:zigbee" style="color: var(--primary-color);"></ha-icon>
+                        <div class="z2m-instance-info">
+                          <span class="z2m-instance-name">${instance.title}</span>
+                          ${instance.title !== instance.z2m_base_topic ? html`
+                            <span class="z2m-instance-topic">${instance.z2m_base_topic}</span>
+                          ` : ''}
+                        </div>
+                      </div>
+                      <div class="z2m-instance-stats">
+                        <div class="z2m-stat">
+                          <span class="z2m-stat-value">${instance.device_counts.total}</span>
+                          <span class="z2m-stat-label">${this._localize('instances.total')}</span>
+                        </div>
+                        ${instance.device_counts.t2_rgb > 0 ? html`
+                          <div class="z2m-stat">
+                            <span class="z2m-stat-value">${instance.device_counts.t2_rgb}</span>
+                            <span class="z2m-stat-label">${this._localize('instances.t2_rgb')}</span>
+                          </div>
+                        ` : ''}
+                        ${instance.device_counts.t2_cct > 0 ? html`
+                          <div class="z2m-stat">
+                            <span class="z2m-stat-value">${instance.device_counts.t2_cct}</span>
+                            <span class="z2m-stat-label">${this._localize('instances.t2_cct')}</span>
+                          </div>
+                        ` : ''}
+                        ${instance.device_counts.t1m > 0 ? html`
+                          <div class="z2m-stat">
+                            <span class="z2m-stat-value">${instance.device_counts.t1m}</span>
+                            <span class="z2m-stat-label">${this._localize('instances.t1m')}</span>
+                          </div>
+                        ` : ''}
+                        ${instance.device_counts.t1_strip > 0 ? html`
+                          <div class="z2m-stat">
+                            <span class="z2m-stat-value">${instance.device_counts.t1_strip}</span>
+                            <span class="z2m-stat-label">${this._localize('instances.t1_strip')}</span>
+                          </div>
+                        ` : ''}
+                        ${instance.device_counts.other > 0 ? html`
+                          <div class="z2m-stat">
+                            <span class="z2m-stat-value">${instance.device_counts.other}</span>
+                            <span class="z2m-stat-label">${this._localize('instances.other')}</span>
+                          </div>
+                        ` : ''}
+                      </div>
+                      ${instance.devices.length > 0 ? html`
+                        <div class="z2m-devices-list">
+                          <details>
+                            <summary style="cursor: pointer; color: var(--secondary-text-color); font-size: var(--ha-font-size-s, 12px);">
+                              ${this._localize(instance.devices.length === 1 ? 'instances.show_devices_single' : 'instances.show_devices_plural', { count: String(instance.devices.length) })}
+                            </summary>
+                            <ul style="margin: 8px 0 0 0; padding-left: 20px; font-size: var(--ha-font-size-s, 12px); color: var(--secondary-text-color);">
+                              ${instance.devices.map(device => html`<li>${device}</li>`)}
+                            </ul>
+                          </details>
+                        </div>
+                      ` : ''}
+                    </div>
+                  `)}
+                </div>
+              `}
+        </div>
+      </ha-expansion-panel>
+
       ${!hasSelection
         ? html`
             <ha-card class="controls">
               <div class="control-row">
                 <div class="control-input">
                   <ha-alert alert-type="info">
-                    Select a light in the Activate tab to configure device-specific settings.
+                    ${this._localize('config.select_light_message')}
                   </ha-alert>
                 </div>
               </div>
@@ -3032,39 +3167,55 @@ export class AqaraPanel extends LitElement {
   private _findTransitionCurveEntity(): string | undefined {
     if (!this.hass || !this._selectedEntities.length) return undefined;
 
+    const suffix = 'transition_curve_curvature';
+
     // Find the first T2 device in selected entities
     for (const entityId of this._selectedEntities) {
       const entity = this.hass.states[entityId];
       if (!entity) continue;
 
-      // Check if this is a T2 device:
-      // - T2 RGB: has 'candlelight' in effect_list
-      // - T2 CCT: no effect_list (or empty) but has color_temp attribute
+      // Check if this is a T2 device using _supportedEntities first (most reliable)
+      const supportedEntity = this._supportedEntities.get(entityId);
+      const isT2FromBackend = supportedEntity?.device_type === 't2_bulb' || supportedEntity?.device_type === 't2_cct';
+
+      // Fallback to effect_list check if not in _supportedEntities
       const effectList = entity.attributes.effect_list as string[] | undefined;
       const isT2RGB = effectList && effectList.includes('candlelight');
       const isT2CCT = !effectList && entity.attributes.color_temp !== undefined;
 
-      if (!isT2RGB && !isT2CCT) continue;
+      if (!isT2FromBackend && !isT2RGB && !isT2CCT) continue;
 
-      // Try to find the transition curve entity
-      // Pattern 1: Replace light. with number. and append _transition_curve_curvature
+      // Pattern 1: Replace light. with number. and append suffix
       const baseName = entityId.replace('light.', '');
-      const curveEntityId = `number.${baseName}_transition_curve_curvature`;
+      const curveEntityId = `number.${baseName}_${suffix}`;
 
       if (this.hass.states[curveEntityId]) {
         return curveEntityId;
       }
 
-      // Pattern 2: Search for any number entity containing the device name and transition_curve_curvature
+      // Pattern 2: Use Z2M friendly name from _supportedEntities for better matching
+      if (supportedEntity?.z2m_friendly_name) {
+        const z2mBaseName = supportedEntity.z2m_friendly_name.toLowerCase().replace(/\s+/g, '_');
+        const z2mTargetEntityId = `number.${z2mBaseName}_${suffix}`;
+        if (this.hass.states[z2mTargetEntityId]) {
+          return z2mTargetEntityId;
+        }
+      }
+
+      // Pattern 3: Search with stricter matching (at least first 2 words)
       const deviceName = baseName.toLowerCase();
-      const deviceNamePrefix = deviceName.split('_')[0] || deviceName;
+      const deviceWords = deviceName.split('_');
       for (const stateEntityId of Object.keys(this.hass.states)) {
         if (
           stateEntityId.startsWith('number.') &&
-          stateEntityId.includes('transition_curve_curvature') &&
-          stateEntityId.toLowerCase().includes(deviceNamePrefix)
+          stateEntityId.includes(suffix)
         ) {
-          return stateEntityId;
+          const stateBaseName = stateEntityId.replace('number.', '').replace(`_${suffix}`, '').toLowerCase();
+          const stateWords = stateBaseName.split('_');
+          if (deviceWords.length >= 2 && stateWords.length >= 2 &&
+              deviceWords[0] === stateWords[0] && deviceWords[1] === stateWords[1]) {
+            return stateEntityId;
+          }
         }
       }
     }
@@ -3075,39 +3226,55 @@ export class AqaraPanel extends LitElement {
   private _findInitialBrightnessEntity(): string | undefined {
     if (!this.hass || !this._selectedEntities.length) return undefined;
 
+    const suffix = 'transition_initial_brightness';
+
     // Find the first T2 device in selected entities
     for (const entityId of this._selectedEntities) {
       const entity = this.hass.states[entityId];
       if (!entity) continue;
 
-      // Check if this is a T2 device:
-      // - T2 RGB: has 'candlelight' in effect_list
-      // - T2 CCT: no effect_list (or empty) but has color_temp attribute
+      // Check if this is a T2 device using _supportedEntities first (most reliable)
+      const supportedEntity = this._supportedEntities.get(entityId);
+      const isT2FromBackend = supportedEntity?.device_type === 't2_bulb' || supportedEntity?.device_type === 't2_cct';
+
+      // Fallback to effect_list check if not in _supportedEntities
       const effectList = entity.attributes.effect_list as string[] | undefined;
       const isT2RGB = effectList && effectList.includes('candlelight');
       const isT2CCT = !effectList && entity.attributes.color_temp !== undefined;
 
-      if (!isT2RGB && !isT2CCT) continue;
+      if (!isT2FromBackend && !isT2RGB && !isT2CCT) continue;
 
-      // Try to find the initial brightness entity
-      // Pattern 1: Replace light. with number. and append _transition_initial_brightness
+      // Pattern 1: Replace light. with number. and append suffix
       const baseName = entityId.replace('light.', '');
-      const brightnessEntityId = `number.${baseName}_transition_initial_brightness`;
+      const brightnessEntityId = `number.${baseName}_${suffix}`;
 
       if (this.hass.states[brightnessEntityId]) {
         return brightnessEntityId;
       }
 
-      // Pattern 2: Search for any number entity containing the device name and transition_initial_brightness
+      // Pattern 2: Use Z2M friendly name from _supportedEntities for better matching
+      if (supportedEntity?.z2m_friendly_name) {
+        const z2mBaseName = supportedEntity.z2m_friendly_name.toLowerCase().replace(/\s+/g, '_');
+        const z2mTargetEntityId = `number.${z2mBaseName}_${suffix}`;
+        if (this.hass.states[z2mTargetEntityId]) {
+          return z2mTargetEntityId;
+        }
+      }
+
+      // Pattern 3: Search with stricter matching (at least first 2 words)
       const deviceName = baseName.toLowerCase();
-      const deviceNamePrefix = deviceName.split('_')[0] || deviceName;
+      const deviceWords = deviceName.split('_');
       for (const stateEntityId of Object.keys(this.hass.states)) {
         if (
           stateEntityId.startsWith('number.') &&
-          stateEntityId.includes('transition_initial_brightness') &&
-          stateEntityId.toLowerCase().includes(deviceNamePrefix)
+          stateEntityId.includes(suffix)
         ) {
-          return stateEntityId;
+          const stateBaseName = stateEntityId.replace('number.', '').replace(`_${suffix}`, '').toLowerCase();
+          const stateWords = stateBaseName.split('_');
+          if (deviceWords.length >= 2 && stateWords.length >= 2 &&
+              deviceWords[0] === stateWords[0] && deviceWords[1] === stateWords[1]) {
+            return stateEntityId;
+          }
         }
       }
     }
@@ -3121,28 +3288,44 @@ export class AqaraPanel extends LitElement {
 
     const entities: string[] = [];
     const t2Entities = this._getT2CompatibleEntities();
+    const suffix = 'transition_curve_curvature';
 
     for (const entityId of t2Entities) {
       const baseName = entityId.replace('light.', '');
-      const curveEntityId = `number.${baseName}_transition_curve_curvature`;
+      const curveEntityId = `number.${baseName}_${suffix}`;
 
       if (this.hass.states[curveEntityId]) {
         entities.push(curveEntityId);
         continue;
       }
 
-      // Pattern 2: Search for any number entity containing the device name
+      // Pattern 2: Use Z2M friendly name from _supportedEntities for better matching
+      const supportedEntity = this._supportedEntities.get(entityId);
+      if (supportedEntity?.z2m_friendly_name) {
+        const z2mBaseName = supportedEntity.z2m_friendly_name.toLowerCase().replace(/\s+/g, '_');
+        const z2mTargetEntityId = `number.${z2mBaseName}_${suffix}`;
+        if (this.hass.states[z2mTargetEntityId] && !entities.includes(z2mTargetEntityId)) {
+          entities.push(z2mTargetEntityId);
+          continue;
+        }
+      }
+
+      // Pattern 3: Search with stricter matching (at least first 2 words)
       const deviceName = baseName.toLowerCase();
-      const deviceNamePrefix = deviceName.split('_')[0] || deviceName;
+      const deviceWords = deviceName.split('_');
       for (const stateEntityId of Object.keys(this.hass.states)) {
         if (
           stateEntityId.startsWith('number.') &&
-          stateEntityId.includes('transition_curve_curvature') &&
-          stateEntityId.toLowerCase().includes(deviceNamePrefix) &&
+          stateEntityId.includes(suffix) &&
           !entities.includes(stateEntityId)
         ) {
-          entities.push(stateEntityId);
-          break;
+          const stateBaseName = stateEntityId.replace('number.', '').replace(`_${suffix}`, '').toLowerCase();
+          const stateWords = stateBaseName.split('_');
+          if (deviceWords.length >= 2 && stateWords.length >= 2 &&
+              deviceWords[0] === stateWords[0] && deviceWords[1] === stateWords[1]) {
+            entities.push(stateEntityId);
+            break;
+          }
         }
       }
     }
@@ -3156,28 +3339,44 @@ export class AqaraPanel extends LitElement {
 
     const entities: string[] = [];
     const t2Entities = this._getT2CompatibleEntities();
+    const suffix = 'transition_initial_brightness';
 
     for (const entityId of t2Entities) {
       const baseName = entityId.replace('light.', '');
-      const brightnessEntityId = `number.${baseName}_transition_initial_brightness`;
+      const brightnessEntityId = `number.${baseName}_${suffix}`;
 
       if (this.hass.states[brightnessEntityId]) {
         entities.push(brightnessEntityId);
         continue;
       }
 
-      // Pattern 2: Search for any number entity containing the device name
+      // Pattern 2: Use Z2M friendly name from _supportedEntities for better matching
+      const supportedEntity = this._supportedEntities.get(entityId);
+      if (supportedEntity?.z2m_friendly_name) {
+        const z2mBaseName = supportedEntity.z2m_friendly_name.toLowerCase().replace(/\s+/g, '_');
+        const z2mTargetEntityId = `number.${z2mBaseName}_${suffix}`;
+        if (this.hass.states[z2mTargetEntityId] && !entities.includes(z2mTargetEntityId)) {
+          entities.push(z2mTargetEntityId);
+          continue;
+        }
+      }
+
+      // Pattern 3: Search with stricter matching (at least first 2 words)
       const deviceName = baseName.toLowerCase();
-      const deviceNamePrefix = deviceName.split('_')[0] || deviceName;
+      const deviceWords = deviceName.split('_');
       for (const stateEntityId of Object.keys(this.hass.states)) {
         if (
           stateEntityId.startsWith('number.') &&
-          stateEntityId.includes('transition_initial_brightness') &&
-          stateEntityId.toLowerCase().includes(deviceNamePrefix) &&
+          stateEntityId.includes(suffix) &&
           !entities.includes(stateEntityId)
         ) {
-          entities.push(stateEntityId);
-          break;
+          const stateBaseName = stateEntityId.replace('number.', '').replace(`_${suffix}`, '').toLowerCase();
+          const stateWords = stateBaseName.split('_');
+          if (deviceWords.length >= 2 && stateWords.length >= 2 &&
+              deviceWords[0] === stateWords[0] && deviceWords[1] === stateWords[1]) {
+            entities.push(stateEntityId);
+            break;
+          }
         }
       }
     }
@@ -3203,18 +3402,34 @@ export class AqaraPanel extends LitElement {
         continue;
       }
 
-      // Pattern 2: Search for any number entity containing the device name and suffix
+      // Pattern 2: Use Z2M friendly name from _supportedEntities for better matching
+      const supportedEntity = this._supportedEntities.get(entityId);
+      if (supportedEntity?.z2m_friendly_name) {
+        const z2mBaseName = supportedEntity.z2m_friendly_name.toLowerCase().replace(/\s+/g, '_');
+        const z2mTargetEntityId = `number.${z2mBaseName}_${suffix}`;
+        if (this.hass.states[z2mTargetEntityId] && !entities.includes(z2mTargetEntityId)) {
+          entities.push(z2mTargetEntityId);
+          continue;
+        }
+      }
+
+      // Pattern 3: Search with stricter matching (at least first 2 words)
       const deviceName = baseName.toLowerCase();
-      const deviceNamePrefix = deviceName.split('_')[0] || deviceName;
+      const deviceWords = deviceName.split('_');
       for (const stateEntityId of Object.keys(this.hass.states)) {
         if (
           stateEntityId.startsWith('number.') &&
           stateEntityId.includes(suffix) &&
-          stateEntityId.toLowerCase().includes(deviceNamePrefix) &&
           !entities.includes(stateEntityId)
         ) {
-          entities.push(stateEntityId);
-          break;
+          const stateBaseName = stateEntityId.replace('number.', '').replace(`_${suffix}`, '').toLowerCase();
+          const stateWords = stateBaseName.split('_');
+          // Match if first 2+ words match
+          if (deviceWords.length >= 2 && stateWords.length >= 2 &&
+              deviceWords[0] === stateWords[0] && deviceWords[1] === stateWords[1]) {
+            entities.push(stateEntityId);
+            break;
+          }
         }
       }
     }
@@ -3238,16 +3453,33 @@ export class AqaraPanel extends LitElement {
         return targetEntityId;
       }
 
-      // Pattern 2: Search for any number entity containing the device name and suffix
+      // Pattern 2: Use Z2M friendly name from _supportedEntities for better matching
+      const supportedEntity = this._supportedEntities.get(entityId);
+      if (supportedEntity?.z2m_friendly_name) {
+        // Z2M uses the friendly name (with spaces converted to underscores) for entity naming
+        const z2mBaseName = supportedEntity.z2m_friendly_name.toLowerCase().replace(/\s+/g, '_');
+        const z2mTargetEntityId = `number.${z2mBaseName}_${suffix}`;
+        if (this.hass.states[z2mTargetEntityId]) {
+          return z2mTargetEntityId;
+        }
+      }
+
+      // Pattern 3: Search for any number entity containing the full device name and suffix
       const deviceName = baseName.toLowerCase();
-      const deviceNamePrefix = deviceName.split('_')[0] || deviceName;
       for (const stateEntityId of Object.keys(this.hass.states)) {
         if (
           stateEntityId.startsWith('number.') &&
-          stateEntityId.includes(suffix) &&
-          stateEntityId.toLowerCase().includes(deviceNamePrefix)
+          stateEntityId.includes(suffix)
         ) {
-          return stateEntityId;
+          // Check if this entity shares enough of the device name (at least first 2 words)
+          const stateBaseName = stateEntityId.replace('number.', '').replace(`_${suffix}`, '').toLowerCase();
+          const deviceWords = deviceName.split('_');
+          const stateWords = stateBaseName.split('_');
+          // Match if first 2+ words match
+          if (deviceWords.length >= 2 && stateWords.length >= 2 &&
+              deviceWords[0] === stateWords[0] && deviceWords[1] === stateWords[1]) {
+            return stateEntityId;
+          }
         }
       }
     }
@@ -3361,25 +3593,41 @@ export class AqaraPanel extends LitElement {
     const t1StripEntities = this._getT1StripCompatibleEntities();
     if (!t1StripEntities.length) return undefined;
 
+    const suffix = 'length';
+
     // Find the first T1 Strip length entity
     for (const entityId of t1StripEntities) {
       const baseName = entityId.replace('light.', '');
-      const lengthEntityId = `number.${baseName}_length`;
+      const lengthEntityId = `number.${baseName}_${suffix}`;
 
       if (this.hass.states[lengthEntityId]) {
         return lengthEntityId;
       }
 
-      // Pattern 2: Search for any number entity containing the device name and length
+      // Pattern 2: Use Z2M friendly name from _supportedEntities for better matching
+      const supportedEntity = this._supportedEntities.get(entityId);
+      if (supportedEntity?.z2m_friendly_name) {
+        const z2mBaseName = supportedEntity.z2m_friendly_name.toLowerCase().replace(/\s+/g, '_');
+        const z2mTargetEntityId = `number.${z2mBaseName}_${suffix}`;
+        if (this.hass.states[z2mTargetEntityId]) {
+          return z2mTargetEntityId;
+        }
+      }
+
+      // Pattern 3: Search with stricter matching (at least first 2 words)
       const deviceName = baseName.toLowerCase();
-      const deviceNamePrefix = deviceName.split('_')[0] || deviceName;
+      const deviceWords = deviceName.split('_');
       for (const stateEntityId of Object.keys(this.hass.states)) {
         if (
           stateEntityId.startsWith('number.') &&
-          stateEntityId.endsWith('_length') &&
-          stateEntityId.toLowerCase().includes(deviceNamePrefix)
+          stateEntityId.endsWith(`_${suffix}`)
         ) {
-          return stateEntityId;
+          const stateBaseName = stateEntityId.replace('number.', '').replace(`_${suffix}`, '').toLowerCase();
+          const stateWords = stateBaseName.split('_');
+          if (deviceWords.length >= 2 && stateWords.length >= 2 &&
+              deviceWords[0] === stateWords[0] && deviceWords[1] === stateWords[1]) {
+            return stateEntityId;
+          }
         }
       }
     }
@@ -3392,28 +3640,44 @@ export class AqaraPanel extends LitElement {
 
     const entities: string[] = [];
     const t1StripEntities = this._getT1StripCompatibleEntities();
+    const suffix = 'length';
 
     for (const entityId of t1StripEntities) {
       const baseName = entityId.replace('light.', '');
-      const lengthEntityId = `number.${baseName}_length`;
+      const lengthEntityId = `number.${baseName}_${suffix}`;
 
       if (this.hass.states[lengthEntityId]) {
         entities.push(lengthEntityId);
         continue;
       }
 
-      // Pattern 2: Search for any number entity containing the device name and length
+      // Pattern 2: Use Z2M friendly name from _supportedEntities for better matching
+      const supportedEntity = this._supportedEntities.get(entityId);
+      if (supportedEntity?.z2m_friendly_name) {
+        const z2mBaseName = supportedEntity.z2m_friendly_name.toLowerCase().replace(/\s+/g, '_');
+        const z2mTargetEntityId = `number.${z2mBaseName}_${suffix}`;
+        if (this.hass.states[z2mTargetEntityId] && !entities.includes(z2mTargetEntityId)) {
+          entities.push(z2mTargetEntityId);
+          continue;
+        }
+      }
+
+      // Pattern 3: Search with stricter matching (at least first 2 words)
       const deviceName = baseName.toLowerCase();
-      const deviceNamePrefix = deviceName.split('_')[0] || deviceName;
+      const deviceWords = deviceName.split('_');
       for (const stateEntityId of Object.keys(this.hass.states)) {
         if (
           stateEntityId.startsWith('number.') &&
-          stateEntityId.endsWith('_length') &&
-          stateEntityId.toLowerCase().includes(deviceNamePrefix) &&
+          stateEntityId.endsWith(`_${suffix}`) &&
           !entities.includes(stateEntityId)
         ) {
-          entities.push(stateEntityId);
-          break;
+          const stateBaseName = stateEntityId.replace('number.', '').replace(`_${suffix}`, '').toLowerCase();
+          const stateWords = stateBaseName.split('_');
+          if (deviceWords.length >= 2 && stateWords.length >= 2 &&
+              deviceWords[0] === stateWords[0] && deviceWords[1] === stateWords[1]) {
+            entities.push(stateEntityId);
+            break;
+          }
         }
       }
     }

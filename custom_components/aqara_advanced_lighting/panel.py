@@ -31,6 +31,10 @@ from .const import (
     MODEL_T2_BULB_E27,
     MODEL_T2_BULB_GU10_110V,
     MODEL_T2_BULB_GU10_230V,
+    MODEL_T2_CCT_E26,
+    MODEL_T2_CCT_E27,
+    MODEL_T2_CCT_GU10_110V,
+    MODEL_T2_CCT_GU10_230V,
     SEGMENT_PATTERN_PRESETS,
     SEGMENT_SEQUENCE_PRESETS,
     VALID_PRESET_TYPES,
@@ -89,6 +93,9 @@ async def async_register_panel(hass: HomeAssistant) -> None:
 
     # Register version endpoint
     hass.http.register_view(VersionView)
+
+    # Register supported entities endpoint
+    hass.http.register_view(SupportedEntitiesView)
 
     _LOGGER.info("Aqara Advanced Lighting panel registered")
 
@@ -768,3 +775,146 @@ class ImportPresetsView(HomeAssistantView):
             _LOGGER.exception("Failed to import presets: %s", ex)
             # Return the error message to the frontend
             return web.Response(status=400, text=str(ex))
+
+
+class SupportedEntitiesView(HomeAssistantView):
+    """View to get all supported entities across all Z2M instances."""
+
+    url = f"/api/{DOMAIN}/supported_entities"
+    name = f"api:{DOMAIN}:supported_entities"
+    requires_auth = False
+
+    async def get(self, request: web.Request) -> web.Response:
+        """Get all supported entities with their device info.
+
+        Returns:
+            JSON with list of supported entities and their device types
+        """
+        hass = request.app["hass"]
+
+        if DOMAIN not in hass.data:
+            return web.json_response({"entities": [], "instances": []})
+
+        supported_entities: dict[str, dict[str, Any]] = {}
+        instances: list[dict[str, Any]] = []
+
+        # Iterate over all config entries for this integration
+        entries_data = hass.data[DOMAIN].get("entries", {})
+
+        for entry_id, instance_data in entries_data.items():
+            mqtt_client = instance_data.get("mqtt_client")
+            if not mqtt_client:
+                continue
+
+            # Get entry info
+            entry = mqtt_client.entry
+            z2m_base_topic = entry.runtime_data.z2m_base_topic
+            devices = entry.runtime_data.devices
+
+            # Calculate device counts by type
+            device_counts: dict[str, int] = {
+                "t2_rgb": 0,
+                "t2_cct": 0,
+                "t1m": 0,
+                "t1_strip": 0,
+                "other": 0,
+                "total": 0,
+            }
+            device_names: list[str] = []
+
+            for device in devices.values():
+                if not device.supported:
+                    continue
+                device_counts["total"] += 1
+                device_names.append(device.friendly_name)
+
+                model_id = device.model_id
+                if model_id in [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT]:
+                    device_counts["t1m"] += 1
+                elif model_id == MODEL_T1_STRIP:
+                    device_counts["t1_strip"] += 1
+                elif model_id in [MODEL_T2_BULB_E26, MODEL_T2_BULB_E27,
+                                  MODEL_T2_BULB_GU10_230V, MODEL_T2_BULB_GU10_110V]:
+                    device_counts["t2_rgb"] += 1
+                elif model_id in [MODEL_T2_CCT_E26, MODEL_T2_CCT_E27,
+                                  MODEL_T2_CCT_GU10_230V, MODEL_T2_CCT_GU10_110V]:
+                    device_counts["t2_cct"] += 1
+                else:
+                    device_counts["other"] += 1
+
+            instances.append({
+                "entry_id": entry_id,
+                "title": entry.title,
+                "z2m_base_topic": z2m_base_topic,
+                "device_counts": device_counts,
+                "devices": sorted(device_names),
+            })
+
+            # Get entity mappings
+            entity_to_z2m_map = entry.runtime_data.entity_to_z2m_map
+            devices = entry.runtime_data.devices
+
+            # Log for debugging
+            _LOGGER.debug(
+                "SupportedEntitiesView: Processing entry %s with %d mapped entities and %d devices",
+                entry_id,
+                len(entity_to_z2m_map),
+                len(devices),
+            )
+            _LOGGER.debug(
+                "SupportedEntitiesView: entity_to_z2m_map = %s",
+                dict(entity_to_z2m_map),
+            )
+            _LOGGER.debug(
+                "SupportedEntitiesView: devices friendly names = %s",
+                [d.friendly_name for d in devices.values()],
+            )
+
+            for entity_id, z2m_friendly_name in entity_to_z2m_map.items():
+                # Find the device to get model info
+                device = None
+                for z2m_device in devices.values():
+                    if z2m_device.friendly_name == z2m_friendly_name:
+                        device = z2m_device
+                        break
+
+                if not device:
+                    _LOGGER.warning(
+                        "SupportedEntitiesView: Could not find device for entity %s "
+                        "(z2m_friendly_name=%s) - device not in devices dict",
+                        entity_id,
+                        z2m_friendly_name,
+                    )
+                    continue
+
+                # Determine device type category for frontend
+                model_id = device.model_id
+                if model_id in [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT]:
+                    device_type = "t1m"
+                elif model_id == MODEL_T1_STRIP:
+                    device_type = "t1_strip"
+                elif model_id in [MODEL_T2_BULB_E26, MODEL_T2_BULB_E27,
+                                  MODEL_T2_BULB_GU10_230V, MODEL_T2_BULB_GU10_110V]:
+                    device_type = "t2_bulb"
+                else:
+                    # Check for CCT-only models
+                    device_type = "t2_cct" if "cct" in model_id.lower() else "unknown"
+
+                supported_entities[entity_id] = {
+                    "entity_id": entity_id,
+                    "z2m_friendly_name": z2m_friendly_name,
+                    "model_id": model_id,
+                    "device_type": device_type,
+                    "entry_id": entry_id,
+                    "z2m_base_topic": z2m_base_topic,
+                }
+
+        _LOGGER.info(
+            "SupportedEntitiesView: Returning %d supported entities",
+            len(supported_entities),
+        )
+
+        return web.json_response({
+            "entities": list(supported_entities.values()),
+            "instances": instances,
+        })
