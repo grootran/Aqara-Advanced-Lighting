@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'v*'
+  release:
+    types: [created, published]
 
 jobs:
   release:
@@ -24,7 +26,12 @@ jobs:
       - name: Extract version from tag
         id: get_version
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
+          # Get version from tag or release
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION=${GITHUB_REF#refs/tags/v}
+          fi
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
 
           # Detect if this is a prerelease based on tag name
@@ -37,7 +44,34 @@ jobs:
             echo "Detected stable release: $VERSION"
           fi
 
-      - name: Extract release notes
+      - name: Check existing release notes
+        id: check_notes
+        run: |
+          # Check if release already exists and has custom notes
+          RELEASE_ID="${{ github.event.release.id }}"
+
+          if [[ "${{ github.event_name }}" == "release" ]] && [[ -n "$RELEASE_ID" ]]; then
+            # Get existing release body
+            EXISTING_BODY=$(gh release view "${{ github.ref_name }}" --json body --jq '.body')
+
+            # Check if body is empty or contains only default message
+            if [[ -z "$EXISTING_BODY" ]] || [[ "$EXISTING_BODY" == *"See [CHANGELOG.md]"* ]]; then
+              echo "USE_CHANGELOG=true" >> $GITHUB_OUTPUT
+              echo "No custom notes found, will use CHANGELOG.md"
+            else
+              echo "USE_CHANGELOG=false" >> $GITHUB_OUTPUT
+              echo "Custom notes found, will preserve them"
+            fi
+          else
+            # Tag push - always use CHANGELOG
+            echo "USE_CHANGELOG=true" >> $GITHUB_OUTPUT
+            echo "Tag push detected, will use CHANGELOG.md"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract release notes from CHANGELOG
+        if: steps.check_notes.outputs.USE_CHANGELOG == 'true'
         id: release_notes
         run: |
           # Extract the section for this version from CHANGELOG.md
@@ -51,13 +85,14 @@ jobs:
             echo "See [CHANGELOG.md](CHANGELOG.md) for details." >> RELEASE_NOTES.md
           fi
 
-      - name: Create GitHub Release
+      - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: aqara_advanced_lighting.zip
           draft: false
           prerelease: ${{ steps.get_version.outputs.IS_PRERELEASE }}
-          body_path: RELEASE_NOTES.md
+          body_path: ${{ steps.check_notes.outputs.USE_CHANGELOG == 'true' && 'RELEASE_NOTES.md' || '' }}
           generate_release_notes: false
+          fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
