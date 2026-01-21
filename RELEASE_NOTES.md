@@ -1,33 +1,19 @@
-# Aqara Advanced Lighting v0.8.0
+# Aqara Advanced Lighting v0.8.1
 
-## ⚠️ IMPORTANT: Upgrade Instructions
+## Upgrade Instructions
 
-**If updating from v0.7.0**, follow these steps to avoid module cache conflicts:
+**Upgrading from v0.7.0:**
+1. Update via HACS to v0.8.1
+2. Restart Home Assistant
+3. Clear browser cache (Ctrl+Shift+R or Cmd+Shift+R)
 
-1. **Before updating**, remove the integration:
-   - Go to Settings → Devices & Services
-   - Find "Aqara Advanced Lighting"
-   - Click the three dots → Delete
-   - (Your presets and favorites are preserved globally)
-
-2. **Update via HACS** to v0.8.0
-
-3. **Restart Home Assistant** completely
-
-4. **Add the integration back**:
-   - Settings → Devices & Services → Add Integration
-   - Search for "Aqara Advanced Lighting"
-   - Configure with your Z2M base topic
-
-**Why this is needed**: v0.8.0 introduces fundamental architectural changes for multi-instance support that conflict with cached Python modules from v0.7.0. This upgrade path ensures a clean transition.
-
-**New installations**: No special steps needed. Install and configure normally.
+Your existing configuration, presets, and favorites are automatically preserved.
 
 ---
 
 ## What's New
 
-Version 0.8.0 introduces **support for multiple Zigbee2MQTT instances**, allowing you to control Aqara lights across multiple Z2M coordinators from a single integration. This release also includes intelligent entity routing, improved device detection, and enhanced error messages.
+Version 0.8.1 introduces **support for multiple Zigbee2MQTT instances**, allowing you to control Aqara lights across multiple Z2M coordinators from a single integration. This release also includes intelligent entity routing, improved device detection, and enhanced error messages.
 
 ## New Features
 
@@ -243,14 +229,10 @@ None. This release is fully backward compatible with v0.7.0.
 ### Upgrade from v0.7.0
 
 1. Update the integration through HACS
-2. **Restart Home Assistant**
-3. **Clear your browser cache** (important - see instructions in README)
-   - Desktop: `Ctrl + Shift + R` (Windows/Linux) or `Cmd + Shift + R` (Mac)
-   - Mobile: Settings → Apps → Home Assistant → Clear cache
-4. Your existing configuration is automatically migrated
-5. To add additional Z2M instances, go to Settings > Devices & Services > Add Integration > Aqara Advanced Lighting
+2. Restart Home Assistant
+3. Clear your browser cache (Ctrl+Shift+R or Cmd+Shift+R)
 
-All existing presets, favorites, and configurations are preserved during the update.
+Your existing configuration is automatically migrated. All presets, favorites, and settings are preserved. To add additional Z2M instances, go to Settings > Devices & Services > Add Integration > Aqara Advanced Lighting.
 
 ## Adding Additional Z2M Instances
 
