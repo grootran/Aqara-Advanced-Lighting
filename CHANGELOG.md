@@ -5,6 +5,176 @@ All notable changes to the Aqara Advanced Lighting integration will be documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-01-20
+
+### What's New
+
+Version 0.8.0 introduces support for multiple Zigbee2MQTT instances, allowing control of Aqara lights across multiple Z2M coordinators from a single integration. Perfect for complex smart home setups with distributed Zigbee networks.
+
+### New Features
+
+#### Multiple Zigbee2MQTT Instance Support
+
+- **Multi-Instance Architecture**
+  - Connect to multiple Zigbee2MQTT instances simultaneously
+  - Each instance identified by unique MQTT base topic
+  - Independent configuration per instance
+  - Automatic entity-to-instance routing for service calls
+  - Per-instance MQTT clients and state managers
+
+- **Enhanced Config Flow**
+  - Automatic Z2M instance validation during setup
+  - Optional friendly names for instances (e.g., "Upstairs", "Garage")
+  - Subscribes to bridge/state topic to confirm Z2M is running
+  - 5-second validation timeout with clear error messages
+  - Duplicate prevention for same base topic
+  - Reconfigure flow supports instance renaming
+
+- **Intelligent Entity Routing**
+  - Service calls automatically routed to correct Z2M instance
+  - Fast O(1) entity lookup using routing map
+  - Entity-to-instance mapping built during device discovery
+  - Fallback search across all instances if needed
+  - Routing map cached and updated automatically
+
+#### Supported Entities API
+
+- **New API Endpoint**: `/api/aqara_advanced_lighting/supported_entities`
+  - Returns all supported entities across all Z2M instances
+  - Includes device type, model ID, and Z2M friendly name
+  - Instance summary with device counts by type (T2 RGB, T2 CCT, T1M, T1 Strip)
+  - List of devices per instance
+
+- **Backend-Driven Entity Detection**
+  - Frontend uses authoritative backend data for device type detection
+  - Entity selector shows only supported Aqara devices from all instances
+  - Replaces frontend-only heuristic detection
+  - More accurate device type identification
+  - Better compatibility validation
+
+### Improvements
+
+#### Error Messages
+
+- **Instance-Aware Error Reporting**
+  - Errors report which Z2M instance has the issue
+  - Lists all configured instances when entity not found
+  - New translation key: `entity_not_found_in_any_instance`
+  - Helpful context for troubleshooting multi-instance setups
+  - Clear guidance on which instance to check
+
+#### Service Validation
+
+- **Multi-Instance Entity Validation**
+  - Validates entities exist in configured instances before processing
+  - Searches across all instances to find entity
+  - Provides specific error when entity not found in any instance
+  - Lists available instances for reference
+
+#### Logging Enhancements
+
+- **Instance-Specific Logging**
+  - Setup logs include entry ID and Z2M base topic
+  - Mapping logs show which instance owns each entity
+  - Warning logs for Z2M devices without matching HA entities
+  - Debug logs show all light entities in HA
+  - Final entity-to-Z2M mapping displayed for verification
+
+#### Sequence Synchronization
+
+- **Group Synchronization for Sequences**
+  - CCT and RGB segment sequences now support synchronized playback across multiple lights
+  - Uses asyncio barriers to coordinate step timing between entities
+  - All lights in a group transition steps together with perfect timing
+  - Ideal for synchronized animations and effects across multiple fixtures
+  - Automatic cleanup when sequences stop or entities are removed
+
+#### Frontend Updates
+
+- **Entity Selector Improvements**
+  - Entity selector pre-filtered to supported Aqara entities
+  - Shows entities from all configured Z2M instances
+  - Entity list updates when new instances added
+  - Changed from target selector to entity selector with multiple support
+  - Better user experience with only relevant entities
+
+### Bug Fixes
+
+#### Firefox Compatibility
+
+- **TouchEvent Detection Fix**
+  - Fixed touch event detection in xy-color-picker for Firefox compatibility
+  - Changed from `instanceof TouchEvent` to `'touches' in e` check
+  - Resolves issues with color picker not working on Firefox mobile/desktop
+  - Improves cross-browser compatibility for touch interactions
+
+### Technical Changes
+
+#### Architecture Updates
+
+- **Multi-Instance Data Structure**
+  - Restructured `hass.data[DOMAIN]` with `entries` dict and `entity_routing` map
+  - Per-entry storage for mqtt_client, state_manager, sequence managers
+  - Shared preset_store and favorites_store across all instances
+  - Entity routing map for fast instance lookup
+
+- **Service Routing Functions**
+  - `_get_instance_for_entity()` - Find instance owning an entity
+  - `_get_mqtt_client_for_entity()` - Get MQTT client for entity
+  - `_get_instance_components_for_entity()` - Get all components for entity
+  - `_get_any_instance()` - Get any instance for backward compatibility
+  - Updated all service handlers to use instance routing
+
+#### Updated Files
+
+- **Backend**
+  - `__init__.py` - Multi-instance data structure, per-entry setup and teardown
+  - `config_flow.py` - Z2M validation, friendly names, duplicate prevention, unique IDs
+  - `services.py` - Entity routing functions and instance-aware service handlers
+  - `mqtt_client.py` - Entity routing map updates during discovery, enhanced logging
+  - `panel.py` - New SupportedEntitiesView with device type categorization
+  - `cct_sequence_manager.py` - Group synchronization support with barriers
+  - `segment_sequence_manager.py` - Group synchronization support with barriers
+  - `translations/en.json` - New translations for multi-instance scenarios
+
+- **Frontend**
+  - `aqara-panel.ts` - Supported entities API integration, backend-driven filtering
+  - `xy-color-picker.ts` - Firefox touch event compatibility fix
+  - `styles.ts` - Minor styling adjustments
+  - `aqara_panel.js` - Compiled frontend bundle
+  - `segment-selector.js` - Compiled component
+
+### Breaking Changes
+
+None. This release is fully backward compatible with v0.7.0.
+
+- Single-instance setups continue to work without changes
+- Existing config entries automatically migrated to new data structure
+- All services, presets, and favorites preserved
+- No manual configuration needed
+
+### Compatibility
+
+- Fully backward compatible with v0.7.0
+- All existing presets and configurations preserved
+- No configuration changes required for single-instance users
+- Multi-instance features are optional and additive
+
+### Upgrade from v0.7.0
+
+1. Update the integration through HACS
+2. Restart Home Assistant
+3. Clear browser cache (Ctrl+Shift+R or Cmd+Shift+R)
+4. Existing configuration automatically migrated
+5. To add additional Z2M instances: Settings > Devices & Services > Add Integration > Aqara Advanced Lighting
+
+### Use Cases
+
+- Multiple Zigbee coordinators in different locations (upstairs/downstairs, home/garage)
+- Separate Z2M instances for different device types or zones
+- Complex smart home setups with distributed Zigbee networks
+- Zone-based lighting control across multiple coordinators
+
 ## [0.7.0] - 2026-01-18
 
 ### What's New
@@ -912,3 +1082,4 @@ One click HACS cutton
 [0.6.1]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.6.1
 [0.6.2]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.6.2
 [0.7.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.7.0
+[0.8.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.8.0

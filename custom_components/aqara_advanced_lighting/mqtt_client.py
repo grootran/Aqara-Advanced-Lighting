@@ -219,6 +219,17 @@ class MQTTClient:
             [d.friendly_name for d in ieee_to_device.values()],
         )
 
+        # Log all light entities in HA for debugging
+        all_light_entities = [
+            (e.entity_id, e.unique_id, e.device_id)
+            for e in ent_reg.entities.values()
+            if e.domain == LIGHT_DOMAIN
+        ]
+        _LOGGER.debug(
+            "All light entities in HA: %s",
+            all_light_entities,
+        )
+
         # Iterate through all light entities
         mapped_count = 0
         for entity_entry in ent_reg.entities.values():
@@ -273,6 +284,10 @@ class MQTTClient:
                 runtime_data.entity_to_z2m_map[entity_entry.entity_id] = (
                     matched_device.friendly_name
                 )
+                # Also update the global entity routing map for fast instance lookup
+                # Must access the actual dict in hass.data, not a copy
+                if DOMAIN in self.hass.data and "entity_routing" in self.hass.data[DOMAIN]:
+                    self.hass.data[DOMAIN]["entity_routing"][entity_entry.entity_id] = self.entry.entry_id
                 mapped_count += 1
                 _LOGGER.debug(
                     "Mapped entity %s to Z2M device %s (via %s)",
@@ -291,6 +306,20 @@ class MQTTClient:
         _LOGGER.info(
             "Entity mapping complete: mapped %d entities to Z2M devices",
             mapped_count,
+        )
+
+        # Log which Z2M devices got mapped and which didn't
+        mapped_z2m_names = set(runtime_data.entity_to_z2m_map.values())
+        all_z2m_names = set(d.friendly_name for d in ieee_to_device.values())
+        unmapped_z2m_devices = all_z2m_names - mapped_z2m_names
+        if unmapped_z2m_devices:
+            _LOGGER.warning(
+                "Z2M devices without matching HA entities: %s",
+                list(unmapped_z2m_devices),
+            )
+        _LOGGER.info(
+            "entity_to_z2m_map contents: %s",
+            dict(runtime_data.entity_to_z2m_map),
         )
 
     def get_z2m_friendly_name(self, entity_id: str) -> str | None:

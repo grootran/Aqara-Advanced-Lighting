@@ -1,0 +1,118 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  release:
+    types: [created, published]
+
+jobs:
+  release:
+    name: Create Release with Zip
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create release zip
+        run: |
+          # Create zip with explicit exclusions for development files
+          cd custom_components
+          zip -r ../aqara_advanced_lighting.zip aqara_advanced_lighting/ \
+            -x "aqara_advanced_lighting/frontend_src/node_modules/*" \
+            -x "aqara_advanced_lighting/frontend_src/dist/*" \
+            -x "aqara_advanced_lighting/__pycache__/*" \
+            -x "aqara_advanced_lighting/*/__pycache__/*" \
+            -x "*.pyc" \
+            -x "*.pyo" \
+            -x "*~" \
+            -x "*.swp" \
+            -x ".DS_Store"
+          cd ..
+
+          # Verify zip was created and show contents
+          echo "Zip file created:"
+          ls -lh aqara_advanced_lighting.zip
+          echo ""
+          echo "Zip contents (first 50 files):"
+          unzip -l aqara_advanced_lighting.zip | head -50
+          echo ""
+          echo "Total files in zip:"
+          unzip -l aqara_advanced_lighting.zip | tail -1
+
+      - name: Extract version from tag
+        id: get_version
+        run: |
+          # Get version from tag or release
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION=${GITHUB_REF#refs/tags/v}
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+          # Detect if this is a prerelease based on tag name
+          # Prereleases contain: -alpha, -beta, -rc, -preview, or similar suffixes
+          if [[ "$VERSION" =~ (alpha|beta|rc|preview|pre|dev) ]]; then
+            echo "IS_PRERELEASE=true" >> $GITHUB_OUTPUT
+            echo "Detected prerelease: $VERSION"
+          else
+            echo "IS_PRERELEASE=false" >> $GITHUB_OUTPUT
+            echo "Detected stable release: $VERSION"
+          fi
+
+      - name: Check existing release notes
+        id: check_notes
+        run: |
+          # Check if release already exists and has custom notes
+          RELEASE_ID="${{ github.event.release.id }}"
+
+          if [[ "${{ github.event_name }}" == "release" ]] && [[ -n "$RELEASE_ID" ]]; then
+            # Get existing release body
+            EXISTING_BODY=$(gh release view "${{ github.ref_name }}" --json body --jq '.body')
+
+            # Check if body is empty or contains only default message
+            if [[ -z "$EXISTING_BODY" ]] || [[ "$EXISTING_BODY" == *"See [CHANGELOG.md]"* ]]; then
+              echo "USE_CHANGELOG=true" >> $GITHUB_OUTPUT
+              echo "No custom notes found, will use CHANGELOG.md"
+            else
+              echo "USE_CHANGELOG=false" >> $GITHUB_OUTPUT
+              echo "Custom notes found, will preserve them"
+            fi
+          else
+            # Tag push - always use CHANGELOG
+            echo "USE_CHANGELOG=true" >> $GITHUB_OUTPUT
+            echo "Tag push detected, will use CHANGELOG.md"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract release notes from CHANGELOG
+        if: steps.check_notes.outputs.USE_CHANGELOG == 'true'
+        id: release_notes
+        run: |
+          # Extract the section for this version from CHANGELOG.md
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          awk "/## \[$VERSION\]/,/## \[/" CHANGELOG.md | sed '$d' > RELEASE_NOTES.md
+
+          # If RELEASE_NOTES.md is empty, provide a default message
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "Release $VERSION" > RELEASE_NOTES.md
+            echo "" >> RELEASE_NOTES.md
+            echo "See [CHANGELOG.md](CHANGELOG.md) for details." >> RELEASE_NOTES.md
+          fi
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: aqara_advanced_lighting.zip
+          draft: false
+          prerelease: ${{ steps.get_version.outputs.IS_PRERELEASE }}
+          body_path: ${{ steps.check_notes.outputs.USE_CHANGELOG == 'true' && 'RELEASE_NOTES.md' || '' }}
+          generate_release_notes: false
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

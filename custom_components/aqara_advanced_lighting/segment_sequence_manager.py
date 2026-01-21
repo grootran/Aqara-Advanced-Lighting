@@ -43,6 +43,9 @@ class SegmentSequenceManager:
         self._pause_flags: dict[str, asyncio.Event] = {}  # entity_id -> pause event
         self._sequence_state: dict[str, dict] = {}  # entity_id -> state info
         self._state_listener_remove = None  # State change listener cleanup function
+        # Group synchronization support
+        self._group_barriers: dict[str, asyncio.Barrier] = {}  # group_id -> barrier
+        self._entity_to_group: dict[str, str] = {}  # entity_id -> group_id
 
         # Setup state change listener to stop sequences when lights turn off
         self._setup_state_listener()
@@ -143,6 +146,125 @@ class SegmentSequenceManager:
         _LOGGER.info("Started segment sequence for %s (sequence_id=%s)", entity_id, sequence_id)
 
         return sequence_id
+
+    async def start_synchronized_group(
+        self,
+        entity_ids: list[str],
+        sequence: SegmentSequence,
+        z2m_base_topic: str | None = None,
+    ) -> dict[str, str]:
+        """Start synchronized segment sequences for multiple entities.
+
+        All entities will coordinate their step timing to stay in sync.
+
+        Args:
+            entity_ids: List of light entity IDs to control
+            sequence: The segment sequence configuration (same for all)
+            z2m_base_topic: Optional custom Z2M base topic override
+
+        Returns:
+            Dict mapping entity_id to sequence_id for all started sequences
+        """
+        if not entity_ids:
+            return {}
+
+        # For single entity, use regular start_sequence
+        if len(entity_ids) == 1:
+            seq_id = await self.start_sequence(entity_ids[0], sequence, z2m_base_topic)
+            return {entity_ids[0]: seq_id}
+
+        # Generate a group ID for synchronization
+        group_id = str(uuid.uuid4())
+
+        # Stop any existing sequences for these entities in parallel
+        stop_tasks = [self.stop_sequence(entity_id) for entity_id in entity_ids]
+        await asyncio.gather(*stop_tasks, return_exceptions=True)
+
+        # Create a barrier for step synchronization
+        barrier = asyncio.Barrier(len(entity_ids))
+        self._group_barriers[group_id] = barrier
+
+        # Prepare all entities
+        sequence_ids: dict[str, str] = {}
+        tasks: list[asyncio.Task] = []
+
+        for entity_id in entity_ids:
+            # Generate unique sequence ID
+            sequence_id = str(uuid.uuid4())
+            self._sequence_ids[entity_id] = sequence_id
+            sequence_ids[entity_id] = sequence_id
+
+            # Track group membership
+            self._entity_to_group[entity_id] = group_id
+
+            # Create stop and pause flags
+            stop_event = asyncio.Event()
+            pause_event = asyncio.Event()
+            self._stop_flags[entity_id] = stop_event
+            self._pause_flags[entity_id] = pause_event
+
+            # Initialize sequence state
+            self._sequence_state[entity_id] = {
+                "paused": False,
+                "current_step": 0,
+                "total_steps": len(sequence.steps),
+                "loop_iteration": 1,
+                "loop_mode": sequence.loop_mode,
+                "loop_count": sequence.loop_count,
+                "group_id": group_id,
+            }
+
+            # Create task with group synchronization
+            task = asyncio.create_task(
+                self._execute_synchronized_sequence(
+                    entity_id,
+                    sequence,
+                    stop_event,
+                    pause_event,
+                    sequence_id,
+                    group_id,
+                    z2m_base_topic,
+                )
+            )
+            self._active_sequences[entity_id] = task
+            tasks.append(task)
+
+            # Fire sequence started event
+            self.hass.bus.async_fire(
+                EVENT_SEQUENCE_STARTED,
+                {
+                    EVENT_ATTR_ENTITY_ID: entity_id,
+                    EVENT_ATTR_SEQUENCE_ID: sequence_id,
+                    EVENT_ATTR_TOTAL_STEPS: len(sequence.steps),
+                },
+            )
+
+        _LOGGER.info(
+            "Started synchronized segment sequence group %s for %d entities",
+            group_id,
+            len(entity_ids),
+        )
+
+        return sequence_ids
+
+    def _cleanup_group(self, group_id: str) -> None:
+        """Clean up group synchronization resources.
+
+        Args:
+            group_id: The group ID to clean up
+        """
+        # Remove barrier
+        if group_id in self._group_barriers:
+            del self._group_barriers[group_id]
+
+        # Remove entity-to-group mappings for this group
+        entities_to_remove = [
+            entity_id
+            for entity_id, gid in self._entity_to_group.items()
+            if gid == group_id
+        ]
+        for entity_id in entities_to_remove:
+            del self._entity_to_group[entity_id]
 
     async def stop_sequence(self, entity_id: str) -> None:
         """Stop a running segment sequence.
@@ -763,6 +885,310 @@ class SegmentSequenceManager:
                 del self._sequence_ids[entity_id]
             if entity_id in self._sequence_state:
                 del self._sequence_state[entity_id]
+
+            # Fire sequence completed event if it finished naturally
+            if completed_naturally:
+                self.hass.bus.async_fire(
+                    EVENT_SEQUENCE_COMPLETED,
+                    {
+                        EVENT_ATTR_ENTITY_ID: entity_id,
+                        EVENT_ATTR_SEQUENCE_ID: sequence_id,
+                    },
+                )
+
+    async def _execute_synchronized_sequence(
+        self,
+        entity_id: str,
+        sequence: SegmentSequence,
+        stop_event: asyncio.Event,
+        pause_event: asyncio.Event,
+        sequence_id: str,
+        group_id: str,
+        z2m_base_topic: str | None = None,
+    ) -> None:
+        """Execute a synchronized segment sequence with barrier-based step coordination.
+
+        Args:
+            entity_id: The light entity ID to control
+            sequence: The segment sequence configuration
+            stop_event: Event to signal sequence should stop
+            pause_event: Event to signal sequence should pause
+            sequence_id: Unique identifier for this sequence run
+            group_id: Group ID for barrier synchronization
+            z2m_base_topic: Optional custom Z2M base topic override
+        """
+        _LOGGER.debug(
+            "Starting synchronized segment sequence for %s (sequence_id=%s, group=%s)",
+            entity_id,
+            sequence_id,
+            group_id,
+        )
+        completed_naturally = False
+        barrier = self._group_barriers.get(group_id)
+
+        try:
+            # Get total segment count for this device
+            total_segments = await self._get_device_segment_count(entity_id)
+            _LOGGER.info("Segment count for %s: %d", entity_id, total_segments)
+            if total_segments == 0:
+                _LOGGER.error("Could not determine segment count for %s", entity_id)
+                return
+
+            # Clear all segments if requested
+            if sequence.clear_segments:
+                _LOGGER.info(
+                    "Clearing all segments for %s before starting synchronized sequence",
+                    entity_id,
+                )
+                z2m_name = self.mqtt_client.get_z2m_friendly_name(entity_id)
+                if z2m_name:
+                    black_color = RGBColor(r=0, g=0, b=0)
+                    clear_segments = [
+                        SegmentColor(segment=seg, color=black_color)
+                        for seg in range(1, total_segments + 1)
+                    ]
+                    try:
+                        await self.mqtt_client.async_publish_segment_pattern(
+                            z2m_name, clear_segments, z2m_base_topic
+                        )
+                        await asyncio.sleep(0.1)
+                    except Exception as ex:
+                        _LOGGER.warning(
+                            "Failed to clear segments for %s: %s", entity_id, ex
+                        )
+
+            loops_executed = 0
+            max_loops = (
+                sequence.loop_count if sequence.loop_mode == "count" else None
+            )
+
+            while True:
+                # Determine starting step index
+                start_step = 0
+                if (
+                    loops_executed > 0
+                    and sequence.skip_first_in_loop
+                    and len(sequence.steps) > 1
+                ):
+                    start_step = 1
+
+                # Execute steps
+                for step_index, step in enumerate(
+                    sequence.steps[start_step:], start=start_step
+                ):
+                    # Check for stop
+                    if stop_event.is_set():
+                        _LOGGER.debug(
+                            "Synchronized segment sequence stopped for %s", entity_id
+                        )
+                        return
+
+                    # Check for pause
+                    while pause_event.is_set():
+                        if stop_event.is_set():
+                            return
+                        await asyncio.sleep(0.1)
+
+                    # Synchronize at step boundary - all entities wait here
+                    if barrier is not None:
+                        try:
+                            await asyncio.wait_for(barrier.wait(), timeout=5.0)
+                        except asyncio.TimeoutError:
+                            _LOGGER.warning(
+                                "Barrier timeout for %s at step %d, continuing",
+                                entity_id,
+                                step_index + 1,
+                            )
+                        except asyncio.BrokenBarrierError:
+                            _LOGGER.debug(
+                                "Barrier broken for %s, continuing independently",
+                                entity_id,
+                            )
+                            barrier = None
+
+                    # Update sequence state
+                    if entity_id in self._sequence_state:
+                        self._sequence_state[entity_id]["current_step"] = step_index + 1
+                        self._sequence_state[entity_id]["loop_iteration"] = (
+                            loops_executed + 1
+                        )
+
+                    # Fire step changed event
+                    self.hass.bus.async_fire(
+                        EVENT_STEP_CHANGED,
+                        {
+                            EVENT_ATTR_ENTITY_ID: entity_id,
+                            EVENT_ATTR_SEQUENCE_ID: sequence_id,
+                            EVENT_ATTR_STEP_INDEX: step_index + 1,
+                            EVENT_ATTR_TOTAL_STEPS: len(sequence.steps),
+                            EVENT_ATTR_LOOP_ITERATION: loops_executed + 1,
+                        },
+                    )
+
+                    _LOGGER.debug(
+                        "Executing synchronized step %d/%d for %s",
+                        step_index + 1,
+                        len(sequence.steps),
+                        entity_id,
+                    )
+
+                    # Get Z2M friendly name
+                    z2m_name = self.mqtt_client.get_z2m_friendly_name(entity_id)
+                    if not z2m_name:
+                        _LOGGER.warning(
+                            "Entity %s not mapped to Z2M device, skipping step",
+                            entity_id,
+                        )
+                        continue
+
+                    # Generate segment colors
+                    if step.segment_colors:
+                        segment_colors = step.segment_colors
+                    else:
+                        segments = self._parse_segment_range(
+                            step.segments, total_segments
+                        )
+                        if not segments:
+                            continue
+                        segment_colors = self._generate_segment_colors(
+                            segments, step.colors, step.mode
+                        )
+
+                    # Apply activation pattern
+                    if step.activation_pattern == "all":
+                        try:
+                            await self.mqtt_client.async_publish_segment_pattern(
+                                z2m_name, segment_colors, z2m_base_topic
+                            )
+                        except Exception as ex:
+                            _LOGGER.warning(
+                                "Failed to apply synchronized segment pattern for %s: %s",
+                                entity_id,
+                                ex,
+                            )
+
+                        if step.duration > 0:
+                            try:
+                                await asyncio.wait_for(
+                                    stop_event.wait(), timeout=step.duration
+                                )
+                                return
+                            except asyncio.TimeoutError:
+                                pass
+                    else:
+                        # Sequential activation
+                        segments = [
+                            sc.segment
+                            for sc in segment_colors
+                            if isinstance(sc.segment, int)
+                        ]
+                        ordered_segments = self._order_segments_by_pattern(
+                            segments, step.activation_pattern
+                        )
+
+                        if step.duration > 0 and len(ordered_segments) > 1:
+                            segment_delay = step.duration / len(ordered_segments)
+                        else:
+                            segment_delay = 0
+
+                        color_map = {sc.segment: sc.color for sc in segment_colors}
+
+                        for segment in ordered_segments:
+                            if stop_event.is_set():
+                                return
+
+                            if segment in color_map:
+                                segment_color = SegmentColor(
+                                    segment=segment, color=color_map[segment]
+                                )
+                                try:
+                                    await self.mqtt_client.async_publish_segment_pattern(
+                                        z2m_name, [segment_color], z2m_base_topic
+                                    )
+                                except Exception as ex:
+                                    _LOGGER.warning(
+                                        "Failed to apply segment %d for %s: %s",
+                                        segment,
+                                        entity_id,
+                                        ex,
+                                    )
+
+                            if segment_delay > 0:
+                                try:
+                                    await asyncio.wait_for(
+                                        stop_event.wait(), timeout=segment_delay
+                                    )
+                                    return
+                                except asyncio.TimeoutError:
+                                    pass
+
+                    # Wait for hold time
+                    if step.hold > 0:
+                        try:
+                            await asyncio.wait_for(
+                                stop_event.wait(), timeout=step.hold
+                            )
+                            return
+                        except asyncio.TimeoutError:
+                            pass
+
+                # Check loop conditions
+                loops_executed += 1
+
+                if sequence.loop_mode == "once":
+                    break
+                elif sequence.loop_mode == "count" and loops_executed >= max_loops:
+                    break
+
+            # Sequence completed naturally
+            completed_naturally = True
+
+            if sequence.end_behavior == "turn_off":
+                try:
+                    await self.mqtt_client.async_turn_off_light(entity_id)
+                    _LOGGER.info(
+                        "Synchronized segment sequence completed, turned off %s",
+                        entity_id,
+                    )
+                except Exception as ex:
+                    _LOGGER.warning(
+                        "Failed to turn off %s after synchronized sequence: %s",
+                        entity_id,
+                        ex,
+                    )
+            else:
+                _LOGGER.info(
+                    "Synchronized segment sequence completed, maintaining state for %s",
+                    entity_id,
+                )
+
+        except Exception as ex:
+            _LOGGER.error(
+                "Error executing synchronized segment sequence for %s: %s",
+                entity_id,
+                ex,
+                exc_info=True,
+            )
+        finally:
+            # Clean up entity resources
+            if entity_id in self._active_sequences:
+                del self._active_sequences[entity_id]
+            if entity_id in self._stop_flags:
+                del self._stop_flags[entity_id]
+            if entity_id in self._pause_flags:
+                del self._pause_flags[entity_id]
+            if entity_id in self._sequence_ids:
+                del self._sequence_ids[entity_id]
+            if entity_id in self._sequence_state:
+                del self._sequence_state[entity_id]
+            if entity_id in self._entity_to_group:
+                del self._entity_to_group[entity_id]
+
+            # Check if this was the last entity in the group and clean up
+            if group_id and not any(
+                gid == group_id for gid in self._entity_to_group.values()
+            ):
+                self._cleanup_group(group_id)
 
             # Fire sequence completed event if it finished naturally
             if completed_naturally:

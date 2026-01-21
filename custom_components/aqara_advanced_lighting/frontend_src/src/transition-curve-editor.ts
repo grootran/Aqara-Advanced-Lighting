@@ -354,7 +354,7 @@ export class TransitionCurveEditor extends LitElement {
     const rect = canvas.getBoundingClientRect();
     let clientY: number;
 
-    if (e instanceof TouchEvent) {
+    if ('touches' in e) {
       const touch = e.touches[0];
       if (!touch) return;
       clientY = touch.clientY;

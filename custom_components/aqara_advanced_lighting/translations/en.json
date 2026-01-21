@@ -5,24 +5,35 @@
         "title": "Set up Aqara Advanced Lighting",
         "description": "Configure advanced lighting control for Aqara lights via Zigbee2MQTT.",
         "data": {
+          "name": "Friendly name",
           "z2m_base_topic": "Zigbee2MQTT base topic"
+        },
+        "data_description": {
+          "name": "Optional display name for this Z2M instance (e.g., 'Upstairs', 'Garage'). If left empty, the base topic will be used.",
+          "z2m_base_topic": "The MQTT base topic for your Zigbee2MQTT instance. Usually 'zigbee2mqtt' unless you changed it."
         }
       },
       "reconfigure": {
         "title": "Reconfigure Aqara Advanced Lighting",
-        "description": "Update the Zigbee2MQTT base topic configuration.",
+        "description": "Update the Zigbee2MQTT instance configuration.",
         "data": {
+          "name": "Friendly name",
           "z2m_base_topic": "Zigbee2MQTT base topic"
+        },
+        "data_description": {
+          "name": "Optional display name for this Z2M instance. If left empty, the base topic will be used.",
+          "z2m_base_topic": "The MQTT base topic for your Zigbee2MQTT instance."
         }
       }
     },
     "error": {
       "mqtt_not_loaded": "MQTT integration is not loaded. Please set up the MQTT integration first.",
+      "duplicate_base_topic": "An instance with this Zigbee2MQTT base topic already exists.",
+      "z2m_not_found": "No Zigbee2MQTT instance found at this base topic. Please verify the topic is correct and that Zigbee2MQTT is running.",
       "unknown": "An unexpected error occurred."
     },
     "abort": {
-      "single_instance_allowed": "Only a single instance of Aqara Advanced Lighting is allowed.",
-      "already_configured": "This integration is already configured."
+      "already_configured": "An instance with this Zigbee2MQTT base topic is already configured."
     }
   },
   "exceptions": {
@@ -133,6 +144,9 @@
     },
     "unsupported_entities": {
       "message": "The following entities are not supported Aqara devices: {entity_list}. Please select only Aqara T1, T1M, T1 Strip, or T2 bulb entities that are connected via Zigbee2MQTT."
+    },
+    "entity_not_found_in_any_instance": {
+      "message": "Entity {entity_id} was not found in any configured Zigbee2MQTT instance. Configured instances: {instances}. Please ensure the device is paired with one of these instances."
     },
     "user_preset_missing_field": {
       "message": "User preset {preset} is missing required field: {field}. Please check the preset configuration."

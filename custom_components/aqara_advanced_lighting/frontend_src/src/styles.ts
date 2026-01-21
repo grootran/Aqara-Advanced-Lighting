@@ -1759,6 +1759,110 @@ export const panelStyles = css`
       justify-content: center;
     }
   }
+
+  /* Z2M Instances Grid Styles */
+  .z2m-instances-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .z2m-instance-card {
+    background: var(--card-background-color, var(--ha-card-background));
+    border: 1px solid var(--divider-color);
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .z2m-instance-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .z2m-instance-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .z2m-instance-name {
+    font-size: var(--ha-font-size-l, 16px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    color: var(--primary-text-color);
+    word-break: break-word;
+  }
+
+  .z2m-instance-topic {
+    font-size: var(--ha-font-size-s, 12px);
+    color: var(--secondary-text-color);
+    word-break: break-word;
+  }
+
+  .z2m-instance-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .z2m-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 12px;
+    min-width: 60px;
+  }
+
+  .z2m-stat-value {
+    font-size: var(--ha-font-size-xl, 20px);
+    font-weight: var(--ha-font-weight-bold, 600);
+    color: var(--primary-color);
+  }
+
+  .z2m-stat-label {
+    font-size: var(--ha-font-size-xs, 11px);
+    color: var(--secondary-text-color);
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .z2m-devices-list {
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px solid var(--divider-color);
+  }
+
+  .z2m-devices-list details summary {
+    user-select: none;
+  }
+
+  .z2m-devices-list details[open] summary {
+    margin-bottom: 4px;
+  }
+
+  /* Mobile adjustments for Z2M instances */
+  @media (max-width: 480px) {
+    .z2m-instances-grid {
+      grid-template-columns: 1fr;
+      padding: 12px;
+      gap: 12px;
+    }
+
+    .z2m-instance-stats {
+      gap: 8px;
+    }
+
+    .z2m-stat {
+      flex: 1;
+      min-width: 50px;
+      padding: 6px 8px;
+    }
+  }
 `;
 
 /**
