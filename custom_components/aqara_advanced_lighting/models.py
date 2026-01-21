@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 from homeassistant.config_entries import ConfigEntry
+
+if TYPE_CHECKING:
+    pass  # TypeAlias import used for type definitions
 
 
 def round_xy(value: float) -> float:
@@ -458,5 +461,5 @@ class AqaraLightingRuntimeData:
     device_states: dict[str, DeviceState] = field(default_factory=dict)
 
 
-# Type alias for typed config entry
-type AqaraLightingConfigEntry = ConfigEntry[AqaraLightingRuntimeData]
+# Type alias for typed config entry (Python 3.11+ compatible)
+AqaraLightingConfigEntry: TypeAlias = ConfigEntry[AqaraLightingRuntimeData]
