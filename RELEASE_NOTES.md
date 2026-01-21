@@ -1,5 +1,30 @@
 # Aqara Advanced Lighting v0.8.0
 
+## ⚠️ IMPORTANT: Upgrade Instructions
+
+**If updating from v0.7.0**, follow these steps to avoid module cache conflicts:
+
+1. **Before updating**, remove the integration:
+   - Go to Settings → Devices & Services
+   - Find "Aqara Advanced Lighting"
+   - Click the three dots → Delete
+   - (Your presets and favorites are preserved globally)
+
+2. **Update via HACS** to v0.8.0
+
+3. **Restart Home Assistant** completely
+
+4. **Add the integration back**:
+   - Settings → Devices & Services → Add Integration
+   - Search for "Aqara Advanced Lighting"
+   - Configure with your Z2M base topic
+
+**Why this is needed**: v0.8.0 introduces fundamental architectural changes for multi-instance support that conflict with cached Python modules from v0.7.0. This upgrade path ensures a clean transition.
+
+**New installations**: No special steps needed. Install and configure normally.
+
+---
+
 ## What's New
 
 Version 0.8.0 introduces **support for multiple Zigbee2MQTT instances**, allowing you to control Aqara lights across multiple Z2M coordinators from a single integration. This release also includes intelligent entity routing, improved device detection, and enhanced error messages.
