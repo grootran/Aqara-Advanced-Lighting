@@ -295,7 +295,7 @@ To remove the integration from Home Assistant:
 3. **Uninstall Integration Files**:
 
    **If installed via HACS**:
-   - Go to **HACS** → **Integrations**
+   - Go to **HACS**
    - Find "Aqara Advanced Lighting"
    - Click the three dots menu → **Remove**
    - Restart Home Assistant
