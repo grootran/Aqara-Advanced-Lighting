@@ -19,19 +19,10 @@ jobs:
 
       - name: Create release zip
         run: |
-          # Create zip with explicit exclusions for development files
-          cd custom_components
-          zip -r ../aqara_advanced_lighting.zip aqara_advanced_lighting/ \
-            -x "aqara_advanced_lighting/frontend_src/node_modules/*" \
-            -x "aqara_advanced_lighting/frontend_src/dist/*" \
-            -x "aqara_advanced_lighting/__pycache__/*" \
-            -x "aqara_advanced_lighting/*/__pycache__/*" \
-            -x "*.pyc" \
-            -x "*.pyo" \
-            -x "*~" \
-            -x "*.swp" \
-            -x ".DS_Store"
-          cd ..
+          # Use git archive to package only tracked files (respects .gitignore automatically)
+          git archive --format=zip --prefix=aqara_advanced_lighting/ \
+            HEAD:custom_components/aqara_advanced_lighting \
+            -o aqara_advanced_lighting.zip
 
           # Verify zip was created and show contents
           echo "Zip file created:"
