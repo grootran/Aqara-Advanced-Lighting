@@ -33,7 +33,8 @@
     "effect_button": "Effect",
     "cct_button": "CCT",
     "segment_button": "Segment",
-    "no_lights_message": "Please select one or more lights to view available presets"
+    "no_lights_message": "Please select one or more lights to view available presets",
+    "group_label": "Group ({count} lights)"
   },
   "presets": {
     "manage_description": "Manage your saved presets.",

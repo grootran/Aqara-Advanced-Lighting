@@ -153,7 +153,8 @@ If you see a version mismatch warning in the panel after updating, this means th
 1. Go to **Settings** → **Devices & Services** → **Add Integration**
 2. Search for "Aqara Advanced Lighting"
 3. Enter your Zigbee2MQTT base topic (default: `zigbee2mqtt`)
-4. Click "Submit"
+4. Optionally add a friendly name for this instance (e.g., "Main Floor", "Garage")
+5. Click "Submit"
 
 The integration will automatically discover your Aqara lights through Zigbee2MQTT.
 
@@ -187,15 +188,91 @@ The MQTT base topic used by your Zigbee2MQTT installation. This integration subs
 - If devices are not discovered, verify the base topic matches your Z2M configuration
 - Check that MQTT integration is properly configured and connected
 - Ensure Zigbee2MQTT is running and connected to the same MQTT broker
-- Use the Reconfigure option to update the base topic if it changes
+- The integration validates the Z2M instance by subscribing to the `bridge/state` topic during setup
+- Use the Reconfigure option to update the base topic or friendly name if needed
+
+#### Friendly Name (Optional)
+
+- **Parameter**: `Friendly name`
+- **Default**: None (uses base topic if not provided)
+- **Required**: No
+- **Type**: String
+
+**Description**:
+An optional friendly name to identify this Zigbee2MQTT instance in logs and error messages. Useful when managing multiple Z2M coordinators to quickly identify which instance owns specific devices.
+
+**Examples**:
+- Location-based: "Upstairs", "Main Floor", "Garage", "Outdoor"
+- Zone-based: "Living Area", "Bedrooms", "Workshop"
+- Function-based: "RGB Lights", "CCT Lights", "LED Strips"
+
+### Multiple Zigbee2MQTT Instances
+
+The integration supports connecting to multiple Zigbee2MQTT instances simultaneously, perfect for complex smart home setups with distributed Zigbee networks.
+
+#### Adding Additional Instances
+
+To add another Zigbee2MQTT instance after initial setup:
+
+1. Go to **Settings** → **Devices & Services**
+2. Click **Add Integration**
+3. Search for "Aqara Advanced Lighting"
+4. Enter the **Z2M base topic** for the new instance (e.g., `zigbee2mqtt2`)
+5. Add a **friendly name** to distinguish it (e.g., "Garage", "Upstairs")
+6. Click "Submit"
+
+The integration will:
+- Validate the Z2M instance is running (5-second timeout)
+- Prevent duplicate instances with the same base topic
+- Automatically route service calls to the correct instance
+- Show devices from all instances in the frontend panel
+
+#### Multi-Instance Features
+
+**Automatic Entity Routing**
+- Service calls automatically find the correct Z2M instance for each entity
+- Fast O(1) lookup using entity routing map
+- No manual instance selection needed
+
+**Instance Validation**
+- Subscribes to `bridge/state` topic during setup to confirm Z2M is running
+- Clear error messages if Z2M instance not found
+- 5-second validation timeout
+
+**Instance Management**
+- Each instance maintains its own MQTT client and state managers
+- Shared presets and favorites work across all instances
+- Independent configuration and reconfiguration per instance
+
+#### Use Cases
+
+**Multiple Locations**
+```
+Instance 1: zigbee2mqtt (Main Floor)
+Instance 2: zigbee2mqtt_upstairs (Upstairs)
+Instance 3: zigbee2mqtt_garage (Garage)
+```
+
+**Zone Separation**
+```
+Instance 1: zigbee2mqtt_indoor (Indoor Lights)
+Instance 2: zigbee2mqtt_outdoor (Outdoor Lights)
+```
+
+**Device Type Separation**
+```
+Instance 1: zigbee2mqtt (Smart Bulbs)
+Instance 2: zigbee2mqtt_strips (LED Strips)
+```
 
 ### Reconfiguration
 
-To change the Z2M base topic:
+To change the Z2M base topic or friendly name for an existing instance:
+
 1. Go to **Settings** → **Devices & Services**
-2. Find "Aqara Advanced Lighting"
+2. Find the "Aqara Advanced Lighting" instance you want to reconfigure
 3. Click the three dots menu → "Reconfigure"
-4. Update the base topic
+4. Update the base topic and/or friendly name
 5. Click "Submit"
 
 ### Removal
@@ -895,17 +972,41 @@ target:
 All services support Home Assistant light groups. When you target a light group, the integration automatically:
 - Detects the group and expands it to individual light entities
 - Removes any duplicate entities
-- Applies the effect/pattern to all lights simultaneously (when sync parameter is true)
+- Routes each entity to the correct Zigbee2MQTT instance automatically
+- Applies the effect/pattern to all lights simultaneously
 - Uses batch MQTT publishing for optimal performance
+
+**Multi-Instance Support:**
+Light groups can contain entities from multiple Zigbee2MQTT instances. The integration automatically:
+- Identifies which Z2M instance owns each entity
+- Routes service calls to the appropriate instance
+- Processes all entities in parallel for synchronized effects
 
 **Example - Applying an effect to a group:**
 ```yaml
 service: aqara_advanced_lighting.set_dynamic_effect
 target:
-  entity_id: light.living_room_group  # Your light group
+  entity_id: light.living_room_group  # Your light group (can span multiple Z2M instances)
 data:
   preset: "sunset"
-  sync: true  # Synchronized effect across all lights
+```
+
+**Example - Multi-instance group:**
+```yaml
+# light.whole_house_group contains:
+#   - light.living_room (from zigbee2mqtt instance)
+#   - light.bedroom (from zigbee2mqtt instance)
+#   - light.garage (from zigbee2mqtt_garage instance)
+#   - light.outdoor (from zigbee2mqtt_outdoor instance)
+
+service: aqara_advanced_lighting.set_dynamic_effect
+target:
+  entity_id: light.whole_house_group
+data:
+  effect: "breathing"
+  speed: 50
+  color_1: [255, 100, 0]
+  # All lights receive the effect, routed to their respective Z2M instances
 ```
 
 ### Custom Icons for Presets

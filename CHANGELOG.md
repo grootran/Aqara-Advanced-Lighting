@@ -80,6 +80,15 @@ Version 0.8.0 introduces support for multiple Zigbee2MQTT instances, allowing co
   - Debug logs show all light entities in HA
   - Final entity-to-Z2M mapping displayed for verification
 
+#### Sequence Synchronization
+
+- **Group Synchronization for Sequences**
+  - CCT and RGB segment sequences now support synchronized playback across multiple lights
+  - Uses asyncio barriers to coordinate step timing between entities
+  - All lights in a group transition steps together with perfect timing
+  - Ideal for synchronized animations and effects across multiple fixtures
+  - Automatic cleanup when sequences stop or entities are removed
+
 #### Frontend Updates
 
 - **Entity Selector Improvements**
@@ -88,6 +97,16 @@ Version 0.8.0 introduces support for multiple Zigbee2MQTT instances, allowing co
   - Entity list updates when new instances added
   - Changed from target selector to entity selector with multiple support
   - Better user experience with only relevant entities
+
+### Bug Fixes
+
+#### Firefox Compatibility
+
+- **TouchEvent Detection Fix**
+  - Fixed touch event detection in xy-color-picker for Firefox compatibility
+  - Changed from `instanceof TouchEvent` to `'touches' in e` check
+  - Resolves issues with color picker not working on Firefox mobile/desktop
+  - Improves cross-browser compatibility for touch interactions
 
 ### Technical Changes
 
@@ -114,12 +133,16 @@ Version 0.8.0 introduces support for multiple Zigbee2MQTT instances, allowing co
   - `services.py` - Entity routing functions and instance-aware service handlers
   - `mqtt_client.py` - Entity routing map updates during discovery, enhanced logging
   - `panel.py` - New SupportedEntitiesView with device type categorization
+  - `cct_sequence_manager.py` - Group synchronization support with barriers
+  - `segment_sequence_manager.py` - Group synchronization support with barriers
   - `translations/en.json` - New translations for multi-instance scenarios
 
 - **Frontend**
   - `aqara-panel.ts` - Supported entities API integration, backend-driven filtering
+  - `xy-color-picker.ts` - Firefox touch event compatibility fix
   - `styles.ts` - Minor styling adjustments
   - `aqara_panel.js` - Compiled frontend bundle
+  - `segment-selector.js` - Compiled component
 
 ### Breaking Changes
 

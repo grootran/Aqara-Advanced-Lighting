@@ -217,7 +217,7 @@ export class XyColorPicker extends LitElement {
     const rect = canvas.getBoundingClientRect();
     let clientX: number, clientY: number;
 
-    if (e instanceof TouchEvent) {
+    if ('touches' in e) {
       const touch = e.touches[0];
       if (!touch) return;
       clientX = touch.clientX;

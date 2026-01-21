@@ -909,12 +909,69 @@ class SupportedEntitiesView(HomeAssistantView):
                     "z2m_base_topic": z2m_base_topic,
                 }
 
+        # Detect light groups where ALL members are supported Aqara devices
+        light_groups: list[dict[str, Any]] = []
+        supported_entity_ids = set(supported_entities.keys())
+
+        # Scan all light entities for groups
+        for state in hass.states.async_all("light"):
+            entity_id = state.entity_id
+            # Skip if already a supported entity (not a group)
+            if entity_id in supported_entity_ids:
+                continue
+
+            # Check if this is a light group (has entity_id attribute with members)
+            member_ids = state.attributes.get("entity_id")
+            if not member_ids or not isinstance(member_ids, (list, tuple)):
+                continue
+
+            # Check if ALL members are supported Aqara devices
+            all_supported = True
+            member_details: list[dict[str, Any]] = []
+            group_device_types: set[str] = set()
+
+            for member_id in member_ids:
+                if member_id not in supported_entity_ids:
+                    all_supported = False
+                    break
+                member_info = supported_entities[member_id]
+                member_details.append(member_info)
+                group_device_types.add(member_info.get("device_type", "unknown"))
+
+            if all_supported and member_details:
+                # Determine the group's device type based on members
+                # If all members are same type, use that; otherwise "mixed"
+                if len(group_device_types) == 1:
+                    group_device_type = next(iter(group_device_types))
+                else:
+                    group_device_type = "mixed"
+
+                friendly_name = state.attributes.get("friendly_name", entity_id)
+                light_groups.append({
+                    "entity_id": entity_id,
+                    "friendly_name": friendly_name,
+                    "is_group": True,
+                    "device_type": group_device_type,
+                    "member_count": len(member_ids),
+                    "member_ids": list(member_ids),
+                    "member_device_types": list(group_device_types),
+                })
+
+                _LOGGER.debug(
+                    "SupportedEntitiesView: Found light group %s with %d supported members: %s",
+                    entity_id,
+                    len(member_ids),
+                    member_ids,
+                )
+
         _LOGGER.info(
-            "SupportedEntitiesView: Returning %d supported entities",
+            "SupportedEntitiesView: Returning %d supported entities and %d light groups",
             len(supported_entities),
+            len(light_groups),
         )
 
         return web.json_response({
             "entities": list(supported_entities.values()),
             "instances": instances,
+            "light_groups": light_groups,
         })

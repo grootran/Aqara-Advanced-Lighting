@@ -122,6 +122,26 @@ The integration now supports connecting to multiple Zigbee2MQTT instances simult
 - List of devices per instance
 - Foundation for future instance selection UI
 
+### Sequence Synchronization
+
+**Group Synchronization for Sequences**
+- CCT and RGB segment sequences now support synchronized playback across multiple lights
+- Uses asyncio barriers to coordinate step timing between entities
+- All lights in a group transition steps together with perfect timing
+- Ideal for synchronized animations and effects across multiple fixtures
+- Automatic cleanup when sequences stop or entities are removed
+- Works seamlessly across multiple Z2M instances
+
+## Bug Fixes
+
+### Firefox Compatibility
+
+**TouchEvent Detection Fix**
+- Fixed touch event detection in xy-color-picker for Firefox compatibility
+- Changed from `instanceof TouchEvent` to `'touches' in e` check
+- Resolves issues with color picker not working on Firefox mobile/desktop
+- Improves cross-browser compatibility for touch interactions in the frontend panel
+
 ## Technical Changes
 
 ### Architecture Updates

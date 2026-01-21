@@ -1096,7 +1096,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         # Structure: {entry_id: {"mqtt_client": client, "state_manager": mgr, "entities": [...]}}
         instance_groups: dict[str, dict] = {}
 
-        # Process each entity
+        # First pass: validate all entities and collect turn_on data
+        validated_entities: list[tuple] = []  # (entity_id, mqtt_client, z2m_name, device, entry_id, state_manager, entity_segments)
+
         for entity_id in resolved_entity_ids:
             # Get the correct instance components for this entity
             entity_mqtt_client, entity_state_manager, entry_id = (
@@ -1155,15 +1157,29 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 )
 
             # Check if device supports effect_segments parameter
-            if segments and not supports_effect_segments(device.model_id):
+            entity_segments = segments
+            if entity_segments and not supports_effect_segments(device.model_id):
                 _LOGGER.warning(
                     "Device %s does not support effect_segments parameter, ignoring",
                     z2m_name,
                 )
-                segments = None
+                entity_segments = None
 
-            # Ensure light is on if requested
-            await _ensure_light_on(hass, entity_mqtt_client, entity_id, z2m_name, turn_on)
+            validated_entities.append(
+                (entity_id, entity_mqtt_client, z2m_name, device, entry_id, entity_state_manager, entity_segments)
+            )
+
+        # Turn on all lights in parallel if requested
+        if turn_on and validated_entities:
+            turn_on_tasks = [
+                _ensure_light_on(hass, mqtt_client, entity_id, z2m_name, True)
+                for entity_id, mqtt_client, z2m_name, *_ in validated_entities
+            ]
+            await asyncio.gather(*turn_on_tasks, return_exceptions=True)
+
+        # Second pass: process each validated entity
+        for entity_id, entity_mqtt_client, z2m_name, device, entry_id, entity_state_manager, entity_segments in validated_entities:
+            segments = entity_segments  # Use per-entity segments value
 
             # Get sequence managers from the correct instance
             instance_data = hass.data[DOMAIN]["entries"].get(entry_id, {})
@@ -2139,7 +2155,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 translation_placeholders={"error": str(ex)},
             ) from ex
 
-        # Start sequence for each entity
+        # Group entities by their CCT manager instance for synchronized starting
+        instance_groups: dict[str, dict] = {}  # entry_id -> {manager, entities, mqtt_clients}
+
         for entity_id in resolved_entity_ids:
             # Get the correct instance components for this entity
             entity_mqtt_client, entity_state_manager, entry_id = (
@@ -2156,7 +2174,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 )
                 continue
 
-            # Get Z2M friendly name for ensure_light_on
+            # Get Z2M friendly name
             z2m_name = entity_mqtt_client.get_z2m_friendly_name(entity_id)
             if not z2m_name:
                 _LOGGER.warning(
@@ -2164,22 +2182,50 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 )
                 continue
 
-            # Ensure light is on if requested
-            await _ensure_light_on(hass, entity_mqtt_client, entity_id, z2m_name, turn_on)
+            # Add to instance group
+            if entry_id not in instance_groups:
+                instance_groups[entry_id] = {
+                    "manager": cct_manager,
+                    "entities": [],
+                    "turn_on_data": [],
+                }
+
+            instance_groups[entry_id]["entities"].append(entity_id)
+            instance_groups[entry_id]["turn_on_data"].append(
+                (entity_mqtt_client, entity_id, z2m_name)
+            )
+
+        # Turn on all lights in parallel if requested
+        if turn_on:
+            turn_on_tasks = []
+            for group_data in instance_groups.values():
+                for mqtt_client, entity_id, z2m_name in group_data["turn_on_data"]:
+                    turn_on_tasks.append(
+                        _ensure_light_on(hass, mqtt_client, entity_id, z2m_name, True)
+                    )
+            if turn_on_tasks:
+                await asyncio.gather(*turn_on_tasks, return_exceptions=True)
+
+        # Start synchronized sequences for each instance group
+        for entry_id, group_data in instance_groups.items():
+            cct_manager = group_data["manager"]
+            entity_list = group_data["entities"]
 
             try:
-                await cct_manager.start_sequence(entity_id, sequence, z2m_base_topic)
+                # Use synchronized group start for multiple entities
+                await cct_manager.start_synchronized_group(
+                    entity_list, sequence, z2m_base_topic
+                )
                 _LOGGER.info(
-                    "Started CCT sequence for %s: %d steps, loop_mode=%s",
-                    entity_id,
-                    len(sequence.steps),
+                    "Started synchronized CCT sequence for %d entities: loop_mode=%s",
+                    len(entity_list),
                     loop_mode,
                 )
             except Exception as ex:
                 raise HomeAssistantError(
                     translation_domain=DOMAIN,
                     translation_key="start_sequence_failed",
-                    translation_placeholders={"entity": entity_id},
+                    translation_placeholders={"entity": ", ".join(entity_list)},
                 ) from ex
 
     async def handle_stop_cct_sequence(call: ServiceCall) -> None:
@@ -2495,7 +2541,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 translation_placeholders={"error": str(ex)},
             ) from ex
 
-        # Start sequence for each entity
+        # Group entities by their segment manager instance for synchronized starting
+        instance_groups: dict[str, dict] = {}  # entry_id -> {manager, entities, turn_on_data}
+
         for entity_id in resolved_entity_ids:
             # Get the correct instance components for this entity
             entity_mqtt_client, entity_state_manager, entry_id = (
@@ -2542,22 +2590,55 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     translation_placeholders={"entity_id": entity_id},
                 )
 
-            # Ensure light is on if requested
-            await _ensure_light_on(hass, entity_mqtt_client, entity_id, z2m_name, turn_on)
+            # Add to instance group
+            if entry_id not in instance_groups:
+                instance_groups[entry_id] = {
+                    "manager": segment_manager,
+                    "entities": [],
+                    "turn_on_data": [],
+                }
+
+            instance_groups[entry_id]["entities"].append(entity_id)
+            instance_groups[entry_id]["turn_on_data"].append(
+                (entity_mqtt_client, entity_id, z2m_name)
+            )
+
+        # Turn on all lights in parallel if requested
+        if turn_on:
+            turn_on_tasks = []
+            for group_data in instance_groups.values():
+                for mqtt_client, entity_id, z2m_name in group_data["turn_on_data"]:
+                    turn_on_tasks.append(
+                        _ensure_light_on(hass, mqtt_client, entity_id, z2m_name, True)
+                    )
+            if turn_on_tasks:
+                await asyncio.gather(*turn_on_tasks, return_exceptions=True)
+
+        # Start synchronized sequences for each instance group
+        for entry_id, group_data in instance_groups.items():
+            segment_manager = group_data["manager"]
+            entity_list = group_data["entities"]
 
             try:
-                sequence_id = await segment_manager.start_sequence(
-                    entity_id, sequence, z2m_base_topic
+                # Use synchronized group start for multiple entities
+                sequence_ids = await segment_manager.start_synchronized_group(
+                    entity_list, sequence, z2m_base_topic
                 )
-                _LOGGER.info("Started segment sequence for %s (sequence_id=%s)", entity_id, sequence_id)
+                _LOGGER.info(
+                    "Started synchronized segment sequence for %d entities",
+                    len(entity_list),
+                )
             except Exception as ex:
                 _LOGGER.error(
-                    "Failed to start segment sequence for %s: %s", entity_id, ex
+                    "Failed to start synchronized segment sequence: %s", ex
                 )
                 raise HomeAssistantError(
                     translation_domain=DOMAIN,
                     translation_key="start_segment_sequence_failed",
-                    translation_placeholders={"entity_id": entity_id, "error": str(ex)},
+                    translation_placeholders={
+                        "entity_id": ", ".join(entity_list),
+                        "error": str(ex),
+                    },
                 ) from ex
 
     async def handle_stop_segment_sequence(call: ServiceCall) -> None:

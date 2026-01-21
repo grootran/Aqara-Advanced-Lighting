@@ -381,7 +381,7 @@ class SegmentSelector extends LitElement {
 
       /* Color palette styles */
       .color-palette-container {
-        margin-top: 16px;
+        margin-top: 8px;
         padding: 16px;
         background: var(--card-background-color);
         border-radius: 8px;
@@ -2105,7 +2105,7 @@ class SegmentSelector extends LitElement {
     const rect = canvas.getBoundingClientRect();
     let clientX, clientY;
 
-    if (e instanceof TouchEvent) {
+    if (e.touches) {
       const touch = e.touches[0];
       if (!touch) return;
       clientX = touch.clientX;

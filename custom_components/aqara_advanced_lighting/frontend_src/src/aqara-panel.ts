@@ -59,7 +59,7 @@ export class AqaraPanel extends LitElement {
   };
   @state() private _backendVersion?: string;
   @state() private _frontendVersion = '__FRONTEND_VERSION__';
-  @state() private _supportedEntities: Map<string, { device_type: string; model_id: string; z2m_friendly_name: string }> = new Map();
+  @state() private _supportedEntities: Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; is_group?: boolean; member_count?: number }> = new Map();
   @state() private _z2mInstances: Array<{
     entry_id: string;
     title: string;
@@ -303,7 +303,7 @@ export class AqaraPanel extends LitElement {
       }
       const data = await response.json();
       // Build a map for fast lookup
-      const entityMap = new Map<string, { device_type: string; model_id: string; z2m_friendly_name: string }>();
+      const entityMap = new Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; is_group?: boolean; member_count?: number }>();
       for (const entity of data.entities || []) {
         entityMap.set(entity.entity_id, {
           device_type: entity.device_type,
@@ -311,6 +311,18 @@ export class AqaraPanel extends LitElement {
           z2m_friendly_name: entity.z2m_friendly_name,
         });
       }
+
+      // Also add light groups to the supported entities
+      for (const group of data.light_groups || []) {
+        entityMap.set(group.entity_id, {
+          device_type: group.device_type,
+          model_id: 'light_group',
+          z2m_friendly_name: group.friendly_name,
+          is_group: true,
+          member_count: group.member_count,
+        });
+      }
+
       this._supportedEntities = entityMap;
 
       // Store instances data
