@@ -81,19 +81,24 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract release notes from CHANGELOG
+      - name: Prepare release notes
         if: steps.check_notes.outputs.USE_CHANGELOG == 'true'
         id: release_notes
         run: |
-          # Extract the section for this version from CHANGELOG.md
-          VERSION="${{ steps.get_version.outputs.VERSION }}"
-          awk "/## \[$VERSION\]/,/## \[/" CHANGELOG.md | sed '$d' > RELEASE_NOTES.md
+          # Check if RELEASE_NOTES.md exists in the repo
+          if [ -f "RELEASE_NOTES.md" ] && [ -s "RELEASE_NOTES.md" ]; then
+            echo "Using existing RELEASE_NOTES.md from repository"
+          else
+            # Extract the section for this version from CHANGELOG.md
+            VERSION="${{ steps.get_version.outputs.VERSION }}"
+            awk "/## \[$VERSION\]/,/## \[/" CHANGELOG.md | sed '$d' > RELEASE_NOTES.md
 
-          # If RELEASE_NOTES.md is empty, provide a default message
-          if [ ! -s RELEASE_NOTES.md ]; then
-            echo "Release $VERSION" > RELEASE_NOTES.md
-            echo "" >> RELEASE_NOTES.md
-            echo "See [CHANGELOG.md](CHANGELOG.md) for details." >> RELEASE_NOTES.md
+            # If RELEASE_NOTES.md is still empty, provide a default message
+            if [ ! -s RELEASE_NOTES.md ]; then
+              echo "Release $VERSION" > RELEASE_NOTES.md
+              echo "" >> RELEASE_NOTES.md
+              echo "See [CHANGELOG.md](CHANGELOG.md) for details." >> RELEASE_NOTES.md
+            fi
           fi
 
       - name: Create or Update GitHub Release
