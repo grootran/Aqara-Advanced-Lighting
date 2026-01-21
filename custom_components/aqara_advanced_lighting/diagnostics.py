@@ -53,8 +53,9 @@ async def async_get_config_entry_diagnostics(
             "z2m_friendly_name": z2m_name,
         })
 
-    # Get state manager data
-    state_manager = hass.data.get(DOMAIN, {}).get("state_manager")
+    # Get state manager data for this specific entry
+    entry_data = hass.data.get(DOMAIN, {}).get("entries", {}).get(entry.entry_id, {})
+    state_manager = entry_data.get("state_manager")
     active_effects = []
     if state_manager:
         for entity_id, device_state in state_manager.get_all_active_effects().items():
@@ -72,8 +73,8 @@ async def async_get_config_entry_diagnostics(
                 }
             active_effects.append(effect_info)
 
-    # Get CCT sequence manager data
-    cct_manager = hass.data.get(DOMAIN, {}).get(DATA_CCT_SEQUENCE_MANAGER)
+    # Get CCT sequence manager data for this specific entry
+    cct_manager = entry_data.get(DATA_CCT_SEQUENCE_MANAGER)
     active_sequences = []
     if cct_manager:
         for entity_id in cct_manager._active_sequences:
