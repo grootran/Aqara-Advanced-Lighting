@@ -5,11 +5,74 @@ All notable changes to the Aqara Advanced Lighting integration will be documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.8.0] - 2026-01-21
+## [0.8.2] - 2026-01-28
+
+### Improvements
+
+#### Config Flow Cleanup
+
+- **Removed friendly name field from config flow**
+  - Config entry titles are now auto-generated as "Aqara Lighting ({base_topic})"
+  - Follows Home Assistant guidelines: non-helper integrations should not allow custom names in config flows
+  - Existing config entries retain their current titles
+  - Reconfiguring an entry updates the title to the new auto-generated format
+
+#### Entity Mapping Reliability
+
+- **Strengthened entity mapping Strategy 4 (entity ID pattern matching)**
+  - Strategy 4 now only matches entities from the MQTT platform
+  - Prevents false-positive matches against non-MQTT entities with similar names
+  - Mapping method tracked per entity for diagnostics transparency
+
+#### Enhanced Diagnostics
+
+- **Entity mapping methods exposed in diagnostics output**
+  - Each mapped entity now shows which matching strategy was used
+  - Helps troubleshoot mapping issues across multi-instance setups
+  - Uses public accessor method for CCT sequence manager active sequences
+
+#### Code Quality
+
+- **Timezone-aware datetimes in state manager**
+  - Replaced `datetime.now()` with `dt_util.utcnow()` for Home Assistant compliance
+  - Prevents timezone-related issues in state expiry calculations
+- **Improved test coverage**
+  - Config flow tests rewritten with correct mocks and assertions
+  - Init tests rewritten to mock actual integration components
+  - Added Z2M validation mock fixture for config flow tests
+  - New tests for duplicate entry prevention and multi-instance topic validation
+
+### Documentation
+
+- **README updated** to reflect config flow changes
+  - Removed friendly name references from setup and reconfiguration sections
+  - Updated multi-instance instructions
+
+### Breaking Changes
+
+None. This release is fully backward compatible with v0.8.0.
+
+- Existing config entries retain their current titles
+- Stale `friendly_name` data in config entry is harmless and ignored
+- Only reconfiguring an entry changes the title to the auto-generated format
+
+### Compatibility
+
+- Fully backward compatible with v0.8.0
+- All existing presets and configurations preserved
+- No configuration changes required
+
+### Upgrade from v0.8.0
+
+1. Update the integration through HACS
+2. Restart Home Assistant
+3. Clear browser cache (Ctrl+Shift+R or Cmd+Shift+R)
+
+## [0.8.1] - 2026-01-21
 
 ### What's New
 
-Version 0.8.0 introduces support for multiple Zigbee2MQTT instances, allowing control of Aqara lights across multiple Z2M coordinators from a single integration. Perfect for complex smart home setups with distributed Zigbee networks.
+Version 0.8.1 introduces support for multiple Zigbee2MQTT instances, allowing control of Aqara lights across multiple Z2M coordinators from a single integration. Perfect for complex smart home setups with distributed Zigbee networks.
 
 ### New Features
 
@@ -24,11 +87,11 @@ Version 0.8.0 introduces support for multiple Zigbee2MQTT instances, allowing co
 
 - **Enhanced Config Flow**
   - Automatic Z2M instance validation during setup
-  - Optional friendly names for instances (e.g., "Upstairs", "Garage")
+  - Auto-generated titles based on Z2M base topic
   - Subscribes to bridge/state topic to confirm Z2M is running
   - 5-second validation timeout with clear error messages
   - Duplicate prevention for same base topic
-  - Reconfigure flow supports instance renaming
+  - Reconfigure flow updates title when base topic changes
 
 - **Intelligent Entity Routing**
   - Service calls automatically routed to correct Z2M instance
@@ -129,7 +192,7 @@ Version 0.8.0 introduces support for multiple Zigbee2MQTT instances, allowing co
 
 - **Backend**
   - `__init__.py` - Multi-instance data structure, per-entry setup and teardown
-  - `config_flow.py` - Z2M validation, friendly names, duplicate prevention, unique IDs
+  - `config_flow.py` - Z2M validation, auto-generated titles, duplicate prevention, unique IDs
   - `services.py` - Entity routing functions and instance-aware service handlers
   - `mqtt_client.py` - Entity routing map updates during discovery, enhanced logging
   - `panel.py` - New SupportedEntitiesView with device type categorization
@@ -1082,4 +1145,5 @@ One click HACS cutton
 [0.6.1]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.6.1
 [0.6.2]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.6.2
 [0.7.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.7.0
-[0.8.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.8.0
+[0.8.1]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.8.1
+[0.8.2]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.8.2
