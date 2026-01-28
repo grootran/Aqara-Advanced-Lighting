@@ -40,6 +40,12 @@ interface EditableStep extends SegmentSequenceStep {
   blockColors: XYColor[];  // Colors for blocks mode
   expandBlocks: boolean;  // Block expansion toggle
   patternMode: string;  // 'individual' | 'gradient' | 'blocks'
+  gradientMirror: boolean;
+  gradientRepeat: number;
+  gradientReverse: boolean;
+  gradientInterpolation: string;
+  gradientWave: boolean;
+  gradientWaveCycles: number;
 }
 
 @customElement('segment-sequence-editor')
@@ -427,6 +433,12 @@ export class SegmentSequenceEditor extends LitElement {
         blockColors: xyColors.length >= 1 ? xyColors : [...DEFAULT_BLOCK_COLORS],
         expandBlocks: step.mode === 'blocks_expand',
         patternMode,
+        gradientMirror: false,
+        gradientRepeat: 1,
+        gradientReverse: false,
+        gradientInterpolation: 'shortest',
+        gradientWave: false,
+        gradientWaveCycles: 1,
       };
     });
   }
@@ -448,6 +460,12 @@ export class SegmentSequenceEditor extends LitElement {
         blockColors: [...DEFAULT_BLOCK_COLORS],
         expandBlocks: false,
         patternMode: 'individual',
+        gradientMirror: false,
+        gradientRepeat: 1,
+        gradientReverse: false,
+        gradientInterpolation: 'shortest',
+        gradientWave: false,
+        gradientWaveCycles: 1,
       },
     ];
   }
@@ -583,6 +601,12 @@ export class SegmentSequenceEditor extends LitElement {
       blockColors: previousStep ? previousStep.blockColors.map((c) => ({ ...c })) : [...DEFAULT_BLOCK_COLORS],
       expandBlocks: previousStep?.expandBlocks || false,
       patternMode: previousStep?.patternMode || 'individual',
+      gradientMirror: previousStep?.gradientMirror || false,
+      gradientRepeat: previousStep?.gradientRepeat || 1,
+      gradientReverse: previousStep?.gradientReverse || false,
+      gradientInterpolation: previousStep?.gradientInterpolation || 'shortest',
+      gradientWave: previousStep?.gradientWave || false,
+      gradientWaveCycles: previousStep?.gradientWaveCycles || 1,
     };
 
     this._steps = [...this._steps, newStep];
@@ -643,6 +667,12 @@ export class SegmentSequenceEditor extends LitElement {
       blockColors,
       expandBlocks,
       patternMode,
+      gradientMirror,
+      gradientRepeat,
+      gradientReverse,
+      gradientInterpolation,
+      gradientWave,
+      gradientWaveCycles,
       ...step
     }) => {
       // Generate segment_colors from the grid (like pattern editor)
@@ -787,6 +817,12 @@ export class SegmentSequenceEditor extends LitElement {
             .gradientColors=${step.gradientColors}
             .blockColors=${step.blockColors}
             .expandBlocks=${step.expandBlocks}
+            .gradientMirror=${step.gradientMirror}
+            .gradientRepeat=${step.gradientRepeat}
+            .gradientReverse=${step.gradientReverse}
+            .gradientInterpolation=${step.gradientInterpolation}
+            .gradientWave=${step.gradientWave}
+            .gradientWaveCycles=${step.gradientWaveCycles}
             .label=${this._localize('editors.segment_grid_label')}
             .translations=${this.translations}
             @color-value-changed=${(e: CustomEvent) => this._handleStepColorValueChange(step.id, e)}
