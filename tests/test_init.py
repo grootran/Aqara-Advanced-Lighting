@@ -6,7 +6,6 @@ import pytest
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
 
 from custom_components.aqara_advanced_lighting.const import (
     CONF_Z2M_BASE_TOPIC,
@@ -21,43 +20,96 @@ def mock_config_entry() -> MockConfigEntry:
     """Create a mock config entry."""
     return MockConfigEntry(
         domain=DOMAIN,
-        title="Aqara Advanced Lighting",
+        title="Aqara Lighting (zigbee2mqtt)",
         data={CONF_Z2M_BASE_TOPIC: "zigbee2mqtt"},
-        unique_id=None,
+        unique_id="zigbee2mqtt",
     )
 
 
 @pytest.fixture
-def mock_mqtt_subscribe():
-    """Mock MQTT subscribe."""
+def mock_mqtt_client():
+    """Mock MQTTClient."""
     with patch(
-        "homeassistant.components.mqtt.async_subscribe"
-    ) as mock_subscribe:
-        yield mock_subscribe
+        "custom_components.aqara_advanced_lighting.MQTTClient"
+    ) as mock_client_class:
+        mock_client = MagicMock()
+        mock_client.async_setup = AsyncMock()
+        mock_client.async_teardown = AsyncMock()
+        mock_client_class.return_value = mock_client
+        yield mock_client
+
+
+@pytest.fixture
+def mock_state_manager():
+    """Mock StateManager."""
+    with patch(
+        "custom_components.aqara_advanced_lighting.StateManager"
+    ) as mock_manager_class:
+        mock_manager = MagicMock()
+        mock_manager.async_load = AsyncMock()
+        mock_manager_class.return_value = mock_manager
+        yield mock_manager
+
+
+@pytest.fixture
+def mock_cct_sequence_manager():
+    """Mock CCTSequenceManager."""
+    with patch(
+        "custom_components.aqara_advanced_lighting.CCTSequenceManager"
+    ) as mock_manager_class:
+        mock_manager = MagicMock()
+        mock_manager.stop_all_sequences = AsyncMock()
+        mock_manager.cleanup = MagicMock()
+        mock_manager_class.return_value = mock_manager
+        yield mock_manager
+
+
+@pytest.fixture
+def mock_segment_sequence_manager():
+    """Mock SegmentSequenceManager."""
+    with patch(
+        "custom_components.aqara_advanced_lighting.SegmentSequenceManager"
+    ) as mock_manager_class:
+        mock_manager = MagicMock()
+        mock_manager.stop_all_sequences = AsyncMock()
+        mock_manager.cleanup = MagicMock()
+        mock_manager_class.return_value = mock_manager
+        yield mock_manager
+
+
+@pytest.fixture
+def mock_mqtt_wait():
+    """Mock mqtt.async_wait_for_mqtt_client."""
+    with patch(
+        "custom_components.aqara_advanced_lighting.mqtt.async_wait_for_mqtt_client"
+    ) as mock_wait:
+        mock_wait.return_value = None
+        yield mock_wait
 
 
 async def test_setup_entry_success(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
-    mock_mqtt_subscribe: AsyncMock,
+    mock_mqtt_client: MagicMock,
+    mock_state_manager: MagicMock,
+    mock_cct_sequence_manager: MagicMock,
+    mock_segment_sequence_manager: MagicMock,
+    mock_mqtt_wait: AsyncMock,
 ) -> None:
     """Test successful setup of config entry."""
-    # Register MQTT service
-    hass.services.async_register("mqtt", "publish", lambda call: None)
-
     mock_config_entry.add_to_hass(hass)
 
-    with patch(
-        "custom_components.aqara_advanced_lighting.AqaraDeviceCoordinator"
-    ) as mock_coordinator:
-        mock_coordinator.return_value.async_config_entry_first_refresh = AsyncMock()
-
-        assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
-        await hass.async_block_till_done()
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
 
     assert mock_config_entry.state is ConfigEntryState.LOADED
     assert DOMAIN in hass.data
-    assert mock_config_entry.entry_id in hass.data[DOMAIN]
+    assert "entries" in hass.data[DOMAIN]
+    assert mock_config_entry.entry_id in hass.data[DOMAIN]["entries"]
+
+    # Verify components were initialized
+    mock_mqtt_client.async_setup.assert_called_once()
+    mock_state_manager.async_load.assert_called_once()
 
 
 async def test_setup_entry_mqtt_not_available(
@@ -65,83 +117,66 @@ async def test_setup_entry_mqtt_not_available(
     mock_config_entry: MockConfigEntry,
 ) -> None:
     """Test setup fails when MQTT is not available."""
-    # Do not register MQTT service
     mock_config_entry.add_to_hass(hass)
 
-    with pytest.raises(ConfigEntryNotReady):
-        await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    with patch(
+        "custom_components.aqara_advanced_lighting.mqtt.async_wait_for_mqtt_client",
+        side_effect=Exception("MQTT not available"),
+    ):
+        assert not await hass.config_entries.async_setup(mock_config_entry.entry_id)
+
+    assert mock_config_entry.state is ConfigEntryState.SETUP_RETRY
 
 
 async def test_unload_entry(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
-    mock_mqtt_subscribe: AsyncMock,
+    mock_mqtt_client: MagicMock,
+    mock_state_manager: MagicMock,
+    mock_cct_sequence_manager: MagicMock,
+    mock_segment_sequence_manager: MagicMock,
+    mock_mqtt_wait: AsyncMock,
 ) -> None:
     """Test unloading a config entry."""
-    hass.services.async_register("mqtt", "publish", lambda call: None)
-
     mock_config_entry.add_to_hass(hass)
 
-    with patch(
-        "custom_components.aqara_advanced_lighting.AqaraDeviceCoordinator"
-    ) as mock_coordinator:
-        mock_coordinator.return_value.async_config_entry_first_refresh = AsyncMock()
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
 
-        assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
-        await hass.async_block_till_done()
+    assert mock_config_entry.state is ConfigEntryState.LOADED
 
-        assert mock_config_entry.state is ConfigEntryState.LOADED
+    # Unload the entry
+    assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
 
-        # Unload the entry
-        assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
-        await hass.async_block_till_done()
+    assert mock_config_entry.state is ConfigEntryState.NOT_LOADED
 
-        assert mock_config_entry.state is ConfigEntryState.NOT_LOADED
-
-
-async def test_setup_entry_coordinator_fails(
-    hass: HomeAssistant,
-    mock_config_entry: MockConfigEntry,
-    mock_mqtt_subscribe: AsyncMock,
-) -> None:
-    """Test setup fails when coordinator fails to refresh."""
-    hass.services.async_register("mqtt", "publish", lambda call: None)
-
-    mock_config_entry.add_to_hass(hass)
-
-    with patch(
-        "custom_components.aqara_advanced_lighting.AqaraDeviceCoordinator"
-    ) as mock_coordinator:
-        # Simulate coordinator refresh failure
-        mock_coordinator.return_value.async_config_entry_first_refresh = AsyncMock(
-            side_effect=Exception("Connection failed")
-        )
-
-        with pytest.raises(ConfigEntryNotReady):
-            await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    # Verify cleanup was called
+    mock_cct_sequence_manager.stop_all_sequences.assert_called_once()
+    mock_cct_sequence_manager.cleanup.assert_called_once()
+    mock_segment_sequence_manager.stop_all_sequences.assert_called_once()
+    mock_segment_sequence_manager.cleanup.assert_called_once()
+    mock_mqtt_client.async_teardown.assert_called_once()
 
 
 async def test_reload_entry(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
-    mock_mqtt_subscribe: AsyncMock,
+    mock_mqtt_client: MagicMock,
+    mock_state_manager: MagicMock,
+    mock_cct_sequence_manager: MagicMock,
+    mock_segment_sequence_manager: MagicMock,
+    mock_mqtt_wait: AsyncMock,
 ) -> None:
     """Test reloading a config entry."""
-    hass.services.async_register("mqtt", "publish", lambda call: None)
-
     mock_config_entry.add_to_hass(hass)
 
-    with patch(
-        "custom_components.aqara_advanced_lighting.AqaraDeviceCoordinator"
-    ) as mock_coordinator:
-        mock_coordinator.return_value.async_config_entry_first_refresh = AsyncMock()
+    # Initial setup
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+    assert mock_config_entry.state is ConfigEntryState.LOADED
 
-        # Initial setup
-        assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
-        await hass.async_block_till_done()
-        assert mock_config_entry.state is ConfigEntryState.LOADED
-
-        # Reload
-        assert await hass.config_entries.async_reload(mock_config_entry.entry_id)
-        await hass.async_block_till_done()
-        assert mock_config_entry.state is ConfigEntryState.LOADED
+    # Reload
+    assert await hass.config_entries.async_reload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+    assert mock_config_entry.state is ConfigEntryState.LOADED

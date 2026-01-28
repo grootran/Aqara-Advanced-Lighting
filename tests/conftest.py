@@ -31,3 +31,13 @@ def mock_setup_entry() -> Generator[AsyncMock]:
         return_value=True,
     ) as mock_setup:
         yield mock_setup
+
+
+@pytest.fixture
+def mock_z2m_validation() -> Generator[AsyncMock]:
+    """Mock Z2M base topic validation to always succeed."""
+    with patch(
+        "custom_components.aqara_advanced_lighting.config_flow.AqaraAdvancedLightingConfigFlow._validate_z2m_base_topic",
+        return_value=True,
+    ) as mock_validate:
+        yield mock_validate

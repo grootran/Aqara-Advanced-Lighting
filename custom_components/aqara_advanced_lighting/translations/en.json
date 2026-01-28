@@ -5,11 +5,9 @@
         "title": "Set up Aqara Advanced Lighting",
         "description": "Configure advanced lighting control for Aqara lights via Zigbee2MQTT.",
         "data": {
-          "name": "Friendly name",
           "z2m_base_topic": "Zigbee2MQTT base topic"
         },
         "data_description": {
-          "name": "Optional display name for this Z2M instance (e.g., 'Upstairs', 'Garage'). If left empty, the base topic will be used.",
           "z2m_base_topic": "The MQTT base topic for your Zigbee2MQTT instance. Usually 'zigbee2mqtt' unless you changed it."
         }
       },
@@ -17,11 +15,9 @@
         "title": "Reconfigure Aqara Advanced Lighting",
         "description": "Update the Zigbee2MQTT instance configuration.",
         "data": {
-          "name": "Friendly name",
           "z2m_base_topic": "Zigbee2MQTT base topic"
         },
         "data_description": {
-          "name": "Optional display name for this Z2M instance. If left empty, the base topic will be used.",
           "z2m_base_topic": "The MQTT base topic for your Zigbee2MQTT instance."
         }
       }

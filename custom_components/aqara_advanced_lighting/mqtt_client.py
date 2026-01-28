@@ -272,18 +272,38 @@ class MQTTClient:
                         match_method = "device_name"
 
             # Strategy 4: Entity ID pattern matching friendly name
+            # Only use this fallback for entities from MQTT platform (Z2M integration)
             if matched_device is None:
-                # Extract name part from entity_id (e.g., "light.living_room" -> "living_room")
-                entity_name = entity_entry.entity_id.split(".", 1)[-1]
-                if entity_name in friendly_name_to_device:
-                    matched_device = friendly_name_to_device[entity_name]
-                    match_method = "entity_id"
+                # Check if entity is from MQTT platform (typical for Z2M)
+                is_mqtt_entity = entity_entry.platform == "mqtt"
+
+                if is_mqtt_entity:
+                    # Extract name part from entity_id (e.g., "light.living_room" -> "living_room")
+                    entity_name = entity_entry.entity_id.split(".", 1)[-1]
+                    if entity_name in friendly_name_to_device:
+                        matched_device = friendly_name_to_device[entity_name]
+                        match_method = "entity_id"
+                        _LOGGER.debug(
+                            "Strategy 4 match for %s (mqtt platform entity)",
+                            entity_entry.entity_id,
+                        )
+                else:
+                    # Log why Strategy 4 was skipped for non-MQTT entities
+                    entity_name = entity_entry.entity_id.split(".", 1)[-1]
+                    if entity_name in friendly_name_to_device:
+                        _LOGGER.debug(
+                            "Skipping Strategy 4 match for %s: entity platform is '%s' not 'mqtt'",
+                            entity_entry.entity_id,
+                            entity_entry.platform,
+                        )
 
             # If we found a match, update the mapping
             if matched_device is not None:
                 runtime_data.entity_to_z2m_map[entity_entry.entity_id] = (
                     matched_device.friendly_name
                 )
+                # Store the mapping method for diagnostics
+                runtime_data.entity_mapping_methods[entity_entry.entity_id] = match_method
                 # Also update the global entity routing map for fast instance lookup
                 # Must access the actual dict in hass.data, not a copy
                 if DOMAIN in self.hass.data and "entity_routing" in self.hass.data[DOMAIN]:

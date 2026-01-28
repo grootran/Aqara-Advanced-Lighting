@@ -45,13 +45,15 @@ async def async_get_config_entry_diagnostics(
             "supported": device.supported,
         })
 
-    # Build entity mappings
+    # Build entity mappings with match method for debugging
     entity_mappings = []
     for entity_id, z2m_name in runtime_data.entity_to_z2m_map.items():
-        entity_mappings.append({
+        mapping_info = {
             "entity_id": entity_id,
             "z2m_friendly_name": z2m_name,
-        })
+            "match_method": runtime_data.entity_mapping_methods.get(entity_id, "unknown"),
+        }
+        entity_mappings.append(mapping_info)
 
     # Get state manager data for this specific entry
     entry_data = hass.data.get(DOMAIN, {}).get("entries", {}).get(entry.entry_id, {})
@@ -77,7 +79,7 @@ async def async_get_config_entry_diagnostics(
     cct_manager = entry_data.get(DATA_CCT_SEQUENCE_MANAGER)
     active_sequences = []
     if cct_manager:
-        for entity_id in cct_manager._active_sequences:
+        for entity_id in cct_manager.get_active_sequence_entities():
             active_sequences.append({
                 "entity_id": entity_id,
                 "running": True,
