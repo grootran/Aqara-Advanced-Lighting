@@ -183,6 +183,15 @@
     "apply_to_grid_button": "Apply to Grid",
     "expand_blocks_label": "Expand blocks to fill segments evenly",
     "gradient_mode_description": "Create a smooth color gradient. Add 2-6 colors to blend.",
-    "blocks_mode_description": "Create evenly spaced blocks of color. Add 1-6 colors."
+    "blocks_mode_description": "Create evenly spaced blocks of color. Add 1-6 colors.",
+    "gradient_reverse_label": "Reverse direction",
+    "gradient_mirror_label": "Mirror gradient",
+    "gradient_wave_label": "Wave easing",
+    "gradient_repeat_label": "Repeat",
+    "gradient_wave_cycles_label": "Wave cycles",
+    "gradient_interpolation_label": "Interpolation",
+    "gradient_interp_shortest": "Shortest hue",
+    "gradient_interp_longest": "Longest hue",
+    "gradient_interp_rgb": "Linear RGB"
   }
 }

@@ -1,9 +1,3 @@
-import {
-  LitElement,
-  html,
-  css,
-} from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
-
 /**
  * Unified Segment Selector Component
  *
@@ -19,175 +13,31 @@ import {
  *   detail: { value: Map<number, XYColor>, segments: string }
  */
 
-// ============================================================================
-// COLOR UTILITIES (inline for standalone component)
-// ============================================================================
+import { LitElement, html, css, PropertyValues, CSSResultGroup, TemplateResult } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { XYColor, HSColor, HomeAssistant } from './types';
+import {
+  xyToRgb,
+  rgbToXy,
+  xyToHs,
+  hsToXy,
+  rgbToHex,
+  getComplementaryColor,
+} from './color-utils';
 
-/**
- * Convert XY color to RGB
- */
-function xyToRgb(x, y, brightness = 255) {
-  const z = 1.0 - x - y;
-  const Y = brightness / 255;
-  const X = (Y / y) * x;
-  const Z = (Y / y) * z;
-
-  let r = X * 1.656492 - Y * 0.354851 - Z * 0.255038;
-  let g = -X * 0.707196 + Y * 1.655397 + Z * 0.036152;
-  let b = X * 0.051713 - Y * 0.121364 + Z * 1.011530;
-
-  r = r <= 0.0031308 ? 12.92 * r : (1.0 + 0.055) * Math.pow(r, (1.0 / 2.4)) - 0.055;
-  g = g <= 0.0031308 ? 12.92 * g : (1.0 + 0.055) * Math.pow(g, (1.0 / 2.4)) - 0.055;
-  b = b <= 0.0031308 ? 12.92 * b : (1.0 + 0.055) * Math.pow(b, (1.0 / 2.4)) - 0.055;
-
-  // Convert to 0-255 range and clamp
-  let rVal = Math.max(0, Math.min(255, Math.round(r * 255)));
-  let gVal = Math.max(0, Math.min(255, Math.round(g * 255)));
-  let bVal = Math.max(0, Math.min(255, Math.round(b * 255)));
-
-  // Snap to pure colors when very close (fixes blue/red/green precision issues)
-  // This helps achieve exact rgb(0, 0, 255) instead of rgb(0, 3, 255)
-  if (rVal < 5) rVal = 0;
-  if (gVal < 5) gVal = 0;
-  if (bVal < 5) bVal = 0;
-  if (rVal > 250) rVal = 255;
-  if (gVal > 250) gVal = 255;
-  if (bVal > 250) bVal = 255;
-
-  return {
-    r: rVal,
-    g: gVal,
-    b: bVal,
-  };
+// Translations object type
+interface Translations {
+  [key: string]: string | Translations;
 }
 
-/**
- * Convert XY color to hex string
- */
-function xyToHex(xy, brightness = 255) {
-  const rgb = xyToRgb(xy.x, xy.y, brightness);
-  return `#${rgb.r.toString(16).padStart(2, '0')}${rgb.g.toString(16).padStart(2, '0')}${rgb.b.toString(16).padStart(2, '0')}`;
-}
+// Component mode types
+type SegmentSelectorMode = 'selection' | 'color' | 'sequence';
+type PatternMode = 'individual' | 'gradient' | 'blocks';
+type ColorSource = 'palette' | 'gradient' | 'blocks' | null;
+type InterpolationMode = 'shortest' | 'longest' | 'rgb';
 
-/**
- * Convert XY to HS color space
- */
-function xyToHs(xy) {
-  const rgb = xyToRgb(xy.x, xy.y, 255);
-  const r = rgb.r / 255;
-  const g = rgb.g / 255;
-  const b = rgb.b / 255;
-
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const delta = max - min;
-
-  let h = 0;
-  if (delta !== 0) {
-    if (max === r) {
-      h = ((g - b) / delta + (g < b ? 6 : 0)) / 6;
-    } else if (max === g) {
-      h = ((b - r) / delta + 2) / 6;
-    } else {
-      h = ((r - g) / delta + 4) / 6;
-    }
-  }
-
-  const s = max === 0 ? 0 : delta / max;
-
-  return {
-    h: Math.round(h * 360),
-    s: Math.round(s * 100),
-  };
-}
-
-/**
- * Convert HS to XY color space
- */
-function hsToXy(hs) {
-  const rgb = hsToRgb(hs.h, hs.s);
-  return rgbToXy(rgb.r, rgb.g, rgb.b);
-}
-
-/**
- * Convert HS to RGB
- */
-function hsToRgb(h, s) {
-  const hNorm = h / 360;
-  const sNorm = s / 100;
-
-  const c = sNorm;
-  const x = c * (1 - Math.abs(((hNorm * 6) % 2) - 1));
-  const m = 1 - c;
-
-  let r, g, b;
-  if (hNorm < 1 / 6) {
-    [r, g, b] = [c, x, 0];
-  } else if (hNorm < 2 / 6) {
-    [r, g, b] = [x, c, 0];
-  } else if (hNorm < 3 / 6) {
-    [r, g, b] = [0, c, x];
-  } else if (hNorm < 4 / 6) {
-    [r, g, b] = [0, x, c];
-  } else if (hNorm < 5 / 6) {
-    [r, g, b] = [x, 0, c];
-  } else {
-    [r, g, b] = [c, 0, x];
-  }
-
-  return {
-    r: Math.round((r + m) * 255),
-    g: Math.round((g + m) * 255),
-    b: Math.round((b + m) * 255),
-  };
-}
-
-/**
- * Calculate complementary color by rotating hue by 180 degrees
- */
-function getComplementaryColor(xy) {
-  const hs = xyToHs(xy);
-  const newHue = (hs.h + 180) % 360;
-  return hsToXy({ h: newHue, s: hs.s });
-}
-
-/**
- * Convert RGB to XY color space
- */
-function rgbToXy(r, g, b) {
-  r = r / 255;
-  g = g / 255;
-  b = b / 255;
-
-  r = r > 0.04045 ? Math.pow((r + 0.055) / 1.055, 2.4) : r / 12.92;
-  g = g > 0.04045 ? Math.pow((g + 0.055) / 1.055, 2.4) : g / 12.92;
-  b = b > 0.04045 ? Math.pow((b + 0.055) / 1.055, 2.4) : b / 12.92;
-
-  const X = r * 0.664511 + g * 0.154324 + b * 0.162028;
-  const Y = r * 0.283881 + g * 0.668433 + b * 0.047685;
-  const Z = r * 0.000088 + g * 0.072310 + b * 0.986039;
-
-  const sum = X + Y + Z;
-  if (sum === 0) {
-    return { x: 0.3127, y: 0.3290 }; // D65 white point
-  }
-
-  return {
-    x: parseFloat((X / sum).toFixed(4)),
-    y: parseFloat((Y / sum).toFixed(4)),
-  };
-}
-
-/**
- * Convert HS to hex string
- */
-// Note: hsToHex removed - use HS → XY → RGB → Hex for accurate device colors
-
-// ============================================================================
-// DEFAULT PALETTES
-// ============================================================================
-
-const DEFAULT_PALETTE = [
+// Default palettes
+const DEFAULT_PALETTE: XYColor[] = [
   { x: 0.6800, y: 0.3100 },    // Red
   { x: 0.1700, y: 0.7000 },    // Green
   { x: 0.1500, y: 0.0600 },    // Blue
@@ -196,50 +46,66 @@ const DEFAULT_PALETTE = [
   { x: 0.2200, y: 0.3300 },    // Cyan
 ];
 
-const DEFAULT_GRADIENT_COLORS = [
+const DEFAULT_GRADIENT_COLORS: XYColor[] = [
   { x: 0.6800, y: 0.3100 },  // Red
   { x: 0.1500, y: 0.0600 },  // Blue
 ];
 
-const DEFAULT_BLOCK_COLORS = [
+const DEFAULT_BLOCK_COLORS: XYColor[] = [
   { x: 0.6800, y: 0.3100 },  // Red
   { x: 0.1700, y: 0.7000 },  // Green
 ];
 
-// ============================================================================
-// SEGMENT SELECTOR COMPONENT
-// ============================================================================
+/**
+ * Convert XY color to hex string
+ */
+function xyToHex(xy: XYColor, brightness: number = 255): string {
+  const rgb = xyToRgb(xy.x, xy.y, brightness);
+  return rgbToHex(rgb);
+}
 
-class SegmentSelector extends LitElement {
-  static get properties() {
-    return {
-      hass: { type: Object },
-      mode: { type: String }, // 'selection' | 'color' | 'sequence'
-      maxSegments: { type: Number },
-      value: { type: String }, // For selection mode
-      colorValue: { type: Object }, // For color mode (Map)
-      colorPalette: { type: Array },
-      gradientColors: { type: Array },
-      blockColors: { type: Array },
-      expandBlocks: { type: Boolean },
-      label: { type: String },
-      description: { type: String },
-      disabled: { type: Boolean },
-      translations: { type: Object },
-      _selectedSegments: { type: Object },
-      _coloredSegments: { type: Object },
-      _lastSelectedIndex: { type: Number },
-      _selectedPaletteIndex: { type: Number },
-      _clearMode: { type: Boolean },
-      _selectMode: { type: Boolean },
-      _patternMode: { type: String }, // 'individual' | 'gradient' | 'blocks'
-      _editingColorSource: { type: String }, // 'palette' | 'gradient' | 'blocks'
-      _editingColorIndex: { type: Number },
-      _editingColor: { type: Object }, // HS color being edited
-    };
-  }
+@customElement('segment-selector')
+export class SegmentSelector extends LitElement {
+  @property({ type: Object }) hass?: HomeAssistant;
+  @property({ type: String }) mode: SegmentSelectorMode = 'selection';
+  @property({ type: Number }) maxSegments = 10;
+  @property({ type: String }) value = '';
+  @property({ type: Object }) colorValue: Map<number, XYColor> = new Map();
+  @property({ type: Array }) colorPalette: XYColor[] = [...DEFAULT_PALETTE];
+  @property({ type: Array }) gradientColors: XYColor[] = [...DEFAULT_GRADIENT_COLORS];
+  @property({ type: Array }) blockColors: XYColor[] = [...DEFAULT_BLOCK_COLORS];
+  @property({ type: Boolean }) expandBlocks = false;
+  @property({ type: Boolean }) gradientMirror = false;
+  @property({ type: Number }) gradientRepeat = 1;
+  @property({ type: Boolean }) gradientReverse = false;
+  @property({ type: String }) gradientInterpolation: InterpolationMode = 'shortest';
+  @property({ type: Boolean }) gradientWave = false;
+  @property({ type: Number }) gradientWaveCycles = 1;
+  @property({ type: String }) label = '';
+  @property({ type: String }) description = '';
+  @property({ type: Boolean }) disabled = false;
+  @property({ type: Object }) translations: Translations = {};
 
-  static get styles() {
+  @state() private _selectedSegments: Set<number> = new Set();
+  @state() private _coloredSegments: Map<number, XYColor> = new Map();
+  @state() private _lastSelectedIndex: number | null = null;
+  @state() private _selectedPaletteIndex = 0;
+  @state() private _clearMode = false;
+  @state() private _selectMode = false;
+  @state() private _patternMode: PatternMode = 'individual';
+  @state() private _editingColorSource: ColorSource = null;
+  @state() private _editingColorIndex: number | null = null;
+  @state() private _editingColor: HSColor | null = null;
+
+  private _hsColorCache: Map<string, HSColor> = new Map();
+  private _wheelIsDragging = false;
+  private _wheelCanvasId: string | null = null;
+  private _wheelMarkerId: string | null = null;
+  private _wheelSize = 0;
+  private _wheelPointerMoveBound: ((e: MouseEvent | TouchEvent) => void) | null = null;
+  private _wheelPointerUpBound: (() => void) | null = null;
+
+  static get styles(): CSSResultGroup {
     return css`
       :host {
         display: block;
@@ -601,6 +467,26 @@ class SegmentSelector extends LitElement {
         color: var(--secondary-text-color);
       }
 
+      .option-number-input {
+        width: 50px;
+        padding: 4px 8px;
+        border: 1px solid var(--divider-color);
+        border-radius: 4px;
+        background: var(--card-background-color);
+        color: var(--primary-text-color);
+        font-size: 13px;
+        text-align: center;
+      }
+
+      .option-select {
+        padding: 4px 8px;
+        border: 1px solid var(--divider-color);
+        border-radius: 4px;
+        background: var(--card-background-color);
+        color: var(--primary-text-color);
+        font-size: 13px;
+      }
+
       /* Color picker modal */
       .color-picker-modal-overlay {
         position: fixed;
@@ -715,40 +601,7 @@ class SegmentSelector extends LitElement {
     `;
   }
 
-  constructor() {
-    super();
-    this.mode = 'selection';
-    this.maxSegments = 10;
-    this.value = '';
-    this.colorValue = new Map();
-    this.colorPalette = [...DEFAULT_PALETTE];
-    this.gradientColors = [...DEFAULT_GRADIENT_COLORS];
-    this.blockColors = [...DEFAULT_BLOCK_COLORS];
-    this.expandBlocks = false;
-    this.label = '';
-    this.description = '';
-    this.disabled = false;
-    this.translations = {};
-    this._selectedSegments = new Set();
-    this._coloredSegments = new Map();
-    this._lastSelectedIndex = null;
-    this._selectedPaletteIndex = 0;
-    this._clearMode = false;
-    this._selectMode = false;
-    this._patternMode = 'individual';
-    this._editingColorSource = null;
-    this._editingColorIndex = null;
-    this._editingColor = null;
-    this._hsColorCache = new Map(); // Cache HS for XY colors to preserve precision
-    this._wheelIsDragging = false;
-    this._wheelCanvasId = null;
-    this._wheelMarkerId = null;
-    this._wheelSize = 0;
-    this._wheelPointerMoveBound = null;
-    this._wheelPointerUpBound = null;
-  }
-
-  updated(changedProps) {
+  protected updated(changedProps: PropertyValues): void {
     // Parse value string to selection when in selection/sequence mode
     if ((changedProps.has('value') && changedProps.get('value') !== this.value) &&
         (this.mode === 'selection' || this.mode === 'sequence')) {
@@ -770,8 +623,8 @@ class SegmentSelector extends LitElement {
   /**
    * Parse the value string into selected segments (selection mode)
    */
-  _parseValue() {
-    const newSelected = new Set();
+  private _parseValue(): void {
+    const newSelected = new Set<number>();
 
     if (!this.value || this.value.trim() === '') {
       this._selectedSegments = newSelected;
@@ -794,7 +647,9 @@ class SegmentSelector extends LitElement {
       if (!range) continue;
 
       if (range.includes('-')) {
-        const [startStr, endStr] = range.split('-').map(s => s.trim());
+        const parts = range.split('-').map(s => s.trim());
+        const startStr = parts[0] ?? '';
+        const endStr = parts[1] ?? '';
         const start = parseInt(startStr, 10);
         const end = parseInt(endStr, 10);
 
@@ -823,7 +678,7 @@ class SegmentSelector extends LitElement {
   /**
    * Parse colorValue Map (color mode)
    */
-  _parseColorValue() {
+  private _parseColorValue(): void {
     if (this.colorValue instanceof Map) {
       this._coloredSegments = new Map(this.colorValue);
     } else {
@@ -834,8 +689,8 @@ class SegmentSelector extends LitElement {
   /**
    * Validate selection and remove segments that exceed maxSegments
    */
-  _validateSelection() {
-    const validated = new Set();
+  private _validateSelection(): void {
+    const validated = new Set<number>();
     for (const idx of this._selectedSegments) {
       if (idx < this.maxSegments) {
         validated.add(idx);
@@ -849,7 +704,7 @@ class SegmentSelector extends LitElement {
     }
 
     // Also validate colored segments
-    const validatedColors = new Map();
+    const validatedColors = new Map<number, XYColor>();
     for (const [idx, color] of this._coloredSegments) {
       if (idx < this.maxSegments) {
         validatedColors.set(idx, color);
@@ -866,7 +721,7 @@ class SegmentSelector extends LitElement {
   /**
    * Convert selected segments Set to string format
    */
-  _segmentsToString() {
+  private _segmentsToString(): string {
     if (this._selectedSegments.size === 0) {
       return '';
     }
@@ -876,16 +731,19 @@ class SegmentSelector extends LitElement {
     }
 
     const sorted = Array.from(this._selectedSegments).sort((a, b) => a - b);
-    const ranges = [];
-    let start = sorted[0];
-    let end = sorted[0];
+    const ranges: string[] = [];
+    if (sorted.length === 0) return '';
+
+    let start = sorted[0]!;
+    let end = sorted[0]!;
 
     for (let i = 1; i < sorted.length; i++) {
-      if (sorted[i] === end + 1) {
-        end = sorted[i];
+      const current = sorted[i]!;
+      if (current === end + 1) {
+        end = current;
       } else {
         ranges.push(start === end ? `${start + 1}` : `${start + 1}-${end + 1}`);
-        start = end = sorted[i];
+        start = end = current;
       }
     }
 
@@ -896,7 +754,7 @@ class SegmentSelector extends LitElement {
   /**
    * Handle segment cell click - mode aware
    */
-  _handleSegmentClick(index, event) {
+  private _handleSegmentClick(index: number, event: MouseEvent): void {
     if (this.disabled) return;
     event.preventDefault();
 
@@ -910,7 +768,7 @@ class SegmentSelector extends LitElement {
   /**
    * Handle click in selection mode
    */
-  _handleSelectionClick(index, event) {
+  private _handleSelectionClick(index: number, event: MouseEvent): void {
     const newSelected = new Set(this._selectedSegments);
 
     if (event.shiftKey && this._lastSelectedIndex !== null) {
@@ -941,7 +799,7 @@ class SegmentSelector extends LitElement {
   /**
    * Handle click in color/sequence mode
    */
-  _handleColorClick(index, event) {
+  private _handleColorClick(index: number, event: MouseEvent): void {
     if (this._clearMode) {
       const newColored = new Map(this._coloredSegments);
       newColored.delete(index);
@@ -974,19 +832,19 @@ class SegmentSelector extends LitElement {
   /**
    * Translation helper
    */
-  _localize(key, replacements) {
+  private _localize(key: string, replacements?: Record<string, string | number>): string {
     const keys = key.split('.');
-    let value = this.translations;
+    let value: string | Translations | undefined = this.translations;
     for (const k of keys) {
       if (!value || typeof value !== 'object' || !(k in value)) {
         return key;
       }
-      value = value[k];
+      value = (value as Translations)[k];
     }
     let result = typeof value === 'string' ? value : key;
     if (replacements) {
       Object.entries(replacements).forEach(([placeholder, replacement]) => {
-        result = result.replace(`{${placeholder}}`, replacement);
+        result = result.replace(`{${placeholder}}`, String(replacement));
       });
     }
     return result;
@@ -995,9 +853,9 @@ class SegmentSelector extends LitElement {
   /**
    * Quick actions
    */
-  _selectAll() {
+  private _selectAll(): void {
     if (this.disabled) return;
-    const newSelection = new Set();
+    const newSelection = new Set<number>();
     for (let i = 0; i < this.maxSegments; i++) {
       newSelection.add(i);
     }
@@ -1008,7 +866,7 @@ class SegmentSelector extends LitElement {
     }
   }
 
-  _clearAll() {
+  private _clearAll(): void {
     if (this.disabled) return;
     this._selectedSegments = new Set();
     this._coloredSegments = new Map();
@@ -1021,9 +879,9 @@ class SegmentSelector extends LitElement {
     }
   }
 
-  _selectFirstHalf() {
+  private _selectFirstHalf(): void {
     if (this.disabled) return;
-    const newSelected = new Set();
+    const newSelected = new Set<number>();
     const half = Math.floor(this.maxSegments / 2);
     for (let i = 0; i < half; i++) {
       newSelected.add(i);
@@ -1033,9 +891,9 @@ class SegmentSelector extends LitElement {
     this._fireValueChanged();
   }
 
-  _selectSecondHalf() {
+  private _selectSecondHalf(): void {
     if (this.disabled) return;
-    const newSelected = new Set();
+    const newSelected = new Set<number>();
     const half = Math.floor(this.maxSegments / 2);
     for (let i = half; i < this.maxSegments; i++) {
       newSelected.add(i);
@@ -1045,9 +903,9 @@ class SegmentSelector extends LitElement {
     this._fireValueChanged();
   }
 
-  _selectOdd() {
+  private _selectOdd(): void {
     if (this.disabled) return;
-    const newSelected = new Set();
+    const newSelected = new Set<number>();
     for (let i = 0; i < this.maxSegments; i += 2) {
       newSelected.add(i);
     }
@@ -1056,9 +914,9 @@ class SegmentSelector extends LitElement {
     this._fireValueChanged();
   }
 
-  _selectEven() {
+  private _selectEven(): void {
     if (this.disabled) return;
-    const newSelected = new Set();
+    const newSelected = new Set<number>();
     for (let i = 1; i < this.maxSegments; i += 2) {
       newSelected.add(i);
     }
@@ -1067,7 +925,7 @@ class SegmentSelector extends LitElement {
     this._fireValueChanged();
   }
 
-  _clearSelected() {
+  private _clearSelected(): void {
     if (this.disabled || this._selectedSegments.size === 0) return;
 
     if (this.mode === 'color' || this.mode === 'sequence') {
@@ -1085,25 +943,25 @@ class SegmentSelector extends LitElement {
   /**
    * Color mode specific methods
    */
-  _toggleClearMode() {
+  private _toggleClearMode(): void {
     this._clearMode = !this._clearMode;
     if (this._clearMode) {
       this._selectMode = false;
     }
   }
 
-  _toggleSelectMode() {
+  private _toggleSelectMode(): void {
     this._selectMode = !this._selectMode;
     if (this._selectMode) {
       this._clearMode = false;
     }
   }
 
-  _selectPaletteColor(index) {
+  private _selectPaletteColor(index: number): void {
     this._selectedPaletteIndex = index;
   }
 
-  _applyToSelected() {
+  private _applyToSelected(): void {
     if (this._selectedSegments.size === 0) return;
 
     const currentColor = this.colorPalette[this._selectedPaletteIndex];
@@ -1118,48 +976,72 @@ class SegmentSelector extends LitElement {
     this._fireColorValueChanged();
   }
 
-  _setPatternMode(mode) {
+  private _setPatternMode(mode: PatternMode): void {
     this._patternMode = mode;
     this._clearMode = false;
     this._selectMode = false;
   }
 
-  _addGradientColor() {
-    if (this.gradientColors.length >= 6) return;
-    const lastColor = this.gradientColors[this.gradientColors.length - 1];
+  private _addGradientColor(): void {
+    if (this.gradientColors.length >= 6 || this.gradientColors.length === 0) return;
+    const lastColor = this.gradientColors[this.gradientColors.length - 1]!;
     const newColor = getComplementaryColor(lastColor);
     this.gradientColors = [...this.gradientColors, newColor];
     this._fireGradientColorsChanged();
   }
 
-  _removeGradientColor(index) {
+  private _removeGradientColor(index: number): void {
     if (this.gradientColors.length <= 2) return;
     this.gradientColors = this.gradientColors.filter((_, i) => i !== index);
     this._fireGradientColorsChanged();
   }
 
-  _addBlockColor() {
-    if (this.blockColors.length >= 6) return;
-    const lastColor = this.blockColors[this.blockColors.length - 1];
+  private _addBlockColor(): void {
+    if (this.blockColors.length >= 6 || this.blockColors.length === 0) return;
+    const lastColor = this.blockColors[this.blockColors.length - 1]!;
     const newColor = getComplementaryColor(lastColor);
     this.blockColors = [...this.blockColors, newColor];
     this._fireBlockColorsChanged();
   }
 
-  _removeBlockColor(index) {
+  private _removeBlockColor(index: number): void {
     if (this.blockColors.length <= 1) return;
     this.blockColors = this.blockColors.filter((_, i) => i !== index);
     this._fireBlockColorsChanged();
   }
 
-  _handleExpandBlocksChange(e) {
-    this.expandBlocks = e.target.checked;
+  private _handleExpandBlocksChange(e: Event): void {
+    this.expandBlocks = (e.target as HTMLInputElement).checked;
+  }
+
+  private _handleGradientReverseChange(e: Event): void {
+    this.gradientReverse = (e.target as HTMLInputElement).checked;
+  }
+
+  private _handleGradientMirrorChange(e: Event): void {
+    this.gradientMirror = (e.target as HTMLInputElement).checked;
+  }
+
+  private _handleGradientWaveChange(e: Event): void {
+    this.gradientWave = (e.target as HTMLInputElement).checked;
+  }
+
+  private _handleGradientRepeatChange(e: Event): void {
+    this.gradientRepeat = Math.max(1, Math.min(10, parseInt((e.target as HTMLInputElement).value) || 1));
+  }
+
+  private _handleGradientWaveCyclesChange(e: Event): void {
+    this.gradientWaveCycles = Math.max(1, Math.min(5, parseInt((e.target as HTMLInputElement).value) || 1));
+  }
+
+  private _handleGradientInterpolationChange(e: Event): void {
+    this.gradientInterpolation = (e.target as HTMLSelectElement).value as InterpolationMode;
   }
 
   /**
    * Interpolate hue values, taking the shortest path around the color wheel
    */
-  _interpolateHue(h1, h2, t) {
+  private _interpolateHue(h1: number, h2: number, t: number): number {
     let diff = h2 - h1;
 
     if (diff > 180) {
@@ -1177,44 +1059,151 @@ class SegmentSelector extends LitElement {
   }
 
   /**
-   * Generate gradient pattern
+   * Interpolate hue values, taking the longest path around the color wheel
    */
-  _generateGradientPattern() {
-    const colors = this.gradientColors;
-    const numColors = colors.length;
-    const pattern = new Map();
+  private _interpolateHueLongest(h1: number, h2: number, t: number): number {
+    let diff = h2 - h1;
 
-    if (numColors < 2 || this.maxSegments === 0) return pattern;
+    // Invert the shortest path to get the longest path
+    if (diff > 0 && diff <= 180) {
+      diff -= 360;
+    } else if (diff < 0 && diff >= -180) {
+      diff += 360;
+    }
 
-    const hsColors = colors.map(c => xyToHs(c));
+    let result = h1 + diff * t;
 
-    for (let i = 0; i < this.maxSegments; i++) {
-      const t = i / (this.maxSegments - 1);
+    if (result < 0) result += 360;
+    if (result >= 360) result -= 360;
+
+    return result;
+  }
+
+  /**
+   * Interpolate between two colors using the selected interpolation mode.
+   * c1/c2 are HS objects, xy1/xy2 are the original XY colors (for RGB mode).
+   */
+  private _interpolateColorPair(c1: HSColor, c2: HSColor, xy1: XYColor, xy2: XYColor, t: number): XYColor {
+    if (this.gradientInterpolation === 'rgb') {
+      const rgb1 = xyToRgb(xy1.x, xy1.y, 255);
+      const rgb2 = xyToRgb(xy2.x, xy2.y, 255);
+      const r = Math.round(rgb1.r + (rgb2.r - rgb1.r) * t);
+      const g = Math.round(rgb1.g + (rgb2.g - rgb1.g) * t);
+      const b = Math.round(rgb1.b + (rgb2.b - rgb1.b) * t);
+      return rgbToXy(r, g, b);
+    }
+
+    const hueInterp = this.gradientInterpolation === 'longest'
+      ? this._interpolateHueLongest(c1.h, c2.h, t)
+      : this._interpolateHue(c1.h, c2.h, t);
+
+    const interpolatedHS: HSColor = {
+      h: Math.round(hueInterp),
+      s: Math.round(c1.s + (c2.s - c1.s) * t),
+    };
+
+    return hsToXy(interpolatedHS);
+  }
+
+  /**
+   * Apply wave/sinusoidal transform to a linear interpolation parameter.
+   * Maps t in [0,1] through N sinusoidal cycles.
+   */
+  private _applyWaveTransform(t: number): number {
+    return 0.5 - 0.5 * Math.cos(t * Math.PI * 2 * this.gradientWaveCycles);
+  }
+
+  /**
+   * Generate an array of XY colors for a gradient across the given segment count.
+   * Respects reverse, interpolation mode, mirror, repeat, and wave settings.
+   */
+  private _generateGradientColorArray(segmentCount: number): XYColor[] {
+    if (segmentCount === 0 || this.gradientColors.length < 2) return [];
+
+    // Apply reverse by copying and reversing the color array
+    const xyColors = this.gradientReverse
+      ? [...this.gradientColors].reverse()
+      : [...this.gradientColors];
+    const numColors = xyColors.length;
+    const hsColors = xyColors.map(c => xyToHs(c));
+
+    // Determine how many segments to generate before mirroring
+    const halfCount = this.gradientMirror
+      ? Math.ceil(segmentCount / 2)
+      : segmentCount;
+
+    // Determine tile size for repeating
+    const tileSize = this.gradientRepeat > 1
+      ? Math.max(2, Math.ceil(halfCount / this.gradientRepeat))
+      : halfCount;
+
+    // Generate one tile of colors
+    const tile: XYColor[] = [];
+    for (let i = 0; i < tileSize; i++) {
+      let t = tileSize > 1 ? i / (tileSize - 1) : 0;
+
+      // Apply wave transform if enabled
+      if (this.gradientWave) {
+        t = this._applyWaveTransform(t);
+      }
+
+      // Map t to a position in the color array
       const colorPosition = t * (numColors - 1);
       const colorIndex = Math.floor(colorPosition);
       const colorT = colorPosition - colorIndex;
 
-      const c1 = hsColors[Math.min(colorIndex, numColors - 1)];
-      const c2 = hsColors[Math.min(colorIndex + 1, numColors - 1)];
+      const c1 = hsColors[Math.min(colorIndex, numColors - 1)]!;
+      const c2 = hsColors[Math.min(colorIndex + 1, numColors - 1)]!;
+      const xy1 = xyColors[Math.min(colorIndex, numColors - 1)]!;
+      const xy2 = xyColors[Math.min(colorIndex + 1, numColors - 1)]!;
 
-      const interpolatedHS = {
-        h: Math.round(this._interpolateHue(c1.h, c2.h, colorT)),
-        s: Math.round(c1.s + (c2.s - c1.s) * colorT),
-      };
-
-      pattern.set(i, hsToXy(interpolatedHS));
+      tile.push(this._interpolateColorPair(c1, c2, xy1, xy2, colorT));
     }
 
+    // Repeat tile to fill halfCount
+    const halfPattern: XYColor[] = [];
+    for (let i = 0; i < halfCount; i++) {
+      halfPattern.push(tile[i % tileSize]!);
+    }
+
+    // Apply mirror if enabled
+    if (this.gradientMirror) {
+      const mirrored = [...halfPattern];
+      // Reverse the half and append. For odd segment counts, skip the first
+      // reversed element to avoid duplicating the center point. For even
+      // counts, include all elements since there is no shared center.
+      const reversed = [...halfPattern].reverse();
+      const isOdd = segmentCount % 2 !== 0;
+      const startIndex = (isOdd && halfPattern.length > 1) ? 1 : 0;
+      for (let i = startIndex; i < reversed.length; i++) {
+        mirrored.push(reversed[i]!);
+      }
+      // Trim to exact segment count
+      return mirrored.slice(0, segmentCount);
+    }
+
+    return halfPattern;
+  }
+
+  /**
+   * Generate gradient pattern
+   */
+  private _generateGradientPattern(): Map<number, XYColor> {
+    if (this.gradientColors.length < 2 || this.maxSegments === 0) return new Map();
+
+    const colors = this._generateGradientColorArray(this.maxSegments);
+    const pattern = new Map<number, XYColor>();
+    colors.forEach((color, i) => pattern.set(i, color));
     return pattern;
   }
 
   /**
    * Generate blocks pattern
    */
-  _generateBlocksPattern() {
+  private _generateBlocksPattern(): Map<number, XYColor> {
     const colors = this.blockColors;
     const numColors = colors.length;
-    const pattern = new Map();
+    const pattern = new Map<number, XYColor>();
 
     if (numColors === 0 || this.maxSegments === 0) return pattern;
 
@@ -1222,12 +1211,14 @@ class SegmentSelector extends LitElement {
       const segmentsPerColor = this.maxSegments / numColors;
       for (let i = 0; i < this.maxSegments; i++) {
         const colorIndex = Math.min(Math.floor(i / segmentsPerColor), numColors - 1);
-        pattern.set(i, { ...colors[colorIndex] });
+        const color = colors[colorIndex]!;
+        pattern.set(i, { x: color.x, y: color.y });
       }
     } else {
       for (let i = 0; i < this.maxSegments; i++) {
         const colorIndex = i % numColors;
-        pattern.set(i, { ...colors[colorIndex] });
+        const color = colors[colorIndex]!;
+        pattern.set(i, { x: color.x, y: color.y });
       }
     }
 
@@ -1237,8 +1228,8 @@ class SegmentSelector extends LitElement {
   /**
    * Apply generated pattern to grid
    */
-  _applyToGrid() {
-    let generatedPattern;
+  private _applyToGrid(): void {
+    let generatedPattern: Map<number, XYColor>;
 
     if (this._patternMode === 'gradient') {
       generatedPattern = this._generateGradientPattern();
@@ -1255,13 +1246,13 @@ class SegmentSelector extends LitElement {
   /**
    * Apply generated pattern to selected segments only
    */
-  _applyToSelectedSegments() {
+  private _applyToSelectedSegments(): void {
     if (this._selectedSegments.size === 0) return;
 
     const selectedArray = Array.from(this._selectedSegments).sort((a, b) => a - b);
     const selectedCount = selectedArray.length;
 
-    let colors = [];
+    let colors: XYColor[] = [];
     if (this._patternMode === 'gradient') {
       colors = this.gradientColors;
     } else if (this._patternMode === 'blocks') {
@@ -1274,38 +1265,27 @@ class SegmentSelector extends LitElement {
     const newColored = new Map(this._coloredSegments);
 
     if (this._patternMode === 'gradient') {
-      const hsColors = colors.map(c => xyToHs(c));
-
+      const gradientColors = this._generateGradientColorArray(selectedCount);
       for (let i = 0; i < selectedCount; i++) {
-        const segNum = selectedArray[i];
-        const t = selectedCount > 1 ? i / (selectedCount - 1) : 0;
-        const colorPosition = t * (numColors - 1);
-        const colorIndex = Math.floor(colorPosition);
-        const colorT = colorPosition - colorIndex;
-
-        const c1 = hsColors[Math.min(colorIndex, numColors - 1)];
-        const c2 = hsColors[Math.min(colorIndex + 1, numColors - 1)];
-
-        const interpolatedHS = {
-          h: Math.round(this._interpolateHue(c1.h, c2.h, colorT)),
-          s: Math.round(c1.s + (c2.s - c1.s) * colorT),
-        };
-
-        newColored.set(segNum, hsToXy(interpolatedHS));
+        const segNum = selectedArray[i]!;
+        const gradColor = gradientColors[i]!;
+        newColored.set(segNum, gradColor);
       }
     } else if (this._patternMode === 'blocks') {
       if (this.expandBlocks) {
         const blockSize = Math.ceil(selectedCount / numColors);
         for (let i = 0; i < selectedCount; i++) {
-          const segNum = selectedArray[i];
+          const segNum = selectedArray[i]!;
           const colorIndex = Math.min(Math.floor(i / blockSize), numColors - 1);
-          newColored.set(segNum, { ...colors[colorIndex] });
+          const color = colors[colorIndex]!;
+          newColored.set(segNum, { x: color.x, y: color.y });
         }
       } else {
         for (let i = 0; i < selectedCount; i++) {
-          const segNum = selectedArray[i];
+          const segNum = selectedArray[i]!;
           const colorIndex = i % numColors;
-          newColored.set(segNum, { ...colors[colorIndex] });
+          const color = colors[colorIndex]!;
+          newColored.set(segNum, { x: color.x, y: color.y });
         }
       }
     }
@@ -1318,8 +1298,8 @@ class SegmentSelector extends LitElement {
   /**
    * Color picker methods
    */
-  _openColorPicker(source, index) {
-    let xyColor;
+  private _openColorPicker(source: ColorSource, index: number): void {
+    let xyColor: XYColor | undefined;
     if (source === 'palette') {
       xyColor = this.colorPalette[index];
     } else if (source === 'gradient') {
@@ -1338,19 +1318,15 @@ class SegmentSelector extends LitElement {
     const cachedHs = this._hsColorCache.get(cacheKey);
 
     if (cachedHs) {
-      // Use cached HS to avoid XY → HS conversion loss
+      // Use cached HS to avoid XY -> HS conversion loss
       this._editingColor = cachedHs;
     } else {
-      // First time editing this color, convert XY → HS
+      // First time editing this color, convert XY -> HS
       this._editingColor = xyToHs(xyColor);
     }
   }
 
-  _handleColorPickerChange(e) {
-    this._editingColor = e.detail.color;
-  }
-
-  _confirmColorPicker() {
+  private _confirmColorPicker(): void {
     if (this._editingColorIndex === null || this._editingColor === null || !this._editingColorSource) {
       this._closeColorPicker();
       return;
@@ -1382,24 +1358,25 @@ class SegmentSelector extends LitElement {
     this._closeColorPicker();
   }
 
-  _closeColorPicker() {
+  private _closeColorPicker(): void {
     this._editingColorSource = null;
     this._editingColorIndex = null;
     this._editingColor = null;
   }
 
-  _handleRgbInput(e, channel) {
-    // Handle RGB text input changes - convert RGB → XY → HS to update editing color
-    let value = parseInt(e.target.value, 10);
+  private _handleRgbInput(e: Event, channel: 'r' | 'g' | 'b'): void {
+    const input = e.target as HTMLInputElement;
+    let value = parseInt(input.value, 10);
 
     // Validate and clamp input
-    if (isNaN(value) || e.target.value === '') {
-      // If invalid or empty, just ignore (don't trigger re-render which would reset all fields)
+    if (isNaN(value) || input.value === '') {
       return;
     }
 
     // Clamp value to valid range
     value = Math.max(0, Math.min(255, value));
+
+    if (!this._editingColor) return;
 
     // Get current RGB values from current HS color
     const xyColor = hsToXy(this._editingColor);
@@ -1412,10 +1389,8 @@ class SegmentSelector extends LitElement {
       b: channel === 'b' ? value : currentRgb.b,
     };
 
-    // Convert RGB → XY → HS
+    // Convert RGB -> XY -> HS
     const newXy = rgbToXy(newRgb.r, newRgb.g, newRgb.b);
-
-    // Convert back to check what the device will actually display
     const newHs = xyToHs(newXy);
 
     // Update editing color
@@ -1429,35 +1404,38 @@ class SegmentSelector extends LitElement {
     this._updateMarkerPosition(wheelId, markerId, size);
 
     // Update preview color
-    const preview = this.shadowRoot.querySelector('.color-picker-modal-preview');
+    const preview = this.shadowRoot?.querySelector('.color-picker-modal-preview') as HTMLElement;
     if (preview) {
       const displayRgb = xyToRgb(newXy.x, newXy.y, 255);
-      const hex = `#${displayRgb.r.toString(16).padStart(2, '0')}${displayRgb.g.toString(16).padStart(2, '0')}${displayRgb.b.toString(16).padStart(2, '0')}`;
+      const hex = rgbToHex(displayRgb);
       preview.style.backgroundColor = hex;
     }
 
     // Update the OTHER RGB input fields to show what the device will actually display
-    // This prevents confusion when color space conversion changes the values
-    const rgbInputs = this.shadowRoot.querySelectorAll('.rgb-input-field');
-    if (rgbInputs.length === 3) {
+    const rgbInputs = this.shadowRoot?.querySelectorAll('.rgb-input-field') as NodeListOf<HTMLInputElement> | undefined;
+    if (rgbInputs && rgbInputs.length === 3) {
       const displayRgb = xyToRgb(newXy.x, newXy.y, 255);
       const channelIndex = channel === 'r' ? 0 : channel === 'g' ? 1 : 2;
 
       // Update all fields to show accurate converted values
-      rgbInputs[0].value = displayRgb.r;
-      rgbInputs[1].value = displayRgb.g;
-      rgbInputs[2].value = displayRgb.b;
+      const rInput = rgbInputs[0];
+      const gInput = rgbInputs[1];
+      const bInput = rgbInputs[2];
+      if (rInput) rInput.value = String(displayRgb.r);
+      if (gInput) gInput.value = String(displayRgb.g);
+      if (bInput) bInput.value = String(displayRgb.b);
 
-      // If the displayed value differs from input, briefly highlight the field to indicate conversion
-      if (channelIndex === 0 && displayRgb.r !== value ||
-          channelIndex === 1 && displayRgb.g !== value ||
-          channelIndex === 2 && displayRgb.b !== value) {
+      // If the displayed value differs from input, briefly highlight the field
+      const displayValue = channel === 'r' ? displayRgb.r : channel === 'g' ? displayRgb.g : displayRgb.b;
+      if (displayValue !== value) {
         const changedInput = rgbInputs[channelIndex];
-        const originalBorder = changedInput.style.borderColor;
-        changedInput.style.borderColor = 'var(--warning-color, #ff9800)';
-        setTimeout(() => {
-          changedInput.style.borderColor = originalBorder;
-        }, 500);
+        if (changedInput) {
+          const originalBorder = changedInput.style.borderColor;
+          changedInput.style.borderColor = 'var(--warning-color, #ff9800)';
+          setTimeout(() => {
+            changedInput.style.borderColor = originalBorder;
+          }, 500);
+        }
       }
     }
   }
@@ -1465,7 +1443,7 @@ class SegmentSelector extends LitElement {
   /**
    * Fire events
    */
-  _fireValueChanged() {
+  private _fireValueChanged(): void {
     const value = this._segmentsToString();
     this.dispatchEvent(
       new CustomEvent('value-changed', {
@@ -1476,7 +1454,7 @@ class SegmentSelector extends LitElement {
     );
   }
 
-  _fireColorValueChanged() {
+  private _fireColorValueChanged(): void {
     this.dispatchEvent(
       new CustomEvent('color-value-changed', {
         detail: {
@@ -1489,7 +1467,7 @@ class SegmentSelector extends LitElement {
     );
   }
 
-  _fireColorPaletteChanged() {
+  private _fireColorPaletteChanged(): void {
     this.dispatchEvent(
       new CustomEvent('color-palette-changed', {
         detail: {
@@ -1501,7 +1479,7 @@ class SegmentSelector extends LitElement {
     );
   }
 
-  _fireGradientColorsChanged() {
+  private _fireGradientColorsChanged(): void {
     this.dispatchEvent(
       new CustomEvent('gradient-colors-changed', {
         detail: {
@@ -1513,7 +1491,7 @@ class SegmentSelector extends LitElement {
     );
   }
 
-  _fireBlockColorsChanged() {
+  private _fireBlockColorsChanged(): void {
     this.dispatchEvent(
       new CustomEvent('block-colors-changed', {
         detail: {
@@ -1528,14 +1506,14 @@ class SegmentSelector extends LitElement {
   /**
    * Rendering methods
    */
-  _renderGrid() {
-    const cells = [];
+  private _renderGrid(): TemplateResult {
+    const cells: TemplateResult[] = [];
     for (let i = 0; i < this.maxSegments; i++) {
       const isSelected = this._selectedSegments.has(i);
       const color = this._coloredSegments.get(i);
       const isColored = color !== undefined;
 
-      const cellClasses = [];
+      const cellClasses: string[] = [];
       if (isSelected) cellClasses.push('selected');
       if (isColored && (this.mode === 'color' || this.mode === 'sequence')) {
         cellClasses.push('colored');
@@ -1550,7 +1528,7 @@ class SegmentSelector extends LitElement {
         <div
           class="segment-cell ${cellClasses.join(' ')}"
           style="${cellStyle}"
-          @click=${(e) => this._handleSegmentClick(i, e)}
+          @click=${(e: MouseEvent) => this._handleSegmentClick(i, e)}
           title="Segment ${i + 1}${isSelected ? ' (selected)' : ''}${isColored ? ' (colored)' : ''}"
         >
           ${i + 1}
@@ -1568,7 +1546,7 @@ class SegmentSelector extends LitElement {
     `;
   }
 
-  _renderControls() {
+  private _renderControls(): TemplateResult | string {
     const count = this._selectedSegments.size;
     const hasSelection = count > 0;
 
@@ -1601,7 +1579,7 @@ class SegmentSelector extends LitElement {
           </ha-button>
           <div class="selection-info">
             <ha-icon icon="mdi:information-outline"></ha-icon>
-            <span>${this._localize('editors.segments_selected', {count: count})}</span>
+            <span>${this._localize('editors.segments_selected', { count })}</span>
           </div>
         </div>
       `;
@@ -1634,14 +1612,15 @@ class SegmentSelector extends LitElement {
             ${this._localize('editors.clear_all_button')}
           </ha-button>
           <div class="selection-info">
-            <span>${this._localize('editors.segments_selected', {count: count})}</span>
+            <span>${this._localize('editors.segments_selected', { count })}</span>
           </div>
         </div>
       `;
     }
+    return '';
   }
 
-  _renderColorPalette() {
+  private _renderColorPalette(): TemplateResult | string {
     if (this.mode !== 'color' && this.mode !== 'sequence') {
       return '';
     }
@@ -1654,7 +1633,7 @@ class SegmentSelector extends LitElement {
     `;
   }
 
-  _renderModeTabs() {
+  private _renderModeTabs(): TemplateResult {
     return html`
       <div class="mode-tabs">
         <button
@@ -1679,7 +1658,7 @@ class SegmentSelector extends LitElement {
     `;
   }
 
-  _renderModeContent() {
+  private _renderModeContent(): TemplateResult {
     if (this.mode === 'sequence' || this._patternMode === 'individual') {
       return this._renderIndividualMode();
     } else if (this._patternMode === 'gradient') {
@@ -1687,9 +1666,10 @@ class SegmentSelector extends LitElement {
     } else if (this._patternMode === 'blocks') {
       return this._renderBlocksMode();
     }
+    return html``;
   }
 
-  _renderIndividualMode() {
+  private _renderIndividualMode(): TemplateResult {
     return html`
       <div class="mode-description">
         Click a color to select it, then click segments to apply.
@@ -1723,7 +1703,7 @@ class SegmentSelector extends LitElement {
     `;
   }
 
-  _renderGradientMode() {
+  private _renderGradientMode(): TemplateResult {
     return html`
       <div class="mode-description">
         ${this._localize('editors.gradient_mode_description')}
@@ -1752,6 +1732,70 @@ class SegmentSelector extends LitElement {
           </div>
         ` : ''}
       </div>
+      <div class="options-row">
+        <label class="option-item">
+          <input
+            type="checkbox"
+            .checked=${this.gradientReverse}
+            @change=${this._handleGradientReverseChange}
+          />
+          <span class="option-label">${this._localize('editors.gradient_reverse_label')}</span>
+        </label>
+        <label class="option-item">
+          <input
+            type="checkbox"
+            .checked=${this.gradientMirror}
+            @change=${this._handleGradientMirrorChange}
+          />
+          <span class="option-label">${this._localize('editors.gradient_mirror_label')}</span>
+        </label>
+        <label class="option-item">
+          <input
+            type="checkbox"
+            .checked=${this.gradientWave}
+            @change=${this._handleGradientWaveChange}
+          />
+          <span class="option-label">${this._localize('editors.gradient_wave_label')}</span>
+        </label>
+      </div>
+      <div class="options-row">
+        <label class="option-item">
+          <span class="option-label">${this._localize('editors.gradient_repeat_label')}</span>
+          <input
+            type="number"
+            class="option-number-input"
+            min="1"
+            max="10"
+            .value=${String(this.gradientRepeat)}
+            @change=${this._handleGradientRepeatChange}
+          />
+        </label>
+        ${this.gradientWave ? html`
+          <label class="option-item">
+            <span class="option-label">${this._localize('editors.gradient_wave_cycles_label')}</span>
+            <input
+              type="number"
+              class="option-number-input"
+              min="1"
+              max="5"
+              .value=${String(this.gradientWaveCycles)}
+              @change=${this._handleGradientWaveCyclesChange}
+            />
+          </label>
+        ` : ''}
+        <label class="option-item">
+          <span class="option-label">${this._localize('editors.gradient_interpolation_label')}</span>
+          <select
+            class="option-select"
+            .value=${this.gradientInterpolation}
+            @change=${this._handleGradientInterpolationChange}
+          >
+            <option value="shortest">${this._localize('editors.gradient_interp_shortest')}</option>
+            <option value="longest">${this._localize('editors.gradient_interp_longest')}</option>
+            <option value="rgb">${this._localize('editors.gradient_interp_rgb')}</option>
+          </select>
+        </label>
+      </div>
       <div class="generated-actions">
         <ha-button @click=${this._applyToGrid}>
           <ha-icon icon="mdi:grid"></ha-icon>
@@ -1768,7 +1812,7 @@ class SegmentSelector extends LitElement {
     `;
   }
 
-  _renderBlocksMode() {
+  private _renderBlocksMode(): TemplateResult {
     return html`
       <div class="mode-description">
         ${this._localize('editors.blocks_mode_description')}
@@ -1823,24 +1867,19 @@ class SegmentSelector extends LitElement {
     `;
   }
 
-  _renderHint() {
-    return '';
-  }
-
-  _renderColorPickerModal() {
+  private _renderColorPickerModal(): TemplateResult | string {
     if (this._editingColorSource === null || this._editingColor === null) {
       return '';
     }
 
-    // Convert HS → XY → RGB to show accurate color that will be sent to device
-    // This prevents color washout by matching the actual color conversion path
+    // Convert HS -> XY -> RGB to show accurate color that will be sent to device
     const xyColor = hsToXy(this._editingColor);
     const accurateRgb = xyToRgb(xyColor.x, xyColor.y, 255);
-    const accurateHex = `#${accurateRgb.r.toString(16).padStart(2, '0')}${accurateRgb.g.toString(16).padStart(2, '0')}${accurateRgb.b.toString(16).padStart(2, '0')}`;
+    const accurateHex = rgbToHex(accurateRgb);
 
     return html`
       <div class="color-picker-modal-overlay" @click=${this._closeColorPicker}>
-        <div class="color-picker-modal" @click=${(e) => e.stopPropagation()}>
+        <div class="color-picker-modal" @click=${(e: Event) => e.stopPropagation()}>
           <div class="color-picker-modal-header">
             <span class="color-picker-modal-title">${this._localize('editors.color_picker_title')}</span>
             <div
@@ -1859,8 +1898,8 @@ class SegmentSelector extends LitElement {
                 class="rgb-input-field"
                 min="0"
                 max="255"
-                .value=${accurateRgb.r}
-                @input=${(e) => this._handleRgbInput(e, 'r')}
+                .value=${String(accurateRgb.r)}
+                @input=${(e: Event) => this._handleRgbInput(e, 'r')}
               />
             </label>
             <label class="rgb-input-label">
@@ -1870,8 +1909,8 @@ class SegmentSelector extends LitElement {
                 class="rgb-input-field"
                 min="0"
                 max="255"
-                .value=${accurateRgb.g}
-                @input=${(e) => this._handleRgbInput(e, 'g')}
+                .value=${String(accurateRgb.g)}
+                @input=${(e: Event) => this._handleRgbInput(e, 'g')}
               />
             </label>
             <label class="rgb-input-label">
@@ -1881,8 +1920,8 @@ class SegmentSelector extends LitElement {
                 class="rgb-input-field"
                 min="0"
                 max="255"
-                .value=${accurateRgb.b}
-                @input=${(e) => this._handleRgbInput(e, 'b')}
+                .value=${String(accurateRgb.b)}
+                @input=${(e: Event) => this._handleRgbInput(e, 'b')}
               />
             </label>
           </div>
@@ -1898,22 +1937,24 @@ class SegmentSelector extends LitElement {
     `;
   }
 
-  _renderColorWheel() {
-    // Full HS color wheel picker with stable IDs
+  private _renderColorWheel(): TemplateResult {
     const size = 220;
     const wheelId = 'color-wheel-canvas';
     const markerId = 'color-wheel-marker';
 
-    // Convert HS → XY → RGB for accurate color preview
+    if (!this._editingColor) {
+      return html``;
+    }
+
+    // Convert HS -> XY -> RGB for accurate color preview
     const xyColor = hsToXy(this._editingColor);
     const rgb = xyToRgb(xyColor.x, xyColor.y, 255);
-    const accurateHex = `#${rgb.r.toString(16).padStart(2, '0')}${rgb.g.toString(16).padStart(2, '0')}${rgb.b.toString(16).padStart(2, '0')}`;
+    const accurateHex = rgbToHex(rgb);
 
-    // Calculate initial marker position to prevent duplicate marker at (0,0)
+    // Calculate initial marker position
     const { x, y } = this._hsToWheelPosition(this._editingColor, size);
 
     // Schedule canvas drawing and marker positioning after render
-    // Only update marker if NOT currently dragging (prevents flickering)
     setTimeout(() => {
       this._drawColorWheel(wheelId, size);
       if (!this._wheelIsDragging) {
@@ -1928,8 +1969,8 @@ class SegmentSelector extends LitElement {
           width="${size}"
           height="${size}"
           style="border-radius: 50%; cursor: crosshair; display: block;"
-          @mousedown=${(e) => this._onWheelPointerDown(e, wheelId, markerId, size)}
-          @touchstart=${(e) => this._onWheelPointerDown(e, wheelId, markerId, size)}
+          @mousedown=${(e: MouseEvent) => this._onWheelPointerDown(e, wheelId, markerId, size)}
+          @touchstart=${(e: TouchEvent) => this._onWheelPointerDown(e, wheelId, markerId, size)}
         ></canvas>
         <div
           id="${markerId}"
@@ -1939,8 +1980,8 @@ class SegmentSelector extends LitElement {
     `;
   }
 
-  _drawColorWheel(canvasId, size) {
-    const canvas = this.shadowRoot.getElementById(canvasId);
+  private _drawColorWheel(canvasId: string, size: number): void {
+    const canvas = this.shadowRoot?.getElementById(canvasId) as HTMLCanvasElement;
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
@@ -1953,13 +1994,11 @@ class SegmentSelector extends LitElement {
     canvas.width = size;
     canvas.height = size;
 
-    // Draw the color wheel using HSL gradients (efficient, no RGB conversion needed during rendering)
-    // This matches the original working hs-color-picker.ts implementation
+    // Draw the color wheel using HSL gradients
     for (let angle = 0; angle < 360; angle++) {
       const startAngle = ((angle - 1) * Math.PI) / 180;
       const endAngle = ((angle + 1) * Math.PI) / 180;
 
-      // Draw saturation gradient for this hue slice
       const gradient = ctx.createRadialGradient(
         centerX,
         centerY,
@@ -1983,23 +2022,23 @@ class SegmentSelector extends LitElement {
     }
   }
 
-  _updateMarkerPosition(canvasId, markerId, size) {
-    const marker = this.shadowRoot.getElementById(markerId);
+  private _updateMarkerPosition(_canvasId: string, markerId: string, size: number): void {
+    const marker = this.shadowRoot?.getElementById(markerId) as HTMLElement;
     if (!marker || !this._editingColor) return;
 
     const { x, y } = this._hsToWheelPosition(this._editingColor, size);
 
-    // Convert HS → XY → RGB for accurate color preview
+    // Convert HS -> XY -> RGB for accurate color preview
     const xyColor = hsToXy(this._editingColor);
     const rgb = xyToRgb(xyColor.x, xyColor.y, 255);
-    const accurateHex = `#${rgb.r.toString(16).padStart(2, '0')}${rgb.g.toString(16).padStart(2, '0')}${rgb.b.toString(16).padStart(2, '0')}`;
+    const accurateHex = rgbToHex(rgb);
 
     marker.style.left = `${x}px`;
     marker.style.top = `${y}px`;
     marker.style.backgroundColor = accurateHex;
   }
 
-  _hsToWheelPosition(hs, size) {
+  private _hsToWheelPosition(hs: HSColor, size: number): { x: number; y: number } {
     const centerX = size / 2;
     const centerY = size / 2;
     const radius = size / 2;
@@ -2015,7 +2054,7 @@ class SegmentSelector extends LitElement {
     };
   }
 
-  _wheelPositionToHs(x, y, size) {
+  private _wheelPositionToHs(x: number, y: number, size: number): HSColor {
     const centerX = size / 2;
     const centerY = size / 2;
     const radius = size / 2;
@@ -2027,14 +2066,14 @@ class SegmentSelector extends LitElement {
     let distance = Math.sqrt(dx * dx + dy * dy);
     distance = Math.min(distance, radius); // Clamp to wheel edge
 
-    // Calculate angle (hue) - atan2 returns -180 to 180, convert to 0-360
+    // Calculate angle (hue)
     let angle = (Math.atan2(dy, dx) * 180) / Math.PI;
     if (angle < 0) angle += 360;
 
     // Calculate saturation percentage
     let saturation = Math.round((distance / radius) * 100);
 
-    // Snap to 100% saturation if very close to edge (helps select pure colors)
+    // Snap to 100% saturation if very close to edge
     if (saturation >= 98) {
       saturation = 100;
     }
@@ -2045,14 +2084,14 @@ class SegmentSelector extends LitElement {
     };
   }
 
-  _onWheelPointerDown(e, canvasId, markerId, size) {
+  private _onWheelPointerDown(e: MouseEvent | TouchEvent, canvasId: string, markerId: string, size: number): void {
     e.preventDefault();
     this._wheelIsDragging = true;
     this._wheelCanvasId = canvasId;
     this._wheelMarkerId = markerId;
     this._wheelSize = size;
 
-    const marker = this.shadowRoot.getElementById(markerId);
+    const marker = this.shadowRoot?.getElementById(markerId) as HTMLElement;
     if (marker) {
       marker.style.boxShadow = '0 0 8px rgba(0, 0, 0, 0.7), inset 0 0 2px rgba(0, 0, 0, 0.3)';
     }
@@ -2060,35 +2099,35 @@ class SegmentSelector extends LitElement {
     this._handleWheelInteraction(e, canvasId, markerId, size);
 
     if (e instanceof MouseEvent) {
-      this._wheelPointerMoveBound = (evt) => this._onWheelPointerMove(evt);
+      this._wheelPointerMoveBound = (evt: MouseEvent | TouchEvent) => this._onWheelPointerMove(evt);
       this._wheelPointerUpBound = () => this._onWheelPointerUp();
-      window.addEventListener('mousemove', this._wheelPointerMoveBound);
+      window.addEventListener('mousemove', this._wheelPointerMoveBound as EventListener);
       window.addEventListener('mouseup', this._wheelPointerUpBound);
     } else {
-      this._wheelPointerMoveBound = (evt) => this._onWheelPointerMove(evt);
+      this._wheelPointerMoveBound = (evt: MouseEvent | TouchEvent) => this._onWheelPointerMove(evt);
       this._wheelPointerUpBound = () => this._onWheelPointerUp();
-      window.addEventListener('touchmove', this._wheelPointerMoveBound, { passive: false });
+      window.addEventListener('touchmove', this._wheelPointerMoveBound as EventListener, { passive: false });
       window.addEventListener('touchend', this._wheelPointerUpBound);
     }
   }
 
-  _onWheelPointerMove(e) {
-    if (!this._wheelIsDragging) return;
+  private _onWheelPointerMove(e: MouseEvent | TouchEvent): void {
+    if (!this._wheelIsDragging || !this._wheelCanvasId || !this._wheelMarkerId) return;
     e.preventDefault();
     this._handleWheelInteraction(e, this._wheelCanvasId, this._wheelMarkerId, this._wheelSize);
   }
 
-  _onWheelPointerUp() {
+  private _onWheelPointerUp(): void {
     this._wheelIsDragging = false;
 
-    const marker = this.shadowRoot.getElementById(this._wheelMarkerId);
+    const marker = this._wheelMarkerId ? this.shadowRoot?.getElementById(this._wheelMarkerId) as HTMLElement : null;
     if (marker) {
       marker.style.boxShadow = '0 0 4px rgba(0, 0, 0, 0.5), inset 0 0 2px rgba(0, 0, 0, 0.3)';
     }
 
     if (this._wheelPointerMoveBound) {
-      window.removeEventListener('mousemove', this._wheelPointerMoveBound);
-      window.removeEventListener('touchmove', this._wheelPointerMoveBound);
+      window.removeEventListener('mousemove', this._wheelPointerMoveBound as EventListener);
+      window.removeEventListener('touchmove', this._wheelPointerMoveBound as EventListener);
       this._wheelPointerMoveBound = null;
     }
     if (this._wheelPointerUpBound) {
@@ -2098,14 +2137,14 @@ class SegmentSelector extends LitElement {
     }
   }
 
-  _handleWheelInteraction(e, canvasId, markerId, size) {
-    const canvas = this.shadowRoot.getElementById(canvasId);
+  private _handleWheelInteraction(e: MouseEvent | TouchEvent, canvasId: string, markerId: string, size: number): void {
+    const canvas = this.shadowRoot?.getElementById(canvasId) as HTMLCanvasElement;
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
-    let clientX, clientY;
+    let clientX: number, clientY: number;
 
-    if (e.touches) {
+    if ('touches' in e) {
       const touch = e.touches[0];
       if (!touch) return;
       clientX = touch.clientX;
@@ -2121,41 +2160,47 @@ class SegmentSelector extends LitElement {
     const newColor = this._wheelPositionToHs(x, y, size);
     this._editingColor = newColor;
 
-    // Update marker position immediately (smooth dragging)
+    // Update marker position immediately
     this._updateMarkerPosition(canvasId, markerId, size);
 
-    // Update the preview in modal header without full re-render
-    const preview = this.shadowRoot.querySelector('.color-picker-modal-preview');
+    // Update the preview in modal header
+    const preview = this.shadowRoot?.querySelector('.color-picker-modal-preview') as HTMLElement;
     if (preview) {
       const xyColor = hsToXy(this._editingColor);
       const rgb = xyToRgb(xyColor.x, xyColor.y, 255);
-      const hex = `#${rgb.r.toString(16).padStart(2, '0')}${rgb.g.toString(16).padStart(2, '0')}${rgb.b.toString(16).padStart(2, '0')}`;
+      const hex = rgbToHex(rgb);
       preview.style.backgroundColor = hex;
     }
 
-    // Update RGB input values without triggering full re-render
-    const rgbInputs = this.shadowRoot.querySelectorAll('.rgb-input-field');
-    if (rgbInputs.length === 3) {
+    // Update RGB input values
+    const rgbInputs = this.shadowRoot?.querySelectorAll('.rgb-input-field') as NodeListOf<HTMLInputElement> | undefined;
+    if (rgbInputs && rgbInputs.length === 3) {
       const xyColor = hsToXy(this._editingColor);
       const rgb = xyToRgb(xyColor.x, xyColor.y, 255);
-      rgbInputs[0].value = rgb.r;
-      rgbInputs[1].value = rgb.g;
-      rgbInputs[2].value = rgb.b;
+      const rInput = rgbInputs[0];
+      const gInput = rgbInputs[1];
+      const bInput = rgbInputs[2];
+      if (rInput) rInput.value = String(rgb.r);
+      if (gInput) gInput.value = String(rgb.g);
+      if (bInput) bInput.value = String(rgb.b);
     }
   }
 
-  render() {
+  protected render(): TemplateResult {
     return html`
       <div class="segment-selector">
         ${this.label ? html`<span class="label">${this.label}</span>` : ''}
         ${this._renderGrid()}
         ${this._renderColorPalette()}
         ${this.description ? html`<span class="description">${this.description}</span>` : ''}
-        ${this._renderHint()}
         ${this._renderColorPickerModal()}
       </div>
     `;
   }
 }
 
-customElements.define('segment-selector', SegmentSelector);
+declare global {
+  interface HTMLElementTagNameMap {
+    'segment-selector': SegmentSelector;
+  }
+}

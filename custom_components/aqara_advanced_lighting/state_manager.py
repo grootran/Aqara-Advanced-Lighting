@@ -15,6 +15,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers.storage import Store
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .models import DeviceState, DynamicEffect
@@ -55,7 +56,7 @@ class StateManager:
     def _load_states_from_data(self, data: dict[str, Any]) -> None:
         """Load states from stored data, expiring old entries."""
         states_data = data.get("states", {})
-        expiry_threshold = datetime.now() - timedelta(hours=STATE_EXPIRY_HOURS)
+        expiry_threshold = dt_util.utcnow() - timedelta(hours=STATE_EXPIRY_HOURS)
 
         for entity_id, state_data in states_data.items():
             # Check if entry has expired
@@ -89,7 +90,7 @@ class StateManager:
     async def async_save(self) -> None:
         """Save states to persistent storage."""
         states_data = {}
-        timestamp = datetime.now().isoformat()
+        timestamp = dt_util.utcnow().isoformat()
 
         for entity_id, device_state in self._states.items():
             states_data[entity_id] = {

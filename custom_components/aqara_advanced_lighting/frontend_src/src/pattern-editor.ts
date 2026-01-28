@@ -64,6 +64,12 @@ export class PatternEditor extends LitElement {
     { x: 0.1700, y: 0.7000 },  // Green
   ];
   @state() private _expandBlocks = false;
+  @state() private _gradientMirror = false;
+  @state() private _gradientRepeat = 1;
+  @state() private _gradientReverse = false;
+  @state() private _gradientInterpolation = 'shortest';
+  @state() private _gradientWave = false;
+  @state() private _gradientWaveCycles = 1;
 
   static styles = [
     colorPickerStyles,
@@ -662,6 +668,12 @@ export class PatternEditor extends LitElement {
             .gradientColors=${this._gradientColors}
             .blockColors=${this._blockColors}
             .expandBlocks=${this._expandBlocks}
+            .gradientMirror=${this._gradientMirror}
+            .gradientRepeat=${this._gradientRepeat}
+            .gradientReverse=${this._gradientReverse}
+            .gradientInterpolation=${this._gradientInterpolation}
+            .gradientWave=${this._gradientWave}
+            .gradientWaveCycles=${this._gradientWaveCycles}
             .translations=${this.translations}
             @color-value-changed=${this._handleColorValueChange}
             @color-palette-changed=${this._handleColorPaletteChange}

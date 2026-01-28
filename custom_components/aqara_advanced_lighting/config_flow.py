@@ -10,7 +10,6 @@ import voluptuous as vol
 
 from homeassistant.components import mqtt
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
-from homeassistant.const import CONF_NAME
 from homeassistant.helpers import config_validation as cv
 
 from .const import CONF_Z2M_BASE_TOPIC, DEFAULT_Z2M_BASE_TOPIC, DOMAIN
@@ -85,7 +84,6 @@ class AqaraAdvancedLightingConfigFlow(ConfigFlow, domain=DOMAIN):
             z2m_base_topic = user_input.get(
                 CONF_Z2M_BASE_TOPIC, DEFAULT_Z2M_BASE_TOPIC
             )
-            friendly_name = user_input.get(CONF_NAME, "").strip()
 
             # Use base topic as unique_id to prevent duplicate instances
             await self.async_set_unique_id(z2m_base_topic)
@@ -101,20 +99,16 @@ class AqaraAdvancedLightingConfigFlow(ConfigFlow, domain=DOMAIN):
                     errors["base"] = "z2m_not_found"
 
             if not errors:
-                # Use friendly name if provided, otherwise use base topic
-                title = friendly_name if friendly_name else z2m_base_topic
                 return self.async_create_entry(
-                    title=title,
+                    title=f"Aqara Lighting ({z2m_base_topic})",
                     data={
                         CONF_Z2M_BASE_TOPIC: z2m_base_topic,
-                        CONF_NAME: friendly_name,
                     },
                 )
 
         # Show configuration form
         data_schema = vol.Schema(
             {
-                vol.Optional(CONF_NAME, default=""): cv.string,
                 vol.Optional(
                     CONF_Z2M_BASE_TOPIC, default=DEFAULT_Z2M_BASE_TOPIC
                 ): cv.string,
@@ -138,7 +132,6 @@ class AqaraAdvancedLightingConfigFlow(ConfigFlow, domain=DOMAIN):
             z2m_base_topic = user_input.get(
                 CONF_Z2M_BASE_TOPIC, DEFAULT_Z2M_BASE_TOPIC
             )
-            friendly_name = user_input.get(CONF_NAME, "").strip()
 
             # Check if new base topic conflicts with another entry (not this one)
             for existing_entry in self._async_current_entries():
@@ -159,25 +152,18 @@ class AqaraAdvancedLightingConfigFlow(ConfigFlow, domain=DOMAIN):
                     errors["base"] = "z2m_not_found"
 
             if not errors:
-                # Use friendly name if provided, otherwise use base topic
-                title = friendly_name if friendly_name else z2m_base_topic
                 return self.async_update_reload_and_abort(
                     entry,
-                    title=title,
+                    title=f"Aqara Lighting ({z2m_base_topic})",
                     unique_id=z2m_base_topic,
                     data={
                         CONF_Z2M_BASE_TOPIC: z2m_base_topic,
-                        CONF_NAME: friendly_name,
                     },
                 )
 
         # Show reconfiguration form with current values
         data_schema = vol.Schema(
             {
-                vol.Optional(
-                    CONF_NAME,
-                    default=entry.data.get(CONF_NAME, ""),
-                ): cv.string,
                 vol.Optional(
                     CONF_Z2M_BASE_TOPIC,
                     default=entry.data.get(CONF_Z2M_BASE_TOPIC, DEFAULT_Z2M_BASE_TOPIC),

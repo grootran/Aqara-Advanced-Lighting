@@ -353,6 +353,14 @@ class CCTSequenceManager:
         """
         return dict(self._sequence_ids)
 
+    def get_active_sequence_entities(self) -> set[str]:
+        """Get all entity IDs with active sequences.
+
+        Returns:
+            Set of entity IDs that have active sequences running
+        """
+        return set(self._active_sequences.keys())
+
     def pause_sequence(self, entity_id: str) -> bool:
         """Pause a running CCT sequence.
 
