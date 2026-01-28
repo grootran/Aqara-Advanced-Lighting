@@ -7,18 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.0] - 2026-01-21
 
-### ⚠️ Breaking Change - Upgrade Instructions Required
-
-**If updating from v0.7.0**, you must remove and re-add the integration to avoid Python module cache conflicts. See [RELEASE_NOTES.md](RELEASE_NOTES.md) for detailed upgrade instructions.
-
-**Quick upgrade steps:**
-1. Remove integration (Settings → Devices & Services → Delete)
-2. Update via HACS
-3. Restart Home Assistant
-4. Re-add integration (Settings → Devices & Services → Add Integration)
-
-**Why**: Fundamental architectural changes for multi-instance support conflict with cached modules from v0.7.0.
-
 ### What's New
 
 Version 0.8.0 introduces support for multiple Zigbee2MQTT instances, allowing control of Aqara lights across multiple Z2M coordinators from a single integration. Perfect for complex smart home setups with distributed Zigbee networks.
