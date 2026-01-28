@@ -1,9 +1,9 @@
-# Aqara Advanced Lighting v0.8.2
+# Aqara Advanced Lighting v0.9.0
 
 ## Upgrade Instructions
 
-**Upgrading from v0.8.0:**
-1. Update via HACS to v0.8.2
+**Upgrading from v0.8.x:**
+1. Update via HACS to v0.9.0
 2. Restart Home Assistant
 3. Clear browser cache (Ctrl+Shift+R or Cmd+Shift+R)
 
@@ -13,53 +13,47 @@ Your existing configuration, presets, and favorites are automatically preserved.
 
 ## What's New
 
-Version 0.8.2 is a code quality and reliability release. It removes the friendly name field from the config flow to align with Home Assistant guidelines, strengthens entity mapping to prevent false positives, and improves diagnostics transparency.
+Version 0.9.0 introduces advanced gradient creation tools, improved color accuracy across the frontend, and a major code modernization converting the segment selector component to TypeScript.
 
 ## Changes
 
-### Config Flow Cleanup
+### Advanced Gradient Creation
 
-The friendly name field has been removed from the config flow. Config entry titles are now auto-generated as "Aqara Lighting ({base_topic})".
+Five new gradient options are now available in the segment selector's gradient mode:
 
-**What this means for you:**
-- Existing config entries keep their current titles
-- Only reconfiguring an entry updates the title to the new format
-- Any previously stored friendly name data is harmless and ignored
-- Follows Home Assistant guidelines for non-helper integrations
+- **Reverse direction** - Flip the gradient flow with a single toggle
+- **Mirror gradient** - Create symmetric patterns from your color stops, with correct handling for both odd and even segment counts
+- **Interpolation mode** - Choose between shortest hue, longest hue, or linear RGB blending
+- **Repeating gradient** - Tile the gradient pattern across segments (1-10 repeats)
+- **Wave easing** - Apply sinusoidal easing with configurable cycle count (1-5 cycles)
 
-### Entity Mapping Reliability
+All options work with both "Apply to Grid" and "Apply to Selected" actions, and persist per-step in the segment sequence editor.
 
-Strategy 4 (entity ID pattern matching) now only matches entities from the MQTT platform, preventing false-positive matches against non-MQTT entities with similar names.
+### Color Accuracy
 
-### Enhanced Diagnostics
+- Improved XY-to-RGB conversion with max-component normalization, fixing washed-out blues and improving color fidelity across the entire color wheel
+- All frontend components now use shared color utility functions, eliminating inconsistencies between components
 
-- Each mapped entity now shows which matching strategy was used (Strategy 1-4)
-- Helps troubleshoot mapping issues in multi-instance setups
-- CCT sequence manager uses public accessor method instead of private attribute access
+### Frontend Architecture
 
-### Code Quality
-
-- **Timezone-aware datetimes** - State manager now uses `dt_util.utcnow()` instead of `datetime.now()`, preventing timezone-related issues in state expiry calculations
-- **Improved test suite** - Config flow and init tests rewritten with correct mocks matching actual integration components
-
-### Documentation
-
-- README updated to remove friendly name references from setup and reconfiguration instructions
+- Segment selector converted from standalone JavaScript to bundled TypeScript
+- Single frontend bundle reduces HTTP requests and simplifies deployment
+- Removed separate segment-selector.js API endpoint
 
 ## Breaking Changes
 
-None. This release is fully backward compatible with v0.8.0.
+None. This release is fully backward compatible with v0.8.2.
 
 ## Compatibility
 
-- Fully backward compatible with v0.8.0
+- Fully backward compatible with v0.8.2
 - All existing features and APIs unchanged
 - No configuration changes required
-- Existing config entries retain their titles
+- All presets and favorites preserved
 
 ## Full Changelog
 
-[View full changelog](https://github.com/absent42/Aqara-Advanced-Lighting/blob/main/CHANGELOG.md#082---2026-01-28)
+[View full changelog](https://github.com/absent42/Aqara-Advanced-Lighting/blob/main/CHANGELOG.md#090---2026-01-28)
 
 ## Support
 

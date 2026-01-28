@@ -5,6 +5,87 @@ All notable changes to the Aqara Advanced Lighting integration will be documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-01-28
+
+### What's New
+
+Version 0.9.0 introduces advanced gradient creation tools, improved color accuracy across the frontend, and a major code modernization converting the segment selector component to TypeScript.
+
+### New Features
+
+#### Advanced Gradient Creation
+
+Five new gradient options in the segment selector's gradient mode:
+
+- **Reverse direction** - Flip the gradient direction with a single toggle
+- **Mirror gradient** - Create symmetric patterns (A-B-C-B-A) from your color stops, with correct handling for both odd and even segment counts
+- **Interpolation mode selector** - Choose between three color blending methods:
+  - Shortest hue path (default) - Interpolates through the shortest arc on the color wheel
+  - Longest hue path - Takes the long way around for more colorful transitions
+  - Linear RGB - Blends directly in RGB space for different visual results
+- **Repeating gradient** - Tile the gradient pattern across segments (1-10 repeats)
+- **Wave easing** - Apply sinusoidal easing to color transitions with configurable cycle count (1-5 cycles), creating smooth oscillating patterns
+
+All gradient options work with both "Apply to Grid" and "Apply to Selected" actions, and persist per-step in segment sequence editor.
+
+### Improvements
+
+#### Color Accuracy
+
+- **Improved XY-to-RGB conversion** - Added max-component normalization to the sRGB D65 transformation, fixing washed-out blues and improving color fidelity across the entire color wheel
+- **Consistent color conversion** - All frontend components now use shared color utility functions from `color-utils.ts`, eliminating duplicate inline implementations with slightly different behavior
+
+#### Frontend Architecture
+
+- **TypeScript conversion of segment selector** - Converted the standalone `segment-selector.js` to a fully typed TypeScript component bundled into the main panel
+  - Replaced inline color utility functions with imports from shared `color-utils.ts`
+  - Added proper TypeScript interfaces for translations, modes, and color types
+  - Eliminated the separate `/api/aqara_advanced_lighting/segment-selector.js` endpoint
+  - Single bundled output reduces HTTP requests and simplifies deployment
+- **Parent component updates** - Pattern editor and segment sequence editor updated with property bindings for all gradient options
+
+### Technical Changes
+
+#### New Files
+
+- `frontend_src/src/segment-selector.ts` - TypeScript conversion of segment selector component
+
+#### Removed Files
+
+- `frontend/segment-selector.js` - Replaced by bundled TypeScript version
+
+#### Updated Files
+
+- **Frontend**
+  - `index.ts` - Changed from dynamic runtime import to static import for segment selector
+  - `pattern-editor.ts` - Added state properties and bindings for gradient options
+  - `segment-sequence-editor.ts` - Extended EditableStep interface with gradient fields, added bindings
+  - `translations/panel.en.json` - Added 9 translation keys for gradient features
+  - `aqara_panel.js` - Rebuilt bundle including segment selector component
+
+- **Backend**
+  - `panel.py` - Removed `SegmentSelectorJavaScriptView` class and HTTP endpoint registration
+
+### Breaking Changes
+
+None. This release is fully backward compatible with v0.8.2.
+
+- All existing presets and configurations preserved
+- Gradient features are additive and optional
+- No configuration changes required
+
+### Compatibility
+
+- Fully backward compatible with v0.8.2
+- All existing presets and configurations preserved
+- No configuration changes required
+
+### Upgrade from v0.8.2
+
+1. Update the integration through HACS
+2. Restart Home Assistant
+3. Clear browser cache (Ctrl+Shift+R or Cmd+Shift+R)
+
 ## [0.8.2] - 2026-01-28
 
 ### Improvements
@@ -1146,4 +1227,4 @@ One click HACS cutton
 [0.6.2]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.6.2
 [0.7.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.7.0
 [0.8.1]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.8.1
-[0.8.2]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.8.2
+[0.9.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.9.0
