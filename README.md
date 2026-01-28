@@ -153,8 +153,7 @@ If you see a version mismatch warning in the panel after updating, this means th
 1. Go to **Settings** → **Devices & Services** → **Add Integration**
 2. Search for "Aqara Advanced Lighting"
 3. Enter your Zigbee2MQTT base topic (default: `zigbee2mqtt`)
-4. Optionally add a friendly name for this instance (e.g., "Main Floor", "Garage")
-5. Click "Submit"
+4. Click "Submit"
 
 The integration will automatically discover your Aqara lights through Zigbee2MQTT.
 
@@ -189,22 +188,7 @@ The MQTT base topic used by your Zigbee2MQTT installation. This integration subs
 - Check that MQTT integration is properly configured and connected
 - Ensure Zigbee2MQTT is running and connected to the same MQTT broker
 - The integration validates the Z2M instance by subscribing to the `bridge/state` topic during setup
-- Use the Reconfigure option to update the base topic or friendly name if needed
-
-#### Friendly Name (Optional)
-
-- **Parameter**: `Friendly name`
-- **Default**: None (uses base topic if not provided)
-- **Required**: No
-- **Type**: String
-
-**Description**:
-An optional friendly name to identify this Zigbee2MQTT instance in logs and error messages. Useful when managing multiple Z2M coordinators to quickly identify which instance owns specific devices.
-
-**Examples**:
-- Location-based: "Upstairs", "Main Floor", "Garage", "Outdoor"
-- Zone-based: "Living Area", "Bedrooms", "Workshop"
-- Function-based: "RGB Lights", "CCT Lights", "LED Strips"
+- Use the Reconfigure option to update the base topic if needed
 
 ### Multiple Zigbee2MQTT Instances
 
@@ -218,8 +202,9 @@ To add another Zigbee2MQTT instance after initial setup:
 2. Click **Add Integration**
 3. Search for "Aqara Advanced Lighting"
 4. Enter the **Z2M base topic** for the new instance (e.g., `zigbee2mqtt2`)
-5. Add a **friendly name** to distinguish it (e.g., "Garage", "Upstairs")
-6. Click "Submit"
+5. Click "Submit"
+
+Each instance is automatically titled based on its base topic (e.g., "Aqara Lighting (zigbee2mqtt2)").
 
 The integration will:
 - Validate the Z2M instance is running (5-second timeout)
@@ -267,12 +252,12 @@ Instance 2: zigbee2mqtt_strips (LED Strips)
 
 ### Reconfiguration
 
-To change the Z2M base topic or friendly name for an existing instance:
+To change the Z2M base topic for an existing instance:
 
 1. Go to **Settings** → **Devices & Services**
 2. Find the "Aqara Advanced Lighting" instance you want to reconfigure
 3. Click the three dots menu → "Reconfigure"
-4. Update the base topic and/or friendly name
+4. Update the base topic
 5. Click "Submit"
 
 ### Removal
