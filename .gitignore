@@ -8,6 +8,7 @@ RELEASE_PROCESS.md
 TESTING*.md
 CLAUDE.md
 .claude/
+docs/
 tmpclaude*
 
 # Python
