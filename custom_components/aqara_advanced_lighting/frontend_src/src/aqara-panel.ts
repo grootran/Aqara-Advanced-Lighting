@@ -657,6 +657,19 @@ export class AqaraPanel extends LitElement {
       // First, check if this entity is in the backend's supported entities map
       const supportedEntity = this._supportedEntities.get(entityId);
       if (supportedEntity) {
+        if (supportedEntity.device_type === 't1m') {
+          // Distinguish T1M RGB from T1M White using supported_color_modes
+          // Both endpoints share the same effect_list, so we check for xy/hs/rgb modes
+          const colorModes = entity.attributes.supported_color_modes as string[] | undefined;
+          const hasRGBMode = colorModes && Array.isArray(colorModes) &&
+            colorModes.some(mode => ['xy', 'hs', 'rgb', 'rgbw', 'rgbww'].includes(mode));
+          if (hasRGBMode) {
+            deviceTypes.add('t1m');  // RGB endpoint
+          } else {
+            deviceTypes.add('t1m_white');  // White/CCT endpoint
+          }
+          continue;
+        }
         // Use the device type from the backend - this is authoritative
         if (supportedEntity.device_type && supportedEntity.device_type !== 'unknown') {
           deviceTypes.add(supportedEntity.device_type);
@@ -787,18 +800,33 @@ export class AqaraPanel extends LitElement {
 
   // Compatibility checks for each tab - check actual entity capabilities
   // Effects: T2 RGB, T1M RGB, T1 Strip (entities with RGB effect_list)
+  // Check if an entity has RGB color mode support (xy, hs, rgb, rgbw, rgbww)
+  private _hasRGBColorMode(entity: { attributes: Record<string, unknown> }): boolean {
+    const colorModes = entity.attributes.supported_color_modes as string[] | undefined;
+    return !!colorModes && Array.isArray(colorModes) &&
+      colorModes.some(mode => ['xy', 'hs', 'rgb', 'rgbw', 'rgbww'].includes(mode));
+  }
+
+  // Check if an entity is a T1M endpoint (has T1M-specific effects like flow1)
+  private _isT1MEntity(entity: { attributes: Record<string, unknown> }): boolean {
+    const effectList = entity.attributes.effect_list as string[] | undefined;
+    return !!effectList && Array.isArray(effectList) && effectList.includes('flow1');
+  }
+
   private _isEffectsCompatible(): boolean {
     if (!this.hass || !this._selectedEntities.length) return false;
     return this._selectedEntities.some(entityId => {
       const entity = this.hass!.states[entityId];
       if (!entity) return false;
       const effectList = entity.attributes.effect_list as string[] | undefined;
-      // Must have effect_list with supported effects (not just CCT-only lights)
-      return effectList && Array.isArray(effectList) && effectList.length > 0;
+      if (!effectList || !Array.isArray(effectList) || effectList.length === 0) return false;
+      // T1M white endpoint has effect_list but only supports CCT - exclude it
+      if (this._isT1MEntity(entity) && !this._hasRGBColorMode(entity)) return false;
+      return true;
     });
   }
 
-  // Patterns: T1M RGB, T1 Strip only (entities with segment-capable effect_list)
+  // Patterns: T1M RGB, T1 Strip only (entities with segment-capable effect_list and RGB color mode)
   private _isPatternsCompatible(): boolean {
     if (!this.hass || !this._selectedEntities.length) return false;
     return this._selectedEntities.some(entityId => {
@@ -808,25 +836,32 @@ export class AqaraPanel extends LitElement {
       if (!effectList || !Array.isArray(effectList)) return false;
       // T1M has flow1/flow2/rolling, T1 Strip has rainbow1/rainbow2/chasing/flicker/dash
       // T2 has candlelight but doesn't support patterns
-      return effectList.includes('flow1') || effectList.includes('rainbow1');
+      // T1M white endpoint has flow1 but only supports CCT - exclude it
+      if (!(effectList.includes('flow1') || effectList.includes('rainbow1'))) return false;
+      if (this._isT1MEntity(entity) && !this._hasRGBColorMode(entity)) return false;
+      return true;
     });
   }
 
-  // CCT: Entities with color_temp attribute (T2 RGB, T2 CCT, T1M White, T1 Strip)
-  // Note: T1M RGB endpoint does NOT have color_temp
+  // CCT: Entities with color_temp support (T2 RGB, T2 CCT, T1M White, T1 Strip)
+  // T1M RGB endpoint has color_temp in supported_color_modes but doesn't support CCT sequences
   private _isCCTCompatible(): boolean {
     if (!this.hass || !this._selectedEntities.length) return false;
     return this._selectedEntities.some(entityId => {
       const entity = this.hass!.states[entityId];
       if (!entity) return false;
       // Must have color_temp attribute to support CCT sequences
-      return entity.attributes.color_temp !== undefined ||
+      const hasCCT = entity.attributes.color_temp !== undefined ||
              entity.attributes.color_temp_kelvin !== undefined ||
              entity.attributes.min_color_temp_kelvin !== undefined;
+      if (!hasCCT) return false;
+      // T1M RGB endpoint has color_temp but doesn't support CCT sequences - exclude it
+      if (this._isT1MEntity(entity) && this._hasRGBColorMode(entity)) return false;
+      return true;
     });
   }
 
-  // Segments: T1M RGB, T1 Strip only (entities with segment-capable effect_list)
+  // Segments: T1M RGB, T1 Strip only (entities with segment-capable effect_list and RGB color mode)
   private _isSegmentsCompatible(): boolean {
     if (!this.hass || !this._selectedEntities.length) return false;
     return this._selectedEntities.some(entityId => {
@@ -836,7 +871,10 @@ export class AqaraPanel extends LitElement {
       if (!effectList || !Array.isArray(effectList)) return false;
       // T1M has flow1/flow2/rolling, T1 Strip has rainbow1/rainbow2/chasing/flicker/dash
       // T2 has candlelight but doesn't support segments
-      return effectList.includes('flow1') || effectList.includes('rainbow1');
+      // T1M white endpoint has flow1 but only supports CCT - exclude it
+      if (!(effectList.includes('flow1') || effectList.includes('rainbow1'))) return false;
+      if (this._isT1MEntity(entity) && !this._hasRGBColorMode(entity)) return false;
+      return true;
     });
   }
 
@@ -849,7 +887,10 @@ export class AqaraPanel extends LitElement {
       const entity = this.hass!.states[entityId];
       if (!entity) return false;
       const effectList = entity.attributes.effect_list as string[] | undefined;
-      return effectList && Array.isArray(effectList) && effectList.length > 0;
+      if (!effectList || !Array.isArray(effectList) || effectList.length === 0) return false;
+      // T1M white endpoint has effect_list but only supports CCT - exclude it
+      if (this._isT1MEntity(entity) && !this._hasRGBColorMode(entity)) return false;
+      return true;
     });
   }
 
@@ -860,7 +901,10 @@ export class AqaraPanel extends LitElement {
       if (!entity) return false;
       const effectList = entity.attributes.effect_list as string[] | undefined;
       if (!effectList || !Array.isArray(effectList)) return false;
-      return effectList.includes('flow1') || effectList.includes('rainbow1');
+      if (!(effectList.includes('flow1') || effectList.includes('rainbow1'))) return false;
+      // T1M white endpoint has flow1 but only supports CCT - exclude it
+      if (this._isT1MEntity(entity) && !this._hasRGBColorMode(entity)) return false;
+      return true;
     });
   }
 
@@ -869,9 +913,13 @@ export class AqaraPanel extends LitElement {
     return this._selectedEntities.filter(entityId => {
       const entity = this.hass!.states[entityId];
       if (!entity) return false;
-      return entity.attributes.color_temp !== undefined ||
+      const hasCCT = entity.attributes.color_temp !== undefined ||
              entity.attributes.color_temp_kelvin !== undefined ||
              entity.attributes.min_color_temp_kelvin !== undefined;
+      if (!hasCCT) return false;
+      // T1M RGB endpoint has color_temp but doesn't support CCT sequences - exclude it
+      if (this._isT1MEntity(entity) && this._hasRGBColorMode(entity)) return false;
+      return true;
     });
   }
 
@@ -882,7 +930,10 @@ export class AqaraPanel extends LitElement {
       if (!entity) return false;
       const effectList = entity.attributes.effect_list as string[] | undefined;
       if (!effectList || !Array.isArray(effectList)) return false;
-      return effectList.includes('flow1') || effectList.includes('rainbow1');
+      if (!(effectList.includes('flow1') || effectList.includes('rainbow1'))) return false;
+      // T1M white endpoint has flow1 but only supports CCT - exclude it
+      if (this._isT1MEntity(entity) && !this._hasRGBColorMode(entity)) return false;
+      return true;
     });
   }
 
@@ -905,14 +956,17 @@ export class AqaraPanel extends LitElement {
     const deviceTypes = this._getSelectedDeviceTypes();
     const hasSelection = deviceTypes.length > 0;
 
-    // Determine what sections to show
+    // Determine what sections to show based on selected endpoint capabilities
+    // t1m = T1M RGB endpoint, t1m_white = T1M white/CCT endpoint
     const hasT2 = deviceTypes.includes('t2_bulb');
+    const hasT2CCT = deviceTypes.includes('t2_cct');
     const hasT1M = deviceTypes.includes('t1m');
+    const hasT1MWhite = deviceTypes.includes('t1m_white');
     const hasT1Strip = deviceTypes.includes('t1_strip');
 
     const showDynamicEffects = hasSelection && (hasT2 || hasT1M || hasT1Strip);
     const showSegmentPatterns = hasSelection && (hasT1M || hasT1Strip);
-    const showCCTSequences = hasSelection; // All lights support CCT
+    const showCCTSequences = hasSelection && (hasT2 || hasT2CCT || hasT1MWhite || hasT1Strip);
     const showSegmentSequences = hasSelection && (hasT1M || hasT1Strip);
 
     return {
