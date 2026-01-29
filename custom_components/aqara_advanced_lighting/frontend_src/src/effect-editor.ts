@@ -1,6 +1,6 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { HomeAssistant, RGBColor, XYColor, UserEffectPreset } from './types';
+import { HomeAssistant, RGBColor, XYColor, UserEffectPreset, DeviceContext } from './types';
 import { xyToHex, rgbToXy, getComplementaryColor } from './color-utils';
 import { colorPickerStyles } from './styles';
 import './xy-color-picker';
@@ -33,6 +33,7 @@ export class EffectEditor extends LitElement {
   @property({ type: Boolean }) public isCompatible = true;
   @property({ type: Boolean }) public previewActive = false;
   @property({ type: Number }) public stripSegmentCount = 10; // Default 2 meters (out-of-box T1 Strip length)
+  @property({ type: Object }) public deviceContext?: DeviceContext;
 
   @state() private _name = '';
   @state() private _icon = '';
@@ -46,6 +47,7 @@ export class EffectEditor extends LitElement {
   @state() private _previewing = false;
   @state() private _editingColorIndex: number | null = null;
   @state() private _editingColor: XYColor | null = null;
+  @state() private _hasUserInteraction = false;
 
   static styles = [
     colorPickerStyles,
@@ -222,8 +224,23 @@ export class EffectEditor extends LitElement {
   protected updated(changedProps: PropertyValues): void {
     super.updated(changedProps);
 
-    if (changedProps.has('preset') && this.preset) {
-      this._loadPreset(this.preset);
+    if (changedProps.has('preset')) {
+      if (this.preset) {
+        this._hasUserInteraction = true;
+        this._loadPreset(this.preset);
+      } else {
+        this._hasUserInteraction = false;
+      }
+    }
+
+    // Auto-set device type from context when no user interaction has occurred
+    if (
+      changedProps.has('deviceContext') &&
+      !this._hasUserInteraction &&
+      this.deviceContext?.deviceType
+    ) {
+      this._deviceType = this.deviceContext.deviceType;
+      this._effect = '';
     }
   }
 
@@ -259,6 +276,7 @@ export class EffectEditor extends LitElement {
 
   private _handleDeviceTypeChange(e: CustomEvent): void {
     this._deviceType = e.detail.value || 't2_bulb';
+    this._hasUserInteraction = true;
     // Reset effect to empty so user must select from new device's effects
     this._effect = '';
   }

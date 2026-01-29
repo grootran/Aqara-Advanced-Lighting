@@ -1,6 +1,6 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { HomeAssistant, RGBColor, XYColor, SegmentColorEntry, UserSegmentPatternPreset } from './types';
+import { HomeAssistant, RGBColor, XYColor, SegmentColorEntry, UserSegmentPatternPreset, DeviceContext } from './types';
 import { xyToRgb, rgbToXy } from './color-utils';
 import { colorPickerStyles } from './styles';
 // Note: hs-color-picker import removed - color picking handled by segment-selector
@@ -37,6 +37,7 @@ export class PatternEditor extends LitElement {
   @property({ type: Boolean }) public hasSelectedEntities = false;
   @property({ type: Boolean }) public isCompatible = true;
   @property({ type: Number }) public stripSegmentCount = 10; // Default 2 meters (out-of-box T1 Strip length)
+  @property({ type: Object }) public deviceContext?: DeviceContext;
 
   @state() private _name = '';
   @state() private _icon = '';
@@ -70,6 +71,7 @@ export class PatternEditor extends LitElement {
   @state() private _gradientInterpolation = 'shortest';
   @state() private _gradientWave = false;
   @state() private _gradientWaveCycles = 1;
+  @state() private _hasUserInteraction = false;
 
   static styles = [
     colorPickerStyles,
@@ -374,8 +376,22 @@ export class PatternEditor extends LitElement {
   protected updated(changedProps: PropertyValues): void {
     super.updated(changedProps);
 
-    if (changedProps.has('preset') && this.preset) {
-      this._loadPreset(this.preset);
+    if (changedProps.has('preset')) {
+      if (this.preset) {
+        this._hasUserInteraction = true;
+        this._loadPreset(this.preset);
+      } else {
+        this._hasUserInteraction = false;
+      }
+    }
+
+    // Auto-set device type from context when no user interaction has occurred
+    if (
+      changedProps.has('deviceContext') &&
+      !this._hasUserInteraction &&
+      this.deviceContext?.deviceType
+    ) {
+      this._deviceType = this.deviceContext.deviceType;
     }
 
     // When stripSegmentCount changes and device type is t1_strip, clean up segments beyond the new count
@@ -443,6 +459,7 @@ export class PatternEditor extends LitElement {
 
   private _handleDeviceTypeChange(e: CustomEvent): void {
     this._deviceType = e.detail.value || 't1m';
+    this._hasUserInteraction = true;
     // Clear segments that exceed new device segment count
     const maxSegments = this._getMaxSegments();
     const newSegments = new Map<number, XYColor>();

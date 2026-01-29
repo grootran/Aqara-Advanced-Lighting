@@ -14,6 +14,7 @@ import {
   SegmentSequencePreset,
   Favorite,
   PanelTab,
+  DeviceContext,
   UserPresetsData,
   UserEffectPreset,
   UserSegmentPatternPreset,
@@ -835,6 +836,41 @@ export class AqaraPanel extends LitElement {
     }
 
     return defaultSegments;
+  }
+
+  private _getDeviceContextForEditor(editorType: 'effect' | 'pattern' | 'segment' | 'cct'): DeviceContext {
+    const deviceTypes = this._getSelectedDeviceTypes();
+
+    if (deviceTypes.length === 0) {
+      return { deviceType: null, hasSelection: false };
+    }
+
+    // Find the first device type compatible with the editor
+    let compatibleType: string | null = null;
+
+    switch (editorType) {
+      case 'effect':
+        // Effect editor supports t2_bulb, t1, t1m, t1_strip
+        compatibleType = deviceTypes.find(
+          (dt) => dt === 't2_bulb' || dt === 't1m' || dt === 't1_strip' || dt === 't1'
+        ) ?? null;
+        break;
+
+      case 'pattern':
+      case 'segment':
+        // Pattern and segment editors only support T1 variants
+        compatibleType = deviceTypes.find(
+          (dt) => dt === 't1m' || dt === 't1_strip' || dt === 't1'
+        ) ?? null;
+        break;
+
+      case 'cct':
+        // CCT supports all devices - use first available
+        compatibleType = deviceTypes[0] ?? null;
+        break;
+    }
+
+    return { deviceType: compatibleType, hasSelection: true };
   }
 
   // Compatibility checks for each tab - check actual entity capabilities
@@ -1762,6 +1798,7 @@ export class AqaraPanel extends LitElement {
           .isCompatible=${isCompatible}
           .previewActive=${this._effectPreviewActive}
           .stripSegmentCount=${this._getT1StripSegmentCount()}
+          .deviceContext=${this._getDeviceContextForEditor('effect')}
           @save=${this._handleEffectSave}
           @preview=${this._handleEffectPreview}
           @stop-preview=${this._handleEffectStopPreview}
@@ -1869,6 +1906,7 @@ export class AqaraPanel extends LitElement {
           .hasSelectedEntities=${hasSelection}
           .isCompatible=${isCompatible}
           .stripSegmentCount=${this._getT1StripSegmentCount()}
+          .deviceContext=${this._getDeviceContextForEditor('pattern')}
           @save=${this._handlePatternSave}
           @preview=${this._handlePatternPreview}
           @cancel=${this._handleEditorCancel}
@@ -1945,6 +1983,7 @@ export class AqaraPanel extends LitElement {
           .isCompatible=${isCompatible}
           .selectedEntities=${this._selectedEntities}
           .previewActive=${this._cctPreviewActive}
+          .deviceContext=${this._getDeviceContextForEditor('cct')}
           @save=${this._handleCCTSave}
           @preview=${this._handleCCTPreview}
           @stop-preview=${this._handleCCTStopPreview}
@@ -2038,6 +2077,7 @@ export class AqaraPanel extends LitElement {
           .isCompatible=${isCompatible}
           .previewActive=${this._segmentSequencePreviewActive}
           .stripSegmentCount=${this._getT1StripSegmentCount()}
+          .deviceContext=${this._getDeviceContextForEditor('segment')}
           @save=${this._handleSegmentSequenceSave}
           @preview=${this._handleSegmentSequencePreview}
           @stop-preview=${this._handleSegmentSequenceStopPreview}

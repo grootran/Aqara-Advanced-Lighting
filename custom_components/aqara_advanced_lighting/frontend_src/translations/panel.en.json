@@ -153,6 +153,7 @@
     "loop_count_label": "Loop count",
     "end_behavior_label": "End behavior",
     "device_type_label": "Device type",
+    "selected_device_type": "Selected device",
     "skip_first_step_label": "Skip first step in loop",
     "no_steps_message": "No steps defined. Click \"Add step\" to create your first step.",
     "segments_label": "Segments",

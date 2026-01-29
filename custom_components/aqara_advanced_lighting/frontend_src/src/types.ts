@@ -235,6 +235,12 @@ export interface UserPresetsData {
   segment_sequence_presets: UserSegmentSequencePreset[];
 }
 
+// Device context passed from Activate tab to editor tabs
+export interface DeviceContext {
+  deviceType: string | null;  // First compatible device type from selection
+  hasSelection: boolean;       // Whether any entities are selected
+}
+
 // Tab type for panel navigation
 export type PanelTab = 'activate' | 'effects' | 'patterns' | 'cct' | 'segments' | 'presets' | 'config';
 

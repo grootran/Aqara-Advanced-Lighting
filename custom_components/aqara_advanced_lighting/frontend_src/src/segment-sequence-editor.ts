@@ -1,6 +1,6 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { HomeAssistant, SegmentSequenceStep, XYColor, UserSegmentSequencePreset } from './types';
+import { HomeAssistant, SegmentSequenceStep, XYColor, UserSegmentSequencePreset, DeviceContext } from './types';
 import { xyToRgb, rgbToXy } from './color-utils';
 import { colorPickerStyles } from './styles';
 // Note: hs-color-picker import removed - now handled by segment-selector
@@ -58,6 +58,7 @@ export class SegmentSequenceEditor extends LitElement {
   @property({ type: Boolean }) public isCompatible = true;
   @property({ type: Boolean }) public previewActive = false;
   @property({ type: Number }) public stripSegmentCount = 10; // Default 2 meters (out-of-box T1 Strip length)
+  @property({ type: Object }) public deviceContext?: DeviceContext;
 
   @state() private _name = '';
   @state() private _icon = '';
@@ -70,6 +71,7 @@ export class SegmentSequenceEditor extends LitElement {
   @state() private _skipFirstInLoop = false;
   @state() private _saving = false;
   @state() private _previewing = false;
+  @state() private _hasUserInteraction = false;
 
   // Note: Color picker modal is now handled by segment-selector component
   // No need for local color picker state
@@ -360,8 +362,22 @@ export class SegmentSequenceEditor extends LitElement {
   protected updated(changedProps: PropertyValues): void {
     super.updated(changedProps);
 
-    if (changedProps.has('preset') && this.preset) {
-      this._loadPreset(this.preset);
+    if (changedProps.has('preset')) {
+      if (this.preset) {
+        this._hasUserInteraction = true;
+        this._loadPreset(this.preset);
+      } else {
+        this._hasUserInteraction = false;
+      }
+    }
+
+    // Auto-set device type from context when no user interaction has occurred
+    if (
+      changedProps.has('deviceContext') &&
+      !this._hasUserInteraction &&
+      this.deviceContext?.deviceType
+    ) {
+      this._deviceType = this.deviceContext.deviceType;
     }
   }
 
@@ -484,6 +500,7 @@ export class SegmentSequenceEditor extends LitElement {
 
   private _handleDeviceTypeChange(e: CustomEvent): void {
     this._deviceType = e.detail.value || 't1m';
+    this._hasUserInteraction = true;
   }
 
   private _handleLoopModeChange(e: CustomEvent): void {

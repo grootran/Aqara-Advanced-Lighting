@@ -1,6 +1,6 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { HomeAssistant, CCTSequenceStep, UserCCTSequencePreset } from './types';
+import { HomeAssistant, CCTSequenceStep, UserCCTSequencePreset, DeviceContext } from './types';
 
 interface EditableStep extends CCTSequenceStep {
   id: string;
@@ -16,6 +16,7 @@ export class CCTSequenceEditor extends LitElement {
   @property({ type: Boolean }) public isCompatible = true;
   @property({ type: Array }) public selectedEntities: string[] = [];
   @property({ type: Boolean }) public previewActive = false;
+  @property({ type: Object }) public deviceContext?: DeviceContext;
 
   @state() private _name = '';
   @state() private _icon = '';
@@ -39,6 +40,18 @@ export class CCTSequenceEditor extends LitElement {
       { value: 'maintain', label: this._localize('options.end_behavior_maintain') },
       { value: 'turn_off', label: this._localize('options.end_behavior_turn_off') },
     ];
+  }
+
+  private get _deviceTypeLabel(): string {
+    if (!this.deviceContext?.deviceType) return '';
+    const labels: Record<string, string> = {
+      t2_bulb: 'T2 Bulb',
+      t2_cct: 'T2 CCT',
+      t1m: 'T1M',
+      t1_strip: 'T1 Strip',
+      t1: 'T1',
+    };
+    return labels[this.deviceContext.deviceType] || this.deviceContext.deviceType;
   }
 
   static styles = css`
@@ -243,6 +256,24 @@ export class CCTSequenceEditor extends LitElement {
       .step-fields {
         grid-template-columns: 1fr;
       }
+    }
+
+    .device-context-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      background: var(--secondary-background-color);
+      border: 1px solid var(--divider-color);
+      border-radius: 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--secondary-text-color);
+      margin-bottom: 8px;
+    }
+
+    .device-context-badge ha-icon {
+      --mdc-icon-size: 16px;
     }
   `;
 
@@ -595,6 +626,12 @@ export class CCTSequenceEditor extends LitElement {
   protected render() {
     return html`
       <div class="editor-content">
+        ${this.deviceContext?.deviceType ? html`
+          <div class="device-context-badge">
+            <ha-icon icon="mdi:lightbulb-outline"></ha-icon>
+            <span>${this._localize('editors.selected_device_type')}: ${this._deviceTypeLabel}</span>
+          </div>
+        ` : ''}
         <div class="form-row-pair">
           <div class="form-field">
             <span class="form-label">${this._localize('editors.name_label')}</span>
