@@ -587,10 +587,12 @@ export const panelStyles = css`
     position: relative;
   }
 
-  .preset-icon img {
+  .preset-icon img,
+  .preset-icon svg {
     width: 100%;
     height: 100%;
     object-fit: contain;
+    border-radius: 50%;
   }
 
   .preset-icon ha-icon {
@@ -664,6 +666,12 @@ export const panelStyles = css`
     font-weight: var(--ha-font-weight-medium, 500);
     min-width: 120px;
     color: var(--secondary-text-color);
+  }
+
+  .form-hint {
+    font-size: var(--ha-font-size-s, 12px);
+    color: var(--secondary-text-color);
+    margin-top: -4px;
   }
 
   .form-input {

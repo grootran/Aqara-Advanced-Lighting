@@ -3,6 +3,12 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { ref, createRef, Ref } from 'lit/directives/ref.js';
 import { panelStyles } from './styles';
 import { xyToRgb } from './color-utils';
+import {
+  renderEffectThumbnail,
+  renderSegmentPatternThumbnail,
+  renderCCTSequenceThumbnail,
+  renderSegmentSequenceThumbnail,
+} from './preset-thumbnails';
 import { PANEL_TRANSLATIONS } from './panel-translations';
 import {
   HomeAssistant,
@@ -218,23 +224,10 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _loadFavorites(): Promise<void> {
-    if (!this.hass?.auth?.data?.access_token) {
-      console.warn('No auth token available, skipping favorites load');
-      return;
-    }
+    if (!this.hass) return;
 
     try {
-      const response = await fetch('/api/aqara_advanced_lighting/favorites', {
-        credentials: 'same-origin',
-        headers: {
-          Authorization: `Bearer ${this.hass.auth.data.access_token}`,
-        },
-      });
-      if (!response.ok) {
-        console.warn('Failed to load favorites:', response.status);
-        return;
-      }
-      const data = await response.json();
+      const data = await this.hass.callApi<{ favorites: Favorite[] }>('GET', 'aqara_advanced_lighting/favorites');
       this._favorites = data.favorites || [];
     } catch (err) {
       console.warn('Failed to load favorites:', err);
@@ -242,23 +235,10 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _loadUserPresets(): Promise<void> {
-    if (!this.hass?.auth?.data?.access_token) {
-      console.warn('No auth token available, skipping user presets load');
-      return;
-    }
+    if (!this.hass) return;
 
     try {
-      const response = await fetch('/api/aqara_advanced_lighting/user_presets', {
-        credentials: 'same-origin',
-        headers: {
-          Authorization: `Bearer ${this.hass.auth.data.access_token}`,
-        },
-      });
-      if (!response.ok) {
-        console.warn('Failed to load user presets:', response.status);
-        return;
-      }
-      this._userPresets = await response.json();
+      this._userPresets = await this.hass.callApi<UserPresetsData>('GET', 'aqara_advanced_lighting/user_presets');
     } catch (err) {
       console.warn('Failed to load user presets:', err);
     }
@@ -475,24 +455,10 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _saveUserPreset(type: string, data: Record<string, unknown>): Promise<void> {
-    if (!this.hass?.auth?.data?.access_token) {
-      console.error('No auth token available');
-      return;
-    }
+    if (!this.hass) return;
 
     try {
-      const response = await fetch('/api/aqara_advanced_lighting/user_presets', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.hass.auth.data.access_token}`,
-        },
-        body: JSON.stringify({ type, data }),
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP error ${response.status}`);
-      }
+      await this.hass.callApi('POST', 'aqara_advanced_lighting/user_presets', { type, data });
       await this._loadUserPresets();
     } catch (err) {
       console.error('Failed to save user preset:', err);
@@ -500,24 +466,10 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _updateUserPreset(type: string, id: string, data: Record<string, unknown>): Promise<void> {
-    if (!this.hass?.auth?.data?.access_token) {
-      console.error('No auth token available');
-      return;
-    }
+    if (!this.hass) return;
 
     try {
-      const response = await fetch(`/api/aqara_advanced_lighting/user_presets/${type}/${id}`, {
-        method: 'PUT',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.hass.auth.data.access_token}`,
-        },
-        body: JSON.stringify(data),
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP error ${response.status}`);
-      }
+      await this.hass.callApi('PUT', `aqara_advanced_lighting/user_presets/${type}/${id}`, data);
       await this._loadUserPresets();
     } catch (err) {
       console.error('Failed to update user preset:', err);
@@ -525,22 +477,10 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _deleteUserPreset(type: string, id: string): Promise<void> {
-    if (!this.hass?.auth?.data?.access_token) {
-      console.error('No auth token available');
-      return;
-    }
+    if (!this.hass) return;
 
     try {
-      const response = await fetch(`/api/aqara_advanced_lighting/user_presets/${type}/${id}`, {
-        method: 'DELETE',
-        credentials: 'same-origin',
-        headers: {
-          Authorization: `Bearer ${this.hass.auth.data.access_token}`,
-        },
-      });
-      if (!response.ok && response.status !== 204) {
-        throw new Error(`HTTP error ${response.status}`);
-      }
+      await this.hass.callApi('DELETE', `aqara_advanced_lighting/user_presets/${type}/${id}`);
       await this._loadUserPresets();
     } catch (err) {
       console.error('Failed to delete user preset:', err);
@@ -575,30 +515,16 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _saveFavorite(): Promise<void> {
-    if (!this._selectedEntities.length || !this.hass?.auth?.data?.access_token) {
+    if (!this._selectedEntities.length || !this.hass) {
       this._cancelFavoriteInput();
       return;
     }
 
     try {
-      const response = await fetch('/api/aqara_advanced_lighting/favorites', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.hass.auth.data.access_token}`,
-        },
-        body: JSON.stringify({
-          entities: this._selectedEntities,
-          name: this._favoriteInputName || undefined,
-        }),
+      const data = await this.hass.callApi<{ favorite: Favorite }>('POST', 'aqara_advanced_lighting/favorites', {
+        entities: this._selectedEntities,
+        name: this._favoriteInputName || undefined,
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error ${response.status}`);
-      }
-
-      const data = await response.json();
       this._favorites = [...this._favorites, data.favorite];
     } catch (err) {
       console.error('Failed to add favorite:', err);
@@ -627,24 +553,10 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _removeFavorite(favoriteId: string): Promise<void> {
-    if (!this.hass?.auth?.data?.access_token) {
-      console.error('No auth token available');
-      return;
-    }
+    if (!this.hass) return;
 
     try {
-      const response = await fetch(`/api/aqara_advanced_lighting/favorites/${favoriteId}`, {
-        method: 'DELETE',
-        credentials: 'same-origin',
-        headers: {
-          Authorization: `Bearer ${this.hass.auth.data.access_token}`,
-        },
-      });
-
-      if (!response.ok && response.status !== 204) {
-        throw new Error(`HTTP error ${response.status}`);
-      }
-
+      await this.hass.callApi('DELETE', `aqara_advanced_lighting/favorites/${favoriteId}`);
       this._favorites = this._favorites.filter((f) => f.id !== favoriteId);
     } catch (err) {
       console.error('Failed to remove favorite:', err);
@@ -2232,21 +2144,7 @@ export class AqaraPanel extends LitElement {
       const importData = JSON.parse(content);
 
       // Send to API
-      const response = await fetch('/api/aqara_advanced_lighting/presets/import', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${this.hass.auth.data.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(importData),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || response.statusText);
-      }
-
-      const result = await response.json();
+      const result = await this.hass.callApi<{ counts: Record<string, number> }>('POST', 'aqara_advanced_lighting/presets/import', importData);
       const totalCount = Object.values(result.counts).reduce(
         (sum: number, count) => sum + (count as number),
         0
@@ -2371,7 +2269,7 @@ export class AqaraPanel extends LitElement {
                                 </ha-icon-button>
                               </div>
                               <div class="preset-icon">
-                                <ha-icon icon="${preset.icon || 'mdi:lightbulb-on'}"></ha-icon>
+                                ${this._renderUserEffectIcon(preset)}
                               </div>
                               <div class="preset-name">${preset.name}</div>
                             </div>
@@ -2412,7 +2310,7 @@ export class AqaraPanel extends LitElement {
                                 </ha-icon-button>
                               </div>
                               <div class="preset-icon">
-                                <ha-icon icon="${preset.icon || 'mdi:palette'}"></ha-icon>
+                                ${this._renderUserPatternIcon(preset)}
                               </div>
                               <div class="preset-name">${preset.name}</div>
                             </div>
@@ -2453,7 +2351,7 @@ export class AqaraPanel extends LitElement {
                                 </ha-icon-button>
                               </div>
                               <div class="preset-icon">
-                                <ha-icon icon="${preset.icon || 'mdi:temperature-kelvin'}"></ha-icon>
+                                ${this._renderUserCCTIcon(preset)}
                               </div>
                               <div class="preset-name">${preset.name}</div>
                             </div>
@@ -2494,7 +2392,7 @@ export class AqaraPanel extends LitElement {
                                 </ha-icon-button>
                               </div>
                               <div class="preset-icon">
-                                <ha-icon icon="${preset.icon || 'mdi:animation-play'}"></ha-icon>
+                                ${this._renderUserSegmentSequenceIcon(preset)}
                               </div>
                               <div class="preset-name">${preset.name}</div>
                             </div>
@@ -2580,7 +2478,7 @@ export class AqaraPanel extends LitElement {
             (preset) => html`
               <div class="preset-button user-preset" @click=${() => this._activateUserEffectPreset(preset)}>
                 <div class="preset-icon">
-                  <ha-icon icon="${preset.icon || 'mdi:lightbulb-on'}"></ha-icon>
+                  ${this._renderUserEffectIcon(preset)}
                 </div>
                 <div class="preset-name">${preset.name}</div>
               </div>
@@ -2632,7 +2530,7 @@ export class AqaraPanel extends LitElement {
             (preset) => html`
               <div class="preset-button user-preset" @click=${() => this._activateUserPatternPreset(preset)}>
                 <div class="preset-icon">
-                  <ha-icon icon="${preset.icon || 'mdi:palette'}"></ha-icon>
+                  ${this._renderUserPatternIcon(preset)}
                 </div>
                 <div class="preset-name">${preset.name}</div>
               </div>
@@ -2667,6 +2565,42 @@ export class AqaraPanel extends LitElement {
     return html`<ha-icon icon="${icon}"></ha-icon>`;
   }
 
+  /** Render a user effect preset icon: thumbnail from colors, or MDI fallback. */
+  private _renderUserEffectIcon(preset: UserEffectPreset) {
+    if (preset.icon) {
+      return this._renderPresetIcon(preset.icon, 'mdi:lightbulb-on');
+    }
+    return renderEffectThumbnail(preset)
+      ?? html`<ha-icon icon="mdi:lightbulb-on"></ha-icon>`;
+  }
+
+  /** Render a user segment pattern preset icon: pie thumbnail or MDI fallback. */
+  private _renderUserPatternIcon(preset: UserSegmentPatternPreset) {
+    if (preset.icon) {
+      return this._renderPresetIcon(preset.icon, 'mdi:palette');
+    }
+    return renderSegmentPatternThumbnail(preset)
+      ?? html`<ha-icon icon="mdi:palette"></ha-icon>`;
+  }
+
+  /** Render a user CCT sequence preset icon: gradient thumbnail or MDI fallback. */
+  private _renderUserCCTIcon(preset: UserCCTSequencePreset) {
+    if (preset.icon) {
+      return this._renderPresetIcon(preset.icon, 'mdi:temperature-kelvin');
+    }
+    return renderCCTSequenceThumbnail(preset)
+      ?? html`<ha-icon icon="mdi:temperature-kelvin"></ha-icon>`;
+  }
+
+  /** Render a user segment sequence preset icon: ring thumbnail or MDI fallback. */
+  private _renderUserSegmentSequenceIcon(preset: UserSegmentSequencePreset) {
+    if (preset.icon) {
+      return this._renderPresetIcon(preset.icon, 'mdi:animation-play');
+    }
+    return renderSegmentSequenceThumbnail(preset)
+      ?? html`<ha-icon icon="mdi:animation-play"></ha-icon>`;
+  }
+
   private _renderCCTSequencesSection() {
     const sectionId = 'cct_sequences';
     const isExpanded = !this._collapsed[sectionId];
@@ -2698,7 +2632,7 @@ export class AqaraPanel extends LitElement {
             (preset) => html`
               <div class="preset-button user-preset" @click=${() => this._activateUserCCTSequencePreset(preset)}>
                 <div class="preset-icon">
-                  <ha-icon icon="${preset.icon || 'mdi:temperature-kelvin'}"></ha-icon>
+                  ${this._renderUserCCTIcon(preset)}
                 </div>
                 <div class="preset-name">${preset.name}</div>
               </div>
@@ -2750,7 +2684,7 @@ export class AqaraPanel extends LitElement {
             (preset) => html`
               <div class="preset-button user-preset" @click=${() => this._activateUserSegmentSequencePreset(preset)}>
                 <div class="preset-icon">
-                  <ha-icon icon="${preset.icon || 'mdi:animation-play'}"></ha-icon>
+                  ${this._renderUserSegmentSequenceIcon(preset)}
                 </div>
                 <div class="preset-name">${preset.name}</div>
               </div>
