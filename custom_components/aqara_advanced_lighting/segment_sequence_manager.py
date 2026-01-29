@@ -1260,13 +1260,8 @@ class SegmentSequenceManager:
                 return 0
 
             # Get device from registry
-            device = next(
-                (
-                    d
-                    for d in self.mqtt_client.entry.runtime_data.devices.values()
-                    if d.friendly_name == z2m_name
-                ),
-                None,
+            device = self.mqtt_client.entry.runtime_data.devices_by_name.get(
+                z2m_name
             )
             if not device:
                 _LOGGER.debug("Z2M device %s not found in registry", z2m_name)

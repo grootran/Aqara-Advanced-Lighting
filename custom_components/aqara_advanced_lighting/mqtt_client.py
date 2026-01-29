@@ -158,8 +158,9 @@ class MQTTClient:
                     manufacturer=manufacturer or "Unknown",
                 )
 
-                # Store in runtime data
+                # Store in runtime data (keyed by IEEE and by friendly name)
                 self.entry.runtime_data.devices[ieee_address] = z2m_device
+                self.entry.runtime_data.devices_by_name[friendly_name] = z2m_device
                 _LOGGER.debug(
                     "Stored supported Aqara device %s (model: %s)",
                     friendly_name,
@@ -373,12 +374,7 @@ class MQTTClient:
             return False, "not_mapped_to_z2m"
 
         # Find the device by friendly name
-        device = None
-        for z2m_device in self.entry.runtime_data.devices.values():
-            if z2m_device.friendly_name == z2m_name:
-                device = z2m_device
-                break
-
+        device = self.entry.runtime_data.devices_by_name.get(z2m_name)
         if not device:
             return False, "z2m_device_not_found"
 

@@ -1114,13 +1114,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 continue
 
             # Get device model from the correct instance's Z2M device registry
-            device = next(
-                (
-                    d
-                    for d in entity_mqtt_client.entry.runtime_data.devices.values()
-                    if d.friendly_name == z2m_name
-                ),
-                None,
+            device = entity_mqtt_client.entry.runtime_data.devices_by_name.get(
+                z2m_name
             )
             if not device:
                 _LOGGER.warning(
@@ -1475,13 +1470,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 continue
 
             # Get device and check if it supports segment addressing
-            device = next(
-                (
-                    d
-                    for d in entity_mqtt_client.entry.runtime_data.devices.values()
-                    if d.friendly_name == z2m_name
-                ),
-                None,
+            device = entity_mqtt_client.entry.runtime_data.devices_by_name.get(
+                z2m_name
             )
             if not device:
                 _LOGGER.warning(
@@ -1706,13 +1696,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 continue
 
             # Get device capabilities
-            device = next(
-                (
-                    d
-                    for d in entity_mqtt_client.entry.runtime_data.devices.values()
-                    if d.friendly_name == z2m_name
-                ),
-                None,
+            device = entity_mqtt_client.entry.runtime_data.devices_by_name.get(
+                z2m_name
             )
             if not device:
                 _LOGGER.warning(
@@ -1879,13 +1864,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 continue
 
             # Get device capabilities
-            device = next(
-                (
-                    d
-                    for d in entity_mqtt_client.entry.runtime_data.devices.values()
-                    if d.friendly_name == z2m_name
-                ),
-                None,
+            device = entity_mqtt_client.entry.runtime_data.devices_by_name.get(
+                z2m_name
             )
             if not device:
                 _LOGGER.warning(
@@ -2569,13 +2549,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 continue
 
             # Get device and check if it supports segment addressing
-            device = next(
-                (
-                    d
-                    for d in entity_mqtt_client.entry.runtime_data.devices.values()
-                    if d.friendly_name == z2m_name
-                ),
-                None,
+            device = entity_mqtt_client.entry.runtime_data.devices_by_name.get(
+                z2m_name
             )
             if not device:
                 _LOGGER.warning(
