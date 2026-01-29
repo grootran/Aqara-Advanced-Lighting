@@ -230,6 +230,8 @@ EVENT_SEQUENCE_STARTED: Final = f"{DOMAIN}_sequence_started"
 EVENT_SEQUENCE_COMPLETED: Final = f"{DOMAIN}_sequence_completed"
 EVENT_SEQUENCE_STOPPED: Final = f"{DOMAIN}_sequence_stopped"
 EVENT_STEP_CHANGED: Final = f"{DOMAIN}_step_changed"
+EVENT_SEQUENCE_PAUSED: Final = f"{DOMAIN}_sequence_paused"
+EVENT_SEQUENCE_RESUMED: Final = f"{DOMAIN}_sequence_resumed"
 EVENT_EFFECT_ACTIVATED: Final = f"{DOMAIN}_effect_activated"
 EVENT_EFFECT_STOPPED: Final = f"{DOMAIN}_effect_stopped"
 
@@ -242,6 +244,60 @@ EVENT_ATTR_LOOP_ITERATION: Final = "loop_iteration"
 EVENT_ATTR_EFFECT_TYPE: Final = "effect_type"
 EVENT_ATTR_PRESET: Final = "preset"
 EVENT_ATTR_REASON: Final = "reason"
+EVENT_ATTR_SEQUENCE_TYPE: Final = "sequence_type"
+
+# Sequence type values (used in event data to distinguish CCT from segment sequences)
+SEQUENCE_TYPE_CCT: Final = "cct"
+SEQUENCE_TYPE_SEGMENT: Final = "segment"
+
+# Device trigger types for HA automation UI
+TRIGGER_TYPE_CCT_SEQUENCE_STARTED: Final = "cct_sequence_started"
+TRIGGER_TYPE_CCT_SEQUENCE_COMPLETED: Final = "cct_sequence_completed"
+TRIGGER_TYPE_CCT_SEQUENCE_STOPPED: Final = "cct_sequence_stopped"
+TRIGGER_TYPE_CCT_SEQUENCE_STEP_CHANGED: Final = "cct_sequence_step_changed"
+TRIGGER_TYPE_SEGMENT_SEQUENCE_STARTED: Final = "segment_sequence_started"
+TRIGGER_TYPE_SEGMENT_SEQUENCE_COMPLETED: Final = "segment_sequence_completed"
+TRIGGER_TYPE_SEGMENT_SEQUENCE_STOPPED: Final = "segment_sequence_stopped"
+TRIGGER_TYPE_SEGMENT_SEQUENCE_STEP_CHANGED: Final = "segment_sequence_step_changed"
+TRIGGER_TYPE_CCT_SEQUENCE_PAUSED: Final = "cct_sequence_paused"
+TRIGGER_TYPE_CCT_SEQUENCE_RESUMED: Final = "cct_sequence_resumed"
+TRIGGER_TYPE_SEGMENT_SEQUENCE_PAUSED: Final = "segment_sequence_paused"
+TRIGGER_TYPE_SEGMENT_SEQUENCE_RESUMED: Final = "segment_sequence_resumed"
+TRIGGER_TYPE_EFFECT_ACTIVATED: Final = "effect_activated"
+TRIGGER_TYPE_EFFECT_STOPPED: Final = "effect_stopped"
+
+# All device trigger types
+TRIGGER_TYPES: Final = {
+    TRIGGER_TYPE_CCT_SEQUENCE_STARTED,
+    TRIGGER_TYPE_CCT_SEQUENCE_COMPLETED,
+    TRIGGER_TYPE_CCT_SEQUENCE_STOPPED,
+    TRIGGER_TYPE_CCT_SEQUENCE_STEP_CHANGED,
+    TRIGGER_TYPE_CCT_SEQUENCE_PAUSED,
+    TRIGGER_TYPE_CCT_SEQUENCE_RESUMED,
+    TRIGGER_TYPE_SEGMENT_SEQUENCE_STARTED,
+    TRIGGER_TYPE_SEGMENT_SEQUENCE_COMPLETED,
+    TRIGGER_TYPE_SEGMENT_SEQUENCE_STOPPED,
+    TRIGGER_TYPE_SEGMENT_SEQUENCE_STEP_CHANGED,
+    TRIGGER_TYPE_SEGMENT_SEQUENCE_PAUSED,
+    TRIGGER_TYPE_SEGMENT_SEQUENCE_RESUMED,
+    TRIGGER_TYPE_EFFECT_ACTIVATED,
+    TRIGGER_TYPE_EFFECT_STOPPED,
+}
+
+# Friendly model names for device registry display
+MODEL_FRIENDLY_NAMES: Final = {
+    MODEL_T1M_20_SEGMENT: "T1M ceiling light (20 segments)",
+    MODEL_T1M_26_SEGMENT: "T1M ceiling light (26 segments)",
+    MODEL_T1_STRIP: "T1 LED strip",
+    MODEL_T2_BULB_E26: "T2 color bulb (E26)",
+    MODEL_T2_BULB_E27: "T2 color bulb (E27)",
+    MODEL_T2_BULB_GU10_230V: "T2 color bulb (GU10 230V)",
+    MODEL_T2_BULB_GU10_110V: "T2 color bulb (GU10 110V)",
+    MODEL_T2_CCT_E26: "T2 CCT bulb (E26)",
+    MODEL_T2_CCT_E27: "T2 CCT bulb (E27)",
+    MODEL_T2_CCT_GU10_230V: "T2 CCT bulb (GU10 230V)",
+    MODEL_T2_CCT_GU10_110V: "T2 CCT bulb (GU10 110V)",
+}
 
 # Effect presets from Aqara app
 # T2 Bulb presets

@@ -11,11 +11,12 @@ from homeassistant.components import mqtt
 from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
 from homeassistant.const import CONF_MODEL
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from .const import (
     DOMAIN,
     MIN_TRANSITION_STEPS,
+    MODEL_FRIENDLY_NAMES,
     MODEL_T1M_20_SEGMENT,
     MODEL_T1M_26_SEGMENT,
     MODEL_T1_STRIP,
@@ -163,6 +164,17 @@ class MQTTClient:
                     "Stored supported Aqara device %s (model: %s)",
                     friendly_name,
                     model_id,
+                )
+
+                # Register device in HA device registry
+                device_registry = dr.async_get(self.hass)
+                device_registry.async_get_or_create(
+                    config_entry_id=self.entry.entry_id,
+                    identifiers={(DOMAIN, ieee_address)},
+                    name=friendly_name,
+                    manufacturer=manufacturer or "Aqara",
+                    model=MODEL_FRIENDLY_NAMES.get(model_id, model_id),
+                    model_id=model_id,
                 )
 
             # Update entity to Z2M mapping
