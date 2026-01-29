@@ -219,6 +219,12 @@ export class EffectEditor extends LitElement {
         margin-bottom: 4px;
       }
     }
+
+    .form-hint {
+      font-size: var(--ha-font-size-s, 12px);
+      color: var(--secondary-text-color);
+      margin-top: -4px;
+    }
   `];
 
   protected updated(changedProps: PropertyValues): void {
@@ -470,6 +476,7 @@ export class EffectEditor extends LitElement {
               .value=${this._icon}
               @value-changed=${this._handleIconChange}
             ></ha-selector>
+            ${!this._icon ? html`<span class="form-hint">${this._localize('editors.icon_auto_hint')}</span>` : ''}
           </div>
           <div class="form-field">
             <span class="form-label">${this._localize('editors.device_type_label')}</span>

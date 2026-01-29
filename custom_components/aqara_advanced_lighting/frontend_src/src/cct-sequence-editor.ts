@@ -275,6 +275,12 @@ export class CCTSequenceEditor extends LitElement {
     .device-context-badge ha-icon {
       --mdc-icon-size: 16px;
     }
+
+    .form-hint {
+      font-size: var(--ha-font-size-s, 12px);
+      color: var(--secondary-text-color);
+      margin-top: -4px;
+    }
   `;
 
   connectedCallback(): void {
@@ -650,6 +656,7 @@ export class CCTSequenceEditor extends LitElement {
               .value=${this._icon}
               @value-changed=${this._handleIconChange}
             ></ha-selector>
+            ${!this._icon ? html`<span class="form-hint">${this._localize('editors.icon_auto_hint')}</span>` : ''}
           </div>
         </div>
 
