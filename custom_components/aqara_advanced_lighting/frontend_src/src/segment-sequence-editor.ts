@@ -433,14 +433,17 @@ export class SegmentSequenceEditor extends LitElement {
       }
 
       // Populate coloredSegments from preset data (similar to pattern-editor)
+      // Skip black (0,0,0) entries -- these represent "off/unspecified" segments
+      // that were added during save to turn off segments on the hardware.
+      // rgbToXy(0,0,0) returns the D65 white point, so loading them would
+      // incorrectly show those segments as white in the editor.
       const coloredSegments = new Map<number, XYColor>();
       if (step.segment_colors && Array.isArray(step.segment_colors)) {
-        // New format: use segment_colors array
         for (const entry of step.segment_colors) {
-          // Convert from 1-based backend indexing to 0-based internal indexing
           const segNum = typeof entry.segment === 'number' ? entry.segment : parseInt(entry.segment, 10);
           const color = entry.color;
           if ('r' in color && 'g' in color && 'b' in color) {
+            if (color.r === 0 && color.g === 0 && color.b === 0) continue;
             coloredSegments.set(segNum - 1, rgbToXy(color.r, color.g, color.b));
           }
         }
@@ -612,7 +615,7 @@ export class SegmentSequenceEditor extends LitElement {
     const newStep: EditableStep = {
       id: this._generateStepId(),
       segments: previousStep?.segments || 'all',  // Copy segments from previous step
-      colors: previousStep?.colors.map((c) => [...c]) || [[255, 0, 0]],  // Deep copy colors array
+      colors: previousStep?.colors?.map((c) => Array.isArray(c) ? [...c] : c) || [[255, 0, 0]],
       mode: previousStep?.mode || 'blocks_expand',
       duration: 15,
       hold: 60,
@@ -664,7 +667,7 @@ export class SegmentSequenceEditor extends LitElement {
     const newStep: EditableStep = {
       ...step,
       id: this._generateStepId(),
-      colors: step.colors.map((c) => [...c]),
+      colors: step.colors?.map((c) => Array.isArray(c) ? [...c] : c) || [[255, 0, 0]],
       // Deep copy Map and arrays for new step
       coloredSegments: new Map(step.coloredSegments),
       colorPalette: step.colorPalette.map((c) => ({ ...c })),
