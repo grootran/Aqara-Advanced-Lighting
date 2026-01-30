@@ -592,7 +592,7 @@ export class CCTSequenceEditor extends LitElement {
               .selector=${{
                 number: {
                   min: 0,
-                  max: 3600,
+                  max: 43200,
                   step: 1,
                   mode: 'box',
                   unit_of_measurement: 's',

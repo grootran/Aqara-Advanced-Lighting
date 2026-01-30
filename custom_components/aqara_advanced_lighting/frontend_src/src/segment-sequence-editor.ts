@@ -849,6 +849,7 @@ export class SegmentSequenceEditor extends LitElement {
             .gradientInterpolation=${step.gradientInterpolation}
             .gradientWave=${step.gradientWave}
             .gradientWaveCycles=${step.gradientWaveCycles}
+            .initialPatternMode=${step.patternMode}
             .label=${this._localize('editors.segment_grid_label')}
             .translations=${this.translations}
             @color-value-changed=${(e: CustomEvent) => this._handleStepColorValueChange(step.id, e)}
@@ -896,7 +897,7 @@ export class SegmentSequenceEditor extends LitElement {
               .selector=${{
                 number: {
                   min: 0,
-                  max: 3600,
+                  max: 43200,
                   step: 1,
                   mode: 'box',
                   unit_of_measurement: 's',
