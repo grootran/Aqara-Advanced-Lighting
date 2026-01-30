@@ -143,6 +143,7 @@ from .segment_utils import (
     generate_block_colors,
     generate_gradient_colors,
     parse_segment_range,
+    scale_segment_pattern,
 )
 from .state_manager import StateManager
 
@@ -991,7 +992,12 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 if brightness_percent is not None:
                     brightness = brightness_percent_to_device(brightness_percent)
                 else:
-                    brightness = user_preset.get("effect_brightness")
+                    preset_brightness = user_preset.get("effect_brightness")
+                    brightness = (
+                        brightness_percent_to_device(preset_brightness)
+                        if preset_brightness is not None
+                        else None
+                    )
 
                 # User presets may specify segments
                 if user_preset.get("effect_segments"):
@@ -1551,10 +1557,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 )
             elif preset_data:
                 preset_segments = preset_data["segments"]
-                # Build segment_colors_data from preset
+                # Scale preset to device segment count (nearest-neighbor resampling)
+                scaled_segments = scale_segment_pattern(preset_segments, max_segments)
                 segment_colors_data = [
                     {"segment": i + 1, "color": {"r": color[0], "g": color[1], "b": color[2]}}
-                    for i, color in enumerate(preset_segments[:max_segments])
+                    for i, color in enumerate(scaled_segments)
                 ]
             elif segment_colors_data_input:
                 segment_colors_data = segment_colors_data_input
@@ -2005,8 +2012,19 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             if user_preset:
                 # Validate required preset fields
                 try:
+                    # Convert step brightness from percentage (1-100) to device
+                    # value (1-255) since user presets store percentages
+                    converted_steps = [
+                        {
+                            **step,
+                            "brightness": brightness_percent_to_device(
+                                step["brightness"]
+                            ),
+                        }
+                        for step in user_preset["steps"]
+                    ]
                     preset_data = {
-                        "steps": user_preset["steps"],
+                        "steps": converted_steps,
                         "loop_mode": user_preset["loop_mode"],
                         "loop_count": user_preset.get("loop_count"),
                         "end_behavior": user_preset["end_behavior"],
