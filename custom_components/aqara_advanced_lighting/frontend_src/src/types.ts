@@ -247,12 +247,7 @@ export type PanelTab = 'activate' | 'effects' | 'patterns' | 'cct' | 'segments' 
 // Sort options for presets
 export type PresetSortOption = 'name-asc' | 'name-desc' | 'date-new' | 'date-old';
 
-export interface PresetSortPreferences {
-  effects: PresetSortOption;
-  patterns: PresetSortOption;
-  cct: PresetSortOption;
-  segments: PresetSortOption;
-}
+export type PresetSortPreferences = Record<string, PresetSortOption>;
 
 export const SUPPORTED_MODELS = {
   T2_BULB: [

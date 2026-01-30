@@ -58,12 +58,7 @@ export class AqaraPanel extends LitElement {
   @state() private _effectPreviewActive = false;
   @state() private _cctPreviewActive = false;
   @state() private _segmentSequencePreviewActive = false;
-  @state() private _sortPreferences: PresetSortPreferences = {
-    effects: 'name-asc',
-    patterns: 'name-asc',
-    cct: 'name-asc',
-    segments: 'name-asc',
-  };
+  @state() private _sortPreferences: PresetSortPreferences = {};
   @state() private _backendVersion?: string;
   @state() private _frontendVersion = '__FRONTEND_VERSION__';
   @state() private _supportedEntities: Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; is_group?: boolean; member_count?: number }> = new Map();
@@ -249,16 +244,15 @@ export class AqaraPanel extends LitElement {
       const stored = localStorage.getItem('aqara_lighting_sort_preferences');
       if (stored) {
         const parsed = JSON.parse(stored) as PresetSortPreferences;
-        this._sortPreferences = {
-          effects: parsed.effects || 'name-asc',
-          patterns: parsed.patterns || 'name-asc',
-          cct: parsed.cct || 'name-asc',
-          segments: parsed.segments || 'name-asc',
-        };
+        this._sortPreferences = { ...parsed };
       }
     } catch (err) {
       console.warn('Failed to load sort preferences:', err);
     }
+  }
+
+  private _getSortPreference(sectionId: string): PresetSortOption {
+    return this._sortPreferences[sectionId] || 'name-asc';
   }
 
   private async _loadBackendVersion(): Promise<void> {
@@ -321,10 +315,10 @@ export class AqaraPanel extends LitElement {
     }
   }
 
-  private _setSortPreference(category: keyof PresetSortPreferences, value: PresetSortOption): void {
+  private _setSortPreference(sectionId: string, value: PresetSortOption): void {
     this._sortPreferences = {
       ...this._sortPreferences,
-      [category]: value,
+      [sectionId]: value,
     };
     this._saveSortPreferences();
   }
@@ -452,6 +446,38 @@ export class AqaraPanel extends LitElement {
       default:
         return sorted.sort((a, b) => a.name.localeCompare(b.name));
     }
+  }
+
+  // Device type labels for My Presets sub-categories
+  // Order defines display order of sub-categories
+  private static readonly PRESET_DEVICE_TYPES: Array<{ key: string; label: string }> = [
+    { key: 't2_bulb', label: 'T2 Bulb' },
+    { key: 't1', label: 'T1 (20 segments)' },
+    { key: 't1m', label: 'T1M (26 segments)' },
+    { key: 't1_strip', label: 'T1 Strip' },
+  ];
+
+  /**
+   * Group presets by device_type for sub-category rendering.
+   * Returns ungrouped presets (no device_type) and a map of device_type to presets.
+   */
+  private _groupPresetsByDeviceType<T extends { device_type?: string }>(
+    presets: T[],
+  ): { ungrouped: T[]; grouped: Map<string, T[]> } {
+    const ungrouped: T[] = [];
+    const grouped = new Map<string, T[]>();
+
+    for (const preset of presets) {
+      if (!preset.device_type) {
+        ungrouped.push(preset);
+      } else {
+        const list = grouped.get(preset.device_type) || [];
+        list.push(preset);
+        grouped.set(preset.device_type, list);
+      }
+    }
+
+    return { ungrouped, grouped };
   }
 
   private async _saveUserPreset(type: string, data: Record<string, unknown>): Promise<void> {
@@ -1152,21 +1178,17 @@ export class AqaraPanel extends LitElement {
     });
   }
 
-  private _getFilteredUserPatternPresets(): UserSegmentPatternPreset[] {
+  private _getUserPatternPresetsForDeviceType(deviceType: string): UserSegmentPatternPreset[] {
     if (!this._userPresets?.segment_pattern_presets) return [];
-    const deviceTypes = this._getSelectedDeviceTypes();
-    if (deviceTypes.length === 0) return [];
-
-    // Patterns only apply to T1, T1M, and T1 Strip
-    const hasSegmentDevice = deviceTypes.includes('t1m') || deviceTypes.includes('t1_strip');
-    if (!hasSegmentDevice) return [];
 
     return this._userPresets.segment_pattern_presets.filter((preset) => {
+      // If preset has no device_type, show in all sections
       if (!preset.device_type) return true;
-      if (preset.device_type === 't1' || preset.device_type === 't1m') {
-        return deviceTypes.includes('t1m');
+      // Match t1 and t1m presets
+      if (deviceType === 't1m' && (preset.device_type === 't1' || preset.device_type === 't1m')) {
+        return true;
       }
-      return deviceTypes.includes(preset.device_type);
+      return preset.device_type === deviceType;
     });
   }
 
@@ -1177,21 +1199,17 @@ export class AqaraPanel extends LitElement {
     return deviceTypes.length > 0 ? this._userPresets.cct_sequence_presets : [];
   }
 
-  private _getFilteredUserSegmentSequencePresets(): UserSegmentSequencePreset[] {
+  private _getUserSegmentSequencePresetsForDeviceType(deviceType: string): UserSegmentSequencePreset[] {
     if (!this._userPresets?.segment_sequence_presets) return [];
-    const deviceTypes = this._getSelectedDeviceTypes();
-    if (deviceTypes.length === 0) return [];
-
-    // Segment sequences only apply to T1, T1M, and T1 Strip
-    const hasSegmentDevice = deviceTypes.includes('t1m') || deviceTypes.includes('t1_strip');
-    if (!hasSegmentDevice) return [];
 
     return this._userPresets.segment_sequence_presets.filter((preset) => {
+      // If preset has no device_type, show in all sections
       if (!preset.device_type) return true;
-      if (preset.device_type === 't1' || preset.device_type === 't1m') {
-        return deviceTypes.includes('t1m');
+      // Match t1 and t1m presets
+      if (deviceType === 't1m' && (preset.device_type === 't1' || preset.device_type === 't1m')) {
+        return true;
       }
-      return deviceTypes.includes(preset.device_type);
+      return preset.device_type === deviceType;
     });
   }
 
@@ -1725,16 +1743,30 @@ export class AqaraPanel extends LitElement {
           `
         : ''}
 
-      ${filtered.showSegmentPatterns && ((this._presets?.segment_patterns?.length ?? 0) > 0 || this._getFilteredUserPatternPresets().length > 0) && !this._hasIncompatibleLights
-        ? this._renderSegmentPatternsSection()
+      ${filtered.showSegmentPatterns && !this._hasIncompatibleLights
+        ? html`
+            ${filtered.hasT1M && ((this._presets?.segment_patterns?.length ?? 0) > 0 || this._getUserPatternPresetsForDeviceType('t1m').length > 0)
+              ? this._renderSegmentPatternsSection('T1M', this._presets?.segment_patterns || [], 't1m')
+              : ''}
+            ${filtered.hasT1Strip && ((this._presets?.segment_patterns?.length ?? 0) > 0 || this._getUserPatternPresetsForDeviceType('t1_strip').length > 0)
+              ? this._renderSegmentPatternsSection('T1 Strip', this._presets?.segment_patterns || [], 't1_strip')
+              : ''}
+          `
         : ''}
 
       ${filtered.showCCTSequences && ((this._presets?.cct_sequences?.length ?? 0) > 0 || this._getFilteredUserCCTSequencePresets().length > 0) && !this._hasIncompatibleLights
         ? this._renderCCTSequencesSection()
         : ''}
 
-      ${filtered.showSegmentSequences && ((this._presets?.segment_sequences?.length ?? 0) > 0 || this._getFilteredUserSegmentSequencePresets().length > 0) && !this._hasIncompatibleLights
-        ? this._renderSegmentSequencesSection()
+      ${filtered.showSegmentSequences && !this._hasIncompatibleLights
+        ? html`
+            ${filtered.hasT1M && ((this._presets?.segment_sequences?.length ?? 0) > 0 || this._getUserSegmentSequencePresetsForDeviceType('t1m').length > 0)
+              ? this._renderSegmentSequencesSection('T1M', this._presets?.segment_sequences || [], 't1m')
+              : ''}
+            ${filtered.hasT1Strip && ((this._presets?.segment_sequences?.length ?? 0) > 0 || this._getUserSegmentSequencePresetsForDeviceType('t1_strip').length > 0)
+              ? this._renderSegmentSequencesSection('T1 Strip', this._presets?.segment_sequences || [], 't1_strip')
+              : ''}
+          `
         : ''}
     `;
   }
@@ -2247,217 +2279,220 @@ export class AqaraPanel extends LitElement {
     const totalCount = effectPresets.length + patternPresets.length + cctPresets.length + segmentPresets.length;
     const hasSelection = this._selectedEntities.length > 0;
 
-    // Apply sorting
-    const sortedEffects = this._sortUserEffectPresets(effectPresets, this._sortPreferences.effects);
-    const sortedPatterns = this._sortUserPatternPresets(patternPresets, this._sortPreferences.patterns);
-    const sortedCCT = this._sortUserCCTSequencePresets(cctPresets, this._sortPreferences.cct);
-    const sortedSegments = this._sortUserSegmentSequencePresets(segmentPresets, this._sortPreferences.segments);
+    const myPresetsSectionId = 'my_presets_overview';
+    const myPresetsExpanded = !this._collapsed[myPresetsSectionId];
 
     return html`
-      <ha-card class="editor-form">
-        <h2>${this._localize('tabs.presets')}</h2>
-        <p class="editor-description">
-          ${this._localize('presets.manage_description')} ${hasSelection ? this._localize('presets.manage_description_with_selection') : 'Select lights in the Activate tab to enable activation.'}
-        </p>
-
-        <div class="toolbar-actions">
-          <mwc-button
-            raised
-            @click=${this._handleExportPresets}
-            .disabled=${this._isExporting || this._isImporting}
-          >
-            <ha-icon icon="mdi:download" slot="icon"></ha-icon>
-            ${this._isExporting
-              ? this._localize('presets.export_progress')
-              : this._localize('presets.export_button')}
-          </mwc-button>
-
-          <mwc-button
-            raised
-            @click=${this._handleImportClick}
-            .disabled=${this._isExporting || this._isImporting}
-          >
-            <ha-icon icon="mdi:upload" slot="icon"></ha-icon>
-            ${this._isImporting
-              ? this._localize('presets.import_progress')
-              : this._localize('presets.import_button')}
-          </mwc-button>
+      <ha-expansion-panel
+        outlined
+        .expanded=${myPresetsExpanded}
+        @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange(myPresetsSectionId, e)}
+      >
+        <div slot="header" class="section-header">
+          <div>
+            <div class="section-title">${this._localize('tabs.presets')}</div>
+            <div class="section-subtitle">
+              ${totalCount} presets${hasSelection ? '' : ' - select lights in the Activate tab to enable activation'}
+            </div>
+          </div>
         </div>
+        <div class="section-content preset-management-content">
+          <div class="toolbar-actions">
+            <mwc-button
+              raised
+              @click=${this._handleExportPresets}
+              .disabled=${this._isExporting || this._isImporting}
+            >
+              <ha-icon icon="mdi:download" slot="icon"></ha-icon>
+              ${this._isExporting
+                ? this._localize('presets.export_progress')
+                : this._localize('presets.export_button')}
+            </mwc-button>
 
-        ${totalCount === 0
-          ? html`
-              <div class="no-presets">
-                <ha-icon icon="mdi:folder-open-outline"></ha-icon>
-                <p>${this._localize('presets.no_presets_title')}</p>
-                <p>${this._localize('presets.no_presets_description')}</p>
-              </div>
-            `
-          : html`
-              ${effectPresets.length > 0
-                ? html`
-                    <div class="preset-category">
-                      <div class="preset-category-header">
-                        <h3>Effect Presets (${effectPresets.length})</h3>
-                        ${this._renderSortDropdown('effects')}
-                      </div>
-                      <div class="preset-grid">
-                        ${sortedEffects.map(
-                          (preset) => html`
-                            <div
-                              class="user-preset-card ${hasSelection ? '' : 'disabled'}"
-                              @click=${hasSelection ? () => this._activateUserEffectPreset(preset) : null}
-                              title="${preset.name}"
-                            >
-                              <div class="preset-card-actions">
-                                <ha-icon-button
-                                  @click=${(e: Event) => { e.stopPropagation(); this._editEffectPreset(preset); }}
-                                  title="${this._localize('tooltips.preset_edit')}"
-                                >
-                                  <ha-icon icon="mdi:pencil"></ha-icon>
-                                </ha-icon-button>
-                                <ha-icon-button
-                                  @click=${(e: Event) => { e.stopPropagation(); this._deleteUserPreset('effect', preset.id); }}
-                                  title="${this._localize('tooltips.preset_delete')}"
-                                >
-                                  <ha-icon icon="mdi:delete"></ha-icon>
-                                </ha-icon-button>
-                              </div>
-                              <div class="preset-icon">
-                                ${this._renderUserEffectIcon(preset)}
-                              </div>
-                              <div class="preset-name">${preset.name}</div>
-                            </div>
-                          `
-                        )}
-                      </div>
-                    </div>
-                  `
-                : ''}
+            <mwc-button
+              raised
+              @click=${this._handleImportClick}
+              .disabled=${this._isExporting || this._isImporting}
+            >
+              <ha-icon icon="mdi:upload" slot="icon"></ha-icon>
+              ${this._isImporting
+                ? this._localize('presets.import_progress')
+                : this._localize('presets.import_button')}
+            </mwc-button>
+          </div>
+        </div>
+      </ha-expansion-panel>
 
-              ${patternPresets.length > 0
-                ? html`
-                    <div class="preset-category">
-                      <div class="preset-category-header">
-                        <h3>Segment Pattern Presets (${patternPresets.length})</h3>
-                        ${this._renderSortDropdown('patterns')}
-                      </div>
-                      <div class="preset-grid">
-                        ${sortedPatterns.map(
-                          (preset) => html`
-                            <div
-                              class="user-preset-card ${hasSelection ? '' : 'disabled'}"
-                              @click=${hasSelection ? () => this._activateUserPatternPreset(preset) : null}
-                              title="${preset.name}"
-                            >
-                              <div class="preset-card-actions">
-                                <ha-icon-button
-                                  @click=${(e: Event) => { e.stopPropagation(); this._editPatternPreset(preset); }}
-                                  title="${this._localize('tooltips.preset_edit')}"
-                                >
-                                  <ha-icon icon="mdi:pencil"></ha-icon>
-                                </ha-icon-button>
-                                <ha-icon-button
-                                  @click=${(e: Event) => { e.stopPropagation(); this._deleteUserPreset('segment_pattern', preset.id); }}
-                                  title="${this._localize('tooltips.preset_delete')}"
-                                >
-                                  <ha-icon icon="mdi:delete"></ha-icon>
-                                </ha-icon-button>
-                              </div>
-                              <div class="preset-icon">
-                                ${this._renderUserPatternIcon(preset)}
-                              </div>
-                              <div class="preset-name">${preset.name}</div>
-                            </div>
-                          `
-                        )}
-                      </div>
-                    </div>
-                  `
-                : ''}
+      ${totalCount === 0
+        ? html`
+            <div class="no-presets">
+              <ha-icon icon="mdi:folder-open-outline"></ha-icon>
+              <p>${this._localize('presets.no_presets_title')}</p>
+              <p>${this._localize('presets.no_presets_description')}</p>
+            </div>
+          `
+        : html`
+            ${this._renderPresetDeviceSections(
+              'Dynamic Effects', 'presets_effects',
+              effectPresets, hasSelection,
+              (p) => this._activateUserEffectPreset(p),
+              (p) => this._editEffectPreset(p),
+              'effect',
+              (p) => this._renderUserEffectIcon(p),
+              (presets, opt) => this._sortUserEffectPresets(presets, opt),
+            )}
 
-              ${cctPresets.length > 0
-                ? html`
-                    <div class="preset-category">
-                      <div class="preset-category-header">
-                        <h3>CCT Sequence Presets (${cctPresets.length})</h3>
-                        ${this._renderSortDropdown('cct')}
-                      </div>
-                      <div class="preset-grid">
-                        ${sortedCCT.map(
-                          (preset) => html`
-                            <div
-                              class="user-preset-card ${hasSelection ? '' : 'disabled'}"
-                              @click=${hasSelection ? () => this._activateUserCCTSequencePreset(preset) : null}
-                              title="${preset.name}"
-                            >
-                              <div class="preset-card-actions">
-                                <ha-icon-button
-                                  @click=${(e: Event) => { e.stopPropagation(); this._editCCTSequencePreset(preset); }}
-                                  title="${this._localize('tooltips.preset_edit')}"
-                                >
-                                  <ha-icon icon="mdi:pencil"></ha-icon>
-                                </ha-icon-button>
-                                <ha-icon-button
-                                  @click=${(e: Event) => { e.stopPropagation(); this._deleteUserPreset('cct_sequence', preset.id); }}
-                                  title="${this._localize('tooltips.preset_delete')}"
-                                >
-                                  <ha-icon icon="mdi:delete"></ha-icon>
-                                </ha-icon-button>
-                              </div>
-                              <div class="preset-icon">
-                                ${this._renderUserCCTIcon(preset)}
-                              </div>
-                              <div class="preset-name">${preset.name}</div>
-                            </div>
-                          `
-                        )}
-                      </div>
-                    </div>
-                  `
-                : ''}
+            ${this._renderPresetDeviceSections(
+              'Segment Patterns', 'presets_patterns',
+              patternPresets, hasSelection,
+              (p) => this._activateUserPatternPreset(p),
+              (p) => this._editPatternPreset(p),
+              'segment_pattern',
+              (p) => this._renderUserPatternIcon(p),
+              (presets, opt) => this._sortUserPatternPresets(presets, opt),
+            )}
 
-              ${segmentPresets.length > 0
-                ? html`
-                    <div class="preset-category">
-                      <div class="preset-category-header">
-                        <h3>Segment Sequence Presets (${segmentPresets.length})</h3>
-                        ${this._renderSortDropdown('segments')}
-                      </div>
-                      <div class="preset-grid">
-                        ${sortedSegments.map(
-                          (preset) => html`
-                            <div
-                              class="user-preset-card ${hasSelection ? '' : 'disabled'}"
-                              @click=${hasSelection ? () => this._activateUserSegmentSequencePreset(preset) : null}
-                              title="${preset.name}"
-                            >
-                              <div class="preset-card-actions">
-                                <ha-icon-button
-                                  @click=${(e: Event) => { e.stopPropagation(); this._editSegmentSequencePreset(preset); }}
-                                  title="${this._localize('tooltips.preset_edit')}"
-                                >
-                                  <ha-icon icon="mdi:pencil"></ha-icon>
-                                </ha-icon-button>
-                                <ha-icon-button
-                                  @click=${(e: Event) => { e.stopPropagation(); this._deleteUserPreset('segment_sequence', preset.id); }}
-                                  title="${this._localize('tooltips.preset_delete')}"
-                                >
-                                  <ha-icon icon="mdi:delete"></ha-icon>
-                                </ha-icon-button>
-                              </div>
-                              <div class="preset-icon">
-                                ${this._renderUserSegmentSequenceIcon(preset)}
-                              </div>
-                              <div class="preset-name">${preset.name}</div>
-                            </div>
-                          `
-                        )}
-                      </div>
-                    </div>
-                  `
-                : ''}
-            `}
-      </ha-card>
+            ${cctPresets.length > 0
+              ? this._renderPresetSection(
+                  'CCT Sequences', 'presets_cct',
+                  cctPresets, hasSelection,
+                  (p) => this._activateUserCCTSequencePreset(p),
+                  (p) => this._editCCTSequencePreset(p),
+                  'cct_sequence',
+                  (p) => this._renderUserCCTIcon(p),
+                  (presets, opt) => this._sortUserCCTSequencePresets(presets, opt),
+                )
+              : ''}
+
+            ${this._renderPresetDeviceSections(
+              'Segment Sequences', 'presets_segments',
+              segmentPresets, hasSelection,
+              (p) => this._activateUserSegmentSequencePreset(p),
+              (p) => this._editSegmentSequencePreset(p),
+              'segment_sequence',
+              (p) => this._renderUserSegmentSequenceIcon(p),
+              (presets, opt) => this._sortUserSegmentSequencePresets(presets, opt),
+            )}
+          `}
+    `;
+  }
+
+  /**
+   * Render one ha-expansion-panel per device type for a preset category.
+   * Matches the Activate tab pattern: "Dynamic Effects: T2 Bulb", "Segment Patterns: T1M", etc.
+   * Presets without device_type are shown in a general section titled by the category name alone.
+   */
+  private _renderPresetDeviceSections<T extends { id: string; name: string; device_type?: string }>(
+    categoryTitle: string,
+    sectionPrefix: string,
+    presets: T[],
+    hasSelection: boolean,
+    onActivate: (preset: T) => void,
+    onEdit: (preset: T) => void,
+    deleteType: string,
+    renderIcon: (preset: T) => unknown,
+    sortFn: (presets: T[], sortOption: PresetSortOption) => T[],
+  ) {
+    if (presets.length === 0) return '';
+
+    const { ungrouped, grouped } = this._groupPresetsByDeviceType(presets);
+
+    return html`
+      ${ungrouped.length > 0
+        ? this._renderPresetSection(
+            categoryTitle, sectionPrefix,
+            ungrouped, hasSelection, onActivate, onEdit, deleteType, renderIcon, sortFn,
+          )
+        : ''}
+      ${AqaraPanel.PRESET_DEVICE_TYPES.map(({ key, label }) => {
+        const devicePresets = grouped.get(key);
+        if (!devicePresets?.length) return '';
+        return this._renderPresetSection(
+          `${categoryTitle}: ${label}`, `${sectionPrefix}_${key}`,
+          devicePresets, hasSelection, onActivate, onEdit, deleteType, renderIcon, sortFn,
+        );
+      })}
+    `;
+  }
+
+  /**
+   * Render a single ha-expansion-panel section with preset cards inside.
+   * Uses the same header structure as the Activate tab (section-title, section-subtitle, sort controls).
+   * Sorting is applied per-section using the section ID as the sort preference key.
+   */
+  private _renderPresetSection<T extends { id: string; name: string }>(
+    title: string,
+    sectionId: string,
+    presets: T[],
+    hasSelection: boolean,
+    onActivate: (preset: T) => void,
+    onEdit: (preset: T) => void,
+    deleteType: string,
+    renderIcon: (preset: T) => unknown,
+    sortFn: (presets: T[], sortOption: PresetSortOption) => T[],
+  ) {
+    const isExpanded = !this._collapsed[sectionId];
+    const sortOption = this._getSortPreference(sectionId);
+    const sortedPresets = sortFn(presets, sortOption);
+
+    return html`
+      <ha-expansion-panel
+        outlined
+        .expanded=${isExpanded}
+        @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange(sectionId, e)}
+      >
+        <div slot="header" class="section-header">
+          <div>
+            <div class="section-title">${title}</div>
+            <div class="section-subtitle">${presets.length} presets</div>
+          </div>
+          <div class="section-header-controls" @click=${(e: Event) => e.stopPropagation()}>
+            ${this._renderSortDropdown(sectionId)}
+          </div>
+        </div>
+        <div class="section-content preset-grid">
+          ${sortedPresets.map((preset) => this._renderPresetCard(
+            preset, hasSelection, onActivate, onEdit, deleteType, renderIcon,
+          ))}
+        </div>
+      </ha-expansion-panel>
+    `;
+  }
+
+  /** Render a single user preset card with action buttons. */
+  private _renderPresetCard<T extends { id: string; name: string }>(
+    preset: T,
+    hasSelection: boolean,
+    onActivate: (preset: T) => void,
+    onEdit: (preset: T) => void,
+    deleteType: string,
+    renderIcon: (preset: T) => unknown,
+  ) {
+    return html`
+      <div
+        class="user-preset-card ${hasSelection ? '' : 'disabled'}"
+        @click=${hasSelection ? () => onActivate(preset) : null}
+        title="${preset.name}"
+      >
+        <div class="preset-card-actions">
+          <ha-icon-button
+            @click=${(e: Event) => { e.stopPropagation(); onEdit(preset); }}
+            title="${this._localize('tooltips.preset_edit')}"
+          >
+            <ha-icon icon="mdi:pencil"></ha-icon>
+          </ha-icon-button>
+          <ha-icon-button
+            @click=${(e: Event) => { e.stopPropagation(); this._deleteUserPreset(deleteType, preset.id); }}
+            title="${this._localize('tooltips.preset_delete')}"
+          >
+            <ha-icon icon="mdi:delete"></ha-icon>
+          </ha-icon-button>
+        </div>
+        <div class="preset-icon">
+          ${renderIcon(preset)}
+        </div>
+        <div class="preset-name">${preset.name}</div>
+      </div>
     `;
   }
 
@@ -2482,15 +2517,15 @@ export class AqaraPanel extends LitElement {
     this._setActiveTab('segments');
   }
 
-  private _renderSortDropdown(category: keyof PresetSortPreferences) {
-    const currentSort = this._sortPreferences[category];
+  private _renderSortDropdown(sectionId: string) {
+    const currentSort = this._getSortPreference(sectionId);
     return html`
       <select
         class="sort-select"
         .value=${currentSort}
         @change=${(e: Event) => {
           e.stopPropagation();
-          this._setSortPreference(category, (e.target as HTMLSelectElement).value as PresetSortOption);
+          this._setSortPreference(sectionId, (e.target as HTMLSelectElement).value as PresetSortOption);
         }}
         @click=${(e: Event) => e.stopPropagation()}
       >
@@ -2509,8 +2544,9 @@ export class AqaraPanel extends LitElement {
     const totalCount = userPresets.length + presets.length;
 
     // Apply sorting
-    const sortedUserPresets = this._sortUserEffectPresets(userPresets, this._sortPreferences.effects);
-    const sortedBuiltinPresets = this._sortDynamicEffectPresets(presets, this._sortPreferences.effects);
+    const sortOption = this._getSortPreference(sectionId);
+    const sortedUserPresets = this._sortUserEffectPresets(userPresets, sortOption);
+    const sortedBuiltinPresets = this._sortDynamicEffectPresets(presets, sortOption);
 
     return html`
       <ha-expansion-panel
@@ -2524,7 +2560,7 @@ export class AqaraPanel extends LitElement {
             <div class="section-subtitle">${totalCount} presets${userPresets.length > 0 ? ` (${userPresets.length} custom)` : ''}</div>
           </div>
           <div class="section-header-controls" @click=${(e: Event) => e.stopPropagation()}>
-            ${this._renderSortDropdown('effects')}
+            ${this._renderSortDropdown(sectionId)}
           </div>
         </div>
         <div class="section-content">
@@ -2553,16 +2589,16 @@ export class AqaraPanel extends LitElement {
     `;
   }
 
-  private _renderSegmentPatternsSection() {
-    const sectionId = 'segment_patterns';
+  private _renderSegmentPatternsSection(title: string, builtinPresets: SegmentPatternPreset[], deviceType: string) {
+    const sectionId = `segment_pat_${title.toLowerCase().replace(/\s+/g, '_')}`;
     const isExpanded = !this._collapsed[sectionId];
-    const userPresets = this._getFilteredUserPatternPresets();
-    const builtinPresets = this._presets!.segment_patterns;
+    const userPresets = this._getUserPatternPresetsForDeviceType(deviceType);
     const totalCount = userPresets.length + builtinPresets.length;
 
     // Apply sorting
-    const sortedUserPresets = this._sortUserPatternPresets(userPresets, this._sortPreferences.patterns);
-    const sortedBuiltinPresets = this._sortSegmentPatternPresets(builtinPresets, this._sortPreferences.patterns);
+    const sortOption = this._getSortPreference(sectionId);
+    const sortedUserPresets = this._sortUserPatternPresets(userPresets, sortOption);
+    const sortedBuiltinPresets = this._sortSegmentPatternPresets(builtinPresets, sortOption);
 
     return html`
       <ha-expansion-panel
@@ -2572,11 +2608,11 @@ export class AqaraPanel extends LitElement {
       >
         <div slot="header" class="section-header">
           <div>
-            <div class="section-title">Segment Patterns</div>
+            <div class="section-title">Segment Patterns: ${title}</div>
             <div class="section-subtitle">${totalCount} presets${userPresets.length > 0 ? ` (${userPresets.length} custom)` : ''}</div>
           </div>
           <div class="section-header-controls" @click=${(e: Event) => e.stopPropagation()}>
-            ${this._renderSortDropdown('patterns')}
+            ${this._renderSortDropdown(sectionId)}
           </div>
         </div>
         <div class="section-content">
@@ -2663,8 +2699,9 @@ export class AqaraPanel extends LitElement {
     const totalCount = userPresets.length + builtinPresets.length;
 
     // Apply sorting
-    const sortedUserPresets = this._sortUserCCTSequencePresets(userPresets, this._sortPreferences.cct);
-    const sortedBuiltinPresets = this._sortCCTSequencePresets(builtinPresets, this._sortPreferences.cct);
+    const sortOption = this._getSortPreference(sectionId);
+    const sortedUserPresets = this._sortUserCCTSequencePresets(userPresets, sortOption);
+    const sortedBuiltinPresets = this._sortCCTSequencePresets(builtinPresets, sortOption);
 
     return html`
       <ha-expansion-panel
@@ -2678,7 +2715,7 @@ export class AqaraPanel extends LitElement {
             <div class="section-subtitle">${totalCount} presets${userPresets.length > 0 ? ` (${userPresets.length} custom)` : ''}</div>
           </div>
           <div class="section-header-controls" @click=${(e: Event) => e.stopPropagation()}>
-            ${this._renderSortDropdown('cct')}
+            ${this._renderSortDropdown(sectionId)}
           </div>
         </div>
         <div class="section-content">
@@ -2707,16 +2744,16 @@ export class AqaraPanel extends LitElement {
     `;
   }
 
-  private _renderSegmentSequencesSection() {
-    const sectionId = 'segment_sequences';
+  private _renderSegmentSequencesSection(title: string, builtinPresets: SegmentSequencePreset[], deviceType: string) {
+    const sectionId = `segment_seq_${title.toLowerCase().replace(/\s+/g, '_')}`;
     const isExpanded = !this._collapsed[sectionId];
-    const userPresets = this._getFilteredUserSegmentSequencePresets();
-    const builtinPresets = this._presets!.segment_sequences;
+    const userPresets = this._getUserSegmentSequencePresetsForDeviceType(deviceType);
     const totalCount = userPresets.length + builtinPresets.length;
 
     // Apply sorting
-    const sortedUserPresets = this._sortUserSegmentSequencePresets(userPresets, this._sortPreferences.segments);
-    const sortedBuiltinPresets = this._sortSegmentSequencePresets(builtinPresets, this._sortPreferences.segments);
+    const sortOption = this._getSortPreference(sectionId);
+    const sortedUserPresets = this._sortUserSegmentSequencePresets(userPresets, sortOption);
+    const sortedBuiltinPresets = this._sortSegmentSequencePresets(builtinPresets, sortOption);
 
     return html`
       <ha-expansion-panel
@@ -2726,11 +2763,11 @@ export class AqaraPanel extends LitElement {
       >
         <div slot="header" class="section-header">
           <div>
-            <div class="section-title">Segment Sequences</div>
+            <div class="section-title">Segment Sequences: ${title}</div>
             <div class="section-subtitle">${totalCount} presets${userPresets.length > 0 ? ` (${userPresets.length} custom)` : ''}</div>
           </div>
           <div class="section-header-controls" @click=${(e: Event) => e.stopPropagation()}>
-            ${this._renderSortDropdown('segments')}
+            ${this._renderSortDropdown(sectionId)}
           </div>
         </div>
         <div class="section-content">
