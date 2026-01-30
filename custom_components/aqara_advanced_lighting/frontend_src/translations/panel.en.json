@@ -196,5 +196,9 @@
     "gradient_interp_shortest": "Shortest hue",
     "gradient_interp_longest": "Longest hue",
     "gradient_interp_rgb": "Linear RGB"
+  },
+  "color_history": {
+    "recent_colors": "Recent colors",
+    "clear": "Clear"
   }
 }

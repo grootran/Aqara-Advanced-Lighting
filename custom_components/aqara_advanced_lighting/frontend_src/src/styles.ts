@@ -947,7 +947,8 @@ export const panelStyles = css`
     background: var(--card-background-color);
     border-radius: 8px;
     padding: 24px;
-    max-width: 400px;
+    width: 298px;
+    max-width: calc(100vw - 80px);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   }
 
@@ -2078,7 +2079,8 @@ export const colorPickerStyles = css`
     background: var(--card-background-color);
     border-radius: 8px;
     padding: 24px;
-    max-width: 400px;
+    width: 298px;
+    max-width: calc(100vw - 80px);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   }
 
@@ -2119,5 +2121,69 @@ export const colorPickerStyles = css`
     justify-content: flex-end;
     gap: 8px;
     margin-top: 20px;
+  }
+
+  /* =========================================
+   * COLOR HISTORY
+   * Recent colors swatches shown in color picker modals
+   * ========================================= */
+
+  .color-history-section {
+    margin: 16px 0 0;
+    width: 100%;
+  }
+
+  .color-history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .color-history-label {
+    font-size: var(--ha-font-size-s, 12px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    color: var(--secondary-text-color);
+  }
+
+  .color-history-clear {
+    background: none;
+    border: none;
+    color: var(--secondary-text-color);
+    cursor: pointer;
+    font-size: var(--ha-font-size-s, 12px);
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+  }
+
+  .color-history-clear:hover {
+    color: var(--primary-color);
+    background: var(--secondary-background-color);
+  }
+
+  .color-history-swatches {
+    display: flex;
+    gap: 6px;
+  }
+
+  .color-history-swatch {
+    width: 32px;
+    height: 32px;
+    border: 2px solid var(--divider-color);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    padding: 0;
+    flex-shrink: 0;
+  }
+
+  .color-history-swatch:hover {
+    transform: scale(1.1);
+    border-color: var(--primary-color);
+  }
+
+  .color-history-swatch:active {
+    transform: scale(0.95);
   }
 `;
