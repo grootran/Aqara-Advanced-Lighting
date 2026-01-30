@@ -116,6 +116,7 @@
     "step_remove": "Remove",
     "favorite_save": "Save as favorite",
     "preset_edit": "Edit preset",
+    "preset_duplicate": "Duplicate preset",
     "preset_delete": "Delete preset",
     "version_mismatch": "Version mismatch detected: Backend (v{backend}) and frontend (v{frontend}) versions differ. Please refresh the page or restart Home Assistant to resolve this issue."
   },

@@ -1376,7 +1376,8 @@ export const panelStyles = css`
     z-index: 1;
   }
 
-  .user-preset-card:hover .preset-card-actions {
+  .user-preset-card:hover .preset-card-actions,
+  .builtin-preset:hover .preset-card-actions {
     opacity: 1;
   }
 
