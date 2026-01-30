@@ -230,3 +230,32 @@ def generate_block_colors(
             )
 
     return segment_colors
+
+
+def scale_segment_pattern(
+    source_colors: list[list[int]], target_count: int
+) -> list[list[int]]:
+    """Scale a segment pattern to a different number of segments.
+
+    Uses nearest-neighbor resampling to map each target segment index
+    proportionally back to the source array, preserving the relative
+    widths of color blocks at any target count.
+
+    Args:
+        source_colors: List of RGB color arrays [[r, g, b], ...]
+        target_count: Number of segments in the target device
+
+    Returns:
+        List of RGB color arrays scaled to target_count length
+    """
+    source_count = len(source_colors)
+    if target_count < 1 or source_count < 1:
+        return []
+
+    if target_count == source_count:
+        return list(source_colors)
+
+    return [
+        source_colors[int(i * source_count / target_count)]
+        for i in range(target_count)
+    ]
