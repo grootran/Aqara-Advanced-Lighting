@@ -85,6 +85,7 @@ export class SegmentSelector extends LitElement {
   @property({ type: String }) description = '';
   @property({ type: Boolean }) disabled = false;
   @property({ type: Object }) translations: Translations = {};
+  @property({ type: String }) initialPatternMode?: PatternMode;
 
   @state() private _selectedSegments: Set<number> = new Set();
   @state() private _coloredSegments: Map<number, XYColor> = new Map();
@@ -93,6 +94,7 @@ export class SegmentSelector extends LitElement {
   @state() private _clearMode = false;
   @state() private _selectMode = false;
   @state() private _patternMode: PatternMode = 'individual';
+  private _initialPatternApplied = false;
   @state() private _editingColorSource: ColorSource = null;
   @state() private _editingColorIndex: number | null = null;
   @state() private _editingColor: HSColor | null = null;
@@ -612,6 +614,14 @@ export class SegmentSelector extends LitElement {
     if ((changedProps.has('colorValue') && changedProps.get('colorValue') !== this.colorValue) &&
         (this.mode === 'color' || this.mode === 'sequence')) {
       this._parseColorValue();
+    }
+
+    // Apply initial pattern mode once when loading a preset with gradient/blocks
+    if (this.initialPatternMode && !this._initialPatternApplied &&
+        this.initialPatternMode !== 'individual' && this.maxSegments > 0) {
+      this._initialPatternApplied = true;
+      this._patternMode = this.initialPatternMode;
+      this._applyToGrid();
     }
 
     // Validate selection against maxSegments
