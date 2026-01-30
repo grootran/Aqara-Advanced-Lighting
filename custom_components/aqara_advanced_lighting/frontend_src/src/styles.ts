@@ -1276,23 +1276,9 @@ export const panelStyles = css`
     border-style: solid;
   }
 
-  /* Preset category in My Presets tab */
-  .preset-category {
-    margin-bottom: 24px;
-  }
-
-  .preset-category-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-  }
-
-  .preset-category h3 {
-    font-size: var(--ha-font-size-l, 16px);
-    font-weight: var(--ha-font-weight-medium, 600);
-    margin: 0;
-    color: var(--primary-text-color);
+  /* My Presets management section content */
+  .preset-management-content {
+    display: block;
   }
 
   /* Preset grid for My Presets tab */
@@ -1505,11 +1491,6 @@ export const panelStyles = css`
 
     .section-header-controls {
       gap: 4px;
-    }
-
-    .preset-category-header {
-      flex-wrap: wrap;
-      gap: 8px;
     }
 
     .preset-grid {
