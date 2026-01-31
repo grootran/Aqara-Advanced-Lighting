@@ -1,0 +1,27 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create zip
+        run: |
+          cd custom_components/aqara_advanced_lighting
+          zip -r ../../aqara_advanced_lighting.zip . \
+            -x "frontend_src/*" \
+            -x "*.gitkeep" \
+            -x "quality_scale.yaml"
+
+      - name: Upload release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" aqara_advanced_lighting.zip --clobber
