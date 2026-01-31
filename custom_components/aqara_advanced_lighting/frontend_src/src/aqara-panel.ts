@@ -448,13 +448,10 @@ export class AqaraPanel extends LitElement {
     }
   }
 
-  // Device type labels for My Presets sub-categories
+  // Device type keys for My Presets sub-categories
   // Order defines display order of sub-categories
-  private static readonly PRESET_DEVICE_TYPES: Array<{ key: string; label: string }> = [
-    { key: 't2_bulb', label: 'T2 Bulb' },
-    { key: 't1', label: 'T1 (20 segments)' },
-    { key: 't1m', label: 'T1M (26 segments)' },
-    { key: 't1_strip', label: 'T1 Strip' },
+  private static readonly PRESET_DEVICE_TYPES: string[] = [
+    't2_bulb', 't1', 't1m', 't1_strip',
   ];
 
   /**
@@ -1732,13 +1729,13 @@ export class AqaraPanel extends LitElement {
       ${filtered.showDynamicEffects && !this._hasIncompatibleLights
         ? html`
             ${filtered.hasT2 && (filtered.t2Presets.length > 0 || this._getUserEffectPresetsForDeviceType('t2_bulb').length > 0)
-              ? this._renderDynamicEffectsSection('T2 Bulb', filtered.t2Presets, 't2_bulb')
+              ? this._renderDynamicEffectsSection(this._localize('devices.t2_bulb'), filtered.t2Presets, 't2_bulb')
               : ''}
             ${filtered.hasT1M && (filtered.t1mPresets.length > 0 || this._getUserEffectPresetsForDeviceType('t1m').length > 0)
-              ? this._renderDynamicEffectsSection('T1M', filtered.t1mPresets, 't1m')
+              ? this._renderDynamicEffectsSection(this._localize('devices.t1m'), filtered.t1mPresets, 't1m')
               : ''}
             ${filtered.hasT1Strip && (filtered.t1StripPresets.length > 0 || this._getUserEffectPresetsForDeviceType('t1_strip').length > 0)
-              ? this._renderDynamicEffectsSection('T1 Strip', filtered.t1StripPresets, 't1_strip')
+              ? this._renderDynamicEffectsSection(this._localize('devices.t1_strip'), filtered.t1StripPresets, 't1_strip')
               : ''}
           `
         : ''}
@@ -1746,10 +1743,10 @@ export class AqaraPanel extends LitElement {
       ${filtered.showSegmentPatterns && !this._hasIncompatibleLights
         ? html`
             ${filtered.hasT1M && ((this._presets?.segment_patterns?.length ?? 0) > 0 || this._getUserPatternPresetsForDeviceType('t1m').length > 0)
-              ? this._renderSegmentPatternsSection('T1M', this._presets?.segment_patterns || [], 't1m')
+              ? this._renderSegmentPatternsSection(this._localize('devices.t1m'), this._presets?.segment_patterns || [], 't1m')
               : ''}
             ${filtered.hasT1Strip && ((this._presets?.segment_patterns?.length ?? 0) > 0 || this._getUserPatternPresetsForDeviceType('t1_strip').length > 0)
-              ? this._renderSegmentPatternsSection('T1 Strip', this._presets?.segment_patterns || [], 't1_strip')
+              ? this._renderSegmentPatternsSection(this._localize('devices.t1_strip'), this._presets?.segment_patterns || [], 't1_strip')
               : ''}
           `
         : ''}
@@ -1761,10 +1758,10 @@ export class AqaraPanel extends LitElement {
       ${filtered.showSegmentSequences && !this._hasIncompatibleLights
         ? html`
             ${filtered.hasT1M && ((this._presets?.segment_sequences?.length ?? 0) > 0 || this._getUserSegmentSequencePresetsForDeviceType('t1m').length > 0)
-              ? this._renderSegmentSequencesSection('T1M', this._presets?.segment_sequences || [], 't1m')
+              ? this._renderSegmentSequencesSection(this._localize('devices.t1m'), this._presets?.segment_sequences || [], 't1m')
               : ''}
             ${filtered.hasT1Strip && ((this._presets?.segment_sequences?.length ?? 0) > 0 || this._getUserSegmentSequencePresetsForDeviceType('t1_strip').length > 0)
-              ? this._renderSegmentSequencesSection('T1 Strip', this._presets?.segment_sequences || [], 't1_strip')
+              ? this._renderSegmentSequencesSection(this._localize('devices.t1_strip'), this._presets?.segment_sequences || [], 't1_strip')
               : ''}
           `
         : ''}
@@ -2292,7 +2289,7 @@ export class AqaraPanel extends LitElement {
           <div>
             <div class="section-title">${this._localize('tabs.presets')}</div>
             <div class="section-subtitle">
-              ${totalCount} presets${hasSelection ? '' : ' - select lights in the Activate tab to enable activation'}
+              ${hasSelection ? this._localize('sections.subtitle_user_presets', {count: totalCount.toString()}) : this._localize('sections.subtitle_select_lights', {count: totalCount.toString()})}
             </div>
           </div>
         </div>
@@ -2333,7 +2330,7 @@ export class AqaraPanel extends LitElement {
           `
         : html`
             ${this._renderPresetDeviceSections(
-              'Dynamic Effects', 'presets_effects',
+              this._localize('sections.dynamic_effects'), 'presets_effects',
               effectPresets, hasSelection,
               (p) => this._activateUserEffectPreset(p),
               (p) => this._editEffectPreset(p),
@@ -2344,7 +2341,7 @@ export class AqaraPanel extends LitElement {
             )}
 
             ${this._renderPresetDeviceSections(
-              'Segment Patterns', 'presets_patterns',
+              this._localize('sections.segment_patterns'), 'presets_patterns',
               patternPresets, hasSelection,
               (p) => this._activateUserPatternPreset(p),
               (p) => this._editPatternPreset(p),
@@ -2356,7 +2353,7 @@ export class AqaraPanel extends LitElement {
 
             ${cctPresets.length > 0
               ? this._renderPresetSection(
-                  'CCT Sequences', 'presets_cct',
+                  this._localize('sections.cct_sequences'), 'presets_cct',
                   cctPresets, hasSelection,
                   (p) => this._activateUserCCTSequencePreset(p),
                   (p) => this._editCCTSequencePreset(p),
@@ -2368,7 +2365,7 @@ export class AqaraPanel extends LitElement {
               : ''}
 
             ${this._renderPresetDeviceSections(
-              'Segment Sequences', 'presets_segments',
+              this._localize('sections.segment_sequences'), 'presets_segments',
               segmentPresets, hasSelection,
               (p) => this._activateUserSegmentSequencePreset(p),
               (p) => this._editSegmentSequencePreset(p),
@@ -2409,11 +2406,12 @@ export class AqaraPanel extends LitElement {
             ungrouped, hasSelection, onActivate, onEdit, deleteType, renderIcon, sortFn, onDuplicate,
           )
         : ''}
-      ${AqaraPanel.PRESET_DEVICE_TYPES.map(({ key, label }) => {
-        const devicePresets = grouped.get(key);
+      ${AqaraPanel.PRESET_DEVICE_TYPES.map((deviceKey) => {
+        const devicePresets = grouped.get(deviceKey);
         if (!devicePresets?.length) return '';
+        const deviceLabel = this._localize(`devices.${deviceKey}`);
         return this._renderPresetSection(
-          `${categoryTitle}: ${label}`, `${sectionPrefix}_${key}`,
+          `${categoryTitle}: ${deviceLabel}`, `${sectionPrefix}_${deviceKey}`,
           devicePresets, hasSelection, onActivate, onEdit, deleteType, renderIcon, sortFn, onDuplicate,
         );
       })}
@@ -2705,8 +2703,8 @@ export class AqaraPanel extends LitElement {
       >
         <div slot="header" class="section-header">
           <div>
-            <div class="section-title">Dynamic Effects: ${title}</div>
-            <div class="section-subtitle">${totalCount} presets${userPresets.length > 0 ? ` (${userPresets.length} custom)` : ''}</div>
+            <div class="section-title">${this._localize('sections.dynamic_effects')}: ${title}</div>
+            <div class="section-subtitle">${userPresets.length > 0 ? this._localize('sections.subtitle_presets_custom', {count: totalCount.toString(), custom: userPresets.length.toString()}) : this._localize('sections.subtitle_presets', {count: totalCount.toString()})}</div>
           </div>
           <div class="section-header-controls" @click=${(e: Event) => e.stopPropagation()}>
             ${this._renderSortDropdown(sectionId)}
@@ -2765,8 +2763,8 @@ export class AqaraPanel extends LitElement {
       >
         <div slot="header" class="section-header">
           <div>
-            <div class="section-title">Segment Patterns: ${title}</div>
-            <div class="section-subtitle">${totalCount} presets${userPresets.length > 0 ? ` (${userPresets.length} custom)` : ''}</div>
+            <div class="section-title">${this._localize('sections.segment_patterns')}: ${title}</div>
+            <div class="section-subtitle">${userPresets.length > 0 ? this._localize('sections.subtitle_presets_custom', {count: totalCount.toString(), custom: userPresets.length.toString()}) : this._localize('sections.subtitle_presets', {count: totalCount.toString()})}</div>
           </div>
           <div class="section-header-controls" @click=${(e: Event) => e.stopPropagation()}>
             ${this._renderSortDropdown(sectionId)}
@@ -2876,8 +2874,8 @@ export class AqaraPanel extends LitElement {
       >
         <div slot="header" class="section-header">
           <div>
-            <div class="section-title">CCT Sequences</div>
-            <div class="section-subtitle">${totalCount} presets${userPresets.length > 0 ? ` (${userPresets.length} custom)` : ''}</div>
+            <div class="section-title">${this._localize('sections.cct_sequences')}</div>
+            <div class="section-subtitle">${userPresets.length > 0 ? this._localize('sections.subtitle_presets_custom', {count: totalCount.toString(), custom: userPresets.length.toString()}) : this._localize('sections.subtitle_presets', {count: totalCount.toString()})}</div>
           </div>
           <div class="section-header-controls" @click=${(e: Event) => e.stopPropagation()}>
             ${this._renderSortDropdown(sectionId)}
@@ -2936,8 +2934,8 @@ export class AqaraPanel extends LitElement {
       >
         <div slot="header" class="section-header">
           <div>
-            <div class="section-title">Segment Sequences: ${title}</div>
-            <div class="section-subtitle">${totalCount} presets${userPresets.length > 0 ? ` (${userPresets.length} custom)` : ''}</div>
+            <div class="section-title">${this._localize('sections.segment_sequences')}: ${title}</div>
+            <div class="section-subtitle">${userPresets.length > 0 ? this._localize('sections.subtitle_presets_custom', {count: totalCount.toString(), custom: userPresets.length.toString()}) : this._localize('sections.subtitle_presets', {count: totalCount.toString()})}</div>
           </div>
           <div class="section-header-controls" @click=${(e: Event) => e.stopPropagation()}>
             ${this._renderSortDropdown(sectionId)}
@@ -3358,7 +3356,7 @@ export class AqaraPanel extends LitElement {
             >
               <div slot="header" class="section-header">
                 <div>
-                  <div class="section-title">T1 Strip settings</div>
+                  <div class="section-title">${this._localize('sections.t1_strip_settings')}</div>
                 </div>
               </div>
               <div class="section-content" style="display: block; padding: 16px;">

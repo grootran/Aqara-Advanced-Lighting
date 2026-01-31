@@ -1033,7 +1033,7 @@ export class SegmentSequenceEditor extends LitElement {
 
         <div class="form-section toggle-row">
           <div class="toggle-item">
-            <span class="toggle-label">Clear Segments</span>
+            <span class="toggle-label">${this._localize('editors.clear_segments_label')}</span>
             <ha-switch
               .checked=${this._clearSegments}
               @change=${this._handleClearSegmentsChange}
@@ -1074,7 +1074,7 @@ export class SegmentSequenceEditor extends LitElement {
           ? html`
               <div class="error-warning">
                 <ha-icon icon="mdi:alert-circle"></ha-icon>
-                <span>Gradient mode requires at least 2 colors. Please add more colors to steps using gradient mode or change the mode.</span>
+                <span>${this._localize('editors.gradient_min_colors_error')}</span>
               </div>
             `
           : ''}
@@ -1094,17 +1094,17 @@ export class SegmentSequenceEditor extends LitElement {
             ? html`
                 <ha-button @click=${this._stopPreview}>
                   <ha-icon icon="mdi:stop"></ha-icon>
-                  Stop
+                  ${this._localize('editors.stop_button')}
                 </ha-button>
               `
             : html`
                 <ha-button
                   @click=${this._preview}
                   .disabled=${this._previewing || this._steps.length === 0 || !this.hasSelectedEntities || !this.isCompatible || this._hasInvalidGradientSteps()}
-                  title=${!this.hasSelectedEntities ? 'Select entities in Activate tab first' : !this.isCompatible ? 'Selected light is not compatible' : this._hasInvalidGradientSteps() ? 'Fix gradient validation errors first' : ''}
+                  title=${!this.hasSelectedEntities ? this._localize('editors.tooltip_select_lights_first') : !this.isCompatible ? this._localize('editors.tooltip_light_not_compatible') : this._hasInvalidGradientSteps() ? this._localize('editors.tooltip_fix_gradient_errors') : ''}
                 >
                   <ha-icon icon="mdi:play"></ha-icon>
-                  Preview
+                  ${this._localize('editors.preview_button')}
                 </ha-button>
               `}
           <ha-button
@@ -1112,7 +1112,7 @@ export class SegmentSequenceEditor extends LitElement {
             .disabled=${!this._name.trim() || this._steps.length === 0 || this._saving || this._hasInvalidGradientSteps()}
           >
             <ha-icon icon="mdi:content-save"></ha-icon>
-            ${this.editMode ? 'Update' : 'Save'}
+            ${this.editMode ? this._localize('editors.update_button') : this._localize('editors.save_button')}
           </ha-button>
         </div>
       </div>

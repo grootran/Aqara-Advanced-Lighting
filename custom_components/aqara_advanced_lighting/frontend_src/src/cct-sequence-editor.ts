@@ -739,7 +739,7 @@ export class CCTSequenceEditor extends LitElement {
           ? html`
               <div class="error-warning">
                 <ha-icon icon="mdi:alert-circle"></ha-icon>
-                <span>One or more selected lights do not support color temperature control. CCT sequences require lights with color_temp capability. For T1M devices, select the white/CCT endpoint instead of the RGB ring endpoint.</span>
+                <span>${this._localize('editors.incompatible_cct_endpoints')}</span>
               </div>
             `
           : ''}
@@ -759,17 +759,17 @@ export class CCTSequenceEditor extends LitElement {
             ? html`
                 <ha-button @click=${this._stopPreview}>
                   <ha-icon icon="mdi:stop"></ha-icon>
-                  Stop
+                  ${this._localize('editors.stop_button')}
                 </ha-button>
               `
             : html`
                 <ha-button
                   @click=${this._preview}
                   .disabled=${this._previewing || this._steps.length === 0 || !this.hasSelectedEntities || !this.isCompatible || this._hasIncompatibleEndpoints()}
-                  title=${!this.hasSelectedEntities ? 'Select entities in Activate tab first' : !this.isCompatible ? 'Selected light is not compatible' : this._hasIncompatibleEndpoints() ? 'Selected light does not support color temperature' : ''}
+                  title=${!this.hasSelectedEntities ? this._localize('editors.tooltip_select_lights_first') : !this.isCompatible ? this._localize('editors.tooltip_light_not_compatible') : this._hasIncompatibleEndpoints() ? this._localize('editors.tooltip_light_no_cct') : ''}
                 >
                   <ha-icon icon="mdi:play"></ha-icon>
-                  Preview
+                  ${this._localize('editors.preview_button')}
                 </ha-button>
               `}
           <ha-button
@@ -777,7 +777,7 @@ export class CCTSequenceEditor extends LitElement {
             .disabled=${!this._name.trim() || this._steps.length === 0 || this._saving}
           >
             <ha-icon icon="mdi:content-save"></ha-icon>
-            ${this.editMode ? 'Update' : 'Save'}
+            ${this.editMode ? this._localize('editors.update_button') : this._localize('editors.save_button')}
           </ha-button>
         </div>
       </div>

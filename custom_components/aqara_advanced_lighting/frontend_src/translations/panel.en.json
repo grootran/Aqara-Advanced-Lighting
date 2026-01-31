@@ -36,6 +36,23 @@
     "no_lights_message": "Please select one or more lights to view available presets",
     "group_label": "Group ({count} lights)"
   },
+  "devices": {
+    "t2_bulb": "T2 Bulb",
+    "t1": "T1",
+    "t1m": "T1M",
+    "t1_strip": "T1 Strip"
+  },
+  "sections": {
+    "dynamic_effects": "Dynamic Effects",
+    "segment_patterns": "Segment Patterns",
+    "cct_sequences": "CCT Sequences",
+    "segment_sequences": "Segment Sequences",
+    "subtitle_presets": "{count} presets",
+    "subtitle_presets_custom": "{count} presets ({custom} custom)",
+    "subtitle_user_presets": "{count} presets",
+    "subtitle_select_lights": "{count} presets - select lights in the Activate tab to enable activation",
+    "t1_strip_settings": "T1 Strip settings"
+  },
   "presets": {
     "manage_description": "Manage your saved presets.",
     "manage_description_with_selection": "Click a preset to activate it, or use the edit/delete buttons.",
@@ -195,7 +212,17 @@
     "gradient_interpolation_label": "Interpolation",
     "gradient_interp_shortest": "Shortest hue",
     "gradient_interp_longest": "Longest hue",
-    "gradient_interp_rgb": "Linear RGB"
+    "gradient_interp_rgb": "Linear RGB",
+    "preview_button": "Preview",
+    "stop_button": "Stop",
+    "update_button": "Update",
+    "clear_segments_label": "Clear Segments",
+    "gradient_min_colors_error": "Gradient mode requires at least 2 colors. Please add more colors to steps using gradient mode or change the mode.",
+    "tooltip_select_lights_first": "Select entities in Activate tab first",
+    "tooltip_light_not_compatible": "Selected light is not compatible",
+    "tooltip_light_no_cct": "Selected light does not support color temperature",
+    "tooltip_fix_gradient_errors": "Fix gradient validation errors first",
+    "incompatible_cct_endpoints": "One or more selected lights do not support color temperature control. CCT sequences require lights with color_temp capability. For T1M devices, select the white/CCT endpoint instead of the RGB ring endpoint."
   },
   "color_history": {
     "recent_colors": "Recent colors",
