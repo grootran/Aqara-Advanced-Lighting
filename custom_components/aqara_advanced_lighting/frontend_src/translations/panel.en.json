@@ -36,6 +36,23 @@
     "no_lights_message": "Please select one or more lights to view available presets",
     "group_label": "Group ({count} lights)"
   },
+  "devices": {
+    "t2_bulb": "T2 Bulb",
+    "t1": "T1",
+    "t1m": "T1M",
+    "t1_strip": "T1 Strip"
+  },
+  "sections": {
+    "dynamic_effects": "Dynamic Effects",
+    "segment_patterns": "Segment Patterns",
+    "cct_sequences": "CCT Sequences",
+    "segment_sequences": "Segment Sequences",
+    "subtitle_presets": "{count} presets",
+    "subtitle_presets_custom": "{count} presets ({custom} custom)",
+    "subtitle_user_presets": "{count} presets",
+    "subtitle_select_lights": "{count} presets - select lights in the Activate tab to enable activation",
+    "t1_strip_settings": "T1 Strip settings"
+  },
   "presets": {
     "manage_description": "Manage your saved presets.",
     "manage_description_with_selection": "Click a preset to activate it, or use the edit/delete buttons.",
@@ -72,10 +89,10 @@
     "edit_segment_title": "Edit Segment Sequence",
     "create_segment_description": "Design animated segment sequences with multiple steps and transition effects.",
     "edit_segment_description": "Update your segment sequence settings.",
-    "compatibility_warning_effects": "The selected light does not support dynamic effects. Compatible models: T2 RGB, T1M, T1 Strip.",
-    "compatibility_warning_patterns": "The selected light does not support segment patterns. Compatible models: T1M, T1 Strip.",
-    "compatibility_warning_cct": "The selected light does not support CCT sequences. Compatible models: T2 RGB, T2 CCT, T1M, T1 Strip.",
-    "compatibility_warning_segments": "The selected light does not support segment sequences. Compatible models: T1M, T1 Strip."
+    "compatibility_warning_effects": "Preview not available, the selected light does not support dynamic effects. Compatible devices: T2 RGB bulb, T1M RGB endpoint, T1 Strip.",
+    "compatibility_warning_patterns": "Preview not available, the selected light does not support segment patterns. Compatible devices: T1M RGB endpoint, T1 Strip.",
+    "compatibility_warning_cct": "Preview not available, the selected light does not support CCT sequences. Compatible devices: T2 RGB bulb, T2 CCT bulb, T1M white endpoint, T1 Strip.",
+    "compatibility_warning_segments": "Preview not available, the selected light does not support segment sequences. Compatible devices: T1M RGB endpoint, T1 Strip."
   },
   "config": {
     "transition_settings": "T2 transition settings",
@@ -116,6 +133,7 @@
     "step_remove": "Remove",
     "favorite_save": "Save as favorite",
     "preset_edit": "Edit preset",
+    "preset_duplicate": "Duplicate preset",
     "preset_delete": "Delete preset",
     "version_mismatch": "Version mismatch detected: Backend (v{backend}) and frontend (v{frontend}) versions differ. Please refresh the page or restart Home Assistant to resolve this issue."
   },
@@ -137,6 +155,7 @@
   "editors": {
     "name_label": "Name",
     "icon_label": "Icon",
+    "icon_auto_hint": "Auto-generated from colors when not set",
     "cancel_button": "Cancel",
     "save_button": "Save",
     "select_all_button": "Select all",
@@ -153,6 +172,7 @@
     "loop_count_label": "Loop count",
     "end_behavior_label": "End behavior",
     "device_type_label": "Device type",
+    "selected_device_type": "Selected device",
     "skip_first_step_label": "Skip first step in loop",
     "no_steps_message": "No steps defined. Click \"Add step\" to create your first step.",
     "segments_label": "Segments",
@@ -192,6 +212,20 @@
     "gradient_interpolation_label": "Interpolation",
     "gradient_interp_shortest": "Shortest hue",
     "gradient_interp_longest": "Longest hue",
-    "gradient_interp_rgb": "Linear RGB"
+    "gradient_interp_rgb": "Linear RGB",
+    "preview_button": "Preview",
+    "stop_button": "Stop",
+    "update_button": "Update",
+    "clear_segments_label": "Clear Segments",
+    "gradient_min_colors_error": "Gradient mode requires at least 2 colors. Please add more colors to steps using gradient mode or change the mode.",
+    "tooltip_select_lights_first": "Select entities in Activate tab first",
+    "tooltip_light_not_compatible": "Selected light is not compatible",
+    "tooltip_light_no_cct": "Selected light does not support color temperature",
+    "tooltip_fix_gradient_errors": "Fix gradient validation errors first",
+    "incompatible_cct_endpoints": "One or more selected lights do not support color temperature control. CCT sequences require lights with color_temp capability. For T1M devices, select the white/CCT endpoint instead of the RGB ring endpoint."
+  },
+  "color_history": {
+    "recent_colors": "Recent colors",
+    "clear": "Clear"
   }
 }

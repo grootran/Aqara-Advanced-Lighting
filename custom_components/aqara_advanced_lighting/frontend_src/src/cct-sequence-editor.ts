@@ -1,6 +1,6 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { HomeAssistant, CCTSequenceStep, UserCCTSequencePreset } from './types';
+import { HomeAssistant, CCTSequenceStep, UserCCTSequencePreset, DeviceContext } from './types';
 
 interface EditableStep extends CCTSequenceStep {
   id: string;
@@ -16,6 +16,7 @@ export class CCTSequenceEditor extends LitElement {
   @property({ type: Boolean }) public isCompatible = true;
   @property({ type: Array }) public selectedEntities: string[] = [];
   @property({ type: Boolean }) public previewActive = false;
+  @property({ type: Object }) public deviceContext?: DeviceContext;
 
   @state() private _name = '';
   @state() private _icon = '';
@@ -39,6 +40,18 @@ export class CCTSequenceEditor extends LitElement {
       { value: 'maintain', label: this._localize('options.end_behavior_maintain') },
       { value: 'turn_off', label: this._localize('options.end_behavior_turn_off') },
     ];
+  }
+
+  private get _deviceTypeLabel(): string {
+    if (!this.deviceContext?.deviceType) return '';
+    const labels: Record<string, string> = {
+      t2_bulb: 'T2 Bulb',
+      t2_cct: 'T2 CCT',
+      t1m: 'T1M',
+      t1_strip: 'T1 Strip',
+      t1: 'T1',
+    };
+    return labels[this.deviceContext.deviceType] || this.deviceContext.deviceType;
   }
 
   static styles = css`
@@ -243,6 +256,30 @@ export class CCTSequenceEditor extends LitElement {
       .step-fields {
         grid-template-columns: 1fr;
       }
+    }
+
+    .device-context-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      background: var(--secondary-background-color);
+      border: 1px solid var(--divider-color);
+      border-radius: 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--secondary-text-color);
+      margin-bottom: 8px;
+    }
+
+    .device-context-badge ha-icon {
+      --mdc-icon-size: 16px;
+    }
+
+    .form-hint {
+      font-size: var(--ha-font-size-s, 12px);
+      color: var(--secondary-text-color);
+      margin-top: -4px;
     }
   `;
 
@@ -555,7 +592,7 @@ export class CCTSequenceEditor extends LitElement {
               .selector=${{
                 number: {
                   min: 0,
-                  max: 3600,
+                  max: 43200,
                   step: 1,
                   mode: 'box',
                   unit_of_measurement: 's',
@@ -595,6 +632,12 @@ export class CCTSequenceEditor extends LitElement {
   protected render() {
     return html`
       <div class="editor-content">
+        ${this.deviceContext?.deviceType ? html`
+          <div class="device-context-badge">
+            <ha-icon icon="mdi:lightbulb-outline"></ha-icon>
+            <span>${this._localize('editors.selected_device_type')}: ${this._deviceTypeLabel}</span>
+          </div>
+        ` : ''}
         <div class="form-row-pair">
           <div class="form-field">
             <span class="form-label">${this._localize('editors.name_label')}</span>
@@ -613,6 +656,7 @@ export class CCTSequenceEditor extends LitElement {
               .value=${this._icon}
               @value-changed=${this._handleIconChange}
             ></ha-selector>
+            ${!this._icon ? html`<span class="form-hint">${this._localize('editors.icon_auto_hint')}</span>` : ''}
           </div>
         </div>
 
@@ -695,7 +739,7 @@ export class CCTSequenceEditor extends LitElement {
           ? html`
               <div class="error-warning">
                 <ha-icon icon="mdi:alert-circle"></ha-icon>
-                <span>One or more selected lights do not support color temperature control. CCT sequences require lights with color_temp capability. For T1M devices, select the white/CCT endpoint instead of the RGB ring endpoint.</span>
+                <span>${this._localize('editors.incompatible_cct_endpoints')}</span>
               </div>
             `
           : ''}
@@ -715,17 +759,17 @@ export class CCTSequenceEditor extends LitElement {
             ? html`
                 <ha-button @click=${this._stopPreview}>
                   <ha-icon icon="mdi:stop"></ha-icon>
-                  Stop
+                  ${this._localize('editors.stop_button')}
                 </ha-button>
               `
             : html`
                 <ha-button
                   @click=${this._preview}
                   .disabled=${this._previewing || this._steps.length === 0 || !this.hasSelectedEntities || !this.isCompatible || this._hasIncompatibleEndpoints()}
-                  title=${!this.hasSelectedEntities ? 'Select entities in Activate tab first' : !this.isCompatible ? 'Selected light is not compatible' : this._hasIncompatibleEndpoints() ? 'Selected light does not support color temperature' : ''}
+                  title=${!this.hasSelectedEntities ? this._localize('editors.tooltip_select_lights_first') : !this.isCompatible ? this._localize('editors.tooltip_light_not_compatible') : this._hasIncompatibleEndpoints() ? this._localize('editors.tooltip_light_no_cct') : ''}
                 >
                   <ha-icon icon="mdi:play"></ha-icon>
-                  Preview
+                  ${this._localize('editors.preview_button')}
                 </ha-button>
               `}
           <ha-button
@@ -733,7 +777,7 @@ export class CCTSequenceEditor extends LitElement {
             .disabled=${!this._name.trim() || this._steps.length === 0 || this._saving}
           >
             <ha-icon icon="mdi:content-save"></ha-icon>
-            ${this.editMode ? 'Update' : 'Save'}
+            ${this.editMode ? this._localize('editors.update_button') : this._localize('editors.save_button')}
           </ha-button>
         </div>
       </div>

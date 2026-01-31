@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING
 
 from .const import (
     EVENT_SEQUENCE_COMPLETED,
+    EVENT_SEQUENCE_PAUSED,
+    EVENT_SEQUENCE_RESUMED,
     EVENT_SEQUENCE_STARTED,
     EVENT_SEQUENCE_STOPPED,
     EVENT_STEP_CHANGED,
@@ -16,8 +18,10 @@ from .const import (
     EVENT_ATTR_LOOP_ITERATION,
     EVENT_ATTR_REASON,
     EVENT_ATTR_SEQUENCE_ID,
+    EVENT_ATTR_SEQUENCE_TYPE,
     EVENT_ATTR_STEP_INDEX,
     EVENT_ATTR_TOTAL_STEPS,
+    SEQUENCE_TYPE_CCT,
 )
 from .models import CCTSequence
 
@@ -139,6 +143,7 @@ class CCTSequenceManager:
                 EVENT_ATTR_ENTITY_ID: entity_id,
                 EVENT_ATTR_SEQUENCE_ID: sequence_id,
                 EVENT_ATTR_TOTAL_STEPS: len(sequence.steps),
+                EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_CCT,
             },
         )
 
@@ -236,6 +241,7 @@ class CCTSequenceManager:
                     EVENT_ATTR_ENTITY_ID: entity_id,
                     EVENT_ATTR_SEQUENCE_ID: sequence_id,
                     EVENT_ATTR_TOTAL_STEPS: len(sequence.steps),
+                    EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_CCT,
                 },
             )
 
@@ -312,6 +318,7 @@ class CCTSequenceManager:
                 EVENT_ATTR_ENTITY_ID: entity_id,
                 EVENT_ATTR_SEQUENCE_ID: sequence_id,
                 EVENT_ATTR_REASON: "manual_stop",
+                EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_CCT,
             },
         )
 
@@ -383,6 +390,18 @@ class CCTSequenceManager:
             self._pause_flags[entity_id].set()
             if entity_id in self._sequence_state:
                 self._sequence_state[entity_id]["paused"] = True
+
+            # Fire sequence paused event
+            sequence_id = self._sequence_ids.get(entity_id, "")
+            self.hass.bus.async_fire(
+                EVENT_SEQUENCE_PAUSED,
+                {
+                    EVENT_ATTR_ENTITY_ID: entity_id,
+                    EVENT_ATTR_SEQUENCE_ID: sequence_id,
+                    EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_CCT,
+                },
+            )
+
             _LOGGER.info("Paused CCT sequence for %s", entity_id)
             return True
 
@@ -410,6 +429,18 @@ class CCTSequenceManager:
             self._pause_flags[entity_id].clear()
             if entity_id in self._sequence_state:
                 self._sequence_state[entity_id]["paused"] = False
+
+            # Fire sequence resumed event
+            sequence_id = self._sequence_ids.get(entity_id, "")
+            self.hass.bus.async_fire(
+                EVENT_SEQUENCE_RESUMED,
+                {
+                    EVENT_ATTR_ENTITY_ID: entity_id,
+                    EVENT_ATTR_SEQUENCE_ID: sequence_id,
+                    EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_CCT,
+                },
+            )
+
             _LOGGER.info("Resumed CCT sequence for %s", entity_id)
             return True
 
@@ -510,6 +541,7 @@ class CCTSequenceManager:
                             EVENT_ATTR_STEP_INDEX: step_index + 1,
                             EVENT_ATTR_TOTAL_STEPS: len(sequence.steps),
                             EVENT_ATTR_LOOP_ITERATION: loops_executed + 1,
+                            EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_CCT,
                         },
                     )
 
@@ -607,6 +639,7 @@ class CCTSequenceManager:
                     {
                         EVENT_ATTR_ENTITY_ID: entity_id,
                         EVENT_ATTR_SEQUENCE_ID: sequence_id,
+                        EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_CCT,
                     },
                 )
 
@@ -697,6 +730,7 @@ class CCTSequenceManager:
                             EVENT_ATTR_STEP_INDEX: step_index + 1,
                             EVENT_ATTR_TOTAL_STEPS: len(sequence.steps),
                             EVENT_ATTR_LOOP_ITERATION: loops_executed + 1,
+                            EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_CCT,
                         },
                     )
 
@@ -812,5 +846,6 @@ class CCTSequenceManager:
                     {
                         EVENT_ATTR_ENTITY_ID: entity_id,
                         EVENT_ATTR_SEQUENCE_ID: sequence_id,
+                        EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_CCT,
                     },
                 )

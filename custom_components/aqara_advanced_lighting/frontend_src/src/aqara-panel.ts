@@ -2,7 +2,13 @@ import { LitElement, html, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { ref, createRef, Ref } from 'lit/directives/ref.js';
 import { panelStyles } from './styles';
-import { xyToRgb } from './color-utils';
+import { xyToRgb, rgbToXy } from './color-utils';
+import {
+  renderEffectThumbnail,
+  renderSegmentPatternThumbnail,
+  renderCCTSequenceThumbnail,
+  renderSegmentSequenceThumbnail,
+} from './preset-thumbnails';
 import { PANEL_TRANSLATIONS } from './panel-translations';
 import {
   HomeAssistant,
@@ -14,6 +20,7 @@ import {
   SegmentSequencePreset,
   Favorite,
   PanelTab,
+  DeviceContext,
   UserPresetsData,
   UserEffectPreset,
   UserSegmentPatternPreset,
@@ -47,16 +54,11 @@ export class AqaraPanel extends LitElement {
   @state() private _favoriteInputName = '';
   @state() private _activeTab: PanelTab = 'activate';
   @state() private _userPresets?: UserPresetsData;
-  @state() private _editingPreset?: { type: string; preset: UserEffectPreset | UserSegmentPatternPreset | UserCCTSequencePreset | UserSegmentSequencePreset };
+  @state() private _editingPreset?: { type: string; preset: UserEffectPreset | UserSegmentPatternPreset | UserCCTSequencePreset | UserSegmentSequencePreset; isDuplicate?: boolean };
   @state() private _effectPreviewActive = false;
   @state() private _cctPreviewActive = false;
   @state() private _segmentSequencePreviewActive = false;
-  @state() private _sortPreferences: PresetSortPreferences = {
-    effects: 'name-asc',
-    patterns: 'name-asc',
-    cct: 'name-asc',
-    segments: 'name-asc',
-  };
+  @state() private _sortPreferences: PresetSortPreferences = {};
   @state() private _backendVersion?: string;
   @state() private _frontendVersion = '__FRONTEND_VERSION__';
   @state() private _supportedEntities: Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; is_group?: boolean; member_count?: number }> = new Map();
@@ -217,23 +219,10 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _loadFavorites(): Promise<void> {
-    if (!this.hass?.auth?.data?.access_token) {
-      console.warn('No auth token available, skipping favorites load');
-      return;
-    }
+    if (!this.hass) return;
 
     try {
-      const response = await fetch('/api/aqara_advanced_lighting/favorites', {
-        credentials: 'same-origin',
-        headers: {
-          Authorization: `Bearer ${this.hass.auth.data.access_token}`,
-        },
-      });
-      if (!response.ok) {
-        console.warn('Failed to load favorites:', response.status);
-        return;
-      }
-      const data = await response.json();
+      const data = await this.hass.callApi<{ favorites: Favorite[] }>('GET', 'aqara_advanced_lighting/favorites');
       this._favorites = data.favorites || [];
     } catch (err) {
       console.warn('Failed to load favorites:', err);
@@ -241,23 +230,10 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _loadUserPresets(): Promise<void> {
-    if (!this.hass?.auth?.data?.access_token) {
-      console.warn('No auth token available, skipping user presets load');
-      return;
-    }
+    if (!this.hass) return;
 
     try {
-      const response = await fetch('/api/aqara_advanced_lighting/user_presets', {
-        credentials: 'same-origin',
-        headers: {
-          Authorization: `Bearer ${this.hass.auth.data.access_token}`,
-        },
-      });
-      if (!response.ok) {
-        console.warn('Failed to load user presets:', response.status);
-        return;
-      }
-      this._userPresets = await response.json();
+      this._userPresets = await this.hass.callApi<UserPresetsData>('GET', 'aqara_advanced_lighting/user_presets');
     } catch (err) {
       console.warn('Failed to load user presets:', err);
     }
@@ -268,16 +244,15 @@ export class AqaraPanel extends LitElement {
       const stored = localStorage.getItem('aqara_lighting_sort_preferences');
       if (stored) {
         const parsed = JSON.parse(stored) as PresetSortPreferences;
-        this._sortPreferences = {
-          effects: parsed.effects || 'name-asc',
-          patterns: parsed.patterns || 'name-asc',
-          cct: parsed.cct || 'name-asc',
-          segments: parsed.segments || 'name-asc',
-        };
+        this._sortPreferences = { ...parsed };
       }
     } catch (err) {
       console.warn('Failed to load sort preferences:', err);
     }
+  }
+
+  private _getSortPreference(sectionId: string): PresetSortOption {
+    return this._sortPreferences[sectionId] || 'name-asc';
   }
 
   private async _loadBackendVersion(): Promise<void> {
@@ -340,10 +315,10 @@ export class AqaraPanel extends LitElement {
     }
   }
 
-  private _setSortPreference(category: keyof PresetSortPreferences, value: PresetSortOption): void {
+  private _setSortPreference(sectionId: string, value: PresetSortOption): void {
     this._sortPreferences = {
       ...this._sortPreferences,
-      [category]: value,
+      [sectionId]: value,
     };
     this._saveSortPreferences();
   }
@@ -473,25 +448,40 @@ export class AqaraPanel extends LitElement {
     }
   }
 
-  private async _saveUserPreset(type: string, data: Record<string, unknown>): Promise<void> {
-    if (!this.hass?.auth?.data?.access_token) {
-      console.error('No auth token available');
-      return;
+  // Device type keys for My Presets sub-categories
+  // Order defines display order of sub-categories
+  private static readonly PRESET_DEVICE_TYPES: string[] = [
+    't2_bulb', 't1', 't1m', 't1_strip',
+  ];
+
+  /**
+   * Group presets by device_type for sub-category rendering.
+   * Returns ungrouped presets (no device_type) and a map of device_type to presets.
+   */
+  private _groupPresetsByDeviceType<T extends { device_type?: string }>(
+    presets: T[],
+  ): { ungrouped: T[]; grouped: Map<string, T[]> } {
+    const ungrouped: T[] = [];
+    const grouped = new Map<string, T[]>();
+
+    for (const preset of presets) {
+      if (!preset.device_type) {
+        ungrouped.push(preset);
+      } else {
+        const list = grouped.get(preset.device_type) || [];
+        list.push(preset);
+        grouped.set(preset.device_type, list);
+      }
     }
 
+    return { ungrouped, grouped };
+  }
+
+  private async _saveUserPreset(type: string, data: Record<string, unknown>): Promise<void> {
+    if (!this.hass) return;
+
     try {
-      const response = await fetch('/api/aqara_advanced_lighting/user_presets', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.hass.auth.data.access_token}`,
-        },
-        body: JSON.stringify({ type, data }),
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP error ${response.status}`);
-      }
+      await this.hass.callApi('POST', 'aqara_advanced_lighting/user_presets', { type, data });
       await this._loadUserPresets();
     } catch (err) {
       console.error('Failed to save user preset:', err);
@@ -499,24 +489,10 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _updateUserPreset(type: string, id: string, data: Record<string, unknown>): Promise<void> {
-    if (!this.hass?.auth?.data?.access_token) {
-      console.error('No auth token available');
-      return;
-    }
+    if (!this.hass) return;
 
     try {
-      const response = await fetch(`/api/aqara_advanced_lighting/user_presets/${type}/${id}`, {
-        method: 'PUT',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.hass.auth.data.access_token}`,
-        },
-        body: JSON.stringify(data),
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP error ${response.status}`);
-      }
+      await this.hass.callApi('PUT', `aqara_advanced_lighting/user_presets/${type}/${id}`, data);
       await this._loadUserPresets();
     } catch (err) {
       console.error('Failed to update user preset:', err);
@@ -524,22 +500,10 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _deleteUserPreset(type: string, id: string): Promise<void> {
-    if (!this.hass?.auth?.data?.access_token) {
-      console.error('No auth token available');
-      return;
-    }
+    if (!this.hass) return;
 
     try {
-      const response = await fetch(`/api/aqara_advanced_lighting/user_presets/${type}/${id}`, {
-        method: 'DELETE',
-        credentials: 'same-origin',
-        headers: {
-          Authorization: `Bearer ${this.hass.auth.data.access_token}`,
-        },
-      });
-      if (!response.ok && response.status !== 204) {
-        throw new Error(`HTTP error ${response.status}`);
-      }
+      await this.hass.callApi('DELETE', `aqara_advanced_lighting/user_presets/${type}/${id}`);
       await this._loadUserPresets();
     } catch (err) {
       console.error('Failed to delete user preset:', err);
@@ -574,30 +538,16 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _saveFavorite(): Promise<void> {
-    if (!this._selectedEntities.length || !this.hass?.auth?.data?.access_token) {
+    if (!this._selectedEntities.length || !this.hass) {
       this._cancelFavoriteInput();
       return;
     }
 
     try {
-      const response = await fetch('/api/aqara_advanced_lighting/favorites', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.hass.auth.data.access_token}`,
-        },
-        body: JSON.stringify({
-          entities: this._selectedEntities,
-          name: this._favoriteInputName || undefined,
-        }),
+      const data = await this.hass.callApi<{ favorite: Favorite }>('POST', 'aqara_advanced_lighting/favorites', {
+        entities: this._selectedEntities,
+        name: this._favoriteInputName || undefined,
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error ${response.status}`);
-      }
-
-      const data = await response.json();
       this._favorites = [...this._favorites, data.favorite];
     } catch (err) {
       console.error('Failed to add favorite:', err);
@@ -626,24 +576,10 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _removeFavorite(favoriteId: string): Promise<void> {
-    if (!this.hass?.auth?.data?.access_token) {
-      console.error('No auth token available');
-      return;
-    }
+    if (!this.hass) return;
 
     try {
-      const response = await fetch(`/api/aqara_advanced_lighting/favorites/${favoriteId}`, {
-        method: 'DELETE',
-        credentials: 'same-origin',
-        headers: {
-          Authorization: `Bearer ${this.hass.auth.data.access_token}`,
-        },
-      });
-
-      if (!response.ok && response.status !== 204) {
-        throw new Error(`HTTP error ${response.status}`);
-      }
-
+      await this.hass.callApi('DELETE', `aqara_advanced_lighting/favorites/${favoriteId}`);
       this._favorites = this._favorites.filter((f) => f.id !== favoriteId);
     } catch (err) {
       console.error('Failed to remove favorite:', err);
@@ -744,6 +680,19 @@ export class AqaraPanel extends LitElement {
       // First, check if this entity is in the backend's supported entities map
       const supportedEntity = this._supportedEntities.get(entityId);
       if (supportedEntity) {
+        if (supportedEntity.device_type === 't1m') {
+          // Distinguish T1M RGB from T1M White using supported_color_modes
+          // Both endpoints share the same effect_list, so we check for xy/hs/rgb modes
+          const colorModes = entity.attributes.supported_color_modes as string[] | undefined;
+          const hasRGBMode = colorModes && Array.isArray(colorModes) &&
+            colorModes.some(mode => ['xy', 'hs', 'rgb', 'rgbw', 'rgbww'].includes(mode));
+          if (hasRGBMode) {
+            deviceTypes.add('t1m');  // RGB endpoint
+          } else {
+            deviceTypes.add('t1m_white');  // White/CCT endpoint
+          }
+          continue;
+        }
         // Use the device type from the backend - this is authoritative
         if (supportedEntity.device_type && supportedEntity.device_type !== 'unknown') {
           deviceTypes.add(supportedEntity.device_type);
@@ -837,20 +786,70 @@ export class AqaraPanel extends LitElement {
     return defaultSegments;
   }
 
+  private _getDeviceContextForEditor(editorType: 'effect' | 'pattern' | 'segment' | 'cct'): DeviceContext {
+    const deviceTypes = this._getSelectedDeviceTypes();
+
+    if (deviceTypes.length === 0) {
+      return { deviceType: null, hasSelection: false };
+    }
+
+    // Find the first device type compatible with the editor
+    let compatibleType: string | null = null;
+
+    switch (editorType) {
+      case 'effect':
+        // Effect editor supports t2_bulb, t1, t1m, t1_strip
+        compatibleType = deviceTypes.find(
+          (dt) => dt === 't2_bulb' || dt === 't1m' || dt === 't1_strip' || dt === 't1'
+        ) ?? null;
+        break;
+
+      case 'pattern':
+      case 'segment':
+        // Pattern and segment editors only support T1 variants
+        compatibleType = deviceTypes.find(
+          (dt) => dt === 't1m' || dt === 't1_strip' || dt === 't1'
+        ) ?? null;
+        break;
+
+      case 'cct':
+        // CCT supports all devices - use first available
+        compatibleType = deviceTypes[0] ?? null;
+        break;
+    }
+
+    return { deviceType: compatibleType, hasSelection: true };
+  }
+
   // Compatibility checks for each tab - check actual entity capabilities
   // Effects: T2 RGB, T1M RGB, T1 Strip (entities with RGB effect_list)
+  // Check if an entity has RGB color mode support (xy, hs, rgb, rgbw, rgbww)
+  private _hasRGBColorMode(entity: { attributes: Record<string, unknown> }): boolean {
+    const colorModes = entity.attributes.supported_color_modes as string[] | undefined;
+    return !!colorModes && Array.isArray(colorModes) &&
+      colorModes.some(mode => ['xy', 'hs', 'rgb', 'rgbw', 'rgbww'].includes(mode));
+  }
+
+  // Check if an entity is a T1M endpoint (has T1M-specific effects like flow1)
+  private _isT1MEntity(entity: { attributes: Record<string, unknown> }): boolean {
+    const effectList = entity.attributes.effect_list as string[] | undefined;
+    return !!effectList && Array.isArray(effectList) && effectList.includes('flow1');
+  }
+
   private _isEffectsCompatible(): boolean {
     if (!this.hass || !this._selectedEntities.length) return false;
     return this._selectedEntities.some(entityId => {
       const entity = this.hass!.states[entityId];
       if (!entity) return false;
       const effectList = entity.attributes.effect_list as string[] | undefined;
-      // Must have effect_list with supported effects (not just CCT-only lights)
-      return effectList && Array.isArray(effectList) && effectList.length > 0;
+      if (!effectList || !Array.isArray(effectList) || effectList.length === 0) return false;
+      // T1M white endpoint has effect_list but only supports CCT - exclude it
+      if (this._isT1MEntity(entity) && !this._hasRGBColorMode(entity)) return false;
+      return true;
     });
   }
 
-  // Patterns: T1M RGB, T1 Strip only (entities with segment-capable effect_list)
+  // Patterns: T1M RGB, T1 Strip only (entities with segment-capable effect_list and RGB color mode)
   private _isPatternsCompatible(): boolean {
     if (!this.hass || !this._selectedEntities.length) return false;
     return this._selectedEntities.some(entityId => {
@@ -860,25 +859,32 @@ export class AqaraPanel extends LitElement {
       if (!effectList || !Array.isArray(effectList)) return false;
       // T1M has flow1/flow2/rolling, T1 Strip has rainbow1/rainbow2/chasing/flicker/dash
       // T2 has candlelight but doesn't support patterns
-      return effectList.includes('flow1') || effectList.includes('rainbow1');
+      // T1M white endpoint has flow1 but only supports CCT - exclude it
+      if (!(effectList.includes('flow1') || effectList.includes('rainbow1'))) return false;
+      if (this._isT1MEntity(entity) && !this._hasRGBColorMode(entity)) return false;
+      return true;
     });
   }
 
-  // CCT: Entities with color_temp attribute (T2 RGB, T2 CCT, T1M White, T1 Strip)
-  // Note: T1M RGB endpoint does NOT have color_temp
+  // CCT: Entities with color_temp support (T2 RGB, T2 CCT, T1M White, T1 Strip)
+  // T1M RGB endpoint has color_temp in supported_color_modes but doesn't support CCT sequences
   private _isCCTCompatible(): boolean {
     if (!this.hass || !this._selectedEntities.length) return false;
     return this._selectedEntities.some(entityId => {
       const entity = this.hass!.states[entityId];
       if (!entity) return false;
       // Must have color_temp attribute to support CCT sequences
-      return entity.attributes.color_temp !== undefined ||
+      const hasCCT = entity.attributes.color_temp !== undefined ||
              entity.attributes.color_temp_kelvin !== undefined ||
              entity.attributes.min_color_temp_kelvin !== undefined;
+      if (!hasCCT) return false;
+      // T1M RGB endpoint has color_temp but doesn't support CCT sequences - exclude it
+      if (this._isT1MEntity(entity) && this._hasRGBColorMode(entity)) return false;
+      return true;
     });
   }
 
-  // Segments: T1M RGB, T1 Strip only (entities with segment-capable effect_list)
+  // Segments: T1M RGB, T1 Strip only (entities with segment-capable effect_list and RGB color mode)
   private _isSegmentsCompatible(): boolean {
     if (!this.hass || !this._selectedEntities.length) return false;
     return this._selectedEntities.some(entityId => {
@@ -888,7 +894,10 @@ export class AqaraPanel extends LitElement {
       if (!effectList || !Array.isArray(effectList)) return false;
       // T1M has flow1/flow2/rolling, T1 Strip has rainbow1/rainbow2/chasing/flicker/dash
       // T2 has candlelight but doesn't support segments
-      return effectList.includes('flow1') || effectList.includes('rainbow1');
+      // T1M white endpoint has flow1 but only supports CCT - exclude it
+      if (!(effectList.includes('flow1') || effectList.includes('rainbow1'))) return false;
+      if (this._isT1MEntity(entity) && !this._hasRGBColorMode(entity)) return false;
+      return true;
     });
   }
 
@@ -901,7 +910,10 @@ export class AqaraPanel extends LitElement {
       const entity = this.hass!.states[entityId];
       if (!entity) return false;
       const effectList = entity.attributes.effect_list as string[] | undefined;
-      return effectList && Array.isArray(effectList) && effectList.length > 0;
+      if (!effectList || !Array.isArray(effectList) || effectList.length === 0) return false;
+      // T1M white endpoint has effect_list but only supports CCT - exclude it
+      if (this._isT1MEntity(entity) && !this._hasRGBColorMode(entity)) return false;
+      return true;
     });
   }
 
@@ -912,7 +924,10 @@ export class AqaraPanel extends LitElement {
       if (!entity) return false;
       const effectList = entity.attributes.effect_list as string[] | undefined;
       if (!effectList || !Array.isArray(effectList)) return false;
-      return effectList.includes('flow1') || effectList.includes('rainbow1');
+      if (!(effectList.includes('flow1') || effectList.includes('rainbow1'))) return false;
+      // T1M white endpoint has flow1 but only supports CCT - exclude it
+      if (this._isT1MEntity(entity) && !this._hasRGBColorMode(entity)) return false;
+      return true;
     });
   }
 
@@ -921,9 +936,13 @@ export class AqaraPanel extends LitElement {
     return this._selectedEntities.filter(entityId => {
       const entity = this.hass!.states[entityId];
       if (!entity) return false;
-      return entity.attributes.color_temp !== undefined ||
+      const hasCCT = entity.attributes.color_temp !== undefined ||
              entity.attributes.color_temp_kelvin !== undefined ||
              entity.attributes.min_color_temp_kelvin !== undefined;
+      if (!hasCCT) return false;
+      // T1M RGB endpoint has color_temp but doesn't support CCT sequences - exclude it
+      if (this._isT1MEntity(entity) && this._hasRGBColorMode(entity)) return false;
+      return true;
     });
   }
 
@@ -934,7 +953,10 @@ export class AqaraPanel extends LitElement {
       if (!entity) return false;
       const effectList = entity.attributes.effect_list as string[] | undefined;
       if (!effectList || !Array.isArray(effectList)) return false;
-      return effectList.includes('flow1') || effectList.includes('rainbow1');
+      if (!(effectList.includes('flow1') || effectList.includes('rainbow1'))) return false;
+      // T1M white endpoint has flow1 but only supports CCT - exclude it
+      if (this._isT1MEntity(entity) && !this._hasRGBColorMode(entity)) return false;
+      return true;
     });
   }
 
@@ -957,14 +979,17 @@ export class AqaraPanel extends LitElement {
     const deviceTypes = this._getSelectedDeviceTypes();
     const hasSelection = deviceTypes.length > 0;
 
-    // Determine what sections to show
+    // Determine what sections to show based on selected endpoint capabilities
+    // t1m = T1M RGB endpoint, t1m_white = T1M white/CCT endpoint
     const hasT2 = deviceTypes.includes('t2_bulb');
+    const hasT2CCT = deviceTypes.includes('t2_cct');
     const hasT1M = deviceTypes.includes('t1m');
+    const hasT1MWhite = deviceTypes.includes('t1m_white');
     const hasT1Strip = deviceTypes.includes('t1_strip');
 
     const showDynamicEffects = hasSelection && (hasT2 || hasT1M || hasT1Strip);
     const showSegmentPatterns = hasSelection && (hasT1M || hasT1Strip);
-    const showCCTSequences = hasSelection; // All lights support CCT
+    const showCCTSequences = hasSelection && (hasT2 || hasT2CCT || hasT1MWhite || hasT1Strip);
     const showSegmentSequences = hasSelection && (hasT1M || hasT1Strip);
 
     return {
@@ -1150,21 +1175,17 @@ export class AqaraPanel extends LitElement {
     });
   }
 
-  private _getFilteredUserPatternPresets(): UserSegmentPatternPreset[] {
+  private _getUserPatternPresetsForDeviceType(deviceType: string): UserSegmentPatternPreset[] {
     if (!this._userPresets?.segment_pattern_presets) return [];
-    const deviceTypes = this._getSelectedDeviceTypes();
-    if (deviceTypes.length === 0) return [];
-
-    // Patterns only apply to T1, T1M, and T1 Strip
-    const hasSegmentDevice = deviceTypes.includes('t1m') || deviceTypes.includes('t1_strip');
-    if (!hasSegmentDevice) return [];
 
     return this._userPresets.segment_pattern_presets.filter((preset) => {
+      // If preset has no device_type, show in all sections
       if (!preset.device_type) return true;
-      if (preset.device_type === 't1' || preset.device_type === 't1m') {
-        return deviceTypes.includes('t1m');
+      // Match t1 and t1m presets
+      if (deviceType === 't1m' && (preset.device_type === 't1' || preset.device_type === 't1m')) {
+        return true;
       }
-      return deviceTypes.includes(preset.device_type);
+      return preset.device_type === deviceType;
     });
   }
 
@@ -1175,21 +1196,17 @@ export class AqaraPanel extends LitElement {
     return deviceTypes.length > 0 ? this._userPresets.cct_sequence_presets : [];
   }
 
-  private _getFilteredUserSegmentSequencePresets(): UserSegmentSequencePreset[] {
+  private _getUserSegmentSequencePresetsForDeviceType(deviceType: string): UserSegmentSequencePreset[] {
     if (!this._userPresets?.segment_sequence_presets) return [];
-    const deviceTypes = this._getSelectedDeviceTypes();
-    if (deviceTypes.length === 0) return [];
-
-    // Segment sequences only apply to T1, T1M, and T1 Strip
-    const hasSegmentDevice = deviceTypes.includes('t1m') || deviceTypes.includes('t1_strip');
-    if (!hasSegmentDevice) return [];
 
     return this._userPresets.segment_sequence_presets.filter((preset) => {
+      // If preset has no device_type, show in all sections
       if (!preset.device_type) return true;
-      if (preset.device_type === 't1' || preset.device_type === 't1m') {
-        return deviceTypes.includes('t1m');
+      // Match t1 and t1m presets
+      if (deviceType === 't1m' && (preset.device_type === 't1' || preset.device_type === 't1m')) {
+        return true;
       }
-      return deviceTypes.includes(preset.device_type);
+      return preset.device_type === deviceType;
     });
   }
 
@@ -1712,27 +1729,41 @@ export class AqaraPanel extends LitElement {
       ${filtered.showDynamicEffects && !this._hasIncompatibleLights
         ? html`
             ${filtered.hasT2 && (filtered.t2Presets.length > 0 || this._getUserEffectPresetsForDeviceType('t2_bulb').length > 0)
-              ? this._renderDynamicEffectsSection('T2 Bulb', filtered.t2Presets, 't2_bulb')
+              ? this._renderDynamicEffectsSection(this._localize('devices.t2_bulb'), filtered.t2Presets, 't2_bulb')
               : ''}
             ${filtered.hasT1M && (filtered.t1mPresets.length > 0 || this._getUserEffectPresetsForDeviceType('t1m').length > 0)
-              ? this._renderDynamicEffectsSection('T1M', filtered.t1mPresets, 't1m')
+              ? this._renderDynamicEffectsSection(this._localize('devices.t1m'), filtered.t1mPresets, 't1m')
               : ''}
             ${filtered.hasT1Strip && (filtered.t1StripPresets.length > 0 || this._getUserEffectPresetsForDeviceType('t1_strip').length > 0)
-              ? this._renderDynamicEffectsSection('T1 Strip', filtered.t1StripPresets, 't1_strip')
+              ? this._renderDynamicEffectsSection(this._localize('devices.t1_strip'), filtered.t1StripPresets, 't1_strip')
               : ''}
           `
         : ''}
 
-      ${filtered.showSegmentPatterns && ((this._presets?.segment_patterns?.length ?? 0) > 0 || this._getFilteredUserPatternPresets().length > 0) && !this._hasIncompatibleLights
-        ? this._renderSegmentPatternsSection()
+      ${filtered.showSegmentPatterns && !this._hasIncompatibleLights
+        ? html`
+            ${filtered.hasT1M && ((this._presets?.segment_patterns?.length ?? 0) > 0 || this._getUserPatternPresetsForDeviceType('t1m').length > 0)
+              ? this._renderSegmentPatternsSection(this._localize('devices.t1m'), this._presets?.segment_patterns || [], 't1m')
+              : ''}
+            ${filtered.hasT1Strip && ((this._presets?.segment_patterns?.length ?? 0) > 0 || this._getUserPatternPresetsForDeviceType('t1_strip').length > 0)
+              ? this._renderSegmentPatternsSection(this._localize('devices.t1_strip'), this._presets?.segment_patterns || [], 't1_strip')
+              : ''}
+          `
         : ''}
 
       ${filtered.showCCTSequences && ((this._presets?.cct_sequences?.length ?? 0) > 0 || this._getFilteredUserCCTSequencePresets().length > 0) && !this._hasIncompatibleLights
         ? this._renderCCTSequencesSection()
         : ''}
 
-      ${filtered.showSegmentSequences && ((this._presets?.segment_sequences?.length ?? 0) > 0 || this._getFilteredUserSegmentSequencePresets().length > 0) && !this._hasIncompatibleLights
-        ? this._renderSegmentSequencesSection()
+      ${filtered.showSegmentSequences && !this._hasIncompatibleLights
+        ? html`
+            ${filtered.hasT1M && ((this._presets?.segment_sequences?.length ?? 0) > 0 || this._getUserSegmentSequencePresetsForDeviceType('t1m').length > 0)
+              ? this._renderSegmentSequencesSection(this._localize('devices.t1m'), this._presets?.segment_sequences || [], 't1m')
+              : ''}
+            ${filtered.hasT1Strip && ((this._presets?.segment_sequences?.length ?? 0) > 0 || this._getUserSegmentSequencePresetsForDeviceType('t1_strip').length > 0)
+              ? this._renderSegmentSequencesSection(this._localize('devices.t1_strip'), this._presets?.segment_sequences || [], 't1_strip')
+              : ''}
+          `
         : ''}
     `;
   }
@@ -1757,11 +1788,12 @@ export class AqaraPanel extends LitElement {
           .hass=${this.hass}
           .preset=${editingEffect}
           .translations=${this._translations}
-          .editMode=${!!editingEffect}
+          .editMode=${!!editingEffect && !this._editingPreset?.isDuplicate}
           .hasSelectedEntities=${hasSelection}
           .isCompatible=${isCompatible}
           .previewActive=${this._effectPreviewActive}
           .stripSegmentCount=${this._getT1StripSegmentCount()}
+          .deviceContext=${this._getDeviceContextForEditor('effect')}
           @save=${this._handleEffectSave}
           @preview=${this._handleEffectPreview}
           @stop-preview=${this._handleEffectStopPreview}
@@ -1772,7 +1804,7 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _handleEffectSave(e: CustomEvent): Promise<void> {
-    if (this._editingPreset?.type === 'effect') {
+    if (this._editingPreset?.type === 'effect' && !this._editingPreset.isDuplicate) {
       const existingPreset = this._editingPreset.preset as UserEffectPreset;
       await this._updateUserPreset('effect', existingPreset.id, e.detail);
     } else {
@@ -1865,10 +1897,11 @@ export class AqaraPanel extends LitElement {
           .hass=${this.hass}
           .preset=${editingPattern}
           .translations=${this._translations}
-          .editMode=${!!editingPattern}
+          .editMode=${!!editingPattern && !this._editingPreset?.isDuplicate}
           .hasSelectedEntities=${hasSelection}
           .isCompatible=${isCompatible}
           .stripSegmentCount=${this._getT1StripSegmentCount()}
+          .deviceContext=${this._getDeviceContextForEditor('pattern')}
           @save=${this._handlePatternSave}
           @preview=${this._handlePatternPreview}
           @cancel=${this._handleEditorCancel}
@@ -1878,7 +1911,7 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _handlePatternSave(e: CustomEvent): Promise<void> {
-    if (this._editingPreset?.type === 'pattern') {
+    if (this._editingPreset?.type === 'pattern' && !this._editingPreset.isDuplicate) {
       const existingPreset = this._editingPreset.preset as UserSegmentPatternPreset;
       await this._updateUserPreset('segment_pattern', existingPreset.id, e.detail);
     } else {
@@ -1940,11 +1973,12 @@ export class AqaraPanel extends LitElement {
           .hass=${this.hass}
           .preset=${editingCCT}
           .translations=${this._translations}
-          .editMode=${!!editingCCT}
+          .editMode=${!!editingCCT && !this._editingPreset?.isDuplicate}
           .hasSelectedEntities=${hasSelection}
           .isCompatible=${isCompatible}
           .selectedEntities=${this._selectedEntities}
           .previewActive=${this._cctPreviewActive}
+          .deviceContext=${this._getDeviceContextForEditor('cct')}
           @save=${this._handleCCTSave}
           @preview=${this._handleCCTPreview}
           @stop-preview=${this._handleCCTStopPreview}
@@ -1955,7 +1989,7 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _handleCCTSave(e: CustomEvent): Promise<void> {
-    if (this._editingPreset?.type === 'cct') {
+    if (this._editingPreset?.type === 'cct' && !this._editingPreset.isDuplicate) {
       const existingPreset = this._editingPreset.preset as UserCCTSequencePreset;
       await this._updateUserPreset('cct_sequence', existingPreset.id, e.detail);
     } else {
@@ -2033,11 +2067,12 @@ export class AqaraPanel extends LitElement {
           .hass=${this.hass}
           .preset=${editingSegment}
           .translations=${this._translations}
-          .editMode=${!!editingSegment}
+          .editMode=${!!editingSegment && !this._editingPreset?.isDuplicate}
           .hasSelectedEntities=${hasSelection}
           .isCompatible=${isCompatible}
           .previewActive=${this._segmentSequencePreviewActive}
           .stripSegmentCount=${this._getT1StripSegmentCount()}
+          .deviceContext=${this._getDeviceContextForEditor('segment')}
           @save=${this._handleSegmentSequenceSave}
           @preview=${this._handleSegmentSequencePreview}
           @stop-preview=${this._handleSegmentSequenceStopPreview}
@@ -2048,7 +2083,7 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _handleSegmentSequenceSave(e: CustomEvent): Promise<void> {
-    if (this._editingPreset?.type === 'segment') {
+    if (this._editingPreset?.type === 'segment' && !this._editingPreset.isDuplicate) {
       const existingPreset = this._editingPreset.preset as UserSegmentSequencePreset;
       await this._updateUserPreset('segment_sequence', existingPreset.id, e.detail);
     } else {
@@ -2192,21 +2227,7 @@ export class AqaraPanel extends LitElement {
       const importData = JSON.parse(content);
 
       // Send to API
-      const response = await fetch('/api/aqara_advanced_lighting/presets/import', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${this.hass.auth.data.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(importData),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || response.statusText);
-      }
-
-      const result = await response.json();
+      const result = await this.hass.callApi<{ counts: Record<string, number> }>('POST', 'aqara_advanced_lighting/presets/import', importData);
       const totalCount = Object.values(result.counts).reduce(
         (sum: number, count) => sum + (count as number),
         0
@@ -2255,217 +2276,234 @@ export class AqaraPanel extends LitElement {
     const totalCount = effectPresets.length + patternPresets.length + cctPresets.length + segmentPresets.length;
     const hasSelection = this._selectedEntities.length > 0;
 
-    // Apply sorting
-    const sortedEffects = this._sortUserEffectPresets(effectPresets, this._sortPreferences.effects);
-    const sortedPatterns = this._sortUserPatternPresets(patternPresets, this._sortPreferences.patterns);
-    const sortedCCT = this._sortUserCCTSequencePresets(cctPresets, this._sortPreferences.cct);
-    const sortedSegments = this._sortUserSegmentSequencePresets(segmentPresets, this._sortPreferences.segments);
+    const myPresetsSectionId = 'my_presets_overview';
+    const myPresetsExpanded = !this._collapsed[myPresetsSectionId];
 
     return html`
-      <ha-card class="editor-form">
-        <h2>${this._localize('tabs.presets')}</h2>
-        <p class="editor-description">
-          ${this._localize('presets.manage_description')} ${hasSelection ? this._localize('presets.manage_description_with_selection') : 'Select lights in the Activate tab to enable activation.'}
-        </p>
-
-        <div class="toolbar-actions">
-          <mwc-button
-            raised
-            @click=${this._handleExportPresets}
-            .disabled=${this._isExporting || this._isImporting}
-          >
-            <ha-icon icon="mdi:download" slot="icon"></ha-icon>
-            ${this._isExporting
-              ? this._localize('presets.export_progress')
-              : this._localize('presets.export_button')}
-          </mwc-button>
-
-          <mwc-button
-            raised
-            @click=${this._handleImportClick}
-            .disabled=${this._isExporting || this._isImporting}
-          >
-            <ha-icon icon="mdi:upload" slot="icon"></ha-icon>
-            ${this._isImporting
-              ? this._localize('presets.import_progress')
-              : this._localize('presets.import_button')}
-          </mwc-button>
+      <ha-expansion-panel
+        outlined
+        .expanded=${myPresetsExpanded}
+        @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange(myPresetsSectionId, e)}
+      >
+        <div slot="header" class="section-header">
+          <div>
+            <div class="section-title">${this._localize('tabs.presets')}</div>
+            <div class="section-subtitle">
+              ${hasSelection ? this._localize('sections.subtitle_user_presets', {count: totalCount.toString()}) : this._localize('sections.subtitle_select_lights', {count: totalCount.toString()})}
+            </div>
+          </div>
         </div>
+        <div class="section-content preset-management-content">
+          <div class="toolbar-actions">
+            <mwc-button
+              raised
+              @click=${this._handleExportPresets}
+              .disabled=${this._isExporting || this._isImporting}
+            >
+              <ha-icon icon="mdi:download" slot="icon"></ha-icon>
+              ${this._isExporting
+                ? this._localize('presets.export_progress')
+                : this._localize('presets.export_button')}
+            </mwc-button>
 
-        ${totalCount === 0
-          ? html`
-              <div class="no-presets">
-                <ha-icon icon="mdi:folder-open-outline"></ha-icon>
-                <p>${this._localize('presets.no_presets_title')}</p>
-                <p>${this._localize('presets.no_presets_description')}</p>
-              </div>
-            `
-          : html`
-              ${effectPresets.length > 0
-                ? html`
-                    <div class="preset-category">
-                      <div class="preset-category-header">
-                        <h3>Effect Presets (${effectPresets.length})</h3>
-                        ${this._renderSortDropdown('effects')}
-                      </div>
-                      <div class="preset-grid">
-                        ${sortedEffects.map(
-                          (preset) => html`
-                            <div
-                              class="user-preset-card ${hasSelection ? '' : 'disabled'}"
-                              @click=${hasSelection ? () => this._activateUserEffectPreset(preset) : null}
-                              title="${preset.name}"
-                            >
-                              <div class="preset-card-actions">
-                                <ha-icon-button
-                                  @click=${(e: Event) => { e.stopPropagation(); this._editEffectPreset(preset); }}
-                                  title="${this._localize('tooltips.preset_edit')}"
-                                >
-                                  <ha-icon icon="mdi:pencil"></ha-icon>
-                                </ha-icon-button>
-                                <ha-icon-button
-                                  @click=${(e: Event) => { e.stopPropagation(); this._deleteUserPreset('effect', preset.id); }}
-                                  title="${this._localize('tooltips.preset_delete')}"
-                                >
-                                  <ha-icon icon="mdi:delete"></ha-icon>
-                                </ha-icon-button>
-                              </div>
-                              <div class="preset-icon">
-                                <ha-icon icon="${preset.icon || 'mdi:lightbulb-on'}"></ha-icon>
-                              </div>
-                              <div class="preset-name">${preset.name}</div>
-                            </div>
-                          `
-                        )}
-                      </div>
-                    </div>
-                  `
-                : ''}
+            <mwc-button
+              raised
+              @click=${this._handleImportClick}
+              .disabled=${this._isExporting || this._isImporting}
+            >
+              <ha-icon icon="mdi:upload" slot="icon"></ha-icon>
+              ${this._isImporting
+                ? this._localize('presets.import_progress')
+                : this._localize('presets.import_button')}
+            </mwc-button>
+          </div>
+        </div>
+      </ha-expansion-panel>
 
-              ${patternPresets.length > 0
-                ? html`
-                    <div class="preset-category">
-                      <div class="preset-category-header">
-                        <h3>Segment Pattern Presets (${patternPresets.length})</h3>
-                        ${this._renderSortDropdown('patterns')}
-                      </div>
-                      <div class="preset-grid">
-                        ${sortedPatterns.map(
-                          (preset) => html`
-                            <div
-                              class="user-preset-card ${hasSelection ? '' : 'disabled'}"
-                              @click=${hasSelection ? () => this._activateUserPatternPreset(preset) : null}
-                              title="${preset.name}"
-                            >
-                              <div class="preset-card-actions">
-                                <ha-icon-button
-                                  @click=${(e: Event) => { e.stopPropagation(); this._editPatternPreset(preset); }}
-                                  title="${this._localize('tooltips.preset_edit')}"
-                                >
-                                  <ha-icon icon="mdi:pencil"></ha-icon>
-                                </ha-icon-button>
-                                <ha-icon-button
-                                  @click=${(e: Event) => { e.stopPropagation(); this._deleteUserPreset('segment_pattern', preset.id); }}
-                                  title="${this._localize('tooltips.preset_delete')}"
-                                >
-                                  <ha-icon icon="mdi:delete"></ha-icon>
-                                </ha-icon-button>
-                              </div>
-                              <div class="preset-icon">
-                                <ha-icon icon="${preset.icon || 'mdi:palette'}"></ha-icon>
-                              </div>
-                              <div class="preset-name">${preset.name}</div>
-                            </div>
-                          `
-                        )}
-                      </div>
-                    </div>
-                  `
-                : ''}
+      ${totalCount === 0
+        ? html`
+            <div class="no-presets">
+              <ha-icon icon="mdi:folder-open-outline"></ha-icon>
+              <p>${this._localize('presets.no_presets_title')}</p>
+              <p>${this._localize('presets.no_presets_description')}</p>
+            </div>
+          `
+        : html`
+            ${this._renderPresetDeviceSections(
+              this._localize('sections.dynamic_effects'), 'presets_effects',
+              effectPresets, hasSelection,
+              (p) => this._activateUserEffectPreset(p),
+              (p) => this._editEffectPreset(p),
+              'effect',
+              (p) => this._renderUserEffectIcon(p),
+              (presets, opt) => this._sortUserEffectPresets(presets, opt),
+              (p) => this._duplicateUserEffectPreset(p),
+            )}
 
-              ${cctPresets.length > 0
-                ? html`
-                    <div class="preset-category">
-                      <div class="preset-category-header">
-                        <h3>CCT Sequence Presets (${cctPresets.length})</h3>
-                        ${this._renderSortDropdown('cct')}
-                      </div>
-                      <div class="preset-grid">
-                        ${sortedCCT.map(
-                          (preset) => html`
-                            <div
-                              class="user-preset-card ${hasSelection ? '' : 'disabled'}"
-                              @click=${hasSelection ? () => this._activateUserCCTSequencePreset(preset) : null}
-                              title="${preset.name}"
-                            >
-                              <div class="preset-card-actions">
-                                <ha-icon-button
-                                  @click=${(e: Event) => { e.stopPropagation(); this._editCCTSequencePreset(preset); }}
-                                  title="${this._localize('tooltips.preset_edit')}"
-                                >
-                                  <ha-icon icon="mdi:pencil"></ha-icon>
-                                </ha-icon-button>
-                                <ha-icon-button
-                                  @click=${(e: Event) => { e.stopPropagation(); this._deleteUserPreset('cct_sequence', preset.id); }}
-                                  title="${this._localize('tooltips.preset_delete')}"
-                                >
-                                  <ha-icon icon="mdi:delete"></ha-icon>
-                                </ha-icon-button>
-                              </div>
-                              <div class="preset-icon">
-                                <ha-icon icon="${preset.icon || 'mdi:temperature-kelvin'}"></ha-icon>
-                              </div>
-                              <div class="preset-name">${preset.name}</div>
-                            </div>
-                          `
-                        )}
-                      </div>
-                    </div>
-                  `
-                : ''}
+            ${this._renderPresetDeviceSections(
+              this._localize('sections.segment_patterns'), 'presets_patterns',
+              patternPresets, hasSelection,
+              (p) => this._activateUserPatternPreset(p),
+              (p) => this._editPatternPreset(p),
+              'segment_pattern',
+              (p) => this._renderUserPatternIcon(p),
+              (presets, opt) => this._sortUserPatternPresets(presets, opt),
+              (p) => this._duplicateUserPatternPreset(p),
+            )}
 
-              ${segmentPresets.length > 0
-                ? html`
-                    <div class="preset-category">
-                      <div class="preset-category-header">
-                        <h3>Segment Sequence Presets (${segmentPresets.length})</h3>
-                        ${this._renderSortDropdown('segments')}
-                      </div>
-                      <div class="preset-grid">
-                        ${sortedSegments.map(
-                          (preset) => html`
-                            <div
-                              class="user-preset-card ${hasSelection ? '' : 'disabled'}"
-                              @click=${hasSelection ? () => this._activateUserSegmentSequencePreset(preset) : null}
-                              title="${preset.name}"
-                            >
-                              <div class="preset-card-actions">
-                                <ha-icon-button
-                                  @click=${(e: Event) => { e.stopPropagation(); this._editSegmentSequencePreset(preset); }}
-                                  title="${this._localize('tooltips.preset_edit')}"
-                                >
-                                  <ha-icon icon="mdi:pencil"></ha-icon>
-                                </ha-icon-button>
-                                <ha-icon-button
-                                  @click=${(e: Event) => { e.stopPropagation(); this._deleteUserPreset('segment_sequence', preset.id); }}
-                                  title="${this._localize('tooltips.preset_delete')}"
-                                >
-                                  <ha-icon icon="mdi:delete"></ha-icon>
-                                </ha-icon-button>
-                              </div>
-                              <div class="preset-icon">
-                                <ha-icon icon="${preset.icon || 'mdi:animation-play'}"></ha-icon>
-                              </div>
-                              <div class="preset-name">${preset.name}</div>
-                            </div>
-                          `
-                        )}
-                      </div>
-                    </div>
-                  `
-                : ''}
-            `}
-      </ha-card>
+            ${cctPresets.length > 0
+              ? this._renderPresetSection(
+                  this._localize('sections.cct_sequences'), 'presets_cct',
+                  cctPresets, hasSelection,
+                  (p) => this._activateUserCCTSequencePreset(p),
+                  (p) => this._editCCTSequencePreset(p),
+                  'cct_sequence',
+                  (p) => this._renderUserCCTIcon(p),
+                  (presets, opt) => this._sortUserCCTSequencePresets(presets, opt),
+                  (p) => this._duplicateUserCCTSequencePreset(p),
+                )
+              : ''}
+
+            ${this._renderPresetDeviceSections(
+              this._localize('sections.segment_sequences'), 'presets_segments',
+              segmentPresets, hasSelection,
+              (p) => this._activateUserSegmentSequencePreset(p),
+              (p) => this._editSegmentSequencePreset(p),
+              'segment_sequence',
+              (p) => this._renderUserSegmentSequenceIcon(p),
+              (presets, opt) => this._sortUserSegmentSequencePresets(presets, opt),
+              (p) => this._duplicateUserSegmentSequencePreset(p),
+            )}
+          `}
+    `;
+  }
+
+  /**
+   * Render one ha-expansion-panel per device type for a preset category.
+   * Matches the Activate tab pattern: "Dynamic Effects: T2 Bulb", "Segment Patterns: T1M", etc.
+   * Presets without device_type are shown in a general section titled by the category name alone.
+   */
+  private _renderPresetDeviceSections<T extends { id: string; name: string; device_type?: string }>(
+    categoryTitle: string,
+    sectionPrefix: string,
+    presets: T[],
+    hasSelection: boolean,
+    onActivate: (preset: T) => void,
+    onEdit: (preset: T) => void,
+    deleteType: string,
+    renderIcon: (preset: T) => unknown,
+    sortFn: (presets: T[], sortOption: PresetSortOption) => T[],
+    onDuplicate: (preset: T) => void,
+  ) {
+    if (presets.length === 0) return '';
+
+    const { ungrouped, grouped } = this._groupPresetsByDeviceType(presets);
+
+    return html`
+      ${ungrouped.length > 0
+        ? this._renderPresetSection(
+            categoryTitle, sectionPrefix,
+            ungrouped, hasSelection, onActivate, onEdit, deleteType, renderIcon, sortFn, onDuplicate,
+          )
+        : ''}
+      ${AqaraPanel.PRESET_DEVICE_TYPES.map((deviceKey) => {
+        const devicePresets = grouped.get(deviceKey);
+        if (!devicePresets?.length) return '';
+        const deviceLabel = this._localize(`devices.${deviceKey}`);
+        return this._renderPresetSection(
+          `${categoryTitle}: ${deviceLabel}`, `${sectionPrefix}_${deviceKey}`,
+          devicePresets, hasSelection, onActivate, onEdit, deleteType, renderIcon, sortFn, onDuplicate,
+        );
+      })}
+    `;
+  }
+
+  /**
+   * Render a single ha-expansion-panel section with preset cards inside.
+   * Uses the same header structure as the Activate tab (section-title, section-subtitle, sort controls).
+   * Sorting is applied per-section using the section ID as the sort preference key.
+   */
+  private _renderPresetSection<T extends { id: string; name: string }>(
+    title: string,
+    sectionId: string,
+    presets: T[],
+    hasSelection: boolean,
+    onActivate: (preset: T) => void,
+    onEdit: (preset: T) => void,
+    deleteType: string,
+    renderIcon: (preset: T) => unknown,
+    sortFn: (presets: T[], sortOption: PresetSortOption) => T[],
+    onDuplicate: (preset: T) => void,
+  ) {
+    const isExpanded = !this._collapsed[sectionId];
+    const sortOption = this._getSortPreference(sectionId);
+    const sortedPresets = sortFn(presets, sortOption);
+
+    return html`
+      <ha-expansion-panel
+        outlined
+        .expanded=${isExpanded}
+        @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange(sectionId, e)}
+      >
+        <div slot="header" class="section-header">
+          <div>
+            <div class="section-title">${title}</div>
+            <div class="section-subtitle">${presets.length} presets</div>
+          </div>
+          <div class="section-header-controls" @click=${(e: Event) => e.stopPropagation()}>
+            ${this._renderSortDropdown(sectionId)}
+          </div>
+        </div>
+        <div class="section-content preset-grid">
+          ${sortedPresets.map((preset) => this._renderPresetCard(
+            preset, hasSelection, onActivate, onEdit, deleteType, renderIcon, onDuplicate,
+          ))}
+        </div>
+      </ha-expansion-panel>
+    `;
+  }
+
+  /** Render a single user preset card with action buttons. */
+  private _renderPresetCard<T extends { id: string; name: string }>(
+    preset: T,
+    hasSelection: boolean,
+    onActivate: (preset: T) => void,
+    onEdit: (preset: T) => void,
+    deleteType: string,
+    renderIcon: (preset: T) => unknown,
+    onDuplicate: (preset: T) => void,
+  ) {
+    return html`
+      <div
+        class="user-preset-card ${hasSelection ? '' : 'disabled'}"
+        @click=${hasSelection ? () => onActivate(preset) : null}
+        title="${preset.name}"
+      >
+        <div class="preset-card-actions">
+          <ha-icon-button
+            @click=${(e: Event) => { e.stopPropagation(); onEdit(preset); }}
+            title="${this._localize('tooltips.preset_edit')}"
+          >
+            <ha-icon icon="mdi:pencil"></ha-icon>
+          </ha-icon-button>
+          <ha-icon-button
+            @click=${(e: Event) => { e.stopPropagation(); onDuplicate(preset); }}
+            title="${this._localize('tooltips.preset_duplicate')}"
+          >
+            <ha-icon icon="mdi:content-copy"></ha-icon>
+          </ha-icon-button>
+          <ha-icon-button
+            @click=${(e: Event) => { e.stopPropagation(); this._deleteUserPreset(deleteType, preset.id); }}
+            title="${this._localize('tooltips.preset_delete')}"
+          >
+            <ha-icon icon="mdi:delete"></ha-icon>
+          </ha-icon-button>
+        </div>
+        <div class="preset-icon">
+          ${renderIcon(preset)}
+        </div>
+        <div class="preset-name">${preset.name}</div>
+      </div>
     `;
   }
 
@@ -2490,15 +2528,151 @@ export class AqaraPanel extends LitElement {
     this._setActiveTab('segments');
   }
 
-  private _renderSortDropdown(category: keyof PresetSortPreferences) {
-    const currentSort = this._sortPreferences[category];
+  // Duplicate user preset methods - open editor in create mode with preset data pre-filled
+  private _duplicateUserEffectPreset(preset: UserEffectPreset): void {
+    const copy: UserEffectPreset = {
+      ...preset,
+      id: '',
+      name: `${preset.name} (copy)`,
+      created_at: '',
+      modified_at: '',
+    };
+    this._editingPreset = { type: 'effect', preset: copy, isDuplicate: true };
+    this._setActiveTab('effects');
+  }
+
+  private _duplicateUserPatternPreset(preset: UserSegmentPatternPreset): void {
+    const copy: UserSegmentPatternPreset = {
+      ...preset,
+      id: '',
+      name: `${preset.name} (copy)`,
+      created_at: '',
+      modified_at: '',
+    };
+    this._editingPreset = { type: 'pattern', preset: copy, isDuplicate: true };
+    this._setActiveTab('patterns');
+  }
+
+  private _duplicateUserCCTSequencePreset(preset: UserCCTSequencePreset): void {
+    const copy: UserCCTSequencePreset = {
+      ...preset,
+      id: '',
+      name: `${preset.name} (copy)`,
+      created_at: '',
+      modified_at: '',
+    };
+    this._editingPreset = { type: 'cct', preset: copy, isDuplicate: true };
+    this._setActiveTab('cct');
+  }
+
+  private _duplicateUserSegmentSequencePreset(preset: UserSegmentSequencePreset): void {
+    const copy: UserSegmentSequencePreset = {
+      ...preset,
+      id: '',
+      name: `${preset.name} (copy)`,
+      created_at: '',
+      modified_at: '',
+    };
+    this._editingPreset = { type: 'segment', preset: copy, isDuplicate: true };
+    this._setActiveTab('segments');
+  }
+
+  // Duplicate built-in preset methods - convert from built-in format to user format and open editor
+  private _duplicateBuiltinEffectPreset(preset: DynamicEffectPreset, deviceType: string): void {
+    const userPreset: UserEffectPreset = {
+      id: '',
+      name: `${preset.name} (copy)`,
+      effect: preset.effect,
+      effect_speed: preset.speed,
+      effect_brightness: preset.brightness != null ? Math.round(preset.brightness / 255 * 100) : 100,
+      effect_colors: preset.colors.map((c) => rgbToXy(c[0]!, c[1]!, c[2]!)),
+      device_type: deviceType,
+      created_at: '',
+      modified_at: '',
+    };
+    this._editingPreset = { type: 'effect', preset: userPreset, isDuplicate: true };
+    this._setActiveTab('effects');
+  }
+
+  private _getDeviceSegmentCount(deviceType: string): number {
+    switch (deviceType) {
+      case 't1': return 20;
+      case 't1m': return 26;
+      case 't1_strip': return this._getT1StripSegmentCount();
+      default: return 26;
+    }
+  }
+
+  private _scaleSegmentPattern<T>(source: T[], targetCount: number): T[] {
+    const sourceCount = source.length;
+    if (targetCount < 1 || sourceCount < 1) return [];
+    if (targetCount === sourceCount) return [...source];
+    return Array.from({ length: targetCount }, (_, i) =>
+      source[Math.floor(i * sourceCount / targetCount)]!
+    );
+  }
+
+  private _duplicateBuiltinPatternPreset(preset: SegmentPatternPreset, deviceType: string): void {
+    const targetCount = this._getDeviceSegmentCount(deviceType);
+    const scaled = this._scaleSegmentPattern(preset.segments, targetCount);
+    const userPreset: UserSegmentPatternPreset = {
+      id: '',
+      name: `${preset.name} (copy)`,
+      device_type: deviceType,
+      segments: scaled.map((seg, index) => ({
+        segment: index + 1,
+        color: { r: seg[0]!, g: seg[1]!, b: seg[2]! },
+      })),
+      created_at: '',
+      modified_at: '',
+    };
+    this._editingPreset = { type: 'pattern', preset: userPreset, isDuplicate: true };
+    this._setActiveTab('patterns');
+  }
+
+  private _duplicateBuiltinCCTSequencePreset(preset: CCTSequencePreset): void {
+    const userPreset: UserCCTSequencePreset = {
+      id: '',
+      name: `${preset.name} (copy)`,
+      steps: preset.steps.map((step) => ({
+        ...step,
+        brightness: Math.round(step.brightness / 255 * 100),
+      })),
+      loop_mode: preset.loop_mode,
+      loop_count: preset.loop_count,
+      end_behavior: preset.end_behavior,
+      created_at: '',
+      modified_at: '',
+    };
+    this._editingPreset = { type: 'cct', preset: userPreset, isDuplicate: true };
+    this._setActiveTab('cct');
+  }
+
+  private _duplicateBuiltinSegmentSequencePreset(preset: SegmentSequencePreset, deviceType: string): void {
+    const userPreset: UserSegmentSequencePreset = {
+      id: '',
+      name: `${preset.name} (copy)`,
+      device_type: deviceType,
+      steps: preset.steps.map((step) => ({ ...step })),
+      loop_mode: preset.loop_mode,
+      loop_count: preset.loop_count,
+      end_behavior: preset.end_behavior,
+      created_at: '',
+      modified_at: '',
+    };
+    this._editingPreset = { type: 'segment', preset: userPreset, isDuplicate: true };
+    this._setActiveTab('segments');
+  }
+
+  private _renderSortDropdown(sectionId: string) {
+    const currentSort = this._getSortPreference(sectionId);
     return html`
       <select
         class="sort-select"
         .value=${currentSort}
         @change=${(e: Event) => {
           e.stopPropagation();
-          this._setSortPreference(category, (e.target as HTMLSelectElement).value as PresetSortOption);
+          this._setSortPreference(sectionId, (e.target as HTMLSelectElement).value as PresetSortOption);
         }}
         @click=${(e: Event) => e.stopPropagation()}
       >
@@ -2517,8 +2691,9 @@ export class AqaraPanel extends LitElement {
     const totalCount = userPresets.length + presets.length;
 
     // Apply sorting
-    const sortedUserPresets = this._sortUserEffectPresets(userPresets, this._sortPreferences.effects);
-    const sortedBuiltinPresets = this._sortDynamicEffectPresets(presets, this._sortPreferences.effects);
+    const sortOption = this._getSortPreference(sectionId);
+    const sortedUserPresets = this._sortUserEffectPresets(userPresets, sortOption);
+    const sortedBuiltinPresets = this._sortDynamicEffectPresets(presets, sortOption);
 
     return html`
       <ha-expansion-panel
@@ -2528,11 +2703,11 @@ export class AqaraPanel extends LitElement {
       >
         <div slot="header" class="section-header">
           <div>
-            <div class="section-title">Dynamic Effects: ${title}</div>
-            <div class="section-subtitle">${totalCount} presets${userPresets.length > 0 ? ` (${userPresets.length} custom)` : ''}</div>
+            <div class="section-title">${this._localize('sections.dynamic_effects')}: ${title}</div>
+            <div class="section-subtitle">${userPresets.length > 0 ? this._localize('sections.subtitle_presets_custom', {count: totalCount.toString(), custom: userPresets.length.toString()}) : this._localize('sections.subtitle_presets', {count: totalCount.toString()})}</div>
           </div>
           <div class="section-header-controls" @click=${(e: Event) => e.stopPropagation()}>
-            ${this._renderSortDropdown('effects')}
+            ${this._renderSortDropdown(sectionId)}
           </div>
         </div>
         <div class="section-content">
@@ -2540,7 +2715,7 @@ export class AqaraPanel extends LitElement {
             (preset) => html`
               <div class="preset-button user-preset" @click=${() => this._activateUserEffectPreset(preset)}>
                 <div class="preset-icon">
-                  <ha-icon icon="${preset.icon || 'mdi:lightbulb-on'}"></ha-icon>
+                  ${this._renderUserEffectIcon(preset)}
                 </div>
                 <div class="preset-name">${preset.name}</div>
               </div>
@@ -2548,7 +2723,15 @@ export class AqaraPanel extends LitElement {
           )}
           ${sortedBuiltinPresets.map(
             (preset) => html`
-              <div class="preset-button" @click=${() => this._activateDynamicEffect(preset)}>
+              <div class="preset-button builtin-preset" @click=${() => this._activateDynamicEffect(preset)}>
+                <div class="preset-card-actions">
+                  <ha-icon-button
+                    @click=${(e: Event) => { e.stopPropagation(); this._duplicateBuiltinEffectPreset(preset, deviceType); }}
+                    title="${this._localize('tooltips.preset_duplicate')}"
+                  >
+                    <ha-icon icon="mdi:content-copy"></ha-icon>
+                  </ha-icon-button>
+                </div>
                 <div class="preset-icon">
                   ${this._renderPresetIcon(preset.icon, 'mdi:lightbulb-on')}
                 </div>
@@ -2561,16 +2744,16 @@ export class AqaraPanel extends LitElement {
     `;
   }
 
-  private _renderSegmentPatternsSection() {
-    const sectionId = 'segment_patterns';
+  private _renderSegmentPatternsSection(title: string, builtinPresets: SegmentPatternPreset[], deviceType: string) {
+    const sectionId = `segment_pat_${title.toLowerCase().replace(/\s+/g, '_')}`;
     const isExpanded = !this._collapsed[sectionId];
-    const userPresets = this._getFilteredUserPatternPresets();
-    const builtinPresets = this._presets!.segment_patterns;
+    const userPresets = this._getUserPatternPresetsForDeviceType(deviceType);
     const totalCount = userPresets.length + builtinPresets.length;
 
     // Apply sorting
-    const sortedUserPresets = this._sortUserPatternPresets(userPresets, this._sortPreferences.patterns);
-    const sortedBuiltinPresets = this._sortSegmentPatternPresets(builtinPresets, this._sortPreferences.patterns);
+    const sortOption = this._getSortPreference(sectionId);
+    const sortedUserPresets = this._sortUserPatternPresets(userPresets, sortOption);
+    const sortedBuiltinPresets = this._sortSegmentPatternPresets(builtinPresets, sortOption);
 
     return html`
       <ha-expansion-panel
@@ -2580,11 +2763,11 @@ export class AqaraPanel extends LitElement {
       >
         <div slot="header" class="section-header">
           <div>
-            <div class="section-title">Segment Patterns</div>
-            <div class="section-subtitle">${totalCount} presets${userPresets.length > 0 ? ` (${userPresets.length} custom)` : ''}</div>
+            <div class="section-title">${this._localize('sections.segment_patterns')}: ${title}</div>
+            <div class="section-subtitle">${userPresets.length > 0 ? this._localize('sections.subtitle_presets_custom', {count: totalCount.toString(), custom: userPresets.length.toString()}) : this._localize('sections.subtitle_presets', {count: totalCount.toString()})}</div>
           </div>
           <div class="section-header-controls" @click=${(e: Event) => e.stopPropagation()}>
-            ${this._renderSortDropdown('patterns')}
+            ${this._renderSortDropdown(sectionId)}
           </div>
         </div>
         <div class="section-content">
@@ -2592,7 +2775,7 @@ export class AqaraPanel extends LitElement {
             (preset) => html`
               <div class="preset-button user-preset" @click=${() => this._activateUserPatternPreset(preset)}>
                 <div class="preset-icon">
-                  <ha-icon icon="${preset.icon || 'mdi:palette'}"></ha-icon>
+                  ${this._renderUserPatternIcon(preset)}
                 </div>
                 <div class="preset-name">${preset.name}</div>
               </div>
@@ -2600,7 +2783,15 @@ export class AqaraPanel extends LitElement {
           )}
           ${sortedBuiltinPresets.map(
             (preset) => html`
-              <div class="preset-button" @click=${() => this._activateSegmentPattern(preset)}>
+              <div class="preset-button builtin-preset" @click=${() => this._activateSegmentPattern(preset)}>
+                <div class="preset-card-actions">
+                  <ha-icon-button
+                    @click=${(e: Event) => { e.stopPropagation(); this._duplicateBuiltinPatternPreset(preset, deviceType); }}
+                    title="${this._localize('tooltips.preset_duplicate')}"
+                  >
+                    <ha-icon icon="mdi:content-copy"></ha-icon>
+                  </ha-icon-button>
+                </div>
                 <div class="preset-icon">
                   ${this._renderPresetIcon(preset.icon, 'mdi:palette')}
                 </div>
@@ -2627,6 +2818,42 @@ export class AqaraPanel extends LitElement {
     return html`<ha-icon icon="${icon}"></ha-icon>`;
   }
 
+  /** Render a user effect preset icon: thumbnail from colors, or MDI fallback. */
+  private _renderUserEffectIcon(preset: UserEffectPreset) {
+    if (preset.icon) {
+      return this._renderPresetIcon(preset.icon, 'mdi:lightbulb-on');
+    }
+    return renderEffectThumbnail(preset)
+      ?? html`<ha-icon icon="mdi:lightbulb-on"></ha-icon>`;
+  }
+
+  /** Render a user segment pattern preset icon: pie thumbnail or MDI fallback. */
+  private _renderUserPatternIcon(preset: UserSegmentPatternPreset) {
+    if (preset.icon) {
+      return this._renderPresetIcon(preset.icon, 'mdi:palette');
+    }
+    return renderSegmentPatternThumbnail(preset)
+      ?? html`<ha-icon icon="mdi:palette"></ha-icon>`;
+  }
+
+  /** Render a user CCT sequence preset icon: gradient thumbnail or MDI fallback. */
+  private _renderUserCCTIcon(preset: UserCCTSequencePreset) {
+    if (preset.icon) {
+      return this._renderPresetIcon(preset.icon, 'mdi:temperature-kelvin');
+    }
+    return renderCCTSequenceThumbnail(preset)
+      ?? html`<ha-icon icon="mdi:temperature-kelvin"></ha-icon>`;
+  }
+
+  /** Render a user segment sequence preset icon: ring thumbnail or MDI fallback. */
+  private _renderUserSegmentSequenceIcon(preset: UserSegmentSequencePreset) {
+    if (preset.icon) {
+      return this._renderPresetIcon(preset.icon, 'mdi:animation-play');
+    }
+    return renderSegmentSequenceThumbnail(preset)
+      ?? html`<ha-icon icon="mdi:animation-play"></ha-icon>`;
+  }
+
   private _renderCCTSequencesSection() {
     const sectionId = 'cct_sequences';
     const isExpanded = !this._collapsed[sectionId];
@@ -2635,8 +2862,9 @@ export class AqaraPanel extends LitElement {
     const totalCount = userPresets.length + builtinPresets.length;
 
     // Apply sorting
-    const sortedUserPresets = this._sortUserCCTSequencePresets(userPresets, this._sortPreferences.cct);
-    const sortedBuiltinPresets = this._sortCCTSequencePresets(builtinPresets, this._sortPreferences.cct);
+    const sortOption = this._getSortPreference(sectionId);
+    const sortedUserPresets = this._sortUserCCTSequencePresets(userPresets, sortOption);
+    const sortedBuiltinPresets = this._sortCCTSequencePresets(builtinPresets, sortOption);
 
     return html`
       <ha-expansion-panel
@@ -2646,11 +2874,11 @@ export class AqaraPanel extends LitElement {
       >
         <div slot="header" class="section-header">
           <div>
-            <div class="section-title">CCT Sequences</div>
-            <div class="section-subtitle">${totalCount} presets${userPresets.length > 0 ? ` (${userPresets.length} custom)` : ''}</div>
+            <div class="section-title">${this._localize('sections.cct_sequences')}</div>
+            <div class="section-subtitle">${userPresets.length > 0 ? this._localize('sections.subtitle_presets_custom', {count: totalCount.toString(), custom: userPresets.length.toString()}) : this._localize('sections.subtitle_presets', {count: totalCount.toString()})}</div>
           </div>
           <div class="section-header-controls" @click=${(e: Event) => e.stopPropagation()}>
-            ${this._renderSortDropdown('cct')}
+            ${this._renderSortDropdown(sectionId)}
           </div>
         </div>
         <div class="section-content">
@@ -2658,7 +2886,7 @@ export class AqaraPanel extends LitElement {
             (preset) => html`
               <div class="preset-button user-preset" @click=${() => this._activateUserCCTSequencePreset(preset)}>
                 <div class="preset-icon">
-                  <ha-icon icon="${preset.icon || 'mdi:temperature-kelvin'}"></ha-icon>
+                  ${this._renderUserCCTIcon(preset)}
                 </div>
                 <div class="preset-name">${preset.name}</div>
               </div>
@@ -2666,7 +2894,15 @@ export class AqaraPanel extends LitElement {
           )}
           ${sortedBuiltinPresets.map(
             (preset) => html`
-              <div class="preset-button" @click=${() => this._activateCCTSequence(preset)}>
+              <div class="preset-button builtin-preset" @click=${() => this._activateCCTSequence(preset)}>
+                <div class="preset-card-actions">
+                  <ha-icon-button
+                    @click=${(e: Event) => { e.stopPropagation(); this._duplicateBuiltinCCTSequencePreset(preset); }}
+                    title="${this._localize('tooltips.preset_duplicate')}"
+                  >
+                    <ha-icon icon="mdi:content-copy"></ha-icon>
+                  </ha-icon-button>
+                </div>
                 <div class="preset-icon">
                   ${this._renderPresetIcon(preset.icon, 'mdi:temperature-kelvin')}
                 </div>
@@ -2679,16 +2915,16 @@ export class AqaraPanel extends LitElement {
     `;
   }
 
-  private _renderSegmentSequencesSection() {
-    const sectionId = 'segment_sequences';
+  private _renderSegmentSequencesSection(title: string, builtinPresets: SegmentSequencePreset[], deviceType: string) {
+    const sectionId = `segment_seq_${title.toLowerCase().replace(/\s+/g, '_')}`;
     const isExpanded = !this._collapsed[sectionId];
-    const userPresets = this._getFilteredUserSegmentSequencePresets();
-    const builtinPresets = this._presets!.segment_sequences;
+    const userPresets = this._getUserSegmentSequencePresetsForDeviceType(deviceType);
     const totalCount = userPresets.length + builtinPresets.length;
 
     // Apply sorting
-    const sortedUserPresets = this._sortUserSegmentSequencePresets(userPresets, this._sortPreferences.segments);
-    const sortedBuiltinPresets = this._sortSegmentSequencePresets(builtinPresets, this._sortPreferences.segments);
+    const sortOption = this._getSortPreference(sectionId);
+    const sortedUserPresets = this._sortUserSegmentSequencePresets(userPresets, sortOption);
+    const sortedBuiltinPresets = this._sortSegmentSequencePresets(builtinPresets, sortOption);
 
     return html`
       <ha-expansion-panel
@@ -2698,11 +2934,11 @@ export class AqaraPanel extends LitElement {
       >
         <div slot="header" class="section-header">
           <div>
-            <div class="section-title">Segment Sequences</div>
-            <div class="section-subtitle">${totalCount} presets${userPresets.length > 0 ? ` (${userPresets.length} custom)` : ''}</div>
+            <div class="section-title">${this._localize('sections.segment_sequences')}: ${title}</div>
+            <div class="section-subtitle">${userPresets.length > 0 ? this._localize('sections.subtitle_presets_custom', {count: totalCount.toString(), custom: userPresets.length.toString()}) : this._localize('sections.subtitle_presets', {count: totalCount.toString()})}</div>
           </div>
           <div class="section-header-controls" @click=${(e: Event) => e.stopPropagation()}>
-            ${this._renderSortDropdown('segments')}
+            ${this._renderSortDropdown(sectionId)}
           </div>
         </div>
         <div class="section-content">
@@ -2710,7 +2946,7 @@ export class AqaraPanel extends LitElement {
             (preset) => html`
               <div class="preset-button user-preset" @click=${() => this._activateUserSegmentSequencePreset(preset)}>
                 <div class="preset-icon">
-                  <ha-icon icon="${preset.icon || 'mdi:animation-play'}"></ha-icon>
+                  ${this._renderUserSegmentSequenceIcon(preset)}
                 </div>
                 <div class="preset-name">${preset.name}</div>
               </div>
@@ -2718,7 +2954,15 @@ export class AqaraPanel extends LitElement {
           )}
           ${sortedBuiltinPresets.map(
             (preset) => html`
-              <div class="preset-button" @click=${() => this._activateSegmentSequence(preset)}>
+              <div class="preset-button builtin-preset" @click=${() => this._activateSegmentSequence(preset)}>
+                <div class="preset-card-actions">
+                  <ha-icon-button
+                    @click=${(e: Event) => { e.stopPropagation(); this._duplicateBuiltinSegmentSequencePreset(preset, deviceType); }}
+                    title="${this._localize('tooltips.preset_duplicate')}"
+                  >
+                    <ha-icon icon="mdi:content-copy"></ha-icon>
+                  </ha-icon-button>
+                </div>
                 <div class="preset-icon">
                   ${this._renderPresetIcon(preset.icon, 'mdi:animation-play')}
                 </div>
@@ -3112,7 +3356,7 @@ export class AqaraPanel extends LitElement {
             >
               <div slot="header" class="section-header">
                 <div>
-                  <div class="section-title">T1 Strip settings</div>
+                  <div class="section-title">${this._localize('sections.t1_strip_settings')}</div>
                 </div>
               </div>
               <div class="section-content" style="display: block; padding: 16px;">

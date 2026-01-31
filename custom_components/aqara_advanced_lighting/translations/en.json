@@ -1,4 +1,22 @@
 {
+  "device_automation": {
+    "trigger_type": {
+      "cct_sequence_started": "CCT sequence started",
+      "cct_sequence_completed": "CCT sequence completed",
+      "cct_sequence_stopped": "CCT sequence stopped",
+      "cct_sequence_step_changed": "CCT sequence step changed",
+      "cct_sequence_paused": "CCT sequence paused",
+      "cct_sequence_resumed": "CCT sequence resumed",
+      "segment_sequence_started": "Segment sequence started",
+      "segment_sequence_completed": "Segment sequence completed",
+      "segment_sequence_stopped": "Segment sequence stopped",
+      "segment_sequence_step_changed": "Segment sequence step changed",
+      "segment_sequence_paused": "Segment sequence paused",
+      "segment_sequence_resumed": "Segment sequence resumed",
+      "effect_activated": "Dynamic effect activated",
+      "effect_stopped": "Dynamic effect stopped"
+    }
+  },
   "config": {
     "step": {
       "user": {

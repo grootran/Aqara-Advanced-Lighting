@@ -1,8 +1,9 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { HomeAssistant, RGBColor, XYColor, UserEffectPreset } from './types';
+import { HomeAssistant, RGBColor, XYColor, UserEffectPreset, DeviceContext } from './types';
 import { xyToHex, rgbToXy, getComplementaryColor } from './color-utils';
 import { colorPickerStyles } from './styles';
+import { getColorHistory, addColorToHistory, clearColorHistory } from './color-history';
 import './xy-color-picker';
 
 // Effect types available for each device
@@ -33,6 +34,7 @@ export class EffectEditor extends LitElement {
   @property({ type: Boolean }) public isCompatible = true;
   @property({ type: Boolean }) public previewActive = false;
   @property({ type: Number }) public stripSegmentCount = 10; // Default 2 meters (out-of-box T1 Strip length)
+  @property({ type: Object }) public deviceContext?: DeviceContext;
 
   @state() private _name = '';
   @state() private _icon = '';
@@ -46,6 +48,7 @@ export class EffectEditor extends LitElement {
   @state() private _previewing = false;
   @state() private _editingColorIndex: number | null = null;
   @state() private _editingColor: XYColor | null = null;
+  @state() private _hasUserInteraction = false;
 
   static styles = [
     colorPickerStyles,
@@ -217,13 +220,34 @@ export class EffectEditor extends LitElement {
         margin-bottom: 4px;
       }
     }
+
+    .form-hint {
+      font-size: var(--ha-font-size-s, 12px);
+      color: var(--secondary-text-color);
+      margin-top: -4px;
+    }
   `];
 
   protected updated(changedProps: PropertyValues): void {
     super.updated(changedProps);
 
-    if (changedProps.has('preset') && this.preset) {
-      this._loadPreset(this.preset);
+    if (changedProps.has('preset')) {
+      if (this.preset) {
+        this._hasUserInteraction = true;
+        this._loadPreset(this.preset);
+      } else {
+        this._hasUserInteraction = false;
+      }
+    }
+
+    // Auto-set device type from context when no user interaction has occurred
+    if (
+      changedProps.has('deviceContext') &&
+      !this._hasUserInteraction &&
+      this.deviceContext?.deviceType
+    ) {
+      this._deviceType = this.deviceContext.deviceType;
+      this._effect = '';
     }
   }
 
@@ -259,6 +283,7 @@ export class EffectEditor extends LitElement {
 
   private _handleDeviceTypeChange(e: CustomEvent): void {
     this._deviceType = e.detail.value || 't2_bulb';
+    this._hasUserInteraction = true;
     // Reset effect to empty so user must select from new device's effects
     this._effect = '';
   }
@@ -288,11 +313,21 @@ export class EffectEditor extends LitElement {
 
   private _confirmColorPicker(): void {
     if (this._editingColorIndex !== null && this._editingColor !== null) {
+      addColorToHistory(this._editingColor);
       this._colors = this._colors.map((c, i) =>
         i === this._editingColorIndex ? this._editingColor! : c
       );
     }
     this._closeColorPicker();
+  }
+
+  private _selectHistoryColor(color: XYColor): void {
+    this._editingColor = { x: color.x, y: color.y };
+  }
+
+  private _clearColorHistory(): void {
+    clearColorHistory();
+    this.requestUpdate();
   }
 
   private _closeColorPicker(): void {
@@ -313,6 +348,32 @@ export class EffectEditor extends LitElement {
     if (this._colors.length > 1) {
       this._colors = this._colors.filter((_, i) => i !== index);
     }
+  }
+
+  private _renderColorHistory() {
+    const history = getColorHistory();
+
+    return html`
+      <div class="color-history-section">
+        <div class="color-history-header">
+          <span class="color-history-label">${this._localize('color_history.recent_colors')}</span>
+          ${history.length > 0 ? html`
+            <button class="color-history-clear" @click=${this._clearColorHistory}>
+              ${this._localize('color_history.clear')}
+            </button>
+          ` : ''}
+        </div>
+        <div class="color-history-swatches">
+          ${history.map(color => html`
+            <button
+              class="color-history-swatch"
+              style="background-color: ${xyToHex(color, 255)}"
+              @click=${() => this._selectHistoryColor(color)}
+            ></button>
+          `)}
+        </div>
+      </div>
+    `;
   }
 
   private _colorToHex(color: XYColor): string {
@@ -452,6 +513,7 @@ export class EffectEditor extends LitElement {
               .value=${this._icon}
               @value-changed=${this._handleIconChange}
             ></ha-selector>
+            ${!this._icon ? html`<span class="form-hint">${this._localize('editors.icon_auto_hint')}</span>` : ''}
           </div>
           <div class="form-field">
             <span class="form-label">${this._localize('editors.device_type_label')}</span>
@@ -599,6 +661,7 @@ export class EffectEditor extends LitElement {
                     .showRgbInputs=${true}
                     @color-changed=${this._handleColorPickerChange}
                   ></xy-color-picker>
+                  ${this._renderColorHistory()}
                   <div class="color-picker-modal-actions">
                     <ha-button @click=${this._closeColorPicker}>${this._localize('editors.cancel_button')}</ha-button>
                     <ha-button @click=${this._confirmColorPicker}>
@@ -626,22 +689,22 @@ export class EffectEditor extends LitElement {
             ? html`
                 <ha-button @click=${this._stopPreview}>
                   <ha-icon icon="mdi:stop"></ha-icon>
-                  Stop
+                  ${this._localize('editors.stop_button')}
                 </ha-button>
               `
             : html`
                 <ha-button
                   @click=${this._preview}
                   .disabled=${!this._effect || this._previewing || !this.hasSelectedEntities || !this.isCompatible}
-                  title=${!this.hasSelectedEntities ? 'Select entities in Activate tab first' : !this.isCompatible ? 'Selected light is not compatible' : ''}
+                  title=${!this.hasSelectedEntities ? this._localize('editors.tooltip_select_lights_first') : !this.isCompatible ? this._localize('editors.tooltip_light_not_compatible') : ''}
                 >
                   <ha-icon icon="mdi:play"></ha-icon>
-                  Preview
+                  ${this._localize('editors.preview_button')}
                 </ha-button>
               `}
           <ha-button @click=${this._save} .disabled=${!this._name.trim() || !this._effect || this._saving}>
             <ha-icon icon="mdi:content-save"></ha-icon>
-            ${this.editMode ? 'Update' : 'Save'}
+            ${this.editMode ? this._localize('editors.update_button') : this._localize('editors.save_button')}
           </ha-button>
         </div>
       </div>

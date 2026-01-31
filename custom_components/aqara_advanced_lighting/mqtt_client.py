@@ -11,11 +11,12 @@ from homeassistant.components import mqtt
 from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
 from homeassistant.const import CONF_MODEL
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from .const import (
     DOMAIN,
     MIN_TRANSITION_STEPS,
+    MODEL_FRIENDLY_NAMES,
     MODEL_T1M_20_SEGMENT,
     MODEL_T1M_26_SEGMENT,
     MODEL_T1_STRIP,
@@ -157,12 +158,24 @@ class MQTTClient:
                     manufacturer=manufacturer or "Unknown",
                 )
 
-                # Store in runtime data
+                # Store in runtime data (keyed by IEEE and by friendly name)
                 self.entry.runtime_data.devices[ieee_address] = z2m_device
+                self.entry.runtime_data.devices_by_name[friendly_name] = z2m_device
                 _LOGGER.debug(
                     "Stored supported Aqara device %s (model: %s)",
                     friendly_name,
                     model_id,
+                )
+
+                # Register device in HA device registry
+                device_registry = dr.async_get(self.hass)
+                device_registry.async_get_or_create(
+                    config_entry_id=self.entry.entry_id,
+                    identifiers={(DOMAIN, ieee_address)},
+                    name=friendly_name,
+                    manufacturer=manufacturer or "Aqara",
+                    model=MODEL_FRIENDLY_NAMES.get(model_id, model_id),
+                    model_id=model_id,
                 )
 
             # Update entity to Z2M mapping
@@ -361,12 +374,7 @@ class MQTTClient:
             return False, "not_mapped_to_z2m"
 
         # Find the device by friendly name
-        device = None
-        for z2m_device in self.entry.runtime_data.devices.values():
-            if z2m_device.friendly_name == z2m_name:
-                device = z2m_device
-                break
-
+        device = self.entry.runtime_data.devices_by_name.get(z2m_name)
         if not device:
             return False, "z2m_device_not_found"
 

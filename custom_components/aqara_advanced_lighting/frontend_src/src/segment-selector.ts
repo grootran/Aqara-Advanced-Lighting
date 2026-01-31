@@ -24,6 +24,7 @@ import {
   rgbToHex,
   getComplementaryColor,
 } from './color-utils';
+import { getColorHistory, addColorToHistory, clearColorHistory } from './color-history';
 
 // Translations object type
 interface Translations {
@@ -85,6 +86,7 @@ export class SegmentSelector extends LitElement {
   @property({ type: String }) description = '';
   @property({ type: Boolean }) disabled = false;
   @property({ type: Object }) translations: Translations = {};
+  @property({ type: String }) initialPatternMode?: PatternMode;
 
   @state() private _selectedSegments: Set<number> = new Set();
   @state() private _coloredSegments: Map<number, XYColor> = new Map();
@@ -93,6 +95,7 @@ export class SegmentSelector extends LitElement {
   @state() private _clearMode = false;
   @state() private _selectMode = false;
   @state() private _patternMode: PatternMode = 'individual';
+  private _initialPatternApplied = false;
   @state() private _editingColorSource: ColorSource = null;
   @state() private _editingColorIndex: number | null = null;
   @state() private _editingColor: HSColor | null = null;
@@ -505,7 +508,8 @@ export class SegmentSelector extends LitElement {
         background: var(--card-background-color);
         border-radius: 8px;
         padding: 24px;
-        max-width: 400px;
+        width: 298px;
+        max-width: calc(100vw - 80px);
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
       }
 
@@ -580,6 +584,65 @@ export class SegmentSelector extends LitElement {
         margin-top: 20px;
       }
 
+      .color-history-section {
+        margin: 16px 0 0;
+        width: 100%;
+      }
+
+      .color-history-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+
+      .color-history-label {
+        font-size: var(--ha-font-size-s, 12px);
+        font-weight: var(--ha-font-weight-medium, 500);
+        color: var(--secondary-text-color);
+      }
+
+      .color-history-clear {
+        background: none;
+        border: none;
+        color: var(--secondary-text-color);
+        cursor: pointer;
+        font-size: var(--ha-font-size-s, 12px);
+        padding: 2px 6px;
+        border-radius: 4px;
+        transition: all 0.15s ease;
+      }
+
+      .color-history-clear:hover {
+        color: var(--primary-color);
+        background: var(--secondary-background-color);
+      }
+
+      .color-history-swatches {
+        display: flex;
+        gap: 6px;
+      }
+
+      .color-history-swatch {
+        width: 32px;
+        height: 32px;
+        border: 2px solid var(--divider-color);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        padding: 0;
+        flex-shrink: 0;
+      }
+
+      .color-history-swatch:hover {
+        transform: scale(1.1);
+        border-color: var(--primary-color);
+      }
+
+      .color-history-swatch:active {
+        transform: scale(0.95);
+      }
+
       @media (max-width: 600px) {
         .segment-grid {
           grid-template-columns: repeat(auto-fill, minmax(32px, 1fr));
@@ -612,6 +675,14 @@ export class SegmentSelector extends LitElement {
     if ((changedProps.has('colorValue') && changedProps.get('colorValue') !== this.colorValue) &&
         (this.mode === 'color' || this.mode === 'sequence')) {
       this._parseColorValue();
+    }
+
+    // Apply initial pattern mode once when loading a preset with gradient/blocks
+    if (this.initialPatternMode && !this._initialPatternApplied &&
+        this.initialPatternMode !== 'individual' && this.maxSegments > 0) {
+      this._initialPatternApplied = true;
+      this._patternMode = this.initialPatternMode;
+      this._applyToGrid();
     }
 
     // Validate selection against maxSegments
@@ -1333,6 +1404,7 @@ export class SegmentSelector extends LitElement {
     }
 
     const xyColor = hsToXy(this._editingColor);
+    addColorToHistory(xyColor);
 
     // Cache the HS color for this XY to preserve precision on reopening
     const cacheKey = `${xyColor.x.toFixed(4)},${xyColor.y.toFixed(4)}`;
@@ -1362,6 +1434,63 @@ export class SegmentSelector extends LitElement {
     this._editingColorSource = null;
     this._editingColorIndex = null;
     this._editingColor = null;
+  }
+
+  private _selectHistoryColor(color: XYColor): void {
+    const hs = xyToHs(color);
+    this._editingColor = { h: hs.h, s: hs.s };
+
+    // Update marker position and preview
+    const wheelId = 'color-wheel-canvas';
+    const markerId = 'color-wheel-marker';
+    const size = 220;
+    this._updateMarkerPosition(wheelId, markerId, size);
+
+    // Update RGB input fields
+    const rgb = xyToRgb(color.x, color.y, 255);
+    const inputs = this.shadowRoot?.querySelectorAll('.color-picker-rgb-inputs .rgb-input-field');
+    if (inputs && inputs.length === 3) {
+      (inputs[0] as HTMLInputElement).value = String(rgb.r);
+      (inputs[1] as HTMLInputElement).value = String(rgb.g);
+      (inputs[2] as HTMLInputElement).value = String(rgb.b);
+    }
+
+    // Update preview
+    const preview = this.shadowRoot?.querySelector('.color-picker-modal-preview') as HTMLElement;
+    if (preview) {
+      preview.style.backgroundColor = rgbToHex(rgb);
+    }
+  }
+
+  private _clearColorHistory(): void {
+    clearColorHistory();
+    this.requestUpdate();
+  }
+
+  private _renderColorHistory(): TemplateResult {
+    const history = getColorHistory();
+
+    return html`
+      <div class="color-history-section">
+        <div class="color-history-header">
+          <span class="color-history-label">${this._localize('color_history.recent_colors')}</span>
+          ${history.length > 0 ? html`
+            <button class="color-history-clear" @click=${this._clearColorHistory}>
+              ${this._localize('color_history.clear')}
+            </button>
+          ` : ''}
+        </div>
+        <div class="color-history-swatches">
+          ${history.map(color => html`
+            <button
+              class="color-history-swatch"
+              style="background-color: ${xyToHex(color, 255)}"
+              @click=${() => this._selectHistoryColor(color)}
+            ></button>
+          `)}
+        </div>
+      </div>
+    `;
   }
 
   private _handleRgbInput(e: Event, channel: 'r' | 'g' | 'b'): void {
@@ -1925,6 +2054,7 @@ export class SegmentSelector extends LitElement {
               />
             </label>
           </div>
+          ${this._renderColorHistory()}
           <div class="color-picker-modal-actions">
             <ha-button @click=${this._closeColorPicker}>${this._localize('editors.cancel_button')}</ha-button>
             <ha-button @click=${this._confirmColorPicker}>

@@ -457,6 +457,7 @@ class AqaraLightingRuntimeData:
     config_entry: ConfigEntry
     z2m_base_topic: str
     devices: dict[str, Z2MDevice] = field(default_factory=dict)
+    devices_by_name: dict[str, Z2MDevice] = field(default_factory=dict)
     entity_to_z2m_map: dict[str, str] = field(default_factory=dict)
     entity_mapping_methods: dict[str, str] = field(default_factory=dict)
     device_states: dict[str, DeviceState] = field(default_factory=dict)

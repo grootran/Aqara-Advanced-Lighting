@@ -818,6 +818,7 @@ class SupportedEntitiesView(HomeAssistantView):
             # Get entity mappings
             entity_to_z2m_map = entry.runtime_data.entity_to_z2m_map
             devices = entry.runtime_data.devices
+            devices_by_name = entry.runtime_data.devices_by_name
 
             # Log for debugging
             _LOGGER.debug(
@@ -837,11 +838,7 @@ class SupportedEntitiesView(HomeAssistantView):
 
             for entity_id, z2m_friendly_name in entity_to_z2m_map.items():
                 # Find the device to get model info
-                device = None
-                for z2m_device in devices.values():
-                    if z2m_device.friendly_name == z2m_friendly_name:
-                        device = z2m_device
-                        break
+                device = devices_by_name.get(z2m_friendly_name)
 
                 if not device:
                     _LOGGER.warning(

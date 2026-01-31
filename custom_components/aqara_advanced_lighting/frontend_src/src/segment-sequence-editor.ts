@@ -1,6 +1,6 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { HomeAssistant, SegmentSequenceStep, XYColor, UserSegmentSequencePreset } from './types';
+import { HomeAssistant, SegmentSequenceStep, XYColor, UserSegmentSequencePreset, DeviceContext } from './types';
 import { xyToRgb, rgbToXy } from './color-utils';
 import { colorPickerStyles } from './styles';
 // Note: hs-color-picker import removed - now handled by segment-selector
@@ -58,6 +58,7 @@ export class SegmentSequenceEditor extends LitElement {
   @property({ type: Boolean }) public isCompatible = true;
   @property({ type: Boolean }) public previewActive = false;
   @property({ type: Number }) public stripSegmentCount = 10; // Default 2 meters (out-of-box T1 Strip length)
+  @property({ type: Object }) public deviceContext?: DeviceContext;
 
   @state() private _name = '';
   @state() private _icon = '';
@@ -70,6 +71,7 @@ export class SegmentSequenceEditor extends LitElement {
   @state() private _skipFirstInLoop = false;
   @state() private _saving = false;
   @state() private _previewing = false;
+  @state() private _hasUserInteraction = false;
 
   // Note: Color picker modal is now handled by segment-selector component
   // No need for local color picker state
@@ -348,6 +350,12 @@ export class SegmentSequenceEditor extends LitElement {
         grid-template-columns: 1fr;
       }
     }
+
+    .form-hint {
+      font-size: var(--ha-font-size-s, 12px);
+      color: var(--secondary-text-color);
+      margin-top: -4px;
+    }
   `];
 
   connectedCallback(): void {
@@ -360,8 +368,22 @@ export class SegmentSequenceEditor extends LitElement {
   protected updated(changedProps: PropertyValues): void {
     super.updated(changedProps);
 
-    if (changedProps.has('preset') && this.preset) {
-      this._loadPreset(this.preset);
+    if (changedProps.has('preset')) {
+      if (this.preset) {
+        this._hasUserInteraction = true;
+        this._loadPreset(this.preset);
+      } else {
+        this._hasUserInteraction = false;
+      }
+    }
+
+    // Auto-set device type from context when no user interaction has occurred
+    if (
+      changedProps.has('deviceContext') &&
+      !this._hasUserInteraction &&
+      this.deviceContext?.deviceType
+    ) {
+      this._deviceType = this.deviceContext.deviceType;
     }
   }
 
@@ -411,14 +433,17 @@ export class SegmentSequenceEditor extends LitElement {
       }
 
       // Populate coloredSegments from preset data (similar to pattern-editor)
+      // Skip black (0,0,0) entries -- these represent "off/unspecified" segments
+      // that were added during save to turn off segments on the hardware.
+      // rgbToXy(0,0,0) returns the D65 white point, so loading them would
+      // incorrectly show those segments as white in the editor.
       const coloredSegments = new Map<number, XYColor>();
       if (step.segment_colors && Array.isArray(step.segment_colors)) {
-        // New format: use segment_colors array
         for (const entry of step.segment_colors) {
-          // Convert from 1-based backend indexing to 0-based internal indexing
           const segNum = typeof entry.segment === 'number' ? entry.segment : parseInt(entry.segment, 10);
           const color = entry.color;
           if ('r' in color && 'g' in color && 'b' in color) {
+            if (color.r === 0 && color.g === 0 && color.b === 0) continue;
             coloredSegments.set(segNum - 1, rgbToXy(color.r, color.g, color.b));
           }
         }
@@ -484,6 +509,7 @@ export class SegmentSequenceEditor extends LitElement {
 
   private _handleDeviceTypeChange(e: CustomEvent): void {
     this._deviceType = e.detail.value || 't1m';
+    this._hasUserInteraction = true;
   }
 
   private _handleLoopModeChange(e: CustomEvent): void {
@@ -589,7 +615,7 @@ export class SegmentSequenceEditor extends LitElement {
     const newStep: EditableStep = {
       id: this._generateStepId(),
       segments: previousStep?.segments || 'all',  // Copy segments from previous step
-      colors: previousStep?.colors.map((c) => [...c]) || [[255, 0, 0]],  // Deep copy colors array
+      colors: previousStep?.colors?.map((c) => Array.isArray(c) ? [...c] : c) || [[255, 0, 0]],
       mode: previousStep?.mode || 'blocks_expand',
       duration: 15,
       hold: 60,
@@ -641,7 +667,7 @@ export class SegmentSequenceEditor extends LitElement {
     const newStep: EditableStep = {
       ...step,
       id: this._generateStepId(),
-      colors: step.colors.map((c) => [...c]),
+      colors: step.colors?.map((c) => Array.isArray(c) ? [...c] : c) || [[255, 0, 0]],
       // Deep copy Map and arrays for new step
       coloredSegments: new Map(step.coloredSegments),
       colorPalette: step.colorPalette.map((c) => ({ ...c })),
@@ -823,6 +849,7 @@ export class SegmentSequenceEditor extends LitElement {
             .gradientInterpolation=${step.gradientInterpolation}
             .gradientWave=${step.gradientWave}
             .gradientWaveCycles=${step.gradientWaveCycles}
+            .initialPatternMode=${step.patternMode}
             .label=${this._localize('editors.segment_grid_label')}
             .translations=${this.translations}
             @color-value-changed=${(e: CustomEvent) => this._handleStepColorValueChange(step.id, e)}
@@ -870,7 +897,7 @@ export class SegmentSequenceEditor extends LitElement {
               .selector=${{
                 number: {
                   min: 0,
-                  max: 3600,
+                  max: 43200,
                   step: 1,
                   mode: 'box',
                   unit_of_measurement: 's',
@@ -933,6 +960,7 @@ export class SegmentSequenceEditor extends LitElement {
               .value=${this._icon}
               @value-changed=${this._handleIconChange}
             ></ha-selector>
+            ${!this._icon ? html`<span class="form-hint">${this._localize('editors.icon_auto_hint')}</span>` : ''}
           </div>
           <div class="form-field">
             <span class="form-label">${this._localize('editors.device_type_label')}</span>
@@ -1005,7 +1033,7 @@ export class SegmentSequenceEditor extends LitElement {
 
         <div class="form-section toggle-row">
           <div class="toggle-item">
-            <span class="toggle-label">Clear Segments</span>
+            <span class="toggle-label">${this._localize('editors.clear_segments_label')}</span>
             <ha-switch
               .checked=${this._clearSegments}
               @change=${this._handleClearSegmentsChange}
@@ -1046,7 +1074,7 @@ export class SegmentSequenceEditor extends LitElement {
           ? html`
               <div class="error-warning">
                 <ha-icon icon="mdi:alert-circle"></ha-icon>
-                <span>Gradient mode requires at least 2 colors. Please add more colors to steps using gradient mode or change the mode.</span>
+                <span>${this._localize('editors.gradient_min_colors_error')}</span>
               </div>
             `
           : ''}
@@ -1066,17 +1094,17 @@ export class SegmentSequenceEditor extends LitElement {
             ? html`
                 <ha-button @click=${this._stopPreview}>
                   <ha-icon icon="mdi:stop"></ha-icon>
-                  Stop
+                  ${this._localize('editors.stop_button')}
                 </ha-button>
               `
             : html`
                 <ha-button
                   @click=${this._preview}
                   .disabled=${this._previewing || this._steps.length === 0 || !this.hasSelectedEntities || !this.isCompatible || this._hasInvalidGradientSteps()}
-                  title=${!this.hasSelectedEntities ? 'Select entities in Activate tab first' : !this.isCompatible ? 'Selected light is not compatible' : this._hasInvalidGradientSteps() ? 'Fix gradient validation errors first' : ''}
+                  title=${!this.hasSelectedEntities ? this._localize('editors.tooltip_select_lights_first') : !this.isCompatible ? this._localize('editors.tooltip_light_not_compatible') : this._hasInvalidGradientSteps() ? this._localize('editors.tooltip_fix_gradient_errors') : ''}
                 >
                   <ha-icon icon="mdi:play"></ha-icon>
-                  Preview
+                  ${this._localize('editors.preview_button')}
                 </ha-button>
               `}
           <ha-button
@@ -1084,7 +1112,7 @@ export class SegmentSequenceEditor extends LitElement {
             .disabled=${!this._name.trim() || this._steps.length === 0 || this._saving || this._hasInvalidGradientSteps()}
           >
             <ha-icon icon="mdi:content-save"></ha-icon>
-            ${this.editMode ? 'Update' : 'Save'}
+            ${this.editMode ? this._localize('editors.update_button') : this._localize('editors.save_button')}
           </ha-button>
         </div>
       </div>
