@@ -5,6 +5,67 @@ All notable changes to the Aqara Advanced Lighting integration will be documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-01-31
+
+### What's New
+
+Version 0.10.0 adds device triggers for Home Assistant automations, preset management improvements including duplicate and edit, dynamic SVG preview thumbnails, recent color history in color pickers, and improved device type handling for T1M.
+
+### New Features
+
+#### Device Triggers and Registry
+
+- **Device triggers for HA automations** - Aqara lighting devices now appear in the Home Assistant automation UI device trigger selector, enabling native trigger-based automations
+- **Device registry registration** - Devices are registered in the HA device registry with sequence event metadata for better integration visibility
+
+#### Preset Management
+
+- **Preset duplicate and edit** - Duplicate existing presets and edit saved presets directly, streamlining preset workflow
+- **Dynamic SVG preset preview thumbnails** - Presets now display dynamically generated SVG thumbnail previews showing the actual color pattern
+
+#### Activate Tab
+
+- **Cross-tab device context** - Selected device on the Activate tab now carries over to editor tabs, reducing repetitive device selection
+- **Device type sections with sorting** - Activate tab is split by device type (T1, T1M, T2) with per-section sorting for easier navigation
+
+#### Color Picker
+
+- **Recent colors history** - Color picker modals now remember recently used colors for quick reuse
+
+#### Effects panel
+
+- **New effect icons** - Updated icons for dynamic effects
+
+### Improvements
+
+- **T1M endpoint capability filtering** - Features are now filtered based on T1M endpoint capabilities, preventing unsupported operations
+- **O(1) device name lookups** - Added `devices_by_name` index for faster friendly-name resolution
+- **Segment pattern preset scaling** - Pattern presets now automatically scale to fit the device segment count
+- **Increased max hold time** - Sequence preset hold time limit raised to 12 hours
+
+### Bug Fixes
+
+- **Fixed segment sequence pattern mode** - Pattern mode now loads correctly when opening saved presets
+- **Fixed brightness conversion** - Corrected brightness value conversion when activating user presets
+- **Fixed unspecified segment colors** - Segments without explicit colors no longer turn white when editing saved presets
+- **Removed unused styles** - Cleaned up unused preset category and subcategory CSS
+
+### Breaking Changes
+
+None. This release is fully backward compatible with v0.9.0.
+
+- All existing presets and configurations preserved
+- No configuration changes required
+
+### Compatibility
+
+- Fully backward compatible with v0.9.0
+- All existing features and APIs unchanged
+- No configuration changes required
+- All presets and favorites preserved
+
+---
+
 ## [0.9.0] - 2026-01-28
 
 ### What's New
@@ -1228,3 +1289,4 @@ One click HACS cutton
 [0.7.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.7.0
 [0.8.1]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.8.1
 [0.9.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.9.0
+[0.10.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.10.0

@@ -1,9 +1,9 @@
-# Aqara Advanced Lighting v0.9.0
+# Aqara Advanced Lighting v0.10.0
 
 ## Upgrade Instructions
 
-**Upgrading from v0.8.x:**
-1. Update via HACS to v0.9.0
+**Upgrading from v0.9.x:**
+1. Update via HACS to v0.10.0
 2. Restart Home Assistant
 3. Clear browser cache (Ctrl+Shift+R or Cmd+Shift+R)
 
@@ -13,47 +13,60 @@ Your existing configuration, presets, and favorites are automatically preserved.
 
 ## What's New
 
-Version 0.9.0 introduces advanced gradient creation tools, improved color accuracy across the frontend, and a major code modernization converting the segment selector component to TypeScript.
+Version 0.10.0 adds device triggers for Home Assistant automations, preset management improvements including duplicate and edit, dynamic SVG preview thumbnails, recent color history in color pickers, and improved device type handling for T1M.
 
 ## Changes
 
-### Advanced Gradient Creation
+### Device Triggers and Registry
 
-Five new gradient options are now available in the segment selector's gradient mode:
+- Aqara lighting devices now appear in the HA automation UI device trigger selector for native trigger-based automations
+- Devices are registered in the HA device registry with sequence event metadata
 
-- **Reverse direction** - Flip the gradient flow with a single toggle
-- **Mirror gradient** - Create symmetric patterns from your color stops, with correct handling for both odd and even segment counts
-- **Interpolation mode** - Choose between shortest hue, longest hue, or linear RGB blending
-- **Repeating gradient** - Tile the gradient pattern across segments (1-10 repeats)
-- **Wave easing** - Apply sinusoidal easing with configurable cycle count (1-5 cycles)
+### Preset Management
 
-All options work with both "Apply to Grid" and "Apply to Selected" actions, and persist per-step in the segment sequence editor.
+- **Duplicate and edit presets** - Duplicate existing presets and edit saved presets directly
+- **Dynamic SVG preview thumbnails** - Presets display dynamically generated SVG thumbnails showing the actual color pattern
 
-### Color Accuracy
+### Activate Tab
 
-- Improved XY-to-RGB conversion with max-component normalization, fixing washed-out blues and improving color fidelity across the entire color wheel
-- All frontend components now use shared color utility functions, eliminating inconsistencies between components
+- Selected device on the Activate tab now carries over to editor tabs
+- Activate tab split by device type (T1, T1M, T2) with per-section sorting
 
-### Frontend Architecture
+### Color Picker
 
-- Segment selector converted from standalone JavaScript to bundled TypeScript
-- Single frontend bundle reduces HTTP requests and simplifies deployment
-- Removed separate segment-selector.js API endpoint
+- Color picker modals now remember recently used colors for quick reuse
+
+### Effects panel
+
+- Updated icons for dynamic effects
+
+### Improvements
+
+- Features filtered by T1M endpoint capabilities to prevent unsupported operations
+- Faster device name lookups with `devices_by_name` index
+- Pattern presets automatically scale to fit device segment count
+- Sequence preset hold time limit raised to 12 hours
+
+### Bug Fixes
+
+- Fixed pattern mode not loading correctly when opening saved presets
+- Fixed brightness conversion when activating user presets
+- Fixed unspecified segments turning white when editing saved presets
 
 ## Breaking Changes
 
-None. This release is fully backward compatible with v0.8.2.
+None. This release is fully backward compatible with v0.9.0.
 
 ## Compatibility
 
-- Fully backward compatible with v0.8.2
+- Fully backward compatible with v0.9.0
 - All existing features and APIs unchanged
 - No configuration changes required
 - All presets and favorites preserved
 
 ## Full Changelog
 
-[View full changelog](https://github.com/absent42/Aqara-Advanced-Lighting/blob/main/CHANGELOG.md#090---2026-01-28)
+[View full changelog](https://github.com/absent42/Aqara-Advanced-Lighting/blob/main/CHANGELOG.md#0100---2026-01-31)
 
 ## Support
 
