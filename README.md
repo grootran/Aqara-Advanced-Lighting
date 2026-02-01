@@ -10,9 +10,9 @@
 
 ## Overview
 
-Easily control the more advanced features of the Aqara T1M Ceiling Light, T1 LED Strip, and T2 bulbs, with RGB dynamic effects, RGB segment patterns & gradients, CCT sequences, and state restoration. Create and save custom presets, target multiple lights at once.
+Easily control the more advanced features of the Aqara T1M Ceiling Light, T1 LED Strip and T2 RGB+CCT bulbs through Home Assistant: dynamic RGB effects, per-segment colors and gradients, animated segment sequences, and multi-step color temperature transitions. Save and reuse custom presets across all feature types.
 
-Home Assistant backend services for easy integration into automations and scripts. Frontend sidebar accessible panel for easy creation and activation of presets, with builder UI for effects and segment patterns, plus sequencers for dynamic CCT control and animated segment patterns.
+Includes a sidebar panel with visual editors for building effects, patterns, and sequences, plus 13 service actions and 14 device triggers for use in automations and scripts.
 
 _Please :star: this integration if you find it useful_
 
@@ -27,58 +27,44 @@ _If you want to show your support please_
 | T1 Ceiling Light (20 segments) | ACN031 | 20 | ✓ 6 effects | ✓ | ✓ |
 | T1M Ceiling Light (26 segments) | ACN032 | 26 | ✓ 6 effects | ✓ | ✓ |
 | T1 LED Strip | ACN132 | Variable (5/meter) | ✓ 8 effects | ✓ | ✓ |
-| T2 RGB Bulb (E26/E27/GU10) | AGL001/AGL003/AGL005/AGL007 | N/A | ✓ 4 effects | N/A | ✓ |
-| T2 CCT Bulb (E26/E27/GU10) | AGL002/AGL004/AGL006/AGL008 | N/A | N/A | N/A | ✓ |
+| T2 RGB Bulb (E26/E27/GU10) | AGL001/3/5/7 | N/A | ✓ 4 effects | N/A | ✓ |
+| T2 CCT Bulb (E26/E27/GU10) | AGL002/4/6/8 | N/A | N/A | N/A | ✓ |
 
 ### Features
 
-- **Sidebar Panel** - UI control panel for managing lights, effects, and sequences from the Home Assistant sidebar
-  - Save favorite light targets for quick access
-  - Light control tiles for turning lights on/off and adjusting brightness
-  - Access to all effect and sequence presets
-  - **Visual Editors** - Create custom effects, patterns, and sequences with interactive builders
-    - Effect editor with color pickers and effect type selector
-    - Segment pattern editor with visual segment selection
-    - CCT sequence editor with multi-step timeline
-    - RGB segment sequence editor with animation patterns
-  - **Device Configuration Panel** - Configure device-specific settings directly from the panel
-    - **Multi-Device Configuration** - Push parameters to multiple devices simultaneously
-    - Transition curve editor for T2 bulbs (visual curve adjustment, 0.2-6.0 range)
-    - Initial brightness configuration for T2 bulbs (0-50%)
-    - Dimming settings for all devices (on-to-off duration, off-to-on duration, dimming range)
-    - T1 Strip length configuration with automatic segment count calculation
-    - Device detection shows only relevant settings for selected device type
-  - **User Preset System** - Save, edit, and manage your custom presets
-    - Create and save unlimited custom presets for all feature types
-    - Edit existing presets with full customization options
-    - Duplicate presets to create variations
-    - Delete unwanted presets
-    - Persistent storage across Home Assistant restarts
-- **Aqara App Effect Presets** - Quick access to 24 preset effect scenes from the Aqara Home app
-  - 4 T2 Bulb presets (Candlelight, Breath, Colorful, Security)
-  - 9 T1M presets (Dinner, Sunset, Autumn, Galaxy, Daydream, Holiday, Party, Meteor, Alert)
-  - 7 T1 Strip presets (Rainbow, Heartbeat, Gala, Sea of Flowers, Rhythmic, Exciting, Colorful)
-- **Segment Pattern Presets** - 12 T1M/T1 Strip segment color patterns from the Aqara Home app
-- **Dynamic RGB Effects** - 13 different effects including breathing, fading, flowing, chasing, rainbow, and more
-- **Effect Dropdown Selector** - UI dropdown showing all available effects and presets
-- **RGB Color Pickers** - Color picker UI for all services (up to 8 colors for effects, 6 for gradients)
-- **Individual Segment Control** - Set custom colors for each segment on T1M and T1 Strip lights
-- **Smooth Color Gradients** - Create color gradients across segments with 2-6 colors
-- **Color Block Patterns** - Generate evenly spaced or alternating color blocks
-- **Flexible Segment Selection** - Support for ranges ("1-20"), individual segments, and special selectors ("odd", "even", "firs-half", "last-third" etc)
-- **RGB Segment Sequences** - Create animated segment patterns with up to 20 customizable steps
-  - Multiple activation patterns (sequential forward/reverse, random, simultaneous)
-  - Support for gradients, blocks, and individual colors
-  - Built-in presets: Loading bar, Wave, Sparkle and more
-  - Pause and resume capability
-- **CCT Dynamic Sequences** - Create multi-step color temperature and brightness sequences with smooth transitions
-  - Enhanced with pause and resume functionality
-- **T1 Strip Variable Length Support** - Automatically detects and adapts to T1 Strip's length (1-10 meters)
-- **Light Group Support** - All services work with Home Assistant light groups for synchronized multi-light control
-- **Auto Turn-On Option** - Optionally turn lights on automatically before applying effects or sequences
-- **Unspecified Segment Control** - Option to turn off segments not included in patterns
-- **Automatic Device Discovery** - Discovers supported Aqara lights through Zigbee2MQTT
-- **Service-Based API** - All features accessible via Home Assistant services, automations, and scripts
+**Lighting Control**
+- 13 dynamic RGB effects (breathing, fading, flowing, chasing, rainbow, and more)
+- Individual segment colors, smooth gradients (2-6 colors), and color block patterns
+- RGB segment sequences with up to 20 steps and 8 activation patterns
+- CCT sequences with up to 20 steps for color temperature and brightness transitions
+- Pause, resume, and stop control for all running sequences
+- Flexible segment selection: ranges, individual, odd/even, first-half, last-third, etc.
+
+**Presets**
+- 42 built-in presets: 20 effects, 12 segment patterns, 4 CCT sequences, 6 segment sequences
+- Unlimited custom user presets with create, edit, duplicate, and delete
+- Auto-genertaion of preset icons based on colors of preset
+- Option to use built-in HA icons or custom icons for presets
+- Preset backup and restore
+- Persistent storage across devices and restarts
+
+**Frontend Panel**
+- Sidebar-accessible UI for controlling lights and managing presets
+- Visual editors for effects, segment patterns, CCT sequences, and segment sequences
+- Favorite lights with control tiles for quick on/off and brightness adjustment
+- Device configuration: transition curves (T2), initial brightness (T2), dimming settings, strip length (T1 Strip)
+- Multi-device configuration for pushing settings to multiple devices at once
+
+**Automation**
+- 13 service actions for use in automations, scripts, and Developer Tools
+- 14 device triggers for sequence and effect lifecycle events (started, completed, stopped, paused, resumed, step changed)
+- Light group support with automatic entity expansion and multi-instance routing
+- Auto turn-on option for all services
+
+**Integration**
+- Automatic device discovery via Zigbee2MQTT
+- Multiple Zigbee2MQTT instance support
+- State capture and restoration when applying effects
 
 ## Requirements
 
@@ -86,6 +72,30 @@ _If you want to show your support please_
 - MQTT integration configured and running
 - Zigbee2MQTT 2.7.2 or newer
 - Supported Aqara light devices (see table above)
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Updating](#updating)
+- [Configuration](#configuration)
+  - [Setup](#setup)
+  - [Configuration Parameters](#configuration-parameters)
+- [Usage](#usage)
+  - [Frontend Panel](#frontend-panel)
+  - [Visual Editors](#visual-editors)
+  - [Device Configuration](#device-configuration)
+  - [Backend Services](#backend-services)
+  - [Device Triggers](#device-triggers)
+  - [Working with Light Groups](#working-with-light-groups)
+  - [Custom Icons for Presets](#custom-icons-for-presets)
+- [Example Automations YAML](#example-automations-yaml)
+  - [RGB Dynamic Effects](#rgb-dynamic-effects)
+  - [CCT Preset Automations](#cct-preset-automations)
+  - [RGB Segment Sequence Examples](#rgb-segment-sequence-examples)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [Disclaimer](#disclaimer)
+- [Support](#support)
 
 ## Installation
 
@@ -95,28 +105,33 @@ _If you want to show your support please_
 
 Restart Home Assistant
 
-### Manual Installation
+<details>
+<summary>Manual Installation
+</summary>
 
 1. Copy the `custom_components/aqara_advanced_lighting` folder to your Home Assistant `custom_components` directory
 2. Restart Home Assistant
+</details>
 
 ## Updating
 
 ### Update via HACS
 
-1. Go to **HACS**
-2. Find "Aqara Advanced Lighting"
-3. Click **Update** if an update is available
+1. A notification will appear in Home Assistant when an update is available
+2. Click **Update**
 4. **Restart Home Assistant**
-5. **Clear your browser cache** (see below)
+5. **Clear your browser/app cache** (see Version Mismatch Warning)
 
-### Manual Update
+<details>
+<summary>Manual Update
+</summary>
 
 If you installed manually:
 1. Download the latest release from [GitHub Releases](https://github.com/absent42/Aqara-Advanced-Lighting/releases)
 2. Replace the `custom_components/aqara_advanced_lighting` folder
 3. Restart Home Assistant
 4. Clear browser cache (see above)
+</details>
 
 <details>
 <summary>Version Mismatch Warning
@@ -190,7 +205,9 @@ The MQTT base topic used by your Zigbee2MQTT installation. This integration subs
 - The integration validates the Z2M instance by subscribing to the `bridge/state` topic during setup
 - Use the Reconfigure option to update the base topic if needed
 
-### Multiple Zigbee2MQTT Instances
+<details>
+<summary>Multiple Zigbee2MQTT Instances
+</summary>
 
 The integration supports connecting to multiple Zigbee2MQTT instances simultaneously, perfect for complex smart home setups with distributed Zigbee networks.
 
@@ -249,8 +266,12 @@ Instance 2: zigbee2mqtt_outdoor (Outdoor Lights)
 Instance 1: zigbee2mqtt (Smart Bulbs)
 Instance 2: zigbee2mqtt_strips (LED Strips)
 ```
+</details>
 
-### Reconfiguration
+<details>
+<summary>
+Reconfiguration
+</summary>
 
 To change the Z2M base topic for an existing instance:
 
@@ -259,8 +280,11 @@ To change the Z2M base topic for an existing instance:
 3. Click the three dots menu → "Reconfigure"
 4. Update the base topic
 5. Click "Submit"
+</details>
 
-### Removal
+<details>
+<summary>Removal
+</summary>
 
 To remove the integration from Home Assistant:
 
@@ -290,7 +314,7 @@ To remove the integration from Home Assistant:
    - Restart Home Assistant
 
 **Note**: Removing the integration does not affect your Zigbee2MQTT configuration or your Aqara lights themselves. The lights will continue to work with Zigbee2MQTT and the standard Home Assistant MQTT Light integration.
-
+</details>
 
 ## Usage
 
@@ -312,6 +336,12 @@ Save your frequently used lights and light groups as favorites for quick access:
 - Control tiles show current state and brightness
 - Toggle lights on/off directly from the panel
 - Adjust brightness with the slider
+
+#### Quick Actions
+
+- **Stop Effects**: Stop any running effect and restore previous light state
+- **Pause/Resume/Stop**: Control CCT/Segment sequence playback mid-execution
+- **Light Control**: Direct on/off and brightness control from the panel
 
 #### Preset Management
 
@@ -361,6 +391,12 @@ Create custom effects and patterns with interactive builders:
 - Visual segment selector shows all available segments
 - Click segments to assign colors
 - Create gradients across multiple segments
+- Gradient interpolation modes control how colors blend between gradient stops:
+  - **Shortest path** (default): Transitions through the nearest hue on the color wheel (e.g., red to blue goes through purple)
+  - **Longest path**: Transitions the long way around the color wheel, visiting all intermediate hues (e.g., red to blue goes through yellow, green, cyan)
+  - **RGB**: Direct linear interpolation in RGB color space, ignoring the hue wheel
+- Wave easing applies a sinusoidal curve to the gradient distribution, creating smooth oscillating color transitions instead of a linear blend. Configurable from 1 to 5 cycles across the gradient
+- Gradient mirror, repeat (1-10 tiles), and reverse options
 - Generate color block patterns
 - Option to turn off unspecified segments
 - Works with T1M and T1 Strip lights
@@ -372,7 +408,9 @@ Create custom effects and patterns with interactive builders:
 
 - Build multi-step sequences (up to 20 steps)
 - Set color temperature and brightness per step
-- Configure transition and hold durations
+- Each step has two timing phases:
+  - **Transition time**: How long the light takes to fade from its current state to this step's color temperature and brightness (0-3600 seconds). The light smoothly interpolates between values during this period
+  - **Hold time**: How long the light stays at this step's settings after the transition completes before moving to the next step (0-43200 seconds)
 - Choose loop mode: once, count, or continuous
 - Set end behavior: maintain or turn off
 - Visual timeline shows sequence flow
@@ -385,13 +423,15 @@ Create custom effects and patterns with interactive builders:
 - Create animated segment patterns (up to 20 steps)
 - Choose color mode: gradient, blocks, or individual
 - Select activation pattern: sequential, random, simultaneous, and more
-- Set duration and hold times per step
+- Each step has two timing phases:
+  - **Duration**: How long the activation pattern takes to complete (0-3600 seconds). During this period, segments light up according to the selected activation pattern (e.g., one by one for sequential, all at once for simultaneous)
+  - **Hold time**: How long the completed pattern stays visible before the next step begins (0-43200 seconds)
 - Configure loop settings
 - Option to clear segments before starting
 - Skip first step option for initialization
 - Save sequences as custom presets
 
-#### Device Configuration
+### Device Configuration
 
 ![Aqara Advanced Lighting evice Configuration](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/devices.png " Aqara Advanced Lighting evice Configuration")
 
@@ -440,12 +480,6 @@ Configure device-specific settings directly from the Device Config tab in the pa
 - Automatic entity discovery for configuration parameters
 - Clear messaging when entities are not found
 - Device type awareness adapts settings based on T2 RGB, T2 CCT, T1M, T1, or T1 Strip selection
-
-#### Quick Actions
-
-- **Stop Effects**: Stop any running effect and optionally restore previous light state
-- **Pause/Resume**: Control sequence playback mid-execution
-- **Light Control**: Direct on/off and brightness control from the panel
 
 ### Backend Services
 
@@ -926,31 +960,127 @@ target:
 - `entity_id` (required): Light entity to resume sequence on
 </details>
 
-### Available Effects
+### Device Triggers
 
-#### T1M Ceiling Light
-- `flow1` - Flowing pattern 1
-- `flow2` - Flowing pattern 2
-- `fading` - Fading effect
-- `hopping` - Color hopping
-- `breathing` - Breathing effect
-- `rolling` - Rolling pattern
+![Aqara Advanced Lighting Device Triggers](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/trigger.png " Aqara Advanced Lighting Device Triggers")
 
-#### T1 LED Strip
-- `breathing` - Breathing effect
-- `rainbow1` - Rainbow pattern 1
-- `chasing` - Chasing lights
-- `flash` - Flashing effect
-- `hopping` - Color hopping
-- `rainbow2` - Rainbow pattern 2
-- `flicker` - Flickering effect
-- `dash` - Dashing pattern
+The integration provides device triggers that let you build automations that respond to sequence and effect events. These triggers appear in the Home Assistant automation UI when you select a device trigger for any supported Aqara light.
 
-#### T2 RGB Bulb
-- `breathing` - Breathing effect
-- `candlelight` - Candlelight flicker
-- `fading` - Fading effect
-- `flash` - Flashing effect
+To use a device trigger in an automation:
+
+1. Create a new automation
+2. For the trigger, select **Device**
+3. Choose your Aqara light device
+4. Select from the available trigger types
+
+#### Available Triggers
+
+**CCT Sequence Triggers**
+
+| Trigger | Description |
+|---------|-------------|
+| CCT sequence started | Fires when a CCT sequence begins playing |
+| CCT sequence completed | Fires when a CCT sequence finishes all steps and loops |
+| CCT sequence stopped | Fires when a CCT sequence is manually stopped |
+| CCT sequence step changed | Fires each time a CCT sequence advances to the next step |
+| CCT sequence paused | Fires when a CCT sequence is paused |
+| CCT sequence resumed | Fires when a paused CCT sequence is resumed |
+
+**RGB Segment Sequence Triggers**
+
+| Trigger | Description |
+|---------|-------------|
+| Segment sequence started | Fires when an RGB segment sequence begins playing |
+| Segment sequence completed | Fires when an RGB segment sequence finishes all steps and loops |
+| Segment sequence stopped | Fires when an RGB segment sequence is manually stopped |
+| Segment sequence step changed | Fires each time an RGB segment sequence advances to the next step |
+| Segment sequence paused | Fires when an RGB segment sequence is paused |
+| Segment sequence resumed | Fires when a paused RGB segment sequence is resumed |
+
+**Dynamic Effect Triggers**
+
+| Trigger | Description |
+|---------|-------------|
+| Dynamic effect activated | Fires when a dynamic RGB effect is activated on the light |
+| Dynamic effect stopped | Fires when a dynamic RGB effect is stopped |
+
+#### Example Automations Using Triggers
+
+<details>
+<summary>Turn off other lights when a sequence completes</summary>
+
+```yaml
+automation:
+  - alias: "Turn off lights after goodnight sequence"
+    trigger:
+      - platform: device
+        domain: aqara_advanced_lighting
+        device_id: <your_device_id>
+        type: cct_sequence_completed
+    action:
+      - service: light.turn_off
+        target:
+          entity_id: light.hallway
+```
+</details>
+
+<details>
+<summary>Send a notification when an effect is activated</summary>
+
+```yaml
+automation:
+  - alias: "Notify when party effect starts"
+    trigger:
+      - platform: device
+        domain: aqara_advanced_lighting
+        device_id: <your_device_id>
+        type: effect_activated
+    action:
+      - service: notify.mobile_app
+        data:
+          message: "Party lights are on!"
+```
+</details>
+
+<details>
+<summary>Chain sequences together</summary>
+
+```yaml
+automation:
+  - alias: "Start segment sequence after CCT sequence finishes"
+    trigger:
+      - platform: device
+        domain: aqara_advanced_lighting
+        device_id: <your_device_id>
+        type: cct_sequence_completed
+    action:
+      - service: aqara_advanced_lighting.start_segment_sequence
+        target:
+          entity_id: light.aqara_ceiling_light
+        data:
+          preset: "wave"
+```
+</details>
+
+<details>
+<summary>React to sequence step changes</summary>
+
+```yaml
+automation:
+  - alias: "Adjust blinds as CCT sequence progresses"
+    trigger:
+      - platform: device
+        domain: aqara_advanced_lighting
+        device_id: <your_device_id>
+        type: cct_sequence_step_changed
+    action:
+      - service: cover.set_cover_position
+        target:
+          entity_id: cover.living_room_blinds
+        data:
+          position: 50
+```
+</details>
 
 ### Working with Light Groups
 
@@ -1446,6 +1576,17 @@ automation:
 - T1M: 0.0.0_0027
 - T1 strip: 0.0.0_0027
 - T2 bulb: 0.0.0_0030
+
+### Diagnostics
+
+The integration provides downloadable diagnostics data to help with troubleshooting. This includes discovered devices, entity mappings, active effects and sequences, and configuration details. Sensitive data is automatically redacted.
+
+To download diagnostics:
+1. Go to **Settings** → **Devices & Services**
+2. Find "Aqara Advanced Lighting" and click the three dots menu
+3. Select **Download diagnostics**
+
+Include this file when reporting issues on GitHub.
 
 ## Contributing
 
