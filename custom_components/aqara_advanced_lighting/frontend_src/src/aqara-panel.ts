@@ -30,6 +30,7 @@ import {
   XYColor,
   PresetSortOption,
   PresetSortPreferences,
+  SegmentZoneResolved,
 } from './types';
 import './effect-editor';
 import './pattern-editor';
@@ -65,7 +66,10 @@ export class AqaraPanel extends LitElement {
   @state() private _colorHistory: XYColor[] = [];
   @state() private _backendVersion?: string;
   @state() private _frontendVersion = '__FRONTEND_VERSION__';
-  @state() private _supportedEntities: Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; is_group?: boolean; member_count?: number }> = new Map();
+  @state() private _supportedEntities: Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; ieee_address?: string; segment_count?: number; is_group?: boolean; member_count?: number }> = new Map();
+  @state() private _deviceZones: Map<string, Array<{ name: string; segments: string }>> = new Map();
+  @state() private _zoneEditing: Map<string, Array<{ name: string; segments: string }>> = new Map();
+  @state() private _zoneSaving = false;
   @state() private _z2mInstances: Array<{
     entry_id: string;
     title: string;
@@ -404,19 +408,23 @@ export class AqaraPanel extends LitElement {
 
   private async _loadSupportedEntities(): Promise<void> {
     try {
-      const response = await fetch('/api/aqara_advanced_lighting/supported_entities');
+      const response = await fetch('/api/aqara_advanced_lighting/supported_entities', {
+        headers: { Authorization: `Bearer ${this.hass?.auth?.data?.access_token}` },
+      });
       if (!response.ok) {
         console.warn('Failed to load supported entities:', response.status);
         return;
       }
       const data = await response.json();
       // Build a map for fast lookup
-      const entityMap = new Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; is_group?: boolean; member_count?: number }>();
+      const entityMap = new Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; ieee_address?: string; segment_count?: number; is_group?: boolean; member_count?: number }>();
       for (const entity of data.entities || []) {
         entityMap.set(entity.entity_id, {
           device_type: entity.device_type,
           model_id: entity.model_id,
           z2m_friendly_name: entity.z2m_friendly_name,
+          ieee_address: entity.ieee_address,
+          segment_count: entity.segment_count,
         });
       }
 
@@ -438,6 +446,235 @@ export class AqaraPanel extends LitElement {
     } catch (err) {
       console.warn('Failed to load supported entities:', err);
     }
+  }
+
+  /**
+   * Get unique segment-capable devices from selected entities.
+   * Returns a map of ieee_address to { device_type, segment_count, z2m_friendly_name }.
+   */
+  private _getSelectedSegmentDevices(): Map<string, { device_type: string; segment_count: number; z2m_friendly_name: string; entity_id: string }> {
+    const devices = new Map<string, { device_type: string; segment_count: number; z2m_friendly_name: string; entity_id: string }>();
+    for (const entityId of this._selectedEntities) {
+      const info = this._supportedEntities.get(entityId);
+      if (!info?.ieee_address) continue;
+      if (info.device_type !== 't1m' && info.device_type !== 't1_strip') continue;
+      if (devices.has(info.ieee_address)) continue;
+      // T1 Strip has segment_count=0 in backend (variable based on length)
+      // so use the dynamic calculation for strips
+      const segmentCount = info.device_type === 't1_strip'
+        ? this._getT1StripSegmentCount()
+        : (info.segment_count || 0);
+      if (segmentCount === 0) continue;
+      devices.set(info.ieee_address, {
+        device_type: info.device_type,
+        segment_count: segmentCount,
+        z2m_friendly_name: info.z2m_friendly_name,
+        entity_id: entityId,
+      });
+    }
+    return devices;
+  }
+
+  /**
+   * Load zones for a specific device from the backend.
+   */
+  private async _loadZonesForDevice(ieeeAddress: string): Promise<void> {
+    try {
+      const response = await fetch(`/api/aqara_advanced_lighting/segment_zones/${encodeURIComponent(ieeeAddress)}`, {
+        headers: { Authorization: `Bearer ${this.hass?.auth?.data?.access_token}` },
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      const zones: Array<{ name: string; segments: string }> = Object.entries(data.zones || {}).map(
+        ([name, segments]) => ({ name, segments: segments as string })
+      );
+      this._deviceZones = new Map(this._deviceZones).set(ieeeAddress, zones);
+      this._zoneEditing = new Map(this._zoneEditing).set(ieeeAddress, zones.map(z => ({ ...z })));
+    } catch (err) {
+      console.warn('Failed to load zones for device:', ieeeAddress, err);
+    }
+  }
+
+  /**
+   * Load zones for all selected segment-capable devices.
+   */
+  private async _loadZonesForSelectedDevices(): Promise<void> {
+    const devices = this._getSelectedSegmentDevices();
+    await Promise.all(
+      Array.from(devices.keys()).map(ieee => this._loadZonesForDevice(ieee))
+    );
+  }
+
+  /**
+   * Validate that all segment numbers in a range string are within the device maximum.
+   * Returns an error message if invalid, or null if valid.
+   */
+  private _validateSegmentRange(rangeStr: string, maxSegments: number, zoneName: string): string | null {
+    const trimmed = rangeStr.trim().toLowerCase();
+    // Keywords are always valid
+    const keywords = new Set(['odd', 'even', 'all', 'first-half', 'second-half']);
+    if (keywords.has(trimmed)) return null;
+
+    // Parse comma-separated parts
+    const parts = trimmed.split(',');
+    for (const part of parts) {
+      const p = part.trim();
+      const rangeMatch = p.match(/^(\d+)-(\d+)$/);
+      if (rangeMatch) {
+        const start = parseInt(rangeMatch[1] ?? '', 10);
+        const end = parseInt(rangeMatch[2] ?? '', 10);
+        if (isNaN(start) || isNaN(end)) {
+          return this._localize('config.zone_invalid_range')
+            .replace('{name}', zoneName).replace('{range}', p);
+        }
+        if (start > maxSegments || end > maxSegments) {
+          const exceeding = Math.max(start, end);
+          return this._localize('config.zone_out_of_range')
+            .replace('{name}', zoneName)
+            .replace('{segment}', String(exceeding))
+            .replace('{max}', String(maxSegments));
+        }
+      } else {
+        const num = parseInt(p, 10);
+        if (isNaN(num)) {
+          return this._localize('config.zone_invalid_range')
+            .replace('{name}', zoneName).replace('{range}', p);
+        }
+        if (num > maxSegments) {
+          return this._localize('config.zone_out_of_range')
+            .replace('{name}', zoneName)
+            .replace('{segment}', String(num))
+            .replace('{max}', String(maxSegments));
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Save zones for a device.
+   */
+  private async _saveZones(ieeeAddress: string, maxSegments: number): Promise<void> {
+    const editZones = this._zoneEditing.get(ieeeAddress) || [];
+    const zonesPayload: Record<string, string> = {};
+    const namesSeen = new Set<string>();
+
+    for (const zone of editZones) {
+      const name = zone.name.trim();
+      const segments = zone.segments.trim();
+      if (!name && !segments) continue;
+      if (!name) {
+        this._showToast(this._localize('config.zone_name_required'));
+        return;
+      }
+      if (!segments) {
+        this._showToast(this._localize('config.zone_segments_required'));
+        return;
+      }
+      const nameLower = name.toLowerCase();
+      if (namesSeen.has(nameLower)) {
+        this._showToast(`Duplicate zone name: "${name}"`);
+        return;
+      }
+      namesSeen.add(nameLower);
+
+      // Validate segment range against device maximum
+      const rangeError = this._validateSegmentRange(segments, maxSegments, name);
+      if (rangeError) {
+        this._showToast(rangeError);
+        return;
+      }
+
+      zonesPayload[name] = segments;
+    }
+
+    this._zoneSaving = true;
+    try {
+      const response = await fetch(`/api/aqara_advanced_lighting/segment_zones/${encodeURIComponent(ieeeAddress)}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.hass?.auth?.data?.access_token}`,
+        },
+        body: JSON.stringify({ zones: zonesPayload }),
+      });
+      if (response.ok) {
+        await this._loadZonesForDevice(ieeeAddress);
+        this._showToast(this._localize('config.zone_saved'));
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        this._showToast(errorData.message || this._localize('config.zone_save_error'));
+      }
+    } catch {
+      this._showToast(this._localize('config.zone_save_error'));
+    } finally {
+      this._zoneSaving = false;
+    }
+  }
+
+  /**
+   * Add a new empty zone row for editing.
+   */
+  private _addZoneRow(ieeeAddress: string): void {
+    const current = this._zoneEditing.get(ieeeAddress) || [];
+    const updated = [...current, { name: '', segments: '' }];
+    this._zoneEditing = new Map(this._zoneEditing).set(ieeeAddress, updated);
+  }
+
+  /**
+   * Remove a zone row from the editing list.
+   */
+  private async _removeZoneRow(ieeeAddress: string, index: number): Promise<void> {
+    const current = this._zoneEditing.get(ieeeAddress) || [];
+    const zone = current[index];
+
+    // If this zone exists in the saved data, delete it from the backend immediately
+    if (zone) {
+      const savedZones = this._deviceZones.get(ieeeAddress) || [];
+      const isSaved = savedZones.some(
+        z => z.name.toLowerCase() === zone.name.trim().toLowerCase() && zone.name.trim() !== ''
+      );
+      if (isSaved) {
+        try {
+          await fetch(
+            `/api/aqara_advanced_lighting/segment_zones/${encodeURIComponent(ieeeAddress)}/${encodeURIComponent(zone.name.trim())}`,
+            {
+              method: 'DELETE',
+              headers: { Authorization: `Bearer ${this.hass?.auth?.data?.access_token}` },
+            }
+          );
+          // Reload saved zones from backend to stay in sync
+          await this._loadZonesForDevice(ieeeAddress);
+          return;
+        } catch {
+          this._showToast(this._localize('config.zone_save_error'));
+          return;
+        }
+      }
+    }
+
+    // Unsaved row: just remove from the editing list
+    const updated = current.filter((_, i) => i !== index);
+    this._zoneEditing = new Map(this._zoneEditing).set(ieeeAddress, updated);
+  }
+
+  /**
+   * Update a zone's name or segments field in the editing list.
+   */
+  private _updateZoneField(ieeeAddress: string, index: number, field: 'name' | 'segments', value: string): void {
+    const current = this._zoneEditing.get(ieeeAddress) || [];
+    const updated = current.map((z, i) => i === index ? { ...z, [field]: value } : z);
+    this._zoneEditing = new Map(this._zoneEditing).set(ieeeAddress, updated);
+  }
+
+  /**
+   * Check if zones have been modified from saved state.
+   */
+  private _zonesModified(ieeeAddress: string): boolean {
+    const saved = this._deviceZones.get(ieeeAddress) || [];
+    const editing = this._zoneEditing.get(ieeeAddress) || [];
+    if (saved.length !== editing.length) return true;
+    return saved.some((z, i) => z.name !== editing[i]?.name || z.segments !== editing[i]?.segments);
   }
 
   private _setSortPreference(sectionId: string, value: PresetSortOption): void {
@@ -716,6 +953,8 @@ export class AqaraPanel extends LitElement {
     this._activeFavoriteId = favorite.id;
     // Load curvature from first T2 entity when favorite is selected
     this._loadCurvatureFromEntity();
+    // Load zones for selected segment-capable devices
+    this._loadZonesForSelectedDevices();
   }
 
   private _getEntityFriendlyName(entityId: string): string {
@@ -943,7 +1182,52 @@ export class AqaraPanel extends LitElement {
         break;
     }
 
-    return { deviceType: compatibleType, hasSelection: true };
+    // Resolve zones for the first segment-capable selected device
+    const resolvedZones = this._getResolvedZonesForSelection();
+
+    return { deviceType: compatibleType, hasSelection: true, zones: resolvedZones };
+  }
+
+  /**
+   * Get resolved zones (with 0-based segment indices) for the first
+   * segment-capable device in the current selection.
+   */
+  private _getResolvedZonesForSelection(): SegmentZoneResolved[] {
+    for (const entityId of this._selectedEntities) {
+      const info = this._supportedEntities.get(entityId);
+      if (!info?.ieee_address) continue;
+      if (info.device_type !== 't1m' && info.device_type !== 't1_strip') continue;
+
+      // T1 Strip has segment_count=0 in backend (variable based on length)
+      const maxSegments = info.device_type === 't1_strip'
+        ? this._getT1StripSegmentCount()
+        : (info.segment_count || 0);
+      if (maxSegments === 0) continue;
+
+      const zones = this._deviceZones.get(info.ieee_address) || [];
+      return zones.map(z => {
+        // Parse the segment range string into 0-based indices
+        const indices: number[] = [];
+        for (const part of z.segments.split(',')) {
+          const trimmed = part.trim();
+          const rangeMatch = trimmed.match(/^(\d+)-(\d+)$/);
+          if (rangeMatch && rangeMatch[1] && rangeMatch[2]) {
+            const start = parseInt(rangeMatch[1], 10);
+            const end = parseInt(rangeMatch[2], 10);
+            for (let i = start; i <= end && i <= maxSegments; i++) {
+              indices.push(i - 1); // Convert to 0-based
+            }
+          } else {
+            const num = parseInt(trimmed, 10);
+            if (!isNaN(num) && num >= 1 && num <= maxSegments) {
+              indices.push(num - 1); // Convert to 0-based
+            }
+          }
+        }
+        return { name: z.name, segmentIndices: indices };
+      });
+    }
+    return [];
   }
 
   // Compatibility checks for each tab - check actual entity capabilities
@@ -1152,6 +1436,9 @@ export class AqaraPanel extends LitElement {
 
     // Load curvature from first T2 entity when selection changes
     this._loadCurvatureFromEntity();
+
+    // Load zones for selected segment-capable devices
+    this._loadZonesForSelectedDevices();
   }
 
   private _handleBrightnessChange(e: CustomEvent): void {
@@ -2072,7 +2359,7 @@ export class AqaraPanel extends LitElement {
         entity_id: compatibleEntities,
         segment_colors,
         turn_on: true,
-        turn_off_unspecified: true,
+        turn_off_unspecified: data.turn_off_unspecified ?? true,
         sync: true,
       });
     } catch (err) {
@@ -3515,6 +3802,110 @@ export class AqaraPanel extends LitElement {
             </ha-expansion-panel>
           `
         : ''}
+
+      ${this._renderSegmentZonesSection()}
+    `;
+  }
+
+  private _renderSegmentZonesSection() {
+    const segmentDevices = this._getSelectedSegmentDevices();
+
+    if (segmentDevices.size === 0) {
+      // Only show info message if there is a selection but no segment devices
+      if (this._selectedEntities.length > 0) {
+        const deviceTypes = this._getSelectedDeviceTypes();
+        const hasNonSegmentDevice = deviceTypes.some(dt => dt !== 't1m' && dt !== 't1_strip');
+        if (hasNonSegmentDevice) {
+          return html`
+            <ha-expansion-panel outlined .expanded=${false}>
+              <div slot="header" class="section-header">
+                <div>
+                  <div class="section-title">${this._localize('config.segment_zones_title')}</div>
+                  <div class="section-subtitle">${this._localize('config.segment_zones_subtitle')}</div>
+                </div>
+              </div>
+              <div class="section-content" style="display: block; padding: 16px;">
+                <ha-alert alert-type="info">
+                  ${this._localize('config.zone_no_segment_devices')}
+                </ha-alert>
+              </div>
+            </ha-expansion-panel>
+          `;
+        }
+      }
+      return '';
+    }
+
+    return html`
+      <ha-expansion-panel outlined .expanded=${true}>
+        <div slot="header" class="section-header">
+          <div>
+            <div class="section-title">${this._localize('config.segment_zones_title')}</div>
+            <div class="section-subtitle">${this._localize('config.segment_zones_subtitle')}</div>
+          </div>
+        </div>
+        <div class="section-content" style="display: block; padding: 0;">
+          ${Array.from(segmentDevices.entries()).map(([ieee, device]) => {
+            const editZones = this._zoneEditing.get(ieee) || [];
+            const modified = this._zonesModified(ieee);
+            return html`
+              <div class="zone-device-section">
+                <div class="zone-device-header">
+                  <ha-icon icon="${this._getEntityIcon(device.entity_id)}"></ha-icon>
+                  <span>${device.z2m_friendly_name}</span>
+                  <span class="zone-device-segments">${device.segment_count} segments</span>
+                </div>
+                ${editZones.length === 0
+                  ? html`<div class="zone-empty-message">${this._localize('config.zone_no_zones')}</div>`
+                  : html`
+                    <div class="zone-list">
+                      ${editZones.map((zone, index) => html`
+                        <div class="zone-row">
+                          <div class="zone-row-header">
+                            <ha-selector
+                              class="zone-name-input"
+                              .hass=${this.hass}
+                              .selector=${{ text: {} }}
+                              .value=${zone.name}
+                              .label=${this._localize('config.zone_name_label')}
+                              @value-changed=${(e: CustomEvent) => this._updateZoneField(ieee, index, 'name', e.detail.value)}
+                            ></ha-selector>
+                            <ha-icon-button
+                              @click=${() => this._removeZoneRow(ieee, index)}
+                              title=${this._localize('config.zone_delete_tooltip')}
+                            >
+                              <ha-icon icon="mdi:delete-outline"></ha-icon>
+                            </ha-icon-button>
+                          </div>
+                          <segment-selector
+                            .mode=${'selection'}
+                            .maxSegments=${device.segment_count}
+                            .value=${zone.segments}
+                            .hideControls=${true}
+                            @value-changed=${(e: CustomEvent) => this._updateZoneField(ieee, index, 'segments', e.detail.value)}
+                          ></segment-selector>
+                        </div>
+                      `)}
+                    </div>
+                  `}
+                <div class="zone-actions">
+                  <ha-button @click=${() => this._addZoneRow(ieee)}>
+                    <ha-icon icon="mdi:plus"></ha-icon>
+                    ${this._localize('config.zone_add_button')}
+                  </ha-button>
+                  <ha-button
+                    @click=${() => this._saveZones(ieee, device.segment_count)}
+                    ?disabled=${!modified || this._zoneSaving}
+                  >
+                    <ha-icon icon="mdi:content-save-outline"></ha-icon>
+                    ${this._localize('config.zone_save_button')}
+                  </ha-button>
+                </div>
+              </div>
+            `;
+          })}
+        </div>
+      </ha-expansion-panel>
     `;
   }
 

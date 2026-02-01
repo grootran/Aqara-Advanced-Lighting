@@ -7,6 +7,7 @@ import json
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from urllib.parse import unquote
 
 from aiohttp import web
 
@@ -17,12 +18,14 @@ from homeassistant.core import HomeAssistant
 if TYPE_CHECKING:
     from .favorites_store import FavoritesStore
     from .preset_store import PresetStore
+    from .segment_zone_store import SegmentZoneStore
     from .user_preferences_store import UserPreferencesStore
 
 from .const import (
     CCT_SEQUENCE_PRESETS,
     DATA_FAVORITES_STORE,
     DATA_PRESET_STORE,
+    DATA_SEGMENT_ZONE_STORE,
     DATA_USER_PREFERENCES_STORE,
     DOMAIN,
     MAX_COLOR_HISTORY_SIZE,
@@ -99,6 +102,10 @@ async def async_register_panel(hass: HomeAssistant) -> None:
 
     # Register version endpoint
     hass.http.register_view(VersionView)
+
+    # Register segment zone endpoints
+    hass.http.register_view(SegmentZonesView)
+    hass.http.register_view(SegmentZoneView)
 
     # Register supported entities endpoint
     hass.http.register_view(SupportedEntitiesView)
@@ -1004,6 +1011,10 @@ class SupportedEntitiesView(HomeAssistantView):
                     # Check for CCT-only models
                     device_type = "t2_cct" if "cct" in model_id.lower() else "unknown"
 
+                # Get segment count for this device model
+                from .light_capabilities import get_segment_count
+                segment_count = get_segment_count(model_id)
+
                 supported_entities[entity_id] = {
                     "entity_id": entity_id,
                     "z2m_friendly_name": z2m_friendly_name,
@@ -1011,6 +1022,8 @@ class SupportedEntitiesView(HomeAssistantView):
                     "device_type": device_type,
                     "entry_id": entry_id,
                     "z2m_base_topic": z2m_base_topic,
+                    "ieee_address": device.ieee_address,
+                    "segment_count": segment_count,
                 }
 
         # Detect light groups where ALL members are supported Aqara devices
@@ -1079,3 +1092,98 @@ class SupportedEntitiesView(HomeAssistantView):
             "instances": instances,
             "light_groups": light_groups,
         })
+
+
+def _get_segment_zone_store(hass: HomeAssistant) -> SegmentZoneStore | None:
+    """Get the segment zone store from hass.data."""
+    if DOMAIN not in hass.data:
+        return None
+    return hass.data[DOMAIN].get(DATA_SEGMENT_ZONE_STORE)
+
+
+class SegmentZonesView(HomeAssistantView):
+    """View to get and set segment zones for a device."""
+
+    url = f"/api/{DOMAIN}/segment_zones/{{ieee_address}}"
+    name = f"api:{DOMAIN}:segment_zones"
+    requires_auth = True
+
+    async def get(
+        self, request: web.Request, ieee_address: str
+    ) -> web.Response:
+        """Get all zones for a device."""
+        hass = request.app["hass"]
+
+        zone_store = _get_segment_zone_store(hass)
+        if not zone_store:
+            return web.Response(
+                status=503, text="Segment zone store not initialized"
+            )
+
+        zones = zone_store.get_zones(ieee_address)
+        return web.json_response({"zones": zones})
+
+    async def put(
+        self, request: web.Request, ieee_address: str
+    ) -> web.Response:
+        """Replace all zones for a device."""
+        hass = request.app["hass"]
+
+        zone_store = _get_segment_zone_store(hass)
+        if not zone_store:
+            return web.Response(
+                status=503, text="Segment zone store not initialized"
+            )
+
+        try:
+            data = await request.json()
+        except ValueError:
+            return web.Response(status=400, text="Invalid JSON")
+
+        zones = data.get("zones")
+        if zones is None or not isinstance(zones, dict):
+            return web.Response(
+                status=400, text="Request body must contain a `zones` object"
+            )
+
+        # Validate all values are strings
+        for name, segment_range in zones.items():
+            if not isinstance(name, str) or not isinstance(segment_range, str):
+                return web.Response(
+                    status=400,
+                    text="Zone names and segment ranges must be strings",
+                )
+
+        try:
+            saved_zones = await zone_store.set_zones(ieee_address, zones)
+        except ValueError as ex:
+            return web.Response(status=400, text=str(ex))
+
+        return web.json_response({"zones": saved_zones})
+
+
+class SegmentZoneView(HomeAssistantView):
+    """View to delete a single segment zone."""
+
+    url = f"/api/{DOMAIN}/segment_zones/{{ieee_address}}/{{zone_name}}"
+    name = f"api:{DOMAIN}:segment_zone"
+    requires_auth = True
+
+    async def delete(
+        self, request: web.Request, ieee_address: str, zone_name: str
+    ) -> web.Response:
+        """Delete a single zone from a device."""
+        hass = request.app["hass"]
+        zone_name = unquote(zone_name)
+
+        zone_store = _get_segment_zone_store(hass)
+        if not zone_store:
+            return web.Response(
+                status=503, text="Segment zone store not initialized"
+            )
+
+        deleted = await zone_store.delete_zone(ieee_address, zone_name)
+        if not deleted:
+            return web.Response(status=404, text="Zone not found")
+
+        return web.Response(status=204)

@@ -103,7 +103,24 @@
     "dimming_range_min_label": "Dimming range minimum",
     "dimming_range_max_label": "Dimming range maximum",
     "strip_length_label": "Strip length",
-    "select_light_message": "Select a light in the Activate tab to configure device-specific settings."
+    "select_light_message": "Select a light in the Activate tab to configure device-specific settings.",
+    "segment_zones_title": "Segment zones",
+    "segment_zones_subtitle": "Name segment ranges for quick selection and service calls",
+    "zone_name_label": "Zone name",
+    "zone_name_placeholder": "e.g. left side",
+    "zone_segments_label": "Segments",
+    "zone_segments_placeholder": "e.g. 1-8",
+    "zone_add_button": "Add zone",
+    "zone_save_button": "Save zones",
+    "zone_delete_tooltip": "Delete zone",
+    "zone_no_zones": "No zones defined for this device.",
+    "zone_saved": "Zones saved successfully.",
+    "zone_save_error": "Failed to save zones.",
+    "zone_name_required": "Zone name is required.",
+    "zone_segments_required": "Select at least one segment for each zone.",
+    "zone_invalid_range": "Zone \"{name}\": invalid segment range \"{range}\"",
+    "zone_out_of_range": "Zone \"{name}\": segment {segment} exceeds device maximum of {max}",
+    "zone_no_segment_devices": "Segment zones are only available for devices that support segment addressing (T1M, T1 Strip)."
   },
   "instances": {
     "section_title": "Zigbee2MQTT instances",
@@ -222,6 +239,7 @@
     "tooltip_light_not_compatible": "Selected light is not compatible",
     "tooltip_light_no_cct": "Selected light does not support color temperature",
     "tooltip_fix_gradient_errors": "Fix gradient validation errors first",
+    "turn_off_unspecified_label": "Turn off unspecified segments",
     "incompatible_cct_endpoints": "One or more selected lights do not support color temperature control. CCT sequences require lights with color_temp capability. For T1M devices, select the white/CCT endpoint instead of the RGB ring endpoint."
   },
   "color_history": {

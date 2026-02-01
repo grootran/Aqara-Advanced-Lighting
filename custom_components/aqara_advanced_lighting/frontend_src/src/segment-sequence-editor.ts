@@ -46,6 +46,7 @@ interface EditableStep extends SegmentSequenceStep {
   gradientInterpolation: string;
   gradientWave: boolean;
   gradientWaveCycles: number;
+  turnOffUnspecified: boolean;
 }
 
 @customElement('segment-sequence-editor')
@@ -465,6 +466,7 @@ export class SegmentSequenceEditor extends LitElement {
         gradientInterpolation: 'shortest',
         gradientWave: false,
         gradientWaveCycles: 1,
+        turnOffUnspecified: true,
       };
     });
   }
@@ -492,6 +494,7 @@ export class SegmentSequenceEditor extends LitElement {
         gradientInterpolation: 'shortest',
         gradientWave: false,
         gradientWaveCycles: 1,
+        turnOffUnspecified: true,
       },
     ];
   }
@@ -607,6 +610,12 @@ export class SegmentSequenceEditor extends LitElement {
     );
   }
 
+  private _handleStepTurnOffUnspecifiedChange(stepId: string, e: CustomEvent): void {
+    this._steps = this._steps.map((step) =>
+      step.id === stepId ? { ...step, turnOffUnspecified: e.detail.value } : step
+    );
+  }
+
   private _addStep(): void {
     if (this._steps.length >= 20) return;
 
@@ -634,6 +643,7 @@ export class SegmentSequenceEditor extends LitElement {
       gradientInterpolation: previousStep?.gradientInterpolation || 'shortest',
       gradientWave: previousStep?.gradientWave || false,
       gradientWaveCycles: previousStep?.gradientWaveCycles || 1,
+      turnOffUnspecified: previousStep?.turnOffUnspecified ?? true,
     };
 
     this._steps = [...this._steps, newStep];
@@ -700,6 +710,7 @@ export class SegmentSequenceEditor extends LitElement {
       gradientInterpolation,
       gradientWave,
       gradientWaveCycles,
+      turnOffUnspecified,
       ...step
     }) => {
       // Generate segment_colors from the grid (like pattern editor)
@@ -713,10 +724,12 @@ export class SegmentSequenceEditor extends LitElement {
         specifiedSegments.add(segment + 1);
       }
 
-      // Turn off all unspecified segments by setting them to black
-      for (let seg = 1; seg <= maxSegments; seg++) {
-        if (!specifiedSegments.has(seg)) {
-          segment_colors.push({ segment: seg, color: { r: 0, g: 0, b: 0 } });
+      // Turn off unspecified segments by setting them to black (if enabled)
+      if (turnOffUnspecified) {
+        for (let seg = 1; seg <= maxSegments; seg++) {
+          if (!specifiedSegments.has(seg)) {
+            segment_colors.push({ segment: seg, color: { r: 0, g: 0, b: 0 } });
+          }
         }
       }
 
@@ -854,10 +867,13 @@ export class SegmentSequenceEditor extends LitElement {
             .label=${this._localize('editors.segment_grid_label')}
             .translations=${this.translations}
             .colorHistory=${this.colorHistory}
+            .zones=${this.deviceContext?.zones || []}
+            .turnOffUnspecified=${step.turnOffUnspecified}
             @color-value-changed=${(e: CustomEvent) => this._handleStepColorValueChange(step.id, e)}
             @color-palette-changed=${(e: CustomEvent) => this._handleStepColorPaletteChange(step.id, e)}
             @gradient-colors-changed=${(e: CustomEvent) => this._handleStepGradientColorsChange(step.id, e)}
             @block-colors-changed=${(e: CustomEvent) => this._handleStepBlockColorsChange(step.id, e)}
+            @turn-off-unspecified-changed=${(e: CustomEvent) => this._handleStepTurnOffUnspecifiedChange(step.id, e)}
           ></segment-selector>
         </div>
         <div class="step-fields">

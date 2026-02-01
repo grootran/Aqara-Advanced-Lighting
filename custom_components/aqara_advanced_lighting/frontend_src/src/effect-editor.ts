@@ -250,6 +250,10 @@ export class EffectEditor extends LitElement {
     ) {
       this._deviceType = this.deviceContext.deviceType;
       this._effect = '';
+      // Default to all segments selected for T1 Strip
+      if (this._deviceType === 't1_strip' && !this._segments) {
+        this._segments = 'all';
+      }
     }
   }
 
@@ -288,6 +292,10 @@ export class EffectEditor extends LitElement {
     this._hasUserInteraction = true;
     // Reset effect to empty so user must select from new device's effects
     this._effect = '';
+    // Default to all segments selected for T1 Strip
+    if (this._deviceType === 't1_strip' && !this._segments) {
+      this._segments = 'all';
+    }
   }
 
   private _handleSpeedChange(e: CustomEvent): void {
@@ -553,6 +561,7 @@ export class EffectEditor extends LitElement {
                   .value=${this._segments}
                   .label=${this._localize('editors.segments_label')}
                   .translations=${this.translations}
+                  .zones=${this.deviceContext?.zones || []}
                   @value-changed=${this._handleSegmentsChange}
                 ></segment-selector>
               </div>

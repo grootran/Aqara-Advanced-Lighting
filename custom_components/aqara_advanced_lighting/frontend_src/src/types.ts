@@ -239,6 +239,7 @@ export interface UserPresetsData {
 export interface DeviceContext {
   deviceType: string | null;  // First compatible device type from selection
   hasSelection: boolean;       // Whether any entities are selected
+  zones?: SegmentZoneResolved[];  // Resolved segment zones for the selected device
 }
 
 // Tab type for panel navigation
@@ -271,3 +272,15 @@ export const SUPPORTED_MODELS = {
   T1M: ['lumi.light.acn031', 'lumi.light.acn032'] as string[],
   T1_STRIP: ['lumi.light.acn132'] as string[],
 };
+
+// Segment zone definition for a device
+export interface SegmentZone {
+  name: string;
+  segments: string;  // Segment range string, e.g. "1-8"
+}
+
+// Segment zone for the segment selector (pre-resolved)
+export interface SegmentZoneResolved {
+  name: string;
+  segmentIndices: number[];  // 0-based indices for segment selector
+}

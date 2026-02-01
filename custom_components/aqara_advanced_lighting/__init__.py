@@ -18,12 +18,14 @@ from .const import (
     DATA_FAVORITES_STORE,
     DATA_PRESET_STORE,
     DATA_SEGMENT_SEQUENCE_MANAGER,
+    DATA_SEGMENT_ZONE_STORE,
     DATA_USER_PREFERENCES_STORE,
     DEFAULT_Z2M_BASE_TOPIC,
     DOMAIN,
 )
 from .favorites_store import FavoritesStore
 from .preset_store import PresetStore
+from .segment_zone_store import SegmentZoneStore
 from .user_preferences_store import UserPreferencesStore
 from .segment_sequence_manager import SegmentSequenceManager
 from .models import AqaraLightingConfigEntry, AqaraLightingRuntimeData
@@ -97,6 +99,14 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         await user_prefs_store.async_load()
         hass.data[DOMAIN][DATA_USER_PREFERENCES_STORE] = user_prefs_store
         _LOGGER.debug("User preferences store initialized")
+
+    # Initialize segment zone store (per-device zone definitions)
+    # Only initialize if not already present (handles config entry removal/re-add)
+    if DATA_SEGMENT_ZONE_STORE not in hass.data[DOMAIN]:
+        zone_store = SegmentZoneStore(hass)
+        await zone_store.async_load()
+        hass.data[DOMAIN][DATA_SEGMENT_ZONE_STORE] = zone_store
+        _LOGGER.debug("Segment zone store initialized")
 
     # Register services
     await async_setup_services(hass)

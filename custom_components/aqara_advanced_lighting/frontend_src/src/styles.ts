@@ -1854,6 +1854,72 @@ export const panelStyles = css`
       padding: 6px 8px;
     }
   }
+
+  /* Segment zone management styles */
+  .zone-device-section {
+    padding: 16px;
+    border-bottom: 1px solid var(--divider-color);
+  }
+
+  .zone-device-section:last-child {
+    border-bottom: none;
+  }
+
+  .zone-device-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    font-weight: var(--ha-font-weight-medium, 500);
+    color: var(--primary-text-color);
+  }
+
+  .zone-device-segments {
+    font-size: var(--ha-font-size-s, 12px);
+    color: var(--secondary-text-color);
+    font-weight: normal;
+    margin-left: auto;
+  }
+
+  .zone-empty-message {
+    font-size: var(--ha-font-size-s, 12px);
+    color: var(--secondary-text-color);
+    padding: 8px 0;
+  }
+
+  .zone-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .zone-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px;
+    border: 1px solid var(--divider-color);
+    border-radius: var(--ha-border-radius-sm, 4px);
+    background: var(--secondary-background-color);
+  }
+
+  .zone-row-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .zone-name-input {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .zone-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
 `;
 
 /**
@@ -2121,6 +2187,18 @@ export const colorPickerStyles = css`
     justify-content: flex-end;
     gap: 8px;
     margin-top: 20px;
+  }
+
+  /* Segment selector zone buttons */
+  .zone-divider {
+    width: 1px;
+    height: 24px;
+    background: var(--divider-color);
+    margin: 0 4px;
+  }
+
+  .zone-button {
+    --mdc-theme-primary: var(--primary-color);
   }
 
   /* Color history styles moved to color-history-swatches.ts shared component */

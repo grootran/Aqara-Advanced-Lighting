@@ -15,7 +15,7 @@
 
 import { LitElement, html, css, PropertyValues, CSSResultGroup, TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { XYColor, HSColor, HomeAssistant } from './types';
+import { XYColor, HSColor, HomeAssistant, SegmentZoneResolved } from './types';
 import {
   xyToRgb,
   rgbToXy,
@@ -89,6 +89,9 @@ export class SegmentSelector extends LitElement {
   @property({ type: Object }) translations: Translations = {};
   @property({ type: Array }) colorHistory: XYColor[] = [];
   @property({ type: String }) initialPatternMode?: PatternMode;
+  @property({ type: Array }) zones: SegmentZoneResolved[] = [];
+  @property({ type: Boolean }) turnOffUnspecified = true;
+  @property({ type: Boolean }) hideControls = false;
 
   @state() private _selectedSegments: Set<number> = new Set();
   @state() private _coloredSegments: Map<number, XYColor> = new Map();
@@ -134,11 +137,22 @@ export class SegmentSelector extends LitElement {
         margin-bottom: 8px;
       }
 
+      .segment-grid-container.compact {
+        padding: 8px;
+        margin-bottom: 0;
+      }
+
       .segment-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
         gap: 4px;
         margin-bottom: 12px;
+      }
+
+      .compact .segment-grid {
+        grid-template-columns: repeat(auto-fill, minmax(28px, 1fr));
+        gap: 3px;
+        margin-bottom: 0;
       }
 
       .segment-cell {
@@ -155,6 +169,11 @@ export class SegmentSelector extends LitElement {
         color: var(--secondary-text-color);
         background: var(--primary-background-color);
         user-select: none;
+      }
+
+      .compact .segment-cell {
+        font-size: 9px;
+        border-width: 1px;
       }
 
       .segment-cell:hover {
@@ -233,6 +252,18 @@ export class SegmentSelector extends LitElement {
       .select-mode-toggle.active {
         --mdc-theme-primary: var(--info-color, #2196f3);
         color: var(--info-color, #2196f3);
+      }
+
+      .zone-divider {
+        width: 1px;
+        height: 24px;
+        background: var(--divider-color);
+        margin: 0 4px;
+        flex-shrink: 0;
+      }
+
+      .zone-button {
+        --mdc-theme-primary: var(--primary-color);
       }
 
       .description {
@@ -957,6 +988,16 @@ export class SegmentSelector extends LitElement {
     this._fireValueChanged();
   }
 
+  private _selectZone(zone: SegmentZoneResolved): void {
+    if (this.disabled) return;
+    const newSelected = new Set<number>(zone.segmentIndices);
+    this._selectedSegments = newSelected;
+    this._lastSelectedIndex = null;
+    if (this.mode === 'selection' || this.mode === 'sequence') {
+      this._fireValueChanged();
+    }
+  }
+
   private _clearSelected(): void {
     if (this.disabled || this._selectedSegments.size === 0) return;
 
@@ -1570,6 +1611,17 @@ export class SegmentSelector extends LitElement {
     );
   }
 
+  private _handleTurnOffUnspecifiedChange(e: Event): void {
+    this.turnOffUnspecified = (e.target as HTMLInputElement).checked;
+    this.dispatchEvent(
+      new CustomEvent('turn-off-unspecified-changed', {
+        detail: { value: this.turnOffUnspecified },
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
   private _fireBlockColorsChanged(): void {
     this.dispatchEvent(
       new CustomEvent('block-colors-changed', {
@@ -1616,11 +1668,11 @@ export class SegmentSelector extends LitElement {
     }
 
     return html`
-      <div class="segment-grid-container">
+      <div class="segment-grid-container ${this.hideControls ? 'compact' : ''}">
         <div class="segment-grid ${this._clearMode ? 'clear-mode' : ''} ${this._selectMode ? 'select-mode' : ''}">
           ${cells}
         </div>
-        ${this._renderControls()}
+        ${this.hideControls ? '' : this._renderControls()}
       </div>
     `;
   }
@@ -1656,6 +1708,15 @@ export class SegmentSelector extends LitElement {
             <ha-icon icon="mdi:numeric-2"></ha-icon>
             ${this._localize('editors.even_button')}
           </ha-button>
+          ${this.zones.length > 0 ? html`
+            <div class="zone-divider"></div>
+            ${this.zones.map(zone => html`
+              <ha-button class="zone-button" @click=${() => this._selectZone(zone)} .disabled=${this.disabled}>
+                <ha-icon icon="mdi:map-marker-outline"></ha-icon>
+                ${zone.name}
+              </ha-button>
+            `)}
+          ` : ''}
           <div class="selection-info">
             <ha-icon icon="mdi:information-outline"></ha-icon>
             <span>${this._localize('editors.segments_selected', { count })}</span>
@@ -1690,9 +1751,27 @@ export class SegmentSelector extends LitElement {
           <ha-button @click=${this._clearAll} .disabled=${this.disabled}>
             ${this._localize('editors.clear_all_button')}
           </ha-button>
+          ${this.zones.length > 0 ? html`
+            <div class="zone-divider"></div>
+            ${this.zones.map(zone => html`
+              <ha-button class="zone-button" @click=${() => this._selectZone(zone)} .disabled=${this.disabled}>
+                <ha-icon icon="mdi:map-marker-outline"></ha-icon>
+                ${zone.name}
+              </ha-button>
+            `)}
+          ` : ''}
           <div class="selection-info">
             <span>${this._localize('editors.segments_selected', { count })}</span>
           </div>
+        </div>
+        <div class="options-row">
+          <label class="option-item">
+            <ha-switch
+              .checked=${this.turnOffUnspecified}
+              @change=${this._handleTurnOffUnspecifiedChange}
+            ></ha-switch>
+            <span class="option-label">${this._localize('editors.turn_off_unspecified_label')}</span>
+          </label>
         </div>
       `;
     }
@@ -1813,27 +1892,24 @@ export class SegmentSelector extends LitElement {
       </div>
       <div class="options-row">
         <label class="option-item">
-          <input
-            type="checkbox"
+          <ha-switch
             .checked=${this.gradientReverse}
             @change=${this._handleGradientReverseChange}
-          />
+          ></ha-switch>
           <span class="option-label">${this._localize('editors.gradient_reverse_label')}</span>
         </label>
         <label class="option-item">
-          <input
-            type="checkbox"
+          <ha-switch
             .checked=${this.gradientMirror}
             @change=${this._handleGradientMirrorChange}
-          />
+          ></ha-switch>
           <span class="option-label">${this._localize('editors.gradient_mirror_label')}</span>
         </label>
         <label class="option-item">
-          <input
-            type="checkbox"
+          <ha-switch
             .checked=${this.gradientWave}
             @change=${this._handleGradientWaveChange}
-          />
+          ></ha-switch>
           <span class="option-label">${this._localize('editors.gradient_wave_label')}</span>
         </label>
       </div>
@@ -1849,6 +1925,18 @@ export class SegmentSelector extends LitElement {
             @change=${this._handleGradientRepeatChange}
           />
         </label>
+        <label class="option-item">
+          <span class="option-label">${this._localize('editors.gradient_interpolation_label')}</span>
+          <select
+            class="option-select"
+            .value=${this.gradientInterpolation}
+            @change=${this._handleGradientInterpolationChange}
+          >
+            <option value="shortest">${this._localize('editors.gradient_interp_shortest')}</option>
+            <option value="longest">${this._localize('editors.gradient_interp_longest')}</option>
+            <option value="rgb">${this._localize('editors.gradient_interp_rgb')}</option>
+          </select>
+        </label>
         ${this.gradientWave ? html`
           <label class="option-item">
             <span class="option-label">${this._localize('editors.gradient_wave_cycles_label')}</span>
@@ -1862,18 +1950,6 @@ export class SegmentSelector extends LitElement {
             />
           </label>
         ` : ''}
-        <label class="option-item">
-          <span class="option-label">${this._localize('editors.gradient_interpolation_label')}</span>
-          <select
-            class="option-select"
-            .value=${this.gradientInterpolation}
-            @change=${this._handleGradientInterpolationChange}
-          >
-            <option value="shortest">${this._localize('editors.gradient_interp_shortest')}</option>
-            <option value="longest">${this._localize('editors.gradient_interp_longest')}</option>
-            <option value="rgb">${this._localize('editors.gradient_interp_rgb')}</option>
-          </select>
-        </label>
       </div>
       <div class="generated-actions">
         <ha-button @click=${this._applyToGrid}>
@@ -1922,11 +1998,10 @@ export class SegmentSelector extends LitElement {
       </div>
       <div class="options-row">
         <label class="option-item">
-          <input
-            type="checkbox"
+          <ha-switch
             .checked=${this.expandBlocks}
             @change=${this._handleExpandBlocksChange}
-          />
+          ></ha-switch>
           <span class="option-label">${this._localize('editors.expand_blocks_label')}</span>
         </label>
       </div>

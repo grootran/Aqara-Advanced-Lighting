@@ -72,6 +72,7 @@ export class PatternEditor extends LitElement {
   @state() private _gradientInterpolation = 'shortest';
   @state() private _gradientWave = false;
   @state() private _gradientWaveCycles = 1;
+  @state() private _turnOffUnspecified = true;
   @state() private _hasUserInteraction = false;
 
   static styles = [
@@ -511,6 +512,10 @@ export class PatternEditor extends LitElement {
     }
   }
 
+  private _handleTurnOffUnspecifiedChange(e: CustomEvent): void {
+    this._turnOffUnspecified = e.detail.value;
+  }
+
   // Note: All pattern generation, color management, selection, and UI rendering
   // are now handled by the segment-selector component in color mode.
   // Methods that were removed:
@@ -544,6 +549,7 @@ export class PatternEditor extends LitElement {
       icon: this._icon || undefined,
       device_type: this._deviceType,
       segments,
+      turn_off_unspecified: this._turnOffUnspecified,
     };
   }
 
@@ -701,10 +707,13 @@ export class PatternEditor extends LitElement {
             .gradientWaveCycles=${this._gradientWaveCycles}
             .translations=${this.translations}
             .colorHistory=${this.colorHistory}
+            .zones=${this.deviceContext?.zones || []}
+            .turnOffUnspecified=${this._turnOffUnspecified}
             @color-value-changed=${this._handleColorValueChange}
             @color-palette-changed=${this._handleColorPaletteChange}
             @gradient-colors-changed=${this._handleGradientColorsChange}
             @block-colors-changed=${this._handleBlockColorsChange}
+            @turn-off-unspecified-changed=${this._handleTurnOffUnspecifiedChange}
           ></segment-selector>
         </div>
 
