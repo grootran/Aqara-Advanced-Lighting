@@ -373,6 +373,7 @@ export class EffectEditor extends LitElement {
 
   private _selectEffect(effect: string): void {
     this._effect = effect;
+    this._hasUserInteraction = true;
   }
 
   private _getPresetData(): Record<string, unknown> {
