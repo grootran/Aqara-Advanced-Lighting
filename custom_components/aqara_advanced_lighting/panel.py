@@ -889,7 +889,7 @@ class SupportedEntitiesView(HomeAssistantView):
 
     url = f"/api/{DOMAIN}/supported_entities"
     name = f"api:{DOMAIN}:supported_entities"
-    requires_auth = False
+    requires_auth = True
 
     async def get(self, request: web.Request) -> web.Response:
         """Get all supported entities with their device info.
