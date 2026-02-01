@@ -962,6 +962,8 @@ target:
 
 ### Device Triggers
 
+![Aqara Advanced Lighting Device Triggers](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/trigger.png " Aqara Advanced Lighting Device Triggers")
+
 The integration provides device triggers that let you build automations that respond to sequence and effect events. These triggers appear in the Home Assistant automation UI when you select a device trigger for any supported Aqara light.
 
 To use a device trigger in an automation:
