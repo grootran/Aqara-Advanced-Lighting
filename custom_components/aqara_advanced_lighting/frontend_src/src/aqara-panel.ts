@@ -602,8 +602,8 @@ export class AqaraPanel extends LitElement {
         await this._loadZonesForDevice(ieeeAddress);
         this._showToast(this._localize('config.zone_saved'));
       } else {
-        const errorData = await response.json().catch(() => ({}));
-        this._showToast(errorData.message || this._localize('config.zone_save_error'));
+        const errorText = await response.text().catch(() => '');
+        this._showToast(errorText || this._localize('config.zone_save_error'));
       }
     } catch {
       this._showToast(this._localize('config.zone_save_error'));
