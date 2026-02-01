@@ -52,7 +52,7 @@ from custom_components.aqara_advanced_lighting.const import (
 )
 from custom_components.aqara_advanced_lighting.device_trigger import (
     TRIGGER_SCHEMA,
-    _get_entity_ids_for_device,
+    get_entity_ids_for_device,
     _TRIGGER_EVENT_MAP,
 )
 
@@ -144,7 +144,7 @@ def mock_loaded_entry(
     return mock_config_entry
 
 
-# --- Tests for _get_entity_ids_for_device ---
+# --- Tests for get_entity_ids_for_device ---
 
 
 async def test_get_entity_ids_for_device_returns_mapped_entities(
@@ -153,7 +153,7 @@ async def test_get_entity_ids_for_device_returns_mapped_entities(
     mock_device: dr.DeviceEntry,
 ) -> None:
     """Test that entity IDs are resolved from device identifiers."""
-    result = _get_entity_ids_for_device(hass, mock_device.id)
+    result = get_entity_ids_for_device(hass, mock_device.id)
     assert result == {"light.bedroom"}
 
 
@@ -161,7 +161,7 @@ async def test_get_entity_ids_for_device_nonexistent_device(
     hass: HomeAssistant,
 ) -> None:
     """Test that nonexistent device returns empty set."""
-    result = _get_entity_ids_for_device(hass, "nonexistent_device_id")
+    result = get_entity_ids_for_device(hass, "nonexistent_device_id")
     assert result == set()
 
 
@@ -177,7 +177,7 @@ async def test_get_entity_ids_for_device_no_domain_identifier(
         identifiers={("other_domain", "some_id")},
         name="Other device",
     )
-    result = _get_entity_ids_for_device(hass, device.id)
+    result = get_entity_ids_for_device(hass, device.id)
     assert result == set()
 
 
@@ -188,7 +188,7 @@ async def test_get_entity_ids_for_device_no_loaded_entry(
 ) -> None:
     """Test that unloaded config entry is skipped."""
     # Entry is added but not loaded (no runtime_data, state is NOT_LOADED)
-    result = _get_entity_ids_for_device(hass, mock_device.id)
+    result = get_entity_ids_for_device(hass, mock_device.id)
     assert result == set()
 
 
@@ -217,7 +217,7 @@ async def test_get_entity_ids_for_device_ieee_not_in_runtime(
     mock_config_entry.runtime_data = runtime_data
     mock_config_entry.mock_state(hass, ConfigEntryState.LOADED)
 
-    result = _get_entity_ids_for_device(hass, device.id)
+    result = get_entity_ids_for_device(hass, device.id)
     assert result == set()
 
 
@@ -243,7 +243,7 @@ async def test_get_entity_ids_for_device_multiple_entities(
     mock_config_entry.runtime_data = runtime_data
     mock_config_entry.mock_state(hass, ConfigEntryState.LOADED)
 
-    result = _get_entity_ids_for_device(hass, mock_device.id)
+    result = get_entity_ids_for_device(hass, mock_device.id)
     assert result == {"light.bedroom", "light.bedroom_2"}
 
 

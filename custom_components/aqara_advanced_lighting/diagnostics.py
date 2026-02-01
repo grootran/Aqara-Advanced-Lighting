@@ -7,8 +7,10 @@ from typing import Any
 from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.const import CONF_API_KEY, CONF_PASSWORD, CONF_TOKEN, CONF_USERNAME
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 
 from .const import DATA_CCT_SEQUENCE_MANAGER, DOMAIN
+from .device_trigger import get_entity_ids_for_device
 from .models import AqaraLightingConfigEntry
 
 # Fields to redact from diagnostics output
@@ -85,6 +87,20 @@ async def async_get_config_entry_diagnostics(
                 "running": True,
             })
 
+    # Device trigger readiness - shows which devices can resolve entity IDs
+    device_registry = dr.async_get(hass)
+    device_trigger_info = []
+    for device_entry in dr.async_entries_for_config_entry(
+        device_registry, entry.entry_id
+    ):
+        entity_ids = get_entity_ids_for_device(hass, device_entry.id)
+        device_trigger_info.append({
+            "device_id": device_entry.id,
+            "name": device_entry.name,
+            "entity_ids_resolved": len(entity_ids),
+            "trigger_ready": len(entity_ids) > 0,
+        })
+
     return {
         "config_entry": {
             "entry_id": entry.entry_id,
@@ -101,4 +117,5 @@ async def async_get_config_entry_diagnostics(
         "entity_mappings": entity_mappings,
         "active_effects": active_effects,
         "active_cct_sequences": active_sequences,
+        "device_triggers": device_trigger_info,
     }
