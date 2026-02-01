@@ -634,12 +634,16 @@ export class SegmentSelector extends LitElement {
       this._parseColorValue();
     }
 
-    // Apply initial pattern mode once when loading a preset with gradient/blocks
+    // Apply initial pattern mode once when loading a preset with gradient/blocks,
+    // but only if no per-segment color data was loaded (colorValue takes priority
+    // so editing a preset always shows the saved segment colors on Individual tab)
     if (this.initialPatternMode && !this._initialPatternApplied &&
         this.initialPatternMode !== 'individual' && this.maxSegments > 0) {
       this._initialPatternApplied = true;
-      this._patternMode = this.initialPatternMode;
-      this._applyToGrid();
+      if (this._coloredSegments.size === 0) {
+        this._patternMode = this.initialPatternMode;
+        this._applyToGrid();
+      }
     }
 
     // Validate selection against maxSegments
