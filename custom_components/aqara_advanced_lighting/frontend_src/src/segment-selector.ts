@@ -97,6 +97,7 @@ export class SegmentSelector extends LitElement {
   @state() private _coloredSegments: Map<number, XYColor> = new Map();
   @state() private _lastSelectedIndex: number | null = null;
   @state() private _selectedPaletteIndex = 0;
+  @state() private _selectedZone = '';
   @state() private _clearMode = false;
   @state() private _selectMode = false;
   @state() private _patternMode: PatternMode = 'individual';
@@ -254,16 +255,8 @@ export class SegmentSelector extends LitElement {
         color: var(--info-color, #2196f3);
       }
 
-      .zone-divider {
-        width: 1px;
-        height: 24px;
-        background: var(--divider-color);
-        margin: 0 4px;
-        flex-shrink: 0;
-      }
-
-      .zone-button {
-        --mdc-theme-primary: var(--primary-color);
+      .zone-select {
+        min-width: 140px;
       }
 
       .description {
@@ -988,14 +981,20 @@ export class SegmentSelector extends LitElement {
     this._fireValueChanged();
   }
 
-  private _selectZone(zone: SegmentZoneResolved): void {
-    if (this.disabled) return;
+  private _handleZoneSelect(e: CustomEvent): void {
+    e.stopPropagation();
+    const zoneName = e.detail.value;
+    if (!zoneName || this.disabled) return;
+    const zone = this.zones.find(z => z.name === zoneName);
+    if (!zone) return;
     const newSelected = new Set<number>(zone.segmentIndices);
     this._selectedSegments = newSelected;
     this._lastSelectedIndex = null;
     if (this.mode === 'selection' || this.mode === 'sequence') {
       this._fireValueChanged();
     }
+    // Reset dropdown to placeholder
+    this._selectedZone = '';
   }
 
   private _clearSelected(): void {
@@ -1708,20 +1707,29 @@ export class SegmentSelector extends LitElement {
             <ha-icon icon="mdi:numeric-2"></ha-icon>
             ${this._localize('editors.even_button')}
           </ha-button>
-          ${this.zones.length > 0 ? html`
-            <div class="zone-divider"></div>
-            ${this.zones.map(zone => html`
-              <ha-button class="zone-button" @click=${() => this._selectZone(zone)} .disabled=${this.disabled}>
-                <ha-icon icon="mdi:map-marker-outline"></ha-icon>
-                ${zone.name}
-              </ha-button>
-            `)}
-          ` : ''}
           <div class="selection-info">
             <ha-icon icon="mdi:information-outline"></ha-icon>
             <span>${this._localize('editors.segments_selected', { count })}</span>
           </div>
         </div>
+        ${this.zones.length > 0 ? html`
+          <div class="options-row">
+            <ha-selector
+              class="zone-select"
+              .hass=${this.hass}
+              .selector=${{
+                select: {
+                  options: this.zones.map(z => ({ value: z.name, label: z.name })),
+                  mode: 'dropdown',
+                },
+              }}
+              .value=${this._selectedZone}
+              .label=${this._localize('editors.zone_select_label')}
+              .disabled=${this.disabled}
+              @value-changed=${this._handleZoneSelect}
+            ></ha-selector>
+          </div>
+        ` : ''}
       `;
     } else if (this.mode === 'color' || this.mode === 'sequence') {
       return html`
@@ -1751,20 +1759,27 @@ export class SegmentSelector extends LitElement {
           <ha-button @click=${this._clearAll} .disabled=${this.disabled}>
             ${this._localize('editors.clear_all_button')}
           </ha-button>
-          ${this.zones.length > 0 ? html`
-            <div class="zone-divider"></div>
-            ${this.zones.map(zone => html`
-              <ha-button class="zone-button" @click=${() => this._selectZone(zone)} .disabled=${this.disabled}>
-                <ha-icon icon="mdi:map-marker-outline"></ha-icon>
-                ${zone.name}
-              </ha-button>
-            `)}
-          ` : ''}
           <div class="selection-info">
             <span>${this._localize('editors.segments_selected', { count })}</span>
           </div>
         </div>
         <div class="options-row">
+          ${this.zones.length > 0 ? html`
+            <ha-selector
+              class="zone-select"
+              .hass=${this.hass}
+              .selector=${{
+                select: {
+                  options: this.zones.map(z => ({ value: z.name, label: z.name })),
+                  mode: 'dropdown',
+                },
+              }}
+              .value=${this._selectedZone}
+              .label=${this._localize('editors.zone_select_label')}
+              .disabled=${this.disabled}
+              @value-changed=${this._handleZoneSelect}
+            ></ha-selector>
+          ` : ''}
           <label class="option-item">
             <ha-switch
               .checked=${this.turnOffUnspecified}

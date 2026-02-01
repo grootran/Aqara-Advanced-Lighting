@@ -181,6 +181,7 @@
     "clear_mode_on": "Clear: ON",
     "clear_mode_off": "Clear: OFF",
     "segments_selected": "{count} selected",
+    "zone_select_label": "Select zone...",
     "select_mode_on": "Select: ON",
     "select_mode_off": "Select: OFF",
     "add_step_button": "Add step",
