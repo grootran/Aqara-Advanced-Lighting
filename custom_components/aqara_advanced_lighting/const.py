@@ -211,6 +211,13 @@ DATA_CCT_SEQUENCE_MANAGER: Final = "cct_sequence_manager"
 DATA_SEGMENT_SEQUENCE_MANAGER: Final = "segment_sequence_manager"
 DATA_FAVORITES_STORE: Final = "favorites_store"
 DATA_PRESET_STORE: Final = "preset_store"
+DATA_USER_PREFERENCES_STORE: Final = "user_preferences_store"
+
+# Valid sort options for user preferences (validated in backend)
+VALID_SORT_OPTIONS: Final = {"name-asc", "name-desc", "date-new", "date-old"}
+
+# Color history constraints
+MAX_COLOR_HISTORY_SIZE: Final = 8
 
 # User preset type constants
 PRESET_TYPE_EFFECT: Final = "effect"

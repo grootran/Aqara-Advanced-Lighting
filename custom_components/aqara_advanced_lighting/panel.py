@@ -17,12 +17,15 @@ from homeassistant.core import HomeAssistant
 if TYPE_CHECKING:
     from .favorites_store import FavoritesStore
     from .preset_store import PresetStore
+    from .user_preferences_store import UserPreferencesStore
 
 from .const import (
     CCT_SEQUENCE_PRESETS,
     DATA_FAVORITES_STORE,
     DATA_PRESET_STORE,
+    DATA_USER_PREFERENCES_STORE,
     DOMAIN,
+    MAX_COLOR_HISTORY_SIZE,
     EFFECT_PRESETS,
     MODEL_T1M_20_SEGMENT,
     MODEL_T1M_26_SEGMENT,
@@ -38,6 +41,7 @@ from .const import (
     SEGMENT_PATTERN_PRESETS,
     SEGMENT_SEQUENCE_PRESETS,
     VALID_PRESET_TYPES,
+    VALID_SORT_OPTIONS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -89,6 +93,9 @@ async def async_register_panel(hass: HomeAssistant) -> None:
     # Register preset backup/restore endpoints
     hass.http.register_view(ExportPresetsView)
     hass.http.register_view(ImportPresetsView)
+
+    # Register user preferences endpoint
+    hass.http.register_view(UserPreferencesView)
 
     # Register version endpoint
     hass.http.register_view(VersionView)
@@ -612,6 +619,141 @@ class UserPresetDuplicateView(HomeAssistantView):
             return web.Response(status=404, text="Source preset not found")
 
         return web.json_response({"preset": preset}, status=201)
+
+
+def _get_user_preferences_store(
+    hass: HomeAssistant,
+) -> UserPreferencesStore | None:
+    """Get the user preferences store from hass.data."""
+    if DOMAIN not in hass.data:
+        return None
+    return hass.data[DOMAIN].get(DATA_USER_PREFERENCES_STORE)
+
+
+def _validate_color_history(color_history: Any) -> str | None:
+    """Validate color history data.
+
+    Returns an error message if invalid, or None if valid.
+    """
+    if not isinstance(color_history, list):
+        return "color_history must be a list"
+
+    if len(color_history) > MAX_COLOR_HISTORY_SIZE:
+        return f"color_history must have at most {MAX_COLOR_HISTORY_SIZE} entries"
+
+    for i, color in enumerate(color_history):
+        if not isinstance(color, dict):
+            return f"color_history[{i}] must be an object"
+        if "x" not in color or "y" not in color:
+            return f"color_history[{i}] must have `x` and `y` keys"
+        try:
+            x = float(color["x"])
+            y = float(color["y"])
+        except (TypeError, ValueError):
+            return f"color_history[{i}] `x` and `y` must be numbers"
+        if not (0.0 <= x <= 1.0 and 0.0 <= y <= 1.0):
+            return f"color_history[{i}] `x` and `y` must be between 0.0 and 1.0"
+
+    return None
+
+
+def _validate_sort_preferences(sort_preferences: Any) -> str | None:
+    """Validate sort preferences data.
+
+    Returns an error message if invalid, or None if valid.
+    """
+    if not isinstance(sort_preferences, dict):
+        return "sort_preferences must be an object"
+
+    for key, value in sort_preferences.items():
+        if not isinstance(key, str):
+            return f"sort_preferences key `{key}` must be a string"
+        if value not in VALID_SORT_OPTIONS:
+            return (
+                f"sort_preferences[{key!r}] value `{value}` is invalid. "
+                f"Valid options: {', '.join(sorted(VALID_SORT_OPTIONS))}"
+            )
+
+    return None
+
+
+class UserPreferencesView(HomeAssistantView):
+    """View to manage per-user preferences (color history, sort preferences)."""
+
+    url = f"/api/{DOMAIN}/user_preferences"
+    name = f"api:{DOMAIN}:user_preferences"
+    requires_auth = True
+
+    async def get(self, request: web.Request) -> web.Response:
+        """Get preferences for the current user."""
+        hass = request.app["hass"]
+        user = request["hass_user"]
+
+        if not user:
+            return web.Response(status=401, text="Unauthorized")
+
+        store = _get_user_preferences_store(hass)
+        if not store:
+            return web.Response(
+                status=503, text="User preferences store not initialized"
+            )
+
+        preferences = store.get_preferences(user.id)
+        return web.json_response(preferences)
+
+    async def put(self, request: web.Request) -> web.Response:
+        """Partially update preferences for the current user.
+
+        Accepts any subset of preference keys and merges them into the
+        existing preferences.
+        """
+        hass = request.app["hass"]
+        user = request["hass_user"]
+
+        if not user:
+            return web.Response(status=401, text="Unauthorized")
+
+        store = _get_user_preferences_store(hass)
+        if not store:
+            return web.Response(
+                status=503, text="User preferences store not initialized"
+            )
+
+        try:
+            data = await request.json()
+        except ValueError:
+            return web.Response(status=400, text="Invalid JSON")
+
+        if not isinstance(data, dict):
+            return web.Response(status=400, text="Request body must be a JSON object")
+
+        # Validate provided fields
+        color_history = None
+        sort_preferences = None
+
+        if "color_history" in data:
+            error = _validate_color_history(data["color_history"])
+            if error:
+                return web.Response(status=400, text=error)
+            color_history = data["color_history"]
+
+        if "sort_preferences" in data:
+            error = _validate_sort_preferences(data["sort_preferences"])
+            if error:
+                return web.Response(status=400, text=error)
+            sort_preferences = data["sort_preferences"]
+
+        if color_history is None and sort_preferences is None:
+            # Nothing to update, return current preferences
+            preferences = store.get_preferences(user.id)
+            return web.json_response(preferences)
+
+        preferences = await store.update_preferences(
+            user.id,
+            color_history=color_history,
+            sort_preferences=sort_preferences,
+        )
+        return web.json_response(preferences)
 
 
 class VersionView(HomeAssistantView):

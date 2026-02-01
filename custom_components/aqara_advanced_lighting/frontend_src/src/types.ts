@@ -249,6 +249,12 @@ export type PresetSortOption = 'name-asc' | 'name-desc' | 'date-new' | 'date-old
 
 export type PresetSortPreferences = Record<string, PresetSortOption>;
 
+// Per-user preferences (backed by server-side storage)
+export interface UserPreferences {
+  color_history: XYColor[];
+  sort_preferences: PresetSortPreferences;
+}
+
 export const SUPPORTED_MODELS = {
   T2_BULB: [
     'lumi.light.agl001',

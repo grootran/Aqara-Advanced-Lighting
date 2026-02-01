@@ -38,6 +38,7 @@ export class PatternEditor extends LitElement {
   @property({ type: Boolean }) public isCompatible = true;
   @property({ type: Number }) public stripSegmentCount = 10; // Default 2 meters (out-of-box T1 Strip length)
   @property({ type: Object }) public deviceContext?: DeviceContext;
+  @property({ type: Array }) public colorHistory: XYColor[] = [];
 
   @state() private _name = '';
   @state() private _icon = '';
@@ -699,6 +700,7 @@ export class PatternEditor extends LitElement {
             .gradientWave=${this._gradientWave}
             .gradientWaveCycles=${this._gradientWaveCycles}
             .translations=${this.translations}
+            .colorHistory=${this.colorHistory}
             @color-value-changed=${this._handleColorValueChange}
             @color-palette-changed=${this._handleColorPaletteChange}
             @gradient-colors-changed=${this._handleGradientColorsChange}

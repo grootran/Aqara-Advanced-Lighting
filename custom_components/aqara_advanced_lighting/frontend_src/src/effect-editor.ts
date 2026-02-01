@@ -3,8 +3,9 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, RGBColor, XYColor, UserEffectPreset, DeviceContext } from './types';
 import { xyToHex, rgbToXy, getComplementaryColor } from './color-utils';
 import { colorPickerStyles } from './styles';
-import { getColorHistory, addColorToHistory, clearColorHistory } from './color-history';
+import { addColorToHistory } from './color-history';
 import './xy-color-picker';
+import './color-history-swatches';
 
 // Effect types available for each device
 const EFFECT_TYPES: Record<string, string[]> = {
@@ -35,6 +36,7 @@ export class EffectEditor extends LitElement {
   @property({ type: Boolean }) public previewActive = false;
   @property({ type: Number }) public stripSegmentCount = 10; // Default 2 meters (out-of-box T1 Strip length)
   @property({ type: Object }) public deviceContext?: DeviceContext;
+  @property({ type: Array }) public colorHistory: XYColor[] = [];
 
   @state() private _name = '';
   @state() private _icon = '';
@@ -313,7 +315,13 @@ export class EffectEditor extends LitElement {
 
   private _confirmColorPicker(): void {
     if (this._editingColorIndex !== null && this._editingColor !== null) {
-      addColorToHistory(this._editingColor);
+      // Update color history and notify parent
+      const newHistory = addColorToHistory(this.colorHistory, this._editingColor);
+      this.dispatchEvent(new CustomEvent('color-history-changed', {
+        detail: { colorHistory: newHistory },
+        bubbles: true,
+        composed: true,
+      }));
       this._colors = this._colors.map((c, i) =>
         i === this._editingColorIndex ? this._editingColor! : c
       );
@@ -321,13 +329,9 @@ export class EffectEditor extends LitElement {
     this._closeColorPicker();
   }
 
-  private _selectHistoryColor(color: XYColor): void {
+  private _handleHistoryColorSelected(e: CustomEvent): void {
+    const color = e.detail.color as XYColor;
     this._editingColor = { x: color.x, y: color.y };
-  }
-
-  private _clearColorHistory(): void {
-    clearColorHistory();
-    this.requestUpdate();
   }
 
   private _closeColorPicker(): void {
@@ -348,32 +352,6 @@ export class EffectEditor extends LitElement {
     if (this._colors.length > 1) {
       this._colors = this._colors.filter((_, i) => i !== index);
     }
-  }
-
-  private _renderColorHistory() {
-    const history = getColorHistory();
-
-    return html`
-      <div class="color-history-section">
-        <div class="color-history-header">
-          <span class="color-history-label">${this._localize('color_history.recent_colors')}</span>
-          ${history.length > 0 ? html`
-            <button class="color-history-clear" @click=${this._clearColorHistory}>
-              ${this._localize('color_history.clear')}
-            </button>
-          ` : ''}
-        </div>
-        <div class="color-history-swatches">
-          ${history.map(color => html`
-            <button
-              class="color-history-swatch"
-              style="background-color: ${xyToHex(color, 255)}"
-              @click=${() => this._selectHistoryColor(color)}
-            ></button>
-          `)}
-        </div>
-      </div>
-    `;
   }
 
   private _colorToHex(color: XYColor): string {
@@ -661,7 +639,11 @@ export class EffectEditor extends LitElement {
                     .showRgbInputs=${true}
                     @color-changed=${this._handleColorPickerChange}
                   ></xy-color-picker>
-                  ${this._renderColorHistory()}
+                  <color-history-swatches
+                    .colorHistory=${this.colorHistory}
+                    .translations=${this.translations}
+                    @color-selected=${this._handleHistoryColorSelected}
+                  ></color-history-swatches>
                   <div class="color-picker-modal-actions">
                     <ha-button @click=${this._closeColorPicker}>${this._localize('editors.cancel_button')}</ha-button>
                     <ha-button @click=${this._confirmColorPicker}>

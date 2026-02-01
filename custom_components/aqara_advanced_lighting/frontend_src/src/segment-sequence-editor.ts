@@ -59,6 +59,7 @@ export class SegmentSequenceEditor extends LitElement {
   @property({ type: Boolean }) public previewActive = false;
   @property({ type: Number }) public stripSegmentCount = 10; // Default 2 meters (out-of-box T1 Strip length)
   @property({ type: Object }) public deviceContext?: DeviceContext;
+  @property({ type: Array }) public colorHistory: XYColor[] = [];
 
   @state() private _name = '';
   @state() private _icon = '';
@@ -852,6 +853,7 @@ export class SegmentSequenceEditor extends LitElement {
             .initialPatternMode=${step.patternMode}
             .label=${this._localize('editors.segment_grid_label')}
             .translations=${this.translations}
+            .colorHistory=${this.colorHistory}
             @color-value-changed=${(e: CustomEvent) => this._handleStepColorValueChange(step.id, e)}
             @color-palette-changed=${(e: CustomEvent) => this._handleStepColorPaletteChange(step.id, e)}
             @gradient-colors-changed=${(e: CustomEvent) => this._handleStepGradientColorsChange(step.id, e)}

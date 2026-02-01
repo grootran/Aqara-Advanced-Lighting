@@ -1,11 +1,11 @@
 /**
- * Color history utility for tracking recently used colors across editors
- * Persists to localStorage, shared globally across all color pickers
+ * Color history utility -- pure list manipulation functions
+ * No localStorage side effects. Storage is handled by the server-backed
+ * user preferences system (aqara-panel.ts manages load/save).
  */
 
 import { XYColor } from './types';
 
-const STORAGE_KEY = 'aqara_lighting_color_history';
 const MAX_HISTORY_SIZE = 8;
 
 /**
@@ -23,59 +23,28 @@ function colorsMatch(a: XYColor, b: XYColor): boolean {
 }
 
 /**
- * Get the color history from localStorage
+ * Produce a new color history array with the given color added to the front.
+ * Deduplicates by exact XY match (4 decimal places), moving existing matches
+ * to front. Trims to MAX_HISTORY_SIZE.
  *
- * @returns Array of XY colors, most recent first
- */
-export function getColorHistory(): XYColor[] {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return [];
-    const parsed = JSON.parse(stored);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-/**
- * Add a color to the history
- * Deduplicates by exact XY match (4 decimal places), moving existing matches to front.
- * Trims to MAX_HISTORY_SIZE.
- *
+ * @param history - Current history array
  * @param color - XY color to add
+ * @returns New history array (does not mutate the input)
  */
-export function addColorToHistory(color: XYColor): void {
-  try {
-    let history = getColorHistory();
+export function addColorToHistory(history: XYColor[], color: XYColor): XYColor[] {
+  // Remove existing match if present
+  let updated = history.filter(c => !colorsMatch(c, color));
 
-    // Remove existing match if present
-    history = history.filter(c => !colorsMatch(c, color));
+  // Add to front with rounded coordinates
+  updated = [
+    { x: roundXY(color.x), y: roundXY(color.y) },
+    ...updated,
+  ];
 
-    // Add to front with rounded coordinates
-    history.unshift({
-      x: roundXY(color.x),
-      y: roundXY(color.y),
-    });
-
-    // Trim to max size
-    if (history.length > MAX_HISTORY_SIZE) {
-      history = history.slice(0, MAX_HISTORY_SIZE);
-    }
-
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
-  } catch {
-    // Silently fail if localStorage is unavailable
+  // Trim to max size
+  if (updated.length > MAX_HISTORY_SIZE) {
+    updated = updated.slice(0, MAX_HISTORY_SIZE);
   }
-}
 
-/**
- * Clear all color history
- */
-export function clearColorHistory(): void {
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // Silently fail if localStorage is unavailable
-  }
+  return updated;
 }

@@ -26,6 +26,8 @@ import {
   UserSegmentPatternPreset,
   UserCCTSequencePreset,
   UserSegmentSequencePreset,
+  UserPreferences,
+  XYColor,
   PresetSortOption,
   PresetSortPreferences,
 } from './types';
@@ -34,6 +36,7 @@ import './pattern-editor';
 import './cct-sequence-editor';
 import './segment-sequence-editor';
 import './transition-curve-editor';
+import './color-history-swatches';
 
 @customElement('aqara-advanced-lighting-panel')
 export class AqaraPanel extends LitElement {
@@ -59,6 +62,7 @@ export class AqaraPanel extends LitElement {
   @state() private _cctPreviewActive = false;
   @state() private _segmentSequencePreviewActive = false;
   @state() private _sortPreferences: PresetSortPreferences = {};
+  @state() private _colorHistory: XYColor[] = [];
   @state() private _backendVersion?: string;
   @state() private _frontendVersion = '__FRONTEND_VERSION__';
   @state() private _supportedEntities: Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; is_group?: boolean; member_count?: number }> = new Map();
@@ -78,6 +82,7 @@ export class AqaraPanel extends LitElement {
 
   private _tileCardRef: Ref<HTMLElement> = createRef();
   private _tileCards: Map<string, any> = new Map();
+  private _preferencesSaveTimer?: ReturnType<typeof setTimeout>;
 
   static styles = panelStyles;
 
@@ -121,9 +126,24 @@ export class AqaraPanel extends LitElement {
     this._loadPresets();
     this._loadFavorites();
     this._loadUserPresets();
-    this._loadSortPreferences();
+    this._loadUserPreferences();
     this._loadBackendVersion();
     this._loadSupportedEntities();
+
+    // Listen for color history events from child editors (bubbles through shadow DOM)
+    this.addEventListener('color-history-changed', this._handleColorHistoryChanged as EventListener);
+    this.addEventListener('clear-history', this._handleClearColorHistory as EventListener);
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.removeEventListener('color-history-changed', this._handleColorHistoryChanged as EventListener);
+    this.removeEventListener('clear-history', this._handleClearColorHistory as EventListener);
+    if (this._preferencesSaveTimer !== undefined) {
+      clearTimeout(this._preferencesSaveTimer);
+      this._preferencesSaveTimer = undefined;
+    }
+    this._tileCards.clear();
   }
 
   protected updated(changedProps: PropertyValues): void {
@@ -239,17 +259,130 @@ export class AqaraPanel extends LitElement {
     }
   }
 
-  private _loadSortPreferences(): void {
+  private async _loadUserPreferences(): Promise<void> {
+    if (!this.hass) return;
+
+    try {
+      const prefs = await this.hass.callApi<UserPreferences>(
+        'GET',
+        'aqara_advanced_lighting/user_preferences'
+      );
+
+      // One-time migration from localStorage
+      if (
+        prefs.color_history.length === 0 &&
+        Object.keys(prefs.sort_preferences).length === 0
+      ) {
+        const migrated = this._migrateLocalStoragePreferences();
+        if (migrated) {
+          const updated = await this.hass.callApi<UserPreferences>(
+            'PUT',
+            'aqara_advanced_lighting/user_preferences',
+            migrated as unknown as Record<string, unknown>
+          );
+          this._colorHistory = updated.color_history;
+          this._sortPreferences = updated.sort_preferences;
+          // Clean up localStorage after successful migration
+          localStorage.removeItem('aqara_lighting_color_history');
+          localStorage.removeItem('aqara_lighting_sort_preferences');
+          return;
+        }
+      }
+
+      this._colorHistory = prefs.color_history;
+      this._sortPreferences = prefs.sort_preferences;
+    } catch (err) {
+      console.warn('Failed to load user preferences:', err);
+      // Fall back to localStorage as read-only source if server unavailable
+      this._loadSortPreferencesFromLocalStorage();
+    }
+  }
+
+  private _migrateLocalStoragePreferences(): Partial<UserPreferences> | null {
+    const migrated: Partial<UserPreferences> = {};
+    let hasMigrationData = false;
+
+    try {
+      const localColors = localStorage.getItem('aqara_lighting_color_history');
+      if (localColors) {
+        const parsed = JSON.parse(localColors);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          migrated.color_history = parsed;
+          hasMigrationData = true;
+        }
+      }
+    } catch {
+      // Ignore parse errors
+    }
+
+    try {
+      const localSort = localStorage.getItem('aqara_lighting_sort_preferences');
+      if (localSort) {
+        const parsed = JSON.parse(localSort);
+        if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+          migrated.sort_preferences = parsed;
+          hasMigrationData = true;
+        }
+      }
+    } catch {
+      // Ignore parse errors
+    }
+
+    return hasMigrationData ? migrated : null;
+  }
+
+  private _loadSortPreferencesFromLocalStorage(): void {
     try {
       const stored = localStorage.getItem('aqara_lighting_sort_preferences');
       if (stored) {
-        const parsed = JSON.parse(stored) as PresetSortPreferences;
-        this._sortPreferences = { ...parsed };
+        this._sortPreferences = JSON.parse(stored) as PresetSortPreferences;
       }
-    } catch (err) {
-      console.warn('Failed to load sort preferences:', err);
+    } catch {
+      // Ignore
     }
   }
+
+  private _saveUserPreferences(immediate = false): void {
+    if (!this.hass) return;
+
+    // Clear any pending debounced save
+    if (this._preferencesSaveTimer !== undefined) {
+      clearTimeout(this._preferencesSaveTimer);
+      this._preferencesSaveTimer = undefined;
+    }
+
+    const doSave = () => {
+      this.hass.callApi<UserPreferences>(
+        'PUT',
+        'aqara_advanced_lighting/user_preferences',
+        {
+          color_history: this._colorHistory,
+          sort_preferences: this._sortPreferences,
+        } as unknown as Record<string, unknown>
+      ).catch(err => {
+        console.warn('Failed to save user preferences:', err);
+      });
+    };
+
+    if (immediate) {
+      doSave();
+    } else {
+      this._preferencesSaveTimer = setTimeout(doSave, 500);
+    }
+  }
+
+  private _handleColorHistoryChanged = (e: Event): void => {
+    const detail = (e as CustomEvent).detail;
+    if (detail && Array.isArray(detail.colorHistory)) {
+      this._colorHistory = detail.colorHistory;
+      this._saveUserPreferences();
+    }
+  };
+
+  private _handleClearColorHistory = (_e: Event): void => {
+    this._colorHistory = [];
+    this._saveUserPreferences(true); // Immediate save for clear
+  };
 
   private _getSortPreference(sectionId: string): PresetSortOption {
     return this._sortPreferences[sectionId] || 'name-asc';
@@ -307,20 +440,12 @@ export class AqaraPanel extends LitElement {
     }
   }
 
-  private _saveSortPreferences(): void {
-    try {
-      localStorage.setItem('aqara_lighting_sort_preferences', JSON.stringify(this._sortPreferences));
-    } catch (err) {
-      console.warn('Failed to save sort preferences:', err);
-    }
-  }
-
   private _setSortPreference(sectionId: string, value: PresetSortOption): void {
     this._sortPreferences = {
       ...this._sortPreferences,
       [sectionId]: value,
     };
-    this._saveSortPreferences();
+    this._saveUserPreferences();
   }
 
   // Sorting utility functions
@@ -1794,6 +1919,7 @@ export class AqaraPanel extends LitElement {
           .previewActive=${this._effectPreviewActive}
           .stripSegmentCount=${this._getT1StripSegmentCount()}
           .deviceContext=${this._getDeviceContextForEditor('effect')}
+          .colorHistory=${this._colorHistory}
           @save=${this._handleEffectSave}
           @preview=${this._handleEffectPreview}
           @stop-preview=${this._handleEffectStopPreview}
@@ -1902,6 +2028,7 @@ export class AqaraPanel extends LitElement {
           .isCompatible=${isCompatible}
           .stripSegmentCount=${this._getT1StripSegmentCount()}
           .deviceContext=${this._getDeviceContextForEditor('pattern')}
+          .colorHistory=${this._colorHistory}
           @save=${this._handlePatternSave}
           @preview=${this._handlePatternPreview}
           @cancel=${this._handleEditorCancel}
@@ -2073,6 +2200,7 @@ export class AqaraPanel extends LitElement {
           .previewActive=${this._segmentSequencePreviewActive}
           .stripSegmentCount=${this._getT1StripSegmentCount()}
           .deviceContext=${this._getDeviceContextForEditor('segment')}
+          .colorHistory=${this._colorHistory}
           @save=${this._handleSegmentSequenceSave}
           @preview=${this._handleSegmentSequencePreview}
           @stop-preview=${this._handleSegmentSequenceStopPreview}

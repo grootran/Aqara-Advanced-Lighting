@@ -18,11 +18,13 @@ from .const import (
     DATA_FAVORITES_STORE,
     DATA_PRESET_STORE,
     DATA_SEGMENT_SEQUENCE_MANAGER,
+    DATA_USER_PREFERENCES_STORE,
     DEFAULT_Z2M_BASE_TOPIC,
     DOMAIN,
 )
 from .favorites_store import FavoritesStore
 from .preset_store import PresetStore
+from .user_preferences_store import UserPreferencesStore
 from .segment_sequence_manager import SegmentSequenceManager
 from .models import AqaraLightingConfigEntry, AqaraLightingRuntimeData
 from .mqtt_client import MQTTClient
@@ -87,6 +89,14 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         await preset_store.async_load()
         hass.data[DOMAIN][DATA_PRESET_STORE] = preset_store
         _LOGGER.debug("Preset store initialized")
+
+    # Initialize user preferences store (per-user color history + sort preferences)
+    # Only initialize if not already present (handles config entry removal/re-add)
+    if DATA_USER_PREFERENCES_STORE not in hass.data[DOMAIN]:
+        user_prefs_store = UserPreferencesStore(hass)
+        await user_prefs_store.async_load()
+        hass.data[DOMAIN][DATA_USER_PREFERENCES_STORE] = user_prefs_store
+        _LOGGER.debug("User preferences store initialized")
 
     # Register services
     await async_setup_services(hass)
