@@ -1,6 +1,6 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { HomeAssistant, RGBColor, XYColor, UserEffectPreset, DeviceContext } from './types';
+import { HomeAssistant, RGBColor, XYColor, UserEffectPreset, DeviceContext, EffectEditorDraft } from './types';
 import { xyToHex, rgbToXy, getComplementaryColor } from './color-utils';
 import { colorPickerStyles } from './styles';
 import { addColorToHistory } from './color-history';
@@ -37,6 +37,7 @@ export class EffectEditor extends LitElement {
   @property({ type: Number }) public stripSegmentCount = 10; // Default 2 meters (out-of-box T1 Strip length)
   @property({ type: Object }) public deviceContext?: DeviceContext;
   @property({ type: Array }) public colorHistory: XYColor[] = [];
+  @property({ type: Object }) public draft?: EffectEditorDraft;
 
   @state() private _name = '';
   @state() private _icon = '';
@@ -233,7 +234,10 @@ export class EffectEditor extends LitElement {
   protected updated(changedProps: PropertyValues): void {
     super.updated(changedProps);
 
-    if (changedProps.has('preset')) {
+    // Draft takes priority over preset (contains user's unsaved edits)
+    if (changedProps.has('draft') && this.draft) {
+      this._restoreDraft(this.draft);
+    } else if (changedProps.has('preset')) {
       if (this.preset) {
         this._hasUserInteraction = true;
         this._loadPreset(this.preset);
@@ -277,6 +281,31 @@ export class EffectEditor extends LitElement {
       return { x: 0.6800, y: 0.3100 };
     });
     this._segments = preset.effect_segments || '';
+  }
+
+  public getDraftState(): EffectEditorDraft {
+    return {
+      name: this._name,
+      icon: this._icon,
+      deviceType: this._deviceType,
+      effect: this._effect,
+      speed: this._speed,
+      brightness: this._brightness,
+      colors: [...this._colors],
+      segments: this._segments,
+    };
+  }
+
+  private _restoreDraft(draft: EffectEditorDraft): void {
+    this._name = draft.name;
+    this._icon = draft.icon;
+    this._deviceType = draft.deviceType;
+    this._effect = draft.effect;
+    this._speed = draft.speed;
+    this._brightness = draft.brightness;
+    this._colors = [...draft.colors];
+    this._segments = draft.segments;
+    this._hasUserInteraction = true;
   }
 
   private _handleNameChange(e: CustomEvent): void {

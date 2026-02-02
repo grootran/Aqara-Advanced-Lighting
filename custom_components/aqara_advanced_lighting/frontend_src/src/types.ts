@@ -254,6 +254,84 @@ export type PresetSortPreferences = Record<string, PresetSortOption>;
 export interface UserPreferences {
   color_history: XYColor[];
   sort_preferences: PresetSortPreferences;
+  collapsed_sections: Record<string, boolean>;
+}
+
+// Draft state types for editor tab caching (in-memory only, not persisted)
+export interface EffectEditorDraft {
+  name: string;
+  icon: string;
+  deviceType: string;
+  effect: string;
+  speed: number;
+  brightness: number;
+  colors: XYColor[];
+  segments: string;
+}
+
+export interface PatternEditorDraft {
+  name: string;
+  icon: string;
+  deviceType: string;
+  segments: Array<[number, XYColor]>;
+  colorPalette: XYColor[];
+  gradientColors: XYColor[];
+  blockColors: XYColor[];
+  expandBlocks: boolean;
+  gradientMirror: boolean;
+  gradientRepeat: number;
+  gradientReverse: boolean;
+  gradientInterpolation: string;
+  gradientWave: boolean;
+  gradientWaveCycles: number;
+  turnOffUnspecified: boolean;
+}
+
+export interface CCTEditorDraft {
+  name: string;
+  icon: string;
+  steps: CCTSequenceStep[];
+  loopMode: string;
+  loopCount: number;
+  endBehavior: string;
+}
+
+export interface SegmentSequenceEditorDraft {
+  name: string;
+  icon: string;
+  deviceType: string;
+  steps: Array<{
+    id: string;
+    duration: number;
+    hold: number;
+    activation_pattern: string;
+    transition?: number;
+    coloredSegments: Array<[number, XYColor]>;
+    colorPalette: XYColor[];
+    gradientColors: XYColor[];
+    blockColors: XYColor[];
+    expandBlocks: boolean;
+    patternMode: string;
+    gradientMirror: boolean;
+    gradientRepeat: number;
+    gradientReverse: boolean;
+    gradientInterpolation: string;
+    gradientWave: boolean;
+    gradientWaveCycles: number;
+    turnOffUnspecified: boolean;
+  }>;
+  loopMode: string;
+  loopCount: number;
+  endBehavior: string;
+  clearSegments: boolean;
+  skipFirstInLoop: boolean;
+}
+
+export interface EditorDraftCache {
+  effects?: EffectEditorDraft;
+  patterns?: PatternEditorDraft;
+  cct?: CCTEditorDraft;
+  segments?: SegmentSequenceEditorDraft;
 }
 
 export const SUPPORTED_MODELS = {

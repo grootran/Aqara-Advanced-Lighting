@@ -31,6 +31,7 @@ import {
   PresetSortOption,
   PresetSortPreferences,
   SegmentZoneResolved,
+  EditorDraftCache,
 } from './types';
 import './effect-editor';
 import './pattern-editor';
@@ -87,6 +88,7 @@ export class AqaraPanel extends LitElement {
   private _tileCardRef: Ref<HTMLElement> = createRef();
   private _tileCards: Map<string, any> = new Map();
   private _preferencesSaveTimer?: ReturnType<typeof setTimeout>;
+  private _editorDraftCache: EditorDraftCache = {};
 
   static styles = panelStyles;
 
@@ -295,6 +297,9 @@ export class AqaraPanel extends LitElement {
 
       this._colorHistory = prefs.color_history;
       this._sortPreferences = prefs.sort_preferences;
+      if (prefs.collapsed_sections) {
+        this._collapsed = prefs.collapsed_sections;
+      }
     } catch (err) {
       console.warn('Failed to load user preferences:', err);
       // Fall back to localStorage as read-only source if server unavailable
@@ -362,6 +367,7 @@ export class AqaraPanel extends LitElement {
         {
           color_history: this._colorHistory,
           sort_preferences: this._sortPreferences,
+          collapsed_sections: this._collapsed,
         } as unknown as Record<string, unknown>
       ).catch(err => {
         console.warn('Failed to save user preferences:', err);
@@ -873,6 +879,9 @@ export class AqaraPanel extends LitElement {
   }
 
   private _setActiveTab(tab: PanelTab): void {
+    if (tab !== this._activeTab) {
+      this._cacheCurrentEditorDraft();
+    }
     this._activeTab = tab;
   }
 
@@ -882,7 +891,52 @@ export class AqaraPanel extends LitElement {
       return;
     }
     if (newTab !== this._activeTab) {
+      this._cacheCurrentEditorDraft();
       this._activeTab = newTab;
+    }
+  }
+
+  private _cacheCurrentEditorDraft(): void {
+    const editorSelectors: Partial<Record<PanelTab, string>> = {
+      effects: 'effect-editor',
+      patterns: 'pattern-editor',
+      cct: 'cct-sequence-editor',
+      segments: 'segment-sequence-editor',
+    };
+
+    const selector = editorSelectors[this._activeTab];
+    if (!selector) return;
+
+    const editor = this.shadowRoot?.querySelector(selector) as
+      | { getDraftState?: () => unknown }
+      | null;
+    if (editor && typeof editor.getDraftState === 'function') {
+      const draft = editor.getDraftState();
+      if (draft) {
+        const tab = this._activeTab as keyof EditorDraftCache;
+        this._editorDraftCache = { ...this._editorDraftCache, [tab]: draft };
+      }
+    }
+  }
+
+  private _getEditorDraft(tab: PanelTab): unknown {
+    const key = tab as keyof EditorDraftCache;
+    const draft = this._editorDraftCache[key];
+    if (draft) {
+      // Clear the draft after retrieval (one-time restore)
+      const { [key]: _, ...rest } = this._editorDraftCache;
+      this._editorDraftCache = rest;
+    }
+    return draft;
+  }
+
+  private _clearEditorDraft(tab?: PanelTab): void {
+    if (tab) {
+      const key = tab as keyof EditorDraftCache;
+      const { [key]: _, ...rest } = this._editorDraftCache;
+      this._editorDraftCache = rest;
+    } else {
+      this._editorDraftCache = {};
     }
   }
 
@@ -1455,6 +1509,7 @@ export class AqaraPanel extends LitElement {
       ...this._collapsed,
       [sectionId]: !expanded,
     };
+    this._saveUserPreferences();
   }
 
   private async _activateDynamicEffect(preset: DynamicEffectPreset): Promise<void> {
@@ -2199,6 +2254,7 @@ export class AqaraPanel extends LitElement {
         <effect-editor
           .hass=${this.hass}
           .preset=${editingEffect}
+          .draft=${this._getEditorDraft('effects')}
           .translations=${this._translations}
           .editMode=${!!editingEffect && !this._editingPreset?.isDuplicate}
           .hasSelectedEntities=${hasSelection}
@@ -2223,11 +2279,13 @@ export class AqaraPanel extends LitElement {
     } else {
       await this._saveUserPreset('effect', e.detail);
     }
+    this._clearEditorDraft('effects');
     this._editingPreset = undefined;
     this._setActiveTab('presets');
   }
 
   private _handleEditorCancel(): void {
+    this._clearEditorDraft(this._activeTab);
     this._editingPreset = undefined;
     this._setActiveTab('activate');
   }
@@ -2309,6 +2367,7 @@ export class AqaraPanel extends LitElement {
         <pattern-editor
           .hass=${this.hass}
           .preset=${editingPattern}
+          .draft=${this._getEditorDraft('patterns')}
           .translations=${this._translations}
           .editMode=${!!editingPattern && !this._editingPreset?.isDuplicate}
           .hasSelectedEntities=${hasSelection}
@@ -2331,6 +2390,7 @@ export class AqaraPanel extends LitElement {
     } else {
       await this._saveUserPreset('segment_pattern', e.detail);
     }
+    this._clearEditorDraft('patterns');
     this._editingPreset = undefined;
     this._setActiveTab('presets');
   }
@@ -2386,6 +2446,7 @@ export class AqaraPanel extends LitElement {
         <cct-sequence-editor
           .hass=${this.hass}
           .preset=${editingCCT}
+          .draft=${this._getEditorDraft('cct')}
           .translations=${this._translations}
           .editMode=${!!editingCCT && !this._editingPreset?.isDuplicate}
           .hasSelectedEntities=${hasSelection}
@@ -2409,6 +2470,7 @@ export class AqaraPanel extends LitElement {
     } else {
       await this._saveUserPreset('cct_sequence', e.detail);
     }
+    this._clearEditorDraft('cct');
     this._editingPreset = undefined;
     this._setActiveTab('presets');
   }
@@ -2480,6 +2542,7 @@ export class AqaraPanel extends LitElement {
         <segment-sequence-editor
           .hass=${this.hass}
           .preset=${editingSegment}
+          .draft=${this._getEditorDraft('segments')}
           .translations=${this._translations}
           .editMode=${!!editingSegment && !this._editingPreset?.isDuplicate}
           .hasSelectedEntities=${hasSelection}
@@ -2504,6 +2567,7 @@ export class AqaraPanel extends LitElement {
     } else {
       await this._saveUserPreset('segment_sequence', e.detail);
     }
+    this._clearEditorDraft('segments');
     this._editingPreset = undefined;
     this._setActiveTab('presets');
   }

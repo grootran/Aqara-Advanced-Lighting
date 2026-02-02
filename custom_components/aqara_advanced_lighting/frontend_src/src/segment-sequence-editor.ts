@@ -1,6 +1,6 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { HomeAssistant, SegmentSequenceStep, XYColor, UserSegmentSequencePreset, DeviceContext } from './types';
+import { HomeAssistant, SegmentSequenceStep, XYColor, UserSegmentSequencePreset, DeviceContext, SegmentSequenceEditorDraft } from './types';
 import { xyToRgb, rgbToXy } from './color-utils';
 import { colorPickerStyles } from './styles';
 import { ReorderableStepsMixin, reorderableStepStyles } from './reorderable-steps-mixin';
@@ -62,6 +62,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
   @property({ type: Number }) public stripSegmentCount = 10; // Default 2 meters (out-of-box T1 Strip length)
   @property({ type: Object }) public deviceContext?: DeviceContext;
   @property({ type: Array }) public colorHistory: XYColor[] = [];
+  @property({ type: Object }) public draft?: SegmentSequenceEditorDraft;
 
   @state() private _name = '';
   @state() private _icon = '';
@@ -373,7 +374,10 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
   protected updated(changedProps: PropertyValues): void {
     super.updated(changedProps);
 
-    if (changedProps.has('preset')) {
+    // Draft takes priority over preset (contains user's unsaved edits)
+    if (changedProps.has('draft') && this.draft) {
+      this._restoreDraft(this.draft);
+    } else if (changedProps.has('preset')) {
       if (this.preset) {
         this._hasUserInteraction = true;
         this._loadPreset(this.preset);
@@ -472,6 +476,76 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
         turnOffUnspecified: true,
       };
     });
+  }
+
+  public getDraftState(): SegmentSequenceEditorDraft {
+    return {
+      name: this._name,
+      icon: this._icon,
+      deviceType: this._deviceType,
+      steps: this._steps.map(s => ({
+        id: s.id,
+        duration: s.duration,
+        hold: s.hold,
+        activation_pattern: s.activation_pattern,
+        transition: s.transition,
+        coloredSegments: Array.from(s.coloredSegments.entries()),
+        colorPalette: [...s.colorPalette],
+        gradientColors: [...s.gradientColors],
+        blockColors: [...s.blockColors],
+        expandBlocks: s.expandBlocks,
+        patternMode: s.patternMode,
+        gradientMirror: s.gradientMirror,
+        gradientRepeat: s.gradientRepeat,
+        gradientReverse: s.gradientReverse,
+        gradientInterpolation: s.gradientInterpolation,
+        gradientWave: s.gradientWave,
+        gradientWaveCycles: s.gradientWaveCycles,
+        turnOffUnspecified: s.turnOffUnspecified,
+      })),
+      loopMode: this._loopMode,
+      loopCount: this._loopCount,
+      endBehavior: this._endBehavior,
+      clearSegments: this._clearSegments,
+      skipFirstInLoop: this._skipFirstInLoop,
+    };
+  }
+
+  private _restoreDraft(draft: SegmentSequenceEditorDraft): void {
+    this._name = draft.name;
+    this._icon = draft.icon;
+    this._deviceType = draft.deviceType;
+    this._loopMode = draft.loopMode;
+    this._loopCount = draft.loopCount;
+    this._endBehavior = draft.endBehavior;
+    this._clearSegments = draft.clearSegments;
+    this._skipFirstInLoop = draft.skipFirstInLoop;
+    this._steps = draft.steps.map(s => ({
+      // Provide default values for SegmentSequenceStep legacy fields
+      segments: 'all',
+      colors: [[255, 0, 0]],
+      mode: s.patternMode === 'gradient' ? 'gradient' : s.expandBlocks ? 'blocks_expand' : 'blocks_repeat',
+      duration: s.duration,
+      hold: s.hold,
+      activation_pattern: s.activation_pattern,
+      transition: s.transition,
+      // Restore editor-specific fields
+      id: s.id,
+      coloredSegments: new Map(s.coloredSegments),
+      colorPalette: [...s.colorPalette],
+      gradientColors: [...s.gradientColors],
+      blockColors: [...s.blockColors],
+      expandBlocks: s.expandBlocks,
+      patternMode: s.patternMode,
+      gradientMirror: s.gradientMirror,
+      gradientRepeat: s.gradientRepeat,
+      gradientReverse: s.gradientReverse,
+      gradientInterpolation: s.gradientInterpolation,
+      gradientWave: s.gradientWave,
+      gradientWaveCycles: s.gradientWaveCycles,
+      turnOffUnspecified: s.turnOffUnspecified,
+    }));
+    this._hasUserInteraction = true;
   }
 
   private _addDefaultStep(): void {

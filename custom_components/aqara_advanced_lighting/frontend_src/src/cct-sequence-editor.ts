@@ -1,6 +1,6 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { HomeAssistant, CCTSequenceStep, UserCCTSequencePreset, DeviceContext } from './types';
+import { HomeAssistant, CCTSequenceStep, UserCCTSequencePreset, DeviceContext, CCTEditorDraft } from './types';
 import { ReorderableStepsMixin, reorderableStepStyles } from './reorderable-steps-mixin';
 
 interface EditableStep extends CCTSequenceStep {
@@ -18,6 +18,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
   @property({ type: Array }) public selectedEntities: string[] = [];
   @property({ type: Boolean }) public previewActive = false;
   @property({ type: Object }) public deviceContext?: DeviceContext;
+  @property({ type: Object }) public draft?: CCTEditorDraft;
 
   @state() private _name = '';
   @state() private _icon = '';
@@ -295,7 +296,10 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
   protected updated(changedProps: PropertyValues): void {
     super.updated(changedProps);
 
-    if (changedProps.has('preset') && this.preset) {
+    // Draft takes priority over preset (contains user's unsaved edits)
+    if (changedProps.has('draft') && this.draft) {
+      this._restoreDraft(this.draft);
+    } else if (changedProps.has('preset') && this.preset) {
       this._loadPreset(this.preset);
     }
   }
@@ -307,6 +311,34 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
     this._loopCount = preset.loop_count || 3;
     this._endBehavior = preset.end_behavior;
     this._steps = preset.steps.map((step, index) => ({
+      ...step,
+      id: `step-${index}-${Date.now()}`,
+    }));
+  }
+
+  public getDraftState(): CCTEditorDraft {
+    return {
+      name: this._name,
+      icon: this._icon,
+      steps: this._steps.map(s => ({
+        color_temp: s.color_temp,
+        brightness: s.brightness,
+        transition: s.transition,
+        hold: s.hold,
+      })),
+      loopMode: this._loopMode,
+      loopCount: this._loopCount,
+      endBehavior: this._endBehavior,
+    };
+  }
+
+  private _restoreDraft(draft: CCTEditorDraft): void {
+    this._name = draft.name;
+    this._icon = draft.icon;
+    this._loopMode = draft.loopMode;
+    this._loopCount = draft.loopCount;
+    this._endBehavior = draft.endBehavior;
+    this._steps = draft.steps.map((step, index) => ({
       ...step,
       id: `step-${index}-${Date.now()}`,
     }));

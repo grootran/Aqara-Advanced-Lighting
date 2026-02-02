@@ -1,6 +1,6 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { HomeAssistant, RGBColor, XYColor, SegmentColorEntry, UserSegmentPatternPreset, DeviceContext } from './types';
+import { HomeAssistant, RGBColor, XYColor, SegmentColorEntry, UserSegmentPatternPreset, DeviceContext, PatternEditorDraft } from './types';
 import { xyToRgb, rgbToXy } from './color-utils';
 import { colorPickerStyles } from './styles';
 // Note: hs-color-picker import removed - color picking handled by segment-selector
@@ -39,6 +39,7 @@ export class PatternEditor extends LitElement {
   @property({ type: Number }) public stripSegmentCount = 10; // Default 2 meters (out-of-box T1 Strip length)
   @property({ type: Object }) public deviceContext?: DeviceContext;
   @property({ type: Array }) public colorHistory: XYColor[] = [];
+  @property({ type: Object }) public draft?: PatternEditorDraft;
 
   @state() private _name = '';
   @state() private _icon = '';
@@ -384,7 +385,10 @@ export class PatternEditor extends LitElement {
   protected updated(changedProps: PropertyValues): void {
     super.updated(changedProps);
 
-    if (changedProps.has('preset')) {
+    // Draft takes priority over preset (contains user's unsaved edits)
+    if (changedProps.has('draft') && this.draft) {
+      this._restoreDraft(this.draft);
+    } else if (changedProps.has('preset')) {
       if (this.preset) {
         this._hasUserInteraction = true;
         this._loadPreset(this.preset);
@@ -455,6 +459,45 @@ export class PatternEditor extends LitElement {
         this._segments.set(segNum - 1, rgbToXy(color.r, color.g, color.b));
       }
     }
+  }
+
+  public getDraftState(): PatternEditorDraft {
+    return {
+      name: this._name,
+      icon: this._icon,
+      deviceType: this._deviceType,
+      segments: Array.from(this._segments.entries()),
+      colorPalette: [...this._colorPalette],
+      gradientColors: [...this._gradientColors],
+      blockColors: [...this._blockColors],
+      expandBlocks: this._expandBlocks,
+      gradientMirror: this._gradientMirror,
+      gradientRepeat: this._gradientRepeat,
+      gradientReverse: this._gradientReverse,
+      gradientInterpolation: this._gradientInterpolation,
+      gradientWave: this._gradientWave,
+      gradientWaveCycles: this._gradientWaveCycles,
+      turnOffUnspecified: this._turnOffUnspecified,
+    };
+  }
+
+  private _restoreDraft(draft: PatternEditorDraft): void {
+    this._name = draft.name;
+    this._icon = draft.icon;
+    this._deviceType = draft.deviceType;
+    this._segments = new Map(draft.segments);
+    this._colorPalette = [...draft.colorPalette];
+    this._gradientColors = [...draft.gradientColors];
+    this._blockColors = [...draft.blockColors];
+    this._expandBlocks = draft.expandBlocks;
+    this._gradientMirror = draft.gradientMirror;
+    this._gradientRepeat = draft.gradientRepeat;
+    this._gradientReverse = draft.gradientReverse;
+    this._gradientInterpolation = draft.gradientInterpolation;
+    this._gradientWave = draft.gradientWave;
+    this._gradientWaveCycles = draft.gradientWaveCycles;
+    this._turnOffUnspecified = draft.turnOffUnspecified;
+    this._hasUserInteraction = true;
   }
 
   private _handleNameChange(e: CustomEvent): void {
