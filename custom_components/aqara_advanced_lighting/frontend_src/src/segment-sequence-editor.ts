@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, SegmentSequenceStep, XYColor, UserSegmentSequencePreset, DeviceContext } from './types';
 import { xyToRgb, rgbToXy } from './color-utils';
 import { colorPickerStyles } from './styles';
+import { ReorderableStepsMixin, reorderableStepStyles } from './reorderable-steps-mixin';
 // Note: hs-color-picker import removed - now handled by segment-selector
 
 const DEVICE_LABELS: Record<string, string> = {
@@ -50,7 +51,7 @@ interface EditableStep extends SegmentSequenceStep {
 }
 
 @customElement('segment-sequence-editor')
-export class SegmentSequenceEditor extends LitElement {
+export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @property({ type: Object }) public preset?: UserSegmentSequencePreset;
   @property({ type: Object }) public translations: Record<string, any> = {};
@@ -65,7 +66,7 @@ export class SegmentSequenceEditor extends LitElement {
   @state() private _name = '';
   @state() private _icon = '';
   @state() private _deviceType = 't1m';
-  @state() private _steps: EditableStep[] = [];
+  @state() protected _steps: EditableStep[] = [];
   @state() private _loopMode = 'once';
   @state() private _loopCount = 3;
   @state() private _endBehavior = 'maintain';
@@ -110,6 +111,7 @@ export class SegmentSequenceEditor extends LitElement {
 
   static styles = [
     colorPickerStyles,
+    reorderableStepStyles,
     css`
     :host {
       display: block;
@@ -208,6 +210,7 @@ export class SegmentSequenceEditor extends LitElement {
     }
 
     .step-number {
+      flex: 1;
       font-weight: 600;
       font-size: 14px;
       color: var(--primary-color);
@@ -815,6 +818,7 @@ export class SegmentSequenceEditor extends LitElement {
     return html`
       <div class="step-item">
         <div class="step-header">
+          ${this._renderDragHandle(index)}
           <span class="step-number">Step ${index + 1}</span>
           <div class="step-actions">
             <ha-icon-button
@@ -1075,7 +1079,11 @@ export class SegmentSequenceEditor extends LitElement {
                     ${this._localize('editors.no_steps_message')}
                   </div>
                 `
-              : this._steps.map((step, index) => this._renderStep(step, index))}
+              : this._steps.map((step, index) => html`
+                  ${this._renderDropIndicator(index)}
+                  ${this._renderStep(step, index)}
+                `)}
+            ${this._renderDropIndicator(this._steps.length)}
 
             <button
               class="add-step-btn ${this._steps.length >= 20 ? 'disabled' : ''}"
