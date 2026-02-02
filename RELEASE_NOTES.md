@@ -1,11 +1,11 @@
-# Aqara Advanced Lighting v0.10.0
+# Aqara Advanced Lighting v0.11.0
 
 ## Upgrade Instructions
 
-**Upgrading from v0.9.x:**
-1. Update via HACS to v0.10.0
+**Upgrading from v0.10.x:**
+1. Update via HACS to v0.11.0
 2. Restart Home Assistant
-3. Clear browser cache (Ctrl+Shift+R or Cmd+Shift+R)
+3. Clear browser cache (Ctrl+Shift+R or Cmd+Shift+R), clear HA app cache
 
 Your existing configuration, presets, and favorites are automatically preserved.
 
@@ -13,60 +13,54 @@ Your existing configuration, presets, and favorites are automatically preserved.
 
 ## What's New
 
-Version 0.10.0 adds device triggers for Home Assistant automations, preset management improvements including duplicate and edit, dynamic SVG preview thumbnails, recent color history in color pickers, and improved device type handling for T1M.
+Version 0.11.0 introduces segment zone naming, a REST API trigger endpoint for external integrations, drag-and-drop step reordering in sequence editors, per-user preferences with server-side storage, and editor state preservation across tab switches.
 
 ## Changes
 
-### Device Triggers and Registry
+#### Segment Zone Naming
 
-- Aqara lighting devices now appear in the HA automation UI device trigger selector for native trigger-based automations
-- Devices are registered in the HA device registry with sequence event metadata
+- **Per-device segment zone naming** - Assign custom names to segment zones on each device with a visual grid editor for intuitive zone configuration
 
-### Preset Management
+#### State preservation across tab switching
 
-- **Duplicate and edit presets** - Duplicate existing presets and edit saved presets directly
-- **Dynamic SVG preview thumbnails** - Presets display dynamically generated SVG thumbnails showing the actual color pattern
+- **Editor state preservation** - Editor state is preserved across tab switches with in-memory draft caching, so you don't lose work when switching tabs
 
-### Activate Tab
+#### User Preferences
 
-- Selected device on the Activate tab now carries over to editor tabs
-- Activate tab split by device type (T1, T1M, T2) with per-section sorting
+- **Per-user preferences with server-side storage** - User preferences are stored on the server, persisting across browsers and devices
+- **Collapsed section persistence** - Collapsed/expanded state of panel sections is saved to user preferences and restored on load
 
-### Color Picker
+#### REST API Trigger Endpoint
 
-- Color picker modals now remember recently used colors for quick reuse
+- **External preset activation** - New REST API endpoint allows triggering presets from external systems, scripts, or third-party integrations without going through the HA UI
 
-### Effects panel
+#### Sequence Editor Improvements
 
-- Updated icons for dynamic effects
+- **Drag-and-drop step reordering** - Reorder steps in CCT and segment sequence editors by dragging them into position
 
 ### Improvements
 
-- Features filtered by T1M endpoint capabilities to prevent unsupported operations
-- Faster device name lookups with `devices_by_name` index
-- Pattern presets automatically scale to fit device segment count
-- Sequence preset hold time limit raised to 12 hours
+- **Device trigger diagnostics** - Device trigger readiness information added to diagnostics output
 
 ### Bug Fixes
 
-- Fixed pattern mode not loading correctly when opening saved presets
-- Fixed brightness conversion when activating user presets
-- Fixed unspecified segments turning white when editing saved presets
-
+- **Fixed preset colors not applied** when editing or duplicating segment sequences
+- **Fixed effect selector** rendering issue
+- **Fixed endpoint authentication** for API requests
 ## Breaking Changes
 
-None. This release is fully backward compatible with v0.9.0.
+None. This release is fully backward compatible with v0.10.0.
 
 ## Compatibility
 
-- Fully backward compatible with v0.9.0
+- Fully backward compatible with v0.10.0
 - All existing features and APIs unchanged
 - No configuration changes required
 - All presets and favorites preserved
 
 ## Full Changelog
 
-[View full changelog](https://github.com/absent42/Aqara-Advanced-Lighting/blob/main/CHANGELOG.md#0100---2026-01-31)
+[View full changelog](https://github.com/absent42/Aqara-Advanced-Lighting/blob/main/CHANGELOG.md#0110---2026-02-02)
 
 ## Support
 
