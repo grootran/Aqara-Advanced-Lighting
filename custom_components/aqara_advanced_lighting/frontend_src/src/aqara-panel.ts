@@ -573,7 +573,7 @@ export class AqaraPanel extends LitElement {
       }
       const nameLower = name.toLowerCase();
       if (namesSeen.has(nameLower)) {
-        this._showToast(`Duplicate zone name: "${name}"`);
+        this._showToast(this._localize('config.zone_duplicate_name', { name }));
         return;
       }
       namesSeen.add(nameLower);
@@ -602,8 +602,8 @@ export class AqaraPanel extends LitElement {
         await this._loadZonesForDevice(ieeeAddress);
         this._showToast(this._localize('config.zone_saved'));
       } else {
-        const errorText = await response.text().catch(() => '');
-        this._showToast(errorText || this._localize('config.zone_save_error'));
+        const errorData = await response.json().catch(() => ({}));
+        this._showToast(errorData.message || this._localize('config.zone_save_error'));
       }
     } catch {
       this._showToast(this._localize('config.zone_save_error'));
@@ -893,7 +893,7 @@ export class AqaraPanel extends LitElement {
     const firstEntity = this._selectedEntities[0];
     const defaultName = this._selectedEntities.length === 1 && firstEntity
       ? this._getEntityFriendlyName(firstEntity)
-      : `${this._selectedEntities.length} lights`;
+      : this._localize('target.lights_count', { count: this._selectedEntities.length.toString() });
 
     this._favoriteInputName = defaultName;
     this._showFavoriteInput = true;
@@ -1817,7 +1817,7 @@ export class AqaraPanel extends LitElement {
       <div class="header">
         <div class="toolbar">
           <ha-menu-button .hass=${this.hass} .narrow=${this.narrow}></ha-menu-button>
-          <div class="main-title">Aqara Advanced Lighting</div>
+          <div class="main-title">${this._localize('title')}</div>
           ${this._backendVersion ? html`
             <div
               class="version-display ${versionMismatch ? 'version-mismatch' : ''}"
@@ -1976,7 +1976,7 @@ export class AqaraPanel extends LitElement {
                             <div class="favorite-button-content">
                               <div class="favorite-button-name">${favorite.name}</div>
                               ${entityCount > 1
-                                ? html`<div class="favorite-button-count">${entityCount} lights</div>`
+                                ? html`<div class="favorite-button-count">${this._localize('target.favorite_lights_count', { count: entityCount.toString() })}</div>`
                                 : ''}
                             </div>
                             <ha-icon-button
@@ -2863,7 +2863,7 @@ export class AqaraPanel extends LitElement {
         <div slot="header" class="section-header">
           <div>
             <div class="section-title">${title}</div>
-            <div class="section-subtitle">${presets.length} presets</div>
+            <div class="section-subtitle">${this._localize('presets.presets_count', { count: presets.length.toString() })}</div>
           </div>
           <div class="section-header-controls" @click=${(e: Event) => e.stopPropagation()}>
             ${this._renderSortDropdown(sectionId)}
@@ -2948,7 +2948,7 @@ export class AqaraPanel extends LitElement {
     const copy: UserEffectPreset = {
       ...preset,
       id: '',
-      name: `${preset.name} (copy)`,
+      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
       created_at: '',
       modified_at: '',
     };
@@ -2960,7 +2960,7 @@ export class AqaraPanel extends LitElement {
     const copy: UserSegmentPatternPreset = {
       ...preset,
       id: '',
-      name: `${preset.name} (copy)`,
+      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
       created_at: '',
       modified_at: '',
     };
@@ -2972,7 +2972,7 @@ export class AqaraPanel extends LitElement {
     const copy: UserCCTSequencePreset = {
       ...preset,
       id: '',
-      name: `${preset.name} (copy)`,
+      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
       created_at: '',
       modified_at: '',
     };
@@ -2984,7 +2984,7 @@ export class AqaraPanel extends LitElement {
     const copy: UserSegmentSequencePreset = {
       ...preset,
       id: '',
-      name: `${preset.name} (copy)`,
+      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
       created_at: '',
       modified_at: '',
     };
@@ -2996,7 +2996,7 @@ export class AqaraPanel extends LitElement {
   private _duplicateBuiltinEffectPreset(preset: DynamicEffectPreset, deviceType: string): void {
     const userPreset: UserEffectPreset = {
       id: '',
-      name: `${preset.name} (copy)`,
+      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
       effect: preset.effect,
       effect_speed: preset.speed,
       effect_brightness: preset.brightness != null ? Math.round(preset.brightness / 255 * 100) : 100,
@@ -3032,7 +3032,7 @@ export class AqaraPanel extends LitElement {
     const scaled = this._scaleSegmentPattern(preset.segments, targetCount);
     const userPreset: UserSegmentPatternPreset = {
       id: '',
-      name: `${preset.name} (copy)`,
+      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
       device_type: deviceType,
       segments: scaled.map((seg, index) => ({
         segment: index + 1,
@@ -3048,7 +3048,7 @@ export class AqaraPanel extends LitElement {
   private _duplicateBuiltinCCTSequencePreset(preset: CCTSequencePreset): void {
     const userPreset: UserCCTSequencePreset = {
       id: '',
-      name: `${preset.name} (copy)`,
+      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
       steps: preset.steps.map((step) => ({
         ...step,
         brightness: Math.round(step.brightness / 255 * 100),
@@ -3066,7 +3066,7 @@ export class AqaraPanel extends LitElement {
   private _duplicateBuiltinSegmentSequencePreset(preset: SegmentSequencePreset, deviceType: string): void {
     const userPreset: UserSegmentSequencePreset = {
       id: '',
-      name: `${preset.name} (copy)`,
+      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
       device_type: deviceType,
       steps: preset.steps.map((step) => ({ ...step })),
       loop_mode: preset.loop_mode,
@@ -3594,22 +3594,22 @@ export class AqaraPanel extends LitElement {
                               @click=${this._applyCurvature}
                               ?disabled=${!transitionCurveEntity || this._applyingCurvature}
                             >
-                              ${this._applyingCurvature ? 'Applying...' : 'Apply'}
+                              ${this._applyingCurvature ? this._localize('config.applying_button') : this._localize('config.apply_button')}
                             </ha-button>
                           </div>
                         </div>
                         <div class="curve-legend">
                           <span class="legend-item">
                             <span class="legend-dot fast-slow"></span>
-                            0.2-1: Fast then slow
+                            ${this._localize('config.curve_legend_fast_slow')}
                           </span>
                           <span class="legend-item">
                             <span class="legend-dot linear"></span>
-                            1: Linear
+                            ${this._localize('config.curve_legend_linear')}
                           </span>
                           <span class="legend-item">
                             <span class="legend-dot slow-fast"></span>
-                            1-6: Slow then fast
+                            ${this._localize('config.curve_legend_slow_fast')}
                           </span>
                         </div>
                       </div>
@@ -3634,7 +3634,7 @@ export class AqaraPanel extends LitElement {
                         ></ha-selector>
                         ${!initialBrightnessEntity ? html`
                           <div style="margin-top: 8px; font-size: var(--ha-font-size-s, 12px); color: var(--secondary-text-color);">
-                            Initial brightness entity not found for this device.
+                            ${this._localize('config.initial_brightness_not_found')}
                           </div>
                         ` : ''}
                       </div>
@@ -3654,7 +3654,7 @@ export class AqaraPanel extends LitElement {
             >
               <div slot="header" class="section-header">
                 <div>
-                  <div class="section-title">Dimming settings</div>
+                  <div class="section-title">${this._localize('config.dimming_settings_title')}</div>
                 </div>
               </div>
               <div class="section-content" style="display: block; padding: 0;">
@@ -3678,7 +3678,7 @@ export class AqaraPanel extends LitElement {
                         ?disabled=${!onOffDurationEntity}
                       ></ha-selector>
                       ${!onOffDurationEntity ? html`
-                        <div class="entity-not-found">Entity not found for this device.</div>
+                        <div class="entity-not-found">${this._localize('config.entity_not_found')}</div>
                       ` : ''}
                     </div>
                   </div>
@@ -3701,7 +3701,7 @@ export class AqaraPanel extends LitElement {
                         ?disabled=${!offOnDurationEntity}
                       ></ha-selector>
                       ${!offOnDurationEntity ? html`
-                        <div class="entity-not-found">Entity not found for this device.</div>
+                        <div class="entity-not-found">${this._localize('config.entity_not_found')}</div>
                       ` : ''}
                     </div>
                   </div>
@@ -3724,7 +3724,7 @@ export class AqaraPanel extends LitElement {
                         ?disabled=${!dimmingRangeMinEntity}
                       ></ha-selector>
                       ${!dimmingRangeMinEntity ? html`
-                        <div class="entity-not-found">Entity not found for this device.</div>
+                        <div class="entity-not-found">${this._localize('config.entity_not_found')}</div>
                       ` : ''}
                     </div>
                   </div>
@@ -3747,7 +3747,7 @@ export class AqaraPanel extends LitElement {
                         ?disabled=${!dimmingRangeMaxEntity}
                       ></ha-selector>
                       ${!dimmingRangeMaxEntity ? html`
-                        <div class="entity-not-found">Entity not found for this device.</div>
+                        <div class="entity-not-found">${this._localize('config.entity_not_found')}</div>
                       ` : ''}
                     </div>
                   </div>
@@ -3755,7 +3755,7 @@ export class AqaraPanel extends LitElement {
                 ${!hasDimmingEntities ? html`
                   <div style="padding: 16px; text-align: center; color: var(--secondary-text-color);">
                     <ha-icon icon="mdi:information-outline" style="margin-right: 8px;"></ha-icon>
-                    Dimming settings are not available for this device.
+                    ${this._localize('config.dimming_not_available')}
                   </div>
                 ` : ''}
               </div>
@@ -3794,8 +3794,8 @@ export class AqaraPanel extends LitElement {
                   ></ha-selector>
                   <div style="margin-top: 8px; font-size: var(--ha-font-size-s, 12px); color: var(--secondary-text-color);">
                     ${t1StripLengthEntity
-                      ? 'Each meter has 5 addressable RGB segments (20cm each).'
-                      : 'Length entity not found for this device.'}
+                      ? this._localize('config.strip_length_info')
+                      : this._localize('config.strip_length_not_found')}
                   </div>
                 </div>
               </div>
@@ -3853,7 +3853,7 @@ export class AqaraPanel extends LitElement {
                 <div class="zone-device-header">
                   <ha-icon icon="${this._getEntityIcon(device.entity_id)}"></ha-icon>
                   <span>${device.z2m_friendly_name}</span>
-                  <span class="zone-device-segments">${device.segment_count} segments</span>
+                  <span class="zone-device-segments">${this._localize('config.segment_count', { count: device.segment_count.toString() })}</span>
                 </div>
                 ${editZones.length === 0
                   ? html`<div class="zone-empty-message">${this._localize('config.zone_no_zones')}</div>`
@@ -4502,11 +4502,11 @@ export class AqaraPanel extends LitElement {
 
   private _getCurvatureDescription(): string {
     if (this._localCurvature < 0.9) {
-      return 'Fast start, slow end';
+      return this._localize('config.curvature_fast_slow');
     } else if (this._localCurvature <= 1.1) {
-      return 'Linear (uniform)';
+      return this._localize('config.curvature_linear');
     } else {
-      return 'Slow start, fast end';
+      return this._localize('config.curvature_slow_fast');
     }
   }
 

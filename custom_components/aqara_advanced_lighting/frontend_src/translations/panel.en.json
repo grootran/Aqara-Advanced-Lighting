@@ -34,7 +34,9 @@
     "cct_button": "CCT",
     "segment_button": "Segment",
     "no_lights_message": "Please select one or more lights to view available presets",
-    "group_label": "Group ({count} lights)"
+    "group_label": "Group ({count} lights)",
+    "lights_count": "{count} lights",
+    "favorite_lights_count": "{count} lights"
   },
   "devices": {
     "t2_bulb": "T2 Bulb",
@@ -70,7 +72,9 @@
     "export_progress": "Backing up presets...",
     "import_error_invalid_file": "Invalid backup file format",
     "import_error_unknown": "An unexpected error occurred",
-    "export_error_network": "Network error during backup"
+    "export_error_network": "Network error during backup",
+    "copy_suffix": "(copy)",
+    "presets_count": "{count} presets"
   },
   "dialogs": {
     "create_effect_title": "Create Effect Preset",
@@ -120,7 +124,23 @@
     "zone_segments_required": "Select at least one segment for each zone.",
     "zone_invalid_range": "Zone \"{name}\": invalid segment range \"{range}\"",
     "zone_out_of_range": "Zone \"{name}\": segment {segment} exceeds device maximum of {max}",
-    "zone_no_segment_devices": "Segment zones are only available for devices that support segment addressing (T1M, T1 Strip)."
+    "zone_no_segment_devices": "Segment zones are only available for devices that support segment addressing (T1M, T1 Strip).",
+    "zone_duplicate_name": "Duplicate zone name: \"{name}\"",
+    "dimming_settings_title": "Dimming settings",
+    "entity_not_found": "Entity not found for this device.",
+    "initial_brightness_not_found": "Initial brightness entity not found for this device.",
+    "dimming_not_available": "Dimming settings are not available for this device.",
+    "strip_length_info": "Each meter has 5 addressable RGB segments (20cm each).",
+    "strip_length_not_found": "Length entity not found for this device.",
+    "segment_count": "{count} segments",
+    "applying_button": "Applying...",
+    "apply_button": "Apply",
+    "curvature_fast_slow": "Fast start, slow end",
+    "curvature_linear": "Linear (uniform)",
+    "curvature_slow_fast": "Slow start, fast end",
+    "curve_legend_fast_slow": "0.2-1: Fast then slow",
+    "curve_legend_linear": "1: Linear",
+    "curve_legend_slow_fast": "1-6: Slow then fast"
   },
   "instances": {
     "section_title": "Zigbee2MQTT instances",
