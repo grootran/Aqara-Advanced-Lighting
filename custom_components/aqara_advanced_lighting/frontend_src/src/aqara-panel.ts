@@ -2988,21 +2988,25 @@ export class AqaraPanel extends LitElement {
 
   // Edit preset methods - navigate to editor tab with preset loaded
   private _editEffectPreset(preset: UserEffectPreset): void {
+    this._clearEditorDraft('effects');
     this._editingPreset = { type: 'effect', preset };
     this._setActiveTab('effects');
   }
 
   private _editPatternPreset(preset: UserSegmentPatternPreset): void {
+    this._clearEditorDraft('patterns');
     this._editingPreset = { type: 'pattern', preset };
     this._setActiveTab('patterns');
   }
 
   private _editCCTSequencePreset(preset: UserCCTSequencePreset): void {
+    this._clearEditorDraft('cct');
     this._editingPreset = { type: 'cct', preset };
     this._setActiveTab('cct');
   }
 
   private _editSegmentSequencePreset(preset: UserSegmentSequencePreset): void {
+    this._clearEditorDraft('segments');
     this._editingPreset = { type: 'segment', preset };
     this._setActiveTab('segments');
   }
@@ -3016,6 +3020,7 @@ export class AqaraPanel extends LitElement {
       created_at: '',
       modified_at: '',
     };
+    this._clearEditorDraft('effects');
     this._editingPreset = { type: 'effect', preset: copy, isDuplicate: true };
     this._setActiveTab('effects');
   }
@@ -3028,6 +3033,7 @@ export class AqaraPanel extends LitElement {
       created_at: '',
       modified_at: '',
     };
+    this._clearEditorDraft('patterns');
     this._editingPreset = { type: 'pattern', preset: copy, isDuplicate: true };
     this._setActiveTab('patterns');
   }
@@ -3040,6 +3046,7 @@ export class AqaraPanel extends LitElement {
       created_at: '',
       modified_at: '',
     };
+    this._clearEditorDraft('cct');
     this._editingPreset = { type: 'cct', preset: copy, isDuplicate: true };
     this._setActiveTab('cct');
   }
@@ -3052,6 +3059,7 @@ export class AqaraPanel extends LitElement {
       created_at: '',
       modified_at: '',
     };
+    this._clearEditorDraft('segments');
     this._editingPreset = { type: 'segment', preset: copy, isDuplicate: true };
     this._setActiveTab('segments');
   }
@@ -3069,6 +3077,7 @@ export class AqaraPanel extends LitElement {
       created_at: '',
       modified_at: '',
     };
+    this._clearEditorDraft('effects');
     this._editingPreset = { type: 'effect', preset: userPreset, isDuplicate: true };
     this._setActiveTab('effects');
   }
@@ -3105,6 +3114,7 @@ export class AqaraPanel extends LitElement {
       created_at: '',
       modified_at: '',
     };
+    this._clearEditorDraft('patterns');
     this._editingPreset = { type: 'pattern', preset: userPreset, isDuplicate: true };
     this._setActiveTab('patterns');
   }
@@ -3123,6 +3133,7 @@ export class AqaraPanel extends LitElement {
       created_at: '',
       modified_at: '',
     };
+    this._clearEditorDraft('cct');
     this._editingPreset = { type: 'cct', preset: userPreset, isDuplicate: true };
     this._setActiveTab('cct');
   }
@@ -3139,6 +3150,7 @@ export class AqaraPanel extends LitElement {
       created_at: '',
       modified_at: '',
     };
+    this._clearEditorDraft('segments');
     this._editingPreset = { type: 'segment', preset: userPreset, isDuplicate: true };
     this._setActiveTab('segments');
   }
