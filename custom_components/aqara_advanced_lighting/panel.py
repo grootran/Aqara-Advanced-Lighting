@@ -13,7 +13,9 @@ from aiohttp import web
 
 from homeassistant.components import frontend
 from homeassistant.components.http import HomeAssistantView
+from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 
 if TYPE_CHECKING:
     from .favorites_store import FavoritesStore
@@ -22,6 +24,10 @@ if TYPE_CHECKING:
     from .user_preferences_store import UserPreferencesStore
 
 from .const import (
+    ATTR_BRIGHTNESS,
+    ATTR_PRESET,
+    ATTR_RESTORE_STATE,
+    ATTR_SEGMENTS,
     CCT_SEQUENCE_PRESETS,
     DATA_FAVORITES_STORE,
     DATA_PRESET_STORE,
@@ -43,6 +49,13 @@ from .const import (
     MODEL_T2_CCT_GU10_230V,
     SEGMENT_PATTERN_PRESETS,
     SEGMENT_SEQUENCE_PRESETS,
+    SERVICE_SET_DYNAMIC_EFFECT,
+    SERVICE_SET_SEGMENT_PATTERN,
+    SERVICE_START_CCT_SEQUENCE,
+    SERVICE_START_SEGMENT_SEQUENCE,
+    SERVICE_STOP_CCT_SEQUENCE,
+    SERVICE_STOP_EFFECT,
+    SERVICE_STOP_SEGMENT_SEQUENCE,
     VALID_PRESET_TYPES,
     VALID_SORT_OPTIONS,
 )
@@ -109,6 +122,9 @@ async def async_register_panel(hass: HomeAssistant) -> None:
 
     # Register supported entities endpoint
     hass.http.register_view(SupportedEntitiesView)
+
+    # Register REST trigger endpoint for external systems
+    hass.http.register_view(TriggerView)
 
     _LOGGER.info("Aqara Advanced Lighting panel registered")
 
@@ -1187,3 +1203,168 @@ class SegmentZoneView(HomeAssistantView):
             return web.Response(status=404, text="Zone not found")
 
         return web.Response(status=204)
+
+
+# Mapping from preset type to the service used for activation
+_ACTIVATE_SERVICE_MAP: dict[str, str] = {
+    "effect": SERVICE_SET_DYNAMIC_EFFECT,
+    "segment_pattern": SERVICE_SET_SEGMENT_PATTERN,
+    "cct_sequence": SERVICE_START_CCT_SEQUENCE,
+    "segment_sequence": SERVICE_START_SEGMENT_SEQUENCE,
+}
+
+# Mapping from preset type to the service used for stopping
+_STOP_SERVICE_MAP: dict[str, str] = {
+    "effect": SERVICE_STOP_EFFECT,
+    "cct_sequence": SERVICE_STOP_CCT_SEQUENCE,
+    "segment_sequence": SERVICE_STOP_SEGMENT_SEQUENCE,
+}
+
+# Valid actions for the trigger endpoint
+_VALID_ACTIONS = {"activate", "stop"}
+
+
+class TriggerView(HomeAssistantView):
+    """REST endpoint for triggering presets from external systems.
+
+    Allows Node-RED, phone shortcuts, voice assistants, and other HTTP
+    clients to activate presets or stop effects without using HA's
+    service call mechanism directly.
+    """
+
+    url = f"/api/{DOMAIN}/trigger"
+    name = f"api:{DOMAIN}:trigger"
+    requires_auth = True
+
+    async def post(self, request: web.Request) -> web.Response:
+        """Trigger a preset or stop an active effect/sequence.
+
+        Expects JSON body with:
+            entity_id: Target light entity ID (required)
+            action: "activate" or "stop" (required)
+            preset_type: One of "effect", "segment_pattern",
+                "cct_sequence", "segment_sequence" (required)
+            preset: Preset name (required for activate action)
+            brightness: Optional brightness percentage override (1-100)
+            segments: Optional segment range override (e.g. "1-10")
+        """
+        hass: HomeAssistant = request.app["hass"]
+
+        # Parse request body
+        try:
+            data: dict[str, Any] = await request.json()
+        except (json.JSONDecodeError, ValueError):
+            return web.json_response(
+                {"success": False, "error": "Invalid JSON"}, status=400
+            )
+
+        if not isinstance(data, dict):
+            return web.json_response(
+                {"success": False, "error": "Request body must be a JSON object"},
+                status=400,
+            )
+
+        # Validate required fields
+        entity_id = data.get("entity_id")
+        if not entity_id or not isinstance(entity_id, str):
+            return web.json_response(
+                {"success": False, "error": "Missing or invalid `entity_id`"},
+                status=400,
+            )
+
+        # Verify the entity exists
+        state = hass.states.get(entity_id)
+        if not state:
+            return web.json_response(
+                {"success": False, "error": f"Entity `{entity_id}` not found"},
+                status=404,
+            )
+
+        action = data.get("action")
+        if action not in _VALID_ACTIONS:
+            return web.json_response(
+                {
+                    "success": False,
+                    "error": f"Invalid `action`: must be one of {sorted(_VALID_ACTIONS)}",
+                },
+                status=400,
+            )
+
+        preset_type = data.get("preset_type")
+        if not preset_type or preset_type not in _ACTIVATE_SERVICE_MAP:
+            return web.json_response(
+                {
+                    "success": False,
+                    "error": (
+                        "Invalid `preset_type`: must be one of "
+                        f"{sorted(_ACTIVATE_SERVICE_MAP.keys())}"
+                    ),
+                },
+                status=400,
+            )
+
+        # Build the service call data (services expect entity_id as a list)
+        service_data: dict[str, Any] = {ATTR_ENTITY_ID: [entity_id]}
+
+        if action == "activate":
+            preset = data.get("preset")
+            if not preset or not isinstance(preset, str):
+                return web.json_response(
+                    {
+                        "success": False,
+                        "error": "Missing or invalid `preset` (required for activate action)",
+                    },
+                    status=400,
+                )
+
+            service_data[ATTR_PRESET] = preset
+            service_name = _ACTIVATE_SERVICE_MAP[preset_type]
+
+            # Optional overrides
+            brightness = data.get("brightness")
+            if brightness is not None:
+                service_data[ATTR_BRIGHTNESS] = brightness
+
+            segments = data.get("segments")
+            if segments is not None:
+                service_data[ATTR_SEGMENTS] = segments
+
+        else:
+            # Stop action
+            if preset_type not in _STOP_SERVICE_MAP:
+                return web.json_response(
+                    {
+                        "success": False,
+                        "error": (
+                            f"Stop action is not supported for preset type "
+                            f"`{preset_type}` (segment patterns are static)"
+                        ),
+                    },
+                    status=400,
+                )
+            service_name = _STOP_SERVICE_MAP[preset_type]
+
+            # Stop effect supports restore_state
+            restore_state = data.get("restore_state")
+            if restore_state is not None:
+                service_data[ATTR_RESTORE_STATE] = restore_state
+
+        # Call the service
+        try:
+            await hass.services.async_call(
+                DOMAIN, service_name, service_data, blocking=True
+            )
+        except ServiceValidationError as ex:
+            _LOGGER.warning("Trigger validation error: %s", ex)
+            return web.json_response(
+                {"success": False, "error": str(ex)}, status=422
+            )
+        except HomeAssistantError as ex:
+            _LOGGER.error("Trigger service error: %s", ex)
+            return web.json_response(
+                {"success": False, "error": str(ex)}, status=500
+            )
+
+        return web.json_response(
+            {"success": True, "service": service_name, "entity_id": entity_id}
+        )
