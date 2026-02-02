@@ -21,11 +21,13 @@ class UserPreferences(TypedDict):
 
     color_history: list[dict[str, float]]
     sort_preferences: dict[str, str]
+    collapsed_sections: dict[str, bool]
 
 
 DEFAULT_PREFERENCES: UserPreferences = {
     "color_history": [],
     "sort_preferences": {},
+    "collapsed_sections": {},
 }
 
 
@@ -69,6 +71,7 @@ class UserPreferencesStore:
             return {
                 "color_history": prefs.get("color_history", []),
                 "sort_preferences": prefs.get("sort_preferences", {}),
+                "collapsed_sections": prefs.get("collapsed_sections", {}),
             }
         return {**DEFAULT_PREFERENCES}
 
@@ -127,6 +130,7 @@ class UserPreferencesStore:
         user_id: str,
         color_history: list[dict[str, float]] | None = None,
         sort_preferences: dict[str, str] | None = None,
+        collapsed_sections: dict[str, bool] | None = None,
     ) -> UserPreferences:
         """Partially update a user's preferences.
 
@@ -136,6 +140,7 @@ class UserPreferencesStore:
             user_id: The Home Assistant user ID.
             color_history: New color history list, or None to leave unchanged.
             sort_preferences: New sort preferences, or None to leave unchanged.
+            collapsed_sections: New collapsed section state, or None to leave unchanged.
 
         Returns:
             The full updated preferences.
@@ -150,6 +155,9 @@ class UserPreferencesStore:
 
         if sort_preferences is not None:
             self._data[user_id]["sort_preferences"] = sort_preferences
+
+        if collapsed_sections is not None:
+            self._data[user_id]["collapsed_sections"] = collapsed_sections
 
         await self.async_save()
 

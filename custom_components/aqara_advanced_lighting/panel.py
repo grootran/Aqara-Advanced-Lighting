@@ -700,6 +700,23 @@ def _validate_sort_preferences(sort_preferences: Any) -> str | None:
     return None
 
 
+def _validate_collapsed_sections(collapsed_sections: Any) -> str | None:
+    """Validate collapsed sections data.
+
+    Returns an error message if invalid, or None if valid.
+    """
+    if not isinstance(collapsed_sections, dict):
+        return "collapsed_sections must be an object"
+
+    for key, value in collapsed_sections.items():
+        if not isinstance(key, str):
+            return f"collapsed_sections key `{key}` must be a string"
+        if not isinstance(value, bool):
+            return f"collapsed_sections[{key!r}] value must be a boolean"
+
+    return None
+
+
 class UserPreferencesView(HomeAssistantView):
     """View to manage per-user preferences (color history, sort preferences)."""
 
@@ -753,6 +770,7 @@ class UserPreferencesView(HomeAssistantView):
         # Validate provided fields
         color_history = None
         sort_preferences = None
+        collapsed_sections = None
 
         if "color_history" in data:
             error = _validate_color_history(data["color_history"])
@@ -766,7 +784,17 @@ class UserPreferencesView(HomeAssistantView):
                 return web.Response(status=400, text=error)
             sort_preferences = data["sort_preferences"]
 
-        if color_history is None and sort_preferences is None:
+        if "collapsed_sections" in data:
+            error = _validate_collapsed_sections(data["collapsed_sections"])
+            if error:
+                return web.Response(status=400, text=error)
+            collapsed_sections = data["collapsed_sections"]
+
+        if (
+            color_history is None
+            and sort_preferences is None
+            and collapsed_sections is None
+        ):
             # Nothing to update, return current preferences
             preferences = store.get_preferences(user.id)
             return web.json_response(preferences)
@@ -775,6 +803,7 @@ class UserPreferencesView(HomeAssistantView):
             user.id,
             color_history=color_history,
             sort_preferences=sort_preferences,
+            collapsed_sections=collapsed_sections,
         )
         return web.json_response(preferences)
 
