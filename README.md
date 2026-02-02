@@ -58,6 +58,7 @@ _If you want to show your support please_
 **Automation**
 - 13 service actions for use in automations, scripts, and Developer Tools
 - 14 device triggers for sequence and effect lifecycle events (started, completed, stopped, paused, resumed, step changed)
+- REST API trigger endpoint for external systems (Node-RED, phone shortcuts, voice assistants)
 - Light group support with automatic entity expansion and multi-instance routing
 - Auto turn-on option for all services
 
@@ -88,6 +89,7 @@ _If you want to show your support please_
   - [Device Triggers](#device-triggers)
   - [Working with Light Groups](#working-with-light-groups)
   - [Custom Icons for Presets](#custom-icons-for-presets)
+  - [REST API Trigger Endpoint](#rest-api-trigger-endpoint)
 - [Example Automations YAML](#example-automations-yaml)
   - [RGB Dynamic Effects](#rgb-dynamic-effects)
   - [CCT Preset Automations](#cct-preset-automations)
@@ -198,12 +200,16 @@ The MQTT base topic used by your Zigbee2MQTT installation. This integration subs
 3. Find the `base_topic` setting
 4. Use that exact value in this integration
 
-**Troubleshooting**:
+<details>
+<summary>Troubleshooting
+</summary>
+
 - If devices are not discovered, verify the base topic matches your Z2M configuration
 - Check that MQTT integration is properly configured and connected
 - Ensure Zigbee2MQTT is running and connected to the same MQTT broker
 - The integration validates the Z2M instance by subscribing to the `bridge/state` topic during setup
 - Use the Reconfigure option to update the base topic if needed
+</details>
 
 <details>
 <summary>Multiple Zigbee2MQTT Instances
@@ -1133,6 +1139,133 @@ You can use custom icons with your user presets using the [Custom Icons integrat
 2. When creating or editing a preset, set the icon field to your custom icon identifier (e.g., `local:my_preset_icon`)
 3. Standard MDI icons use the format `mdi:icon-name`, while custom icons use `local:icon-name`
 
+### REST API Trigger Endpoint
+
+The integration provides a REST API endpoint for triggering presets directly over HTTP. This is useful for external systems like Node-RED, iOS/Android shortcuts, voice assistant webhooks, or any HTTP client that can send POST requests.
+
+**Endpoint:** `POST /api/aqara_advanced_lighting/trigger`
+
+**Authentication:** Requires a Home Assistant [long-lived access token](https://developers.home-assistant.io/docs/auth_api/#long-lived-access-token) passed as a Bearer token in the `Authorization` header.
+
+#### Activating a preset
+
+Send a POST request with the target entity, preset type, and preset name:
+
+```bash
+curl -X POST http://homeassistant.local:8123/api/aqara_advanced_lighting/trigger \
+  -H "Authorization: Bearer YOUR_LONG_LIVED_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "entity_id": "light.aqara_ceiling_light",
+    "action": "activate",
+    "preset_type": "effect",
+    "preset": "t1m_sunset"
+  }'
+```
+
+**Request fields:**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `entity_id` | Yes | Target light entity ID |
+| `action` | Yes | `"activate"` or `"stop"` |
+| `preset_type` | Yes | `"effect"`, `"segment_pattern"`, `"cct_sequence"`, or `"segment_sequence"` |
+| `preset` | Yes (activate) | Preset name (built-in or user-created, case-insensitive) |
+| `brightness` | No | Brightness percentage override (1-100) |
+| `segments` | No | Segment range override (e.g. `"1-10"`, `"odd"`) |
+
+**Supported preset types and their actions:**
+
+| Preset type | Activate | Stop |
+|-------------|----------|------|
+| `effect` | Starts a dynamic effect | Stops the running effect |
+| `segment_pattern` | Applies a segment pattern | N/A (patterns are static) |
+| `cct_sequence` | Starts a CCT sequence | Stops the running sequence |
+| `segment_sequence` | Starts a segment sequence | Stops the running sequence |
+
+#### Stopping an effect or sequence
+
+```bash
+curl -X POST http://homeassistant.local:8123/api/aqara_advanced_lighting/trigger \
+  -H "Authorization: Bearer YOUR_LONG_LIVED_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "entity_id": "light.aqara_ceiling_light",
+    "action": "stop",
+    "preset_type": "effect",
+    "restore_state": true
+  }'
+```
+
+When stopping an effect, the optional `restore_state` field (default: `true`) controls whether the light returns to its previous state.
+
+#### Activating with optional overrides
+
+```bash
+curl -X POST http://homeassistant.local:8123/api/aqara_advanced_lighting/trigger \
+  -H "Authorization: Bearer YOUR_LONG_LIVED_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "entity_id": "light.aqara_ceiling_light",
+    "action": "activate",
+    "preset_type": "effect",
+    "preset": "t1m_sunset",
+    "brightness": 50
+  }'
+```
+
+#### Response format
+
+**Success:**
+```json
+{"success": true, "service": "set_dynamic_effect", "entity_id": "light.aqara_ceiling_light"}
+```
+
+**Error:**
+```json
+{"success": false, "error": "Entity `light.nonexistent` not found"}
+```
+
+**HTTP status codes:**
+
+| Code | Meaning |
+|------|---------|
+| 200 | Preset triggered or effect stopped successfully |
+| 400 | Invalid request (missing fields, invalid preset type, etc.) |
+| 401 | Missing or invalid authentication token |
+| 404 | Entity not found |
+| 422 | Service validation error (unsupported device, invalid preset name, etc.) |
+| 500 | Internal error during service execution |
+
+<details>
+<summary>Node-RED example</summary>
+
+Use an HTTP Request node with:
+- **Method**: POST
+- **URL**: `http://homeassistant.local:8123/api/aqara_advanced_lighting/trigger`
+- **Headers**: `Authorization: Bearer YOUR_LONG_LIVED_TOKEN`, `Content-Type: application/json`
+- **Payload**:
+```json
+{
+  "entity_id": "light.aqara_ceiling_light",
+  "action": "activate",
+  "preset_type": "effect",
+  "preset": "t1m_sunset"
+}
+```
+</details>
+
+<details>
+<summary>iOS Shortcuts example</summary>
+
+1. Create a new shortcut
+2. Add a "Get Contents of URL" action
+3. Set the URL to `http://homeassistant.local:8123/api/aqara_advanced_lighting/trigger`
+4. Set method to POST
+5. Add headers: `Authorization: Bearer YOUR_LONG_LIVED_TOKEN` and `Content-Type: application/json`
+6. Set the request body to JSON with your trigger parameters
+</details>
+
 ## Example Automations YAML
 
 ### RGB Dynamic Effects
@@ -1597,6 +1730,7 @@ We welcome contributions from the community! Whether you want to fix a bug, add 
 - **Code Contributions**: Bug fixes, new features, performance improvements
 - **Custom Presets**: Share your creative effect and sequence presets
 - **Documentation**: Improve guides, fix typos, add examples
+- **Translations**: Translate the integration to new languages
 - **Testing**: Test on different hardware, report issues
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on:
