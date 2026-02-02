@@ -9,6 +9,8 @@ import uuid
 from typing import TYPE_CHECKING
 
 from .const import (
+    DATA_SEGMENT_ZONE_STORE,
+    DOMAIN,
     EVENT_SEQUENCE_COMPLETED,
     EVENT_SEQUENCE_PAUSED,
     EVENT_SEQUENCE_RESUMED,
@@ -476,12 +478,39 @@ class SegmentSequenceManager:
             "loop_count": state.get("loop_count"),
         }
 
-    def _parse_segment_range(self, segments_str: str, total_segments: int) -> list[int]:
+    def _get_zones_for_entity(self, entity_id: str) -> dict[str, str] | None:
+        """Get segment zones for the device associated with an entity.
+
+        Args:
+            entity_id: The light entity ID.
+
+        Returns:
+            Dict of lowercased zone name to segment range string, or None.
+        """
+        zone_store = self.hass.data.get(DOMAIN, {}).get(DATA_SEGMENT_ZONE_STORE)
+        if not zone_store:
+            return None
+
+        z2m_name = self.mqtt_client.get_z2m_friendly_name(entity_id)
+        if not z2m_name:
+            return None
+
+        device = self.mqtt_client.entry.runtime_data.devices_by_name.get(z2m_name)
+        if not device:
+            return None
+
+        zones = zone_store.get_zones_for_resolution(device.ieee_address)
+        return zones if zones else None
+
+    def _parse_segment_range(
+        self, segments_str: str, total_segments: int, entity_id: str | None = None
+    ) -> list[int]:
         """Parse segment range string into list of segment numbers.
 
         Args:
             segments_str: Segment specification (e.g., "1-20", "odd", "even", "1,5,10", "all")
             total_segments: Total number of segments available
+            entity_id: Optional entity ID for zone name resolution
 
         Returns:
             List of segment numbers to control
@@ -494,6 +523,19 @@ class SegmentSequenceManager:
             return list(range(1, total_segments + 1, 2))
         if segments_str == "even":
             return list(range(2, total_segments + 1, 2))
+
+        # Check if the input matches a zone name
+        if entity_id:
+            zones = self._get_zones_for_entity(entity_id)
+            if zones and segments_str in zones:
+                _LOGGER.debug(
+                    "Resolving zone '%s' to segments '%s'",
+                    segments_str,
+                    zones[segments_str],
+                )
+                return self._parse_segment_range(
+                    zones[segments_str], total_segments, entity_id=None
+                )
 
         segments = []
 
@@ -785,7 +827,7 @@ class SegmentSequenceManager:
                         )
                     else:
                         # Parse segments
-                        segments = self._parse_segment_range(step.segments, total_segments)
+                        segments = self._parse_segment_range(step.segments, total_segments, entity_id=entity_id)
                         if not segments:
                             _LOGGER.warning("No valid segments for step %d", step_index + 1)
                             continue
@@ -1080,7 +1122,7 @@ class SegmentSequenceManager:
                         segment_colors = step.segment_colors
                     else:
                         segments = self._parse_segment_range(
-                            step.segments, total_segments
+                            step.segments, total_segments, entity_id=entity_id
                         )
                         if not segments:
                             continue

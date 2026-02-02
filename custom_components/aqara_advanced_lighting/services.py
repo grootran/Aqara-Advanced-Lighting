@@ -58,6 +58,7 @@ from .const import (
     DATA_CCT_SEQUENCE_MANAGER,
     DATA_PRESET_STORE,
     DATA_SEGMENT_SEQUENCE_MANAGER,
+    DATA_SEGMENT_ZONE_STORE,
     DOMAIN,
     EFFECT_PRESETS,
     PRESET_TYPE_CCT_SEQUENCE,
@@ -697,6 +698,27 @@ def _get_preset_store(hass: HomeAssistant):
     return preset_store
 
 
+def _get_zones_for_device(
+    hass: HomeAssistant, ieee_address: str
+) -> dict[str, str] | None:
+    """Get segment zones for a device, formatted for parse_segment_range().
+
+    Args:
+        hass: Home Assistant instance.
+        ieee_address: Device IEEE address.
+
+    Returns:
+        Dict of lowercased zone name to segment range string, or None.
+    """
+    if DOMAIN not in hass.data:
+        return None
+    zone_store = hass.data[DOMAIN].get(DATA_SEGMENT_ZONE_STORE)
+    if not zone_store:
+        return None
+    zones = zone_store.get_zones_for_resolution(ieee_address)
+    return zones if zones else None
+
+
 def _resolve_entity_ids(hass: HomeAssistant, entity_ids: list[str]) -> list[str]:
     """Resolve entity IDs, expanding groups to individual lights.
 
@@ -1166,6 +1188,17 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 )
                 entity_segments = None
 
+            # Resolve zone names in effect_segments (Z2M doesn't know our zones)
+            if entity_segments:
+                device_zones = _get_zones_for_device(hass, device.ieee_address)
+                if device_zones and entity_segments.strip().lower() in device_zones:
+                    entity_segments = device_zones[entity_segments.strip().lower()]
+                    _LOGGER.debug(
+                        "Resolved zone '%s' to '%s' for effect_segments",
+                        segments,
+                        entity_segments,
+                    )
+
             validated_entities.append(
                 (entity_id, entity_mqtt_client, z2m_name, device, entry_id, entity_state_manager, entity_segments)
             )
@@ -1567,7 +1600,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 segment_colors_data = segment_colors_data_input
 
             # Expand segment ranges into individual segments
-            expanded_data = expand_segment_colors(segment_colors_data, max_segments)
+            device_zones = _get_zones_for_device(hass, device.ieee_address)
+            expanded_data = expand_segment_colors(segment_colors_data, max_segments, zones=device_zones)
 
             # If turn_off_unspecified is enabled, add black to all unspecified segments
             if turn_off_unspecified:
@@ -1740,10 +1774,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     _LOGGER.warning("Failed to set brightness for %s: %s", entity_id, ex)
 
             # Determine segments to use
+            device_zones = _get_zones_for_device(hass, device.ieee_address)
             if segments_str:
                 # Parse segment range
                 max_segments = _get_actual_segment_count(hass, entity_id, device.model_id)
-                segment_list = parse_segment_range(segments_str, max_segments)
+                segment_list = parse_segment_range(segments_str, max_segments, zones=device_zones)
                 segment_count = len(segment_list)
             else:
                 # Use all segments
@@ -1908,10 +1943,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     _LOGGER.warning("Failed to set brightness for %s: %s", entity_id, ex)
 
             # Determine segments to use
+            device_zones = _get_zones_for_device(hass, device.ieee_address)
             if segments_str:
                 # Parse segment range
                 max_segments = _get_actual_segment_count(hass, entity_id, device.model_id)
-                segment_list = parse_segment_range(segments_str, max_segments)
+                segment_list = parse_segment_range(segments_str, max_segments, zones=device_zones)
                 segment_count = len(segment_list)
             else:
                 # Use all segments

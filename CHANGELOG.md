@@ -5,6 +5,61 @@ All notable changes to the Aqara Advanced Lighting integration will be documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-02-02
+
+### What's New
+
+Version 0.11.0 introduces segment zone naming, a REST API trigger endpoint for external integrations, drag-and-drop step reordering in sequence editors, per-user preferences with server-side storage, and editor state preservation across tab switches.
+
+### New Features
+
+#### Segment Zone Naming
+
+- **Per-device segment zone naming** - Assign custom names to segment zones on each device with a visual grid editor for intuitive zone configuration
+
+#### State preservation across tab switching
+
+- **Editor state preservation** - Editor state is preserved across tab switches with in-memory draft caching, so you don't lose work when switching tabs
+
+#### User Preferences
+
+- **Per-user preferences with server-side storage** - User preferences are stored on the server, persisting across browsers and devices
+- **Collapsed section persistence** - Collapsed/expanded state of panel sections is saved to user preferences and restored on load
+
+#### REST API Trigger Endpoint
+
+- **External preset activation** - New REST API endpoint allows triggering presets from external systems, scripts, or third-party integrations without going through the HA UI
+
+#### Sequence Editor Improvements
+
+- **Drag-and-drop step reordering** - Reorder steps in CCT and segment sequence editors by dragging them into position
+
+### Improvements
+
+- **Device trigger diagnostics** - Device trigger readiness information added to diagnostics output
+
+### Bug Fixes
+
+- **Fixed preset colors not applied** when editing or duplicating segment sequences
+- **Fixed effect selector** rendering issue
+- **Fixed endpoint authentication** for API requests
+
+### Breaking Changes
+
+None. This release is fully backward compatible with v0.10.0.
+
+- All existing presets and configurations preserved
+- No configuration changes required
+
+### Compatibility
+
+- Fully backward compatible with v0.10.0
+- All existing features and APIs unchanged
+- No configuration changes required
+- All presets and favorites preserved
+
+---
+
 ## [0.10.0] - 2026-01-31
 
 ### What's New
@@ -1290,3 +1345,4 @@ One click HACS cutton
 [0.8.1]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.8.1
 [0.9.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.9.0
 [0.10.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.10.0
+[0.11.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.11.0

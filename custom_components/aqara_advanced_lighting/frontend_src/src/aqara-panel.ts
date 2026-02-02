@@ -26,14 +26,19 @@ import {
   UserSegmentPatternPreset,
   UserCCTSequencePreset,
   UserSegmentSequencePreset,
+  UserPreferences,
+  XYColor,
   PresetSortOption,
   PresetSortPreferences,
+  SegmentZoneResolved,
+  EditorDraftCache,
 } from './types';
 import './effect-editor';
 import './pattern-editor';
 import './cct-sequence-editor';
 import './segment-sequence-editor';
 import './transition-curve-editor';
+import './color-history-swatches';
 
 @customElement('aqara-advanced-lighting-panel')
 export class AqaraPanel extends LitElement {
@@ -59,9 +64,13 @@ export class AqaraPanel extends LitElement {
   @state() private _cctPreviewActive = false;
   @state() private _segmentSequencePreviewActive = false;
   @state() private _sortPreferences: PresetSortPreferences = {};
+  @state() private _colorHistory: XYColor[] = [];
   @state() private _backendVersion?: string;
   @state() private _frontendVersion = '__FRONTEND_VERSION__';
-  @state() private _supportedEntities: Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; is_group?: boolean; member_count?: number }> = new Map();
+  @state() private _supportedEntities: Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; ieee_address?: string; segment_count?: number; is_group?: boolean; member_count?: number }> = new Map();
+  @state() private _deviceZones: Map<string, Array<{ name: string; segments: string }>> = new Map();
+  @state() private _zoneEditing: Map<string, Array<{ name: string; segments: string }>> = new Map();
+  @state() private _zoneSaving = false;
   @state() private _z2mInstances: Array<{
     entry_id: string;
     title: string;
@@ -78,6 +87,8 @@ export class AqaraPanel extends LitElement {
 
   private _tileCardRef: Ref<HTMLElement> = createRef();
   private _tileCards: Map<string, any> = new Map();
+  private _preferencesSaveTimer?: ReturnType<typeof setTimeout>;
+  private _editorDraftCache: EditorDraftCache = {};
 
   static styles = panelStyles;
 
@@ -121,9 +132,24 @@ export class AqaraPanel extends LitElement {
     this._loadPresets();
     this._loadFavorites();
     this._loadUserPresets();
-    this._loadSortPreferences();
+    this._loadUserPreferences();
     this._loadBackendVersion();
     this._loadSupportedEntities();
+
+    // Listen for color history events from child editors (bubbles through shadow DOM)
+    this.addEventListener('color-history-changed', this._handleColorHistoryChanged as EventListener);
+    this.addEventListener('clear-history', this._handleClearColorHistory as EventListener);
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.removeEventListener('color-history-changed', this._handleColorHistoryChanged as EventListener);
+    this.removeEventListener('clear-history', this._handleClearColorHistory as EventListener);
+    if (this._preferencesSaveTimer !== undefined) {
+      clearTimeout(this._preferencesSaveTimer);
+      this._preferencesSaveTimer = undefined;
+    }
+    this._tileCards.clear();
   }
 
   protected updated(changedProps: PropertyValues): void {
@@ -239,17 +265,134 @@ export class AqaraPanel extends LitElement {
     }
   }
 
-  private _loadSortPreferences(): void {
+  private async _loadUserPreferences(): Promise<void> {
+    if (!this.hass) return;
+
+    try {
+      const prefs = await this.hass.callApi<UserPreferences>(
+        'GET',
+        'aqara_advanced_lighting/user_preferences'
+      );
+
+      // One-time migration from localStorage
+      if (
+        prefs.color_history.length === 0 &&
+        Object.keys(prefs.sort_preferences).length === 0
+      ) {
+        const migrated = this._migrateLocalStoragePreferences();
+        if (migrated) {
+          const updated = await this.hass.callApi<UserPreferences>(
+            'PUT',
+            'aqara_advanced_lighting/user_preferences',
+            migrated as unknown as Record<string, unknown>
+          );
+          this._colorHistory = updated.color_history;
+          this._sortPreferences = updated.sort_preferences;
+          // Clean up localStorage after successful migration
+          localStorage.removeItem('aqara_lighting_color_history');
+          localStorage.removeItem('aqara_lighting_sort_preferences');
+          return;
+        }
+      }
+
+      this._colorHistory = prefs.color_history;
+      this._sortPreferences = prefs.sort_preferences;
+      if (prefs.collapsed_sections) {
+        this._collapsed = prefs.collapsed_sections;
+      }
+    } catch (err) {
+      console.warn('Failed to load user preferences:', err);
+      // Fall back to localStorage as read-only source if server unavailable
+      this._loadSortPreferencesFromLocalStorage();
+    }
+  }
+
+  private _migrateLocalStoragePreferences(): Partial<UserPreferences> | null {
+    const migrated: Partial<UserPreferences> = {};
+    let hasMigrationData = false;
+
+    try {
+      const localColors = localStorage.getItem('aqara_lighting_color_history');
+      if (localColors) {
+        const parsed = JSON.parse(localColors);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          migrated.color_history = parsed;
+          hasMigrationData = true;
+        }
+      }
+    } catch {
+      // Ignore parse errors
+    }
+
+    try {
+      const localSort = localStorage.getItem('aqara_lighting_sort_preferences');
+      if (localSort) {
+        const parsed = JSON.parse(localSort);
+        if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+          migrated.sort_preferences = parsed;
+          hasMigrationData = true;
+        }
+      }
+    } catch {
+      // Ignore parse errors
+    }
+
+    return hasMigrationData ? migrated : null;
+  }
+
+  private _loadSortPreferencesFromLocalStorage(): void {
     try {
       const stored = localStorage.getItem('aqara_lighting_sort_preferences');
       if (stored) {
-        const parsed = JSON.parse(stored) as PresetSortPreferences;
-        this._sortPreferences = { ...parsed };
+        this._sortPreferences = JSON.parse(stored) as PresetSortPreferences;
       }
-    } catch (err) {
-      console.warn('Failed to load sort preferences:', err);
+    } catch {
+      // Ignore
     }
   }
+
+  private _saveUserPreferences(immediate = false): void {
+    if (!this.hass) return;
+
+    // Clear any pending debounced save
+    if (this._preferencesSaveTimer !== undefined) {
+      clearTimeout(this._preferencesSaveTimer);
+      this._preferencesSaveTimer = undefined;
+    }
+
+    const doSave = () => {
+      this.hass.callApi<UserPreferences>(
+        'PUT',
+        'aqara_advanced_lighting/user_preferences',
+        {
+          color_history: this._colorHistory,
+          sort_preferences: this._sortPreferences,
+          collapsed_sections: this._collapsed,
+        } as unknown as Record<string, unknown>
+      ).catch(err => {
+        console.warn('Failed to save user preferences:', err);
+      });
+    };
+
+    if (immediate) {
+      doSave();
+    } else {
+      this._preferencesSaveTimer = setTimeout(doSave, 500);
+    }
+  }
+
+  private _handleColorHistoryChanged = (e: Event): void => {
+    const detail = (e as CustomEvent).detail;
+    if (detail && Array.isArray(detail.colorHistory)) {
+      this._colorHistory = detail.colorHistory;
+      this._saveUserPreferences();
+    }
+  };
+
+  private _handleClearColorHistory = (_e: Event): void => {
+    this._colorHistory = [];
+    this._saveUserPreferences(true); // Immediate save for clear
+  };
 
   private _getSortPreference(sectionId: string): PresetSortOption {
     return this._sortPreferences[sectionId] || 'name-asc';
@@ -271,19 +414,23 @@ export class AqaraPanel extends LitElement {
 
   private async _loadSupportedEntities(): Promise<void> {
     try {
-      const response = await fetch('/api/aqara_advanced_lighting/supported_entities');
+      const response = await fetch('/api/aqara_advanced_lighting/supported_entities', {
+        headers: { Authorization: `Bearer ${this.hass?.auth?.data?.access_token}` },
+      });
       if (!response.ok) {
         console.warn('Failed to load supported entities:', response.status);
         return;
       }
       const data = await response.json();
       // Build a map for fast lookup
-      const entityMap = new Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; is_group?: boolean; member_count?: number }>();
+      const entityMap = new Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; ieee_address?: string; segment_count?: number; is_group?: boolean; member_count?: number }>();
       for (const entity of data.entities || []) {
         entityMap.set(entity.entity_id, {
           device_type: entity.device_type,
           model_id: entity.model_id,
           z2m_friendly_name: entity.z2m_friendly_name,
+          ieee_address: entity.ieee_address,
+          segment_count: entity.segment_count,
         });
       }
 
@@ -307,12 +454,233 @@ export class AqaraPanel extends LitElement {
     }
   }
 
-  private _saveSortPreferences(): void {
-    try {
-      localStorage.setItem('aqara_lighting_sort_preferences', JSON.stringify(this._sortPreferences));
-    } catch (err) {
-      console.warn('Failed to save sort preferences:', err);
+  /**
+   * Get unique segment-capable devices from selected entities.
+   * Returns a map of ieee_address to { device_type, segment_count, z2m_friendly_name }.
+   */
+  private _getSelectedSegmentDevices(): Map<string, { device_type: string; segment_count: number; z2m_friendly_name: string; entity_id: string }> {
+    const devices = new Map<string, { device_type: string; segment_count: number; z2m_friendly_name: string; entity_id: string }>();
+    for (const entityId of this._selectedEntities) {
+      const info = this._supportedEntities.get(entityId);
+      if (!info?.ieee_address) continue;
+      if (info.device_type !== 't1m' && info.device_type !== 't1_strip') continue;
+      if (devices.has(info.ieee_address)) continue;
+      // T1 Strip has segment_count=0 in backend (variable based on length)
+      // so use the dynamic calculation for strips
+      const segmentCount = info.device_type === 't1_strip'
+        ? this._getT1StripSegmentCount()
+        : (info.segment_count || 0);
+      if (segmentCount === 0) continue;
+      devices.set(info.ieee_address, {
+        device_type: info.device_type,
+        segment_count: segmentCount,
+        z2m_friendly_name: info.z2m_friendly_name,
+        entity_id: entityId,
+      });
     }
+    return devices;
+  }
+
+  /**
+   * Load zones for a specific device from the backend.
+   */
+  private async _loadZonesForDevice(ieeeAddress: string): Promise<void> {
+    try {
+      const response = await fetch(`/api/aqara_advanced_lighting/segment_zones/${encodeURIComponent(ieeeAddress)}`, {
+        headers: { Authorization: `Bearer ${this.hass?.auth?.data?.access_token}` },
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      const zones: Array<{ name: string; segments: string }> = Object.entries(data.zones || {}).map(
+        ([name, segments]) => ({ name, segments: segments as string })
+      );
+      this._deviceZones = new Map(this._deviceZones).set(ieeeAddress, zones);
+      this._zoneEditing = new Map(this._zoneEditing).set(ieeeAddress, zones.map(z => ({ ...z })));
+    } catch (err) {
+      console.warn('Failed to load zones for device:', ieeeAddress, err);
+    }
+  }
+
+  /**
+   * Load zones for all selected segment-capable devices.
+   */
+  private async _loadZonesForSelectedDevices(): Promise<void> {
+    const devices = this._getSelectedSegmentDevices();
+    await Promise.all(
+      Array.from(devices.keys()).map(ieee => this._loadZonesForDevice(ieee))
+    );
+  }
+
+  /**
+   * Validate that all segment numbers in a range string are within the device maximum.
+   * Returns an error message if invalid, or null if valid.
+   */
+  private _validateSegmentRange(rangeStr: string, maxSegments: number, zoneName: string): string | null {
+    const trimmed = rangeStr.trim().toLowerCase();
+    // Keywords are always valid
+    const keywords = new Set(['odd', 'even', 'all', 'first-half', 'second-half']);
+    if (keywords.has(trimmed)) return null;
+
+    // Parse comma-separated parts
+    const parts = trimmed.split(',');
+    for (const part of parts) {
+      const p = part.trim();
+      const rangeMatch = p.match(/^(\d+)-(\d+)$/);
+      if (rangeMatch) {
+        const start = parseInt(rangeMatch[1] ?? '', 10);
+        const end = parseInt(rangeMatch[2] ?? '', 10);
+        if (isNaN(start) || isNaN(end)) {
+          return this._localize('config.zone_invalid_range')
+            .replace('{name}', zoneName).replace('{range}', p);
+        }
+        if (start > maxSegments || end > maxSegments) {
+          const exceeding = Math.max(start, end);
+          return this._localize('config.zone_out_of_range')
+            .replace('{name}', zoneName)
+            .replace('{segment}', String(exceeding))
+            .replace('{max}', String(maxSegments));
+        }
+      } else {
+        const num = parseInt(p, 10);
+        if (isNaN(num)) {
+          return this._localize('config.zone_invalid_range')
+            .replace('{name}', zoneName).replace('{range}', p);
+        }
+        if (num > maxSegments) {
+          return this._localize('config.zone_out_of_range')
+            .replace('{name}', zoneName)
+            .replace('{segment}', String(num))
+            .replace('{max}', String(maxSegments));
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Save zones for a device.
+   */
+  private async _saveZones(ieeeAddress: string, maxSegments: number): Promise<void> {
+    const editZones = this._zoneEditing.get(ieeeAddress) || [];
+    const zonesPayload: Record<string, string> = {};
+    const namesSeen = new Set<string>();
+
+    for (const zone of editZones) {
+      const name = zone.name.trim();
+      const segments = zone.segments.trim();
+      if (!name && !segments) continue;
+      if (!name) {
+        this._showToast(this._localize('config.zone_name_required'));
+        return;
+      }
+      if (!segments) {
+        this._showToast(this._localize('config.zone_segments_required'));
+        return;
+      }
+      const nameLower = name.toLowerCase();
+      if (namesSeen.has(nameLower)) {
+        this._showToast(this._localize('config.zone_duplicate_name', { name }));
+        return;
+      }
+      namesSeen.add(nameLower);
+
+      // Validate segment range against device maximum
+      const rangeError = this._validateSegmentRange(segments, maxSegments, name);
+      if (rangeError) {
+        this._showToast(rangeError);
+        return;
+      }
+
+      zonesPayload[name] = segments;
+    }
+
+    this._zoneSaving = true;
+    try {
+      const response = await fetch(`/api/aqara_advanced_lighting/segment_zones/${encodeURIComponent(ieeeAddress)}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.hass?.auth?.data?.access_token}`,
+        },
+        body: JSON.stringify({ zones: zonesPayload }),
+      });
+      if (response.ok) {
+        await this._loadZonesForDevice(ieeeAddress);
+        this._showToast(this._localize('config.zone_saved'));
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        this._showToast(errorData.message || this._localize('config.zone_save_error'));
+      }
+    } catch {
+      this._showToast(this._localize('config.zone_save_error'));
+    } finally {
+      this._zoneSaving = false;
+    }
+  }
+
+  /**
+   * Add a new empty zone row for editing.
+   */
+  private _addZoneRow(ieeeAddress: string): void {
+    const current = this._zoneEditing.get(ieeeAddress) || [];
+    const updated = [...current, { name: '', segments: '' }];
+    this._zoneEditing = new Map(this._zoneEditing).set(ieeeAddress, updated);
+  }
+
+  /**
+   * Remove a zone row from the editing list.
+   */
+  private async _removeZoneRow(ieeeAddress: string, index: number): Promise<void> {
+    const current = this._zoneEditing.get(ieeeAddress) || [];
+    const zone = current[index];
+
+    // If this zone exists in the saved data, delete it from the backend immediately
+    if (zone) {
+      const savedZones = this._deviceZones.get(ieeeAddress) || [];
+      const isSaved = savedZones.some(
+        z => z.name.toLowerCase() === zone.name.trim().toLowerCase() && zone.name.trim() !== ''
+      );
+      if (isSaved) {
+        try {
+          await fetch(
+            `/api/aqara_advanced_lighting/segment_zones/${encodeURIComponent(ieeeAddress)}/${encodeURIComponent(zone.name.trim())}`,
+            {
+              method: 'DELETE',
+              headers: { Authorization: `Bearer ${this.hass?.auth?.data?.access_token}` },
+            }
+          );
+          // Reload saved zones from backend to stay in sync
+          await this._loadZonesForDevice(ieeeAddress);
+          return;
+        } catch {
+          this._showToast(this._localize('config.zone_save_error'));
+          return;
+        }
+      }
+    }
+
+    // Unsaved row: just remove from the editing list
+    const updated = current.filter((_, i) => i !== index);
+    this._zoneEditing = new Map(this._zoneEditing).set(ieeeAddress, updated);
+  }
+
+  /**
+   * Update a zone's name or segments field in the editing list.
+   */
+  private _updateZoneField(ieeeAddress: string, index: number, field: 'name' | 'segments', value: string): void {
+    const current = this._zoneEditing.get(ieeeAddress) || [];
+    const updated = current.map((z, i) => i === index ? { ...z, [field]: value } : z);
+    this._zoneEditing = new Map(this._zoneEditing).set(ieeeAddress, updated);
+  }
+
+  /**
+   * Check if zones have been modified from saved state.
+   */
+  private _zonesModified(ieeeAddress: string): boolean {
+    const saved = this._deviceZones.get(ieeeAddress) || [];
+    const editing = this._zoneEditing.get(ieeeAddress) || [];
+    if (saved.length !== editing.length) return true;
+    return saved.some((z, i) => z.name !== editing[i]?.name || z.segments !== editing[i]?.segments);
   }
 
   private _setSortPreference(sectionId: string, value: PresetSortOption): void {
@@ -320,7 +688,7 @@ export class AqaraPanel extends LitElement {
       ...this._sortPreferences,
       [sectionId]: value,
     };
-    this._saveSortPreferences();
+    this._saveUserPreferences();
   }
 
   // Sorting utility functions
@@ -511,6 +879,9 @@ export class AqaraPanel extends LitElement {
   }
 
   private _setActiveTab(tab: PanelTab): void {
+    if (tab !== this._activeTab) {
+      this._cacheCurrentEditorDraft();
+    }
     this._activeTab = tab;
   }
 
@@ -520,7 +891,52 @@ export class AqaraPanel extends LitElement {
       return;
     }
     if (newTab !== this._activeTab) {
+      this._cacheCurrentEditorDraft();
       this._activeTab = newTab;
+    }
+  }
+
+  private _cacheCurrentEditorDraft(): void {
+    const editorSelectors: Partial<Record<PanelTab, string>> = {
+      effects: 'effect-editor',
+      patterns: 'pattern-editor',
+      cct: 'cct-sequence-editor',
+      segments: 'segment-sequence-editor',
+    };
+
+    const selector = editorSelectors[this._activeTab];
+    if (!selector) return;
+
+    const editor = this.shadowRoot?.querySelector(selector) as
+      | { getDraftState?: () => unknown }
+      | null;
+    if (editor && typeof editor.getDraftState === 'function') {
+      const draft = editor.getDraftState();
+      if (draft) {
+        const tab = this._activeTab as keyof EditorDraftCache;
+        this._editorDraftCache = { ...this._editorDraftCache, [tab]: draft };
+      }
+    }
+  }
+
+  private _getEditorDraft(tab: PanelTab): unknown {
+    const key = tab as keyof EditorDraftCache;
+    const draft = this._editorDraftCache[key];
+    if (draft) {
+      // Clear the draft after retrieval (one-time restore)
+      const { [key]: _, ...rest } = this._editorDraftCache;
+      this._editorDraftCache = rest;
+    }
+    return draft;
+  }
+
+  private _clearEditorDraft(tab?: PanelTab): void {
+    if (tab) {
+      const key = tab as keyof EditorDraftCache;
+      const { [key]: _, ...rest } = this._editorDraftCache;
+      this._editorDraftCache = rest;
+    } else {
+      this._editorDraftCache = {};
     }
   }
 
@@ -531,7 +947,7 @@ export class AqaraPanel extends LitElement {
     const firstEntity = this._selectedEntities[0];
     const defaultName = this._selectedEntities.length === 1 && firstEntity
       ? this._getEntityFriendlyName(firstEntity)
-      : `${this._selectedEntities.length} lights`;
+      : this._localize('target.lights_count', { count: this._selectedEntities.length.toString() });
 
     this._favoriteInputName = defaultName;
     this._showFavoriteInput = true;
@@ -591,6 +1007,8 @@ export class AqaraPanel extends LitElement {
     this._activeFavoriteId = favorite.id;
     // Load curvature from first T2 entity when favorite is selected
     this._loadCurvatureFromEntity();
+    // Load zones for selected segment-capable devices
+    this._loadZonesForSelectedDevices();
   }
 
   private _getEntityFriendlyName(entityId: string): string {
@@ -818,7 +1236,52 @@ export class AqaraPanel extends LitElement {
         break;
     }
 
-    return { deviceType: compatibleType, hasSelection: true };
+    // Resolve zones for the first segment-capable selected device
+    const resolvedZones = this._getResolvedZonesForSelection();
+
+    return { deviceType: compatibleType, hasSelection: true, zones: resolvedZones };
+  }
+
+  /**
+   * Get resolved zones (with 0-based segment indices) for the first
+   * segment-capable device in the current selection.
+   */
+  private _getResolvedZonesForSelection(): SegmentZoneResolved[] {
+    for (const entityId of this._selectedEntities) {
+      const info = this._supportedEntities.get(entityId);
+      if (!info?.ieee_address) continue;
+      if (info.device_type !== 't1m' && info.device_type !== 't1_strip') continue;
+
+      // T1 Strip has segment_count=0 in backend (variable based on length)
+      const maxSegments = info.device_type === 't1_strip'
+        ? this._getT1StripSegmentCount()
+        : (info.segment_count || 0);
+      if (maxSegments === 0) continue;
+
+      const zones = this._deviceZones.get(info.ieee_address) || [];
+      return zones.map(z => {
+        // Parse the segment range string into 0-based indices
+        const indices: number[] = [];
+        for (const part of z.segments.split(',')) {
+          const trimmed = part.trim();
+          const rangeMatch = trimmed.match(/^(\d+)-(\d+)$/);
+          if (rangeMatch && rangeMatch[1] && rangeMatch[2]) {
+            const start = parseInt(rangeMatch[1], 10);
+            const end = parseInt(rangeMatch[2], 10);
+            for (let i = start; i <= end && i <= maxSegments; i++) {
+              indices.push(i - 1); // Convert to 0-based
+            }
+          } else {
+            const num = parseInt(trimmed, 10);
+            if (!isNaN(num) && num >= 1 && num <= maxSegments) {
+              indices.push(num - 1); // Convert to 0-based
+            }
+          }
+        }
+        return { name: z.name, segmentIndices: indices };
+      });
+    }
+    return [];
   }
 
   // Compatibility checks for each tab - check actual entity capabilities
@@ -1027,6 +1490,9 @@ export class AqaraPanel extends LitElement {
 
     // Load curvature from first T2 entity when selection changes
     this._loadCurvatureFromEntity();
+
+    // Load zones for selected segment-capable devices
+    this._loadZonesForSelectedDevices();
   }
 
   private _handleBrightnessChange(e: CustomEvent): void {
@@ -1043,6 +1509,7 @@ export class AqaraPanel extends LitElement {
       ...this._collapsed,
       [sectionId]: !expanded,
     };
+    this._saveUserPreferences();
   }
 
   private async _activateDynamicEffect(preset: DynamicEffectPreset): Promise<void> {
@@ -1405,7 +1872,7 @@ export class AqaraPanel extends LitElement {
       <div class="header">
         <div class="toolbar">
           <ha-menu-button .hass=${this.hass} .narrow=${this.narrow}></ha-menu-button>
-          <div class="main-title">Aqara Advanced Lighting</div>
+          <div class="main-title">${this._localize('title')}</div>
           ${this._backendVersion ? html`
             <div
               class="version-display ${versionMismatch ? 'version-mismatch' : ''}"
@@ -1564,7 +2031,7 @@ export class AqaraPanel extends LitElement {
                             <div class="favorite-button-content">
                               <div class="favorite-button-name">${favorite.name}</div>
                               ${entityCount > 1
-                                ? html`<div class="favorite-button-count">${entityCount} lights</div>`
+                                ? html`<div class="favorite-button-count">${this._localize('target.favorite_lights_count', { count: entityCount.toString() })}</div>`
                                 : ''}
                             </div>
                             <ha-icon-button
@@ -1787,6 +2254,7 @@ export class AqaraPanel extends LitElement {
         <effect-editor
           .hass=${this.hass}
           .preset=${editingEffect}
+          .draft=${this._getEditorDraft('effects')}
           .translations=${this._translations}
           .editMode=${!!editingEffect && !this._editingPreset?.isDuplicate}
           .hasSelectedEntities=${hasSelection}
@@ -1794,6 +2262,7 @@ export class AqaraPanel extends LitElement {
           .previewActive=${this._effectPreviewActive}
           .stripSegmentCount=${this._getT1StripSegmentCount()}
           .deviceContext=${this._getDeviceContextForEditor('effect')}
+          .colorHistory=${this._colorHistory}
           @save=${this._handleEffectSave}
           @preview=${this._handleEffectPreview}
           @stop-preview=${this._handleEffectStopPreview}
@@ -1810,11 +2279,13 @@ export class AqaraPanel extends LitElement {
     } else {
       await this._saveUserPreset('effect', e.detail);
     }
+    this._clearEditorDraft('effects');
     this._editingPreset = undefined;
     this._setActiveTab('presets');
   }
 
   private _handleEditorCancel(): void {
+    this._clearEditorDraft(this._activeTab);
     this._editingPreset = undefined;
     this._setActiveTab('activate');
   }
@@ -1896,12 +2367,14 @@ export class AqaraPanel extends LitElement {
         <pattern-editor
           .hass=${this.hass}
           .preset=${editingPattern}
+          .draft=${this._getEditorDraft('patterns')}
           .translations=${this._translations}
           .editMode=${!!editingPattern && !this._editingPreset?.isDuplicate}
           .hasSelectedEntities=${hasSelection}
           .isCompatible=${isCompatible}
           .stripSegmentCount=${this._getT1StripSegmentCount()}
           .deviceContext=${this._getDeviceContextForEditor('pattern')}
+          .colorHistory=${this._colorHistory}
           @save=${this._handlePatternSave}
           @preview=${this._handlePatternPreview}
           @cancel=${this._handleEditorCancel}
@@ -1917,6 +2390,7 @@ export class AqaraPanel extends LitElement {
     } else {
       await this._saveUserPreset('segment_pattern', e.detail);
     }
+    this._clearEditorDraft('patterns');
     this._editingPreset = undefined;
     this._setActiveTab('presets');
   }
@@ -1945,7 +2419,7 @@ export class AqaraPanel extends LitElement {
         entity_id: compatibleEntities,
         segment_colors,
         turn_on: true,
-        turn_off_unspecified: true,
+        turn_off_unspecified: data.turn_off_unspecified ?? true,
         sync: true,
       });
     } catch (err) {
@@ -1972,6 +2446,7 @@ export class AqaraPanel extends LitElement {
         <cct-sequence-editor
           .hass=${this.hass}
           .preset=${editingCCT}
+          .draft=${this._getEditorDraft('cct')}
           .translations=${this._translations}
           .editMode=${!!editingCCT && !this._editingPreset?.isDuplicate}
           .hasSelectedEntities=${hasSelection}
@@ -1995,6 +2470,7 @@ export class AqaraPanel extends LitElement {
     } else {
       await this._saveUserPreset('cct_sequence', e.detail);
     }
+    this._clearEditorDraft('cct');
     this._editingPreset = undefined;
     this._setActiveTab('presets');
   }
@@ -2066,6 +2542,7 @@ export class AqaraPanel extends LitElement {
         <segment-sequence-editor
           .hass=${this.hass}
           .preset=${editingSegment}
+          .draft=${this._getEditorDraft('segments')}
           .translations=${this._translations}
           .editMode=${!!editingSegment && !this._editingPreset?.isDuplicate}
           .hasSelectedEntities=${hasSelection}
@@ -2073,6 +2550,7 @@ export class AqaraPanel extends LitElement {
           .previewActive=${this._segmentSequencePreviewActive}
           .stripSegmentCount=${this._getT1StripSegmentCount()}
           .deviceContext=${this._getDeviceContextForEditor('segment')}
+          .colorHistory=${this._colorHistory}
           @save=${this._handleSegmentSequenceSave}
           @preview=${this._handleSegmentSequencePreview}
           @stop-preview=${this._handleSegmentSequenceStopPreview}
@@ -2089,6 +2567,7 @@ export class AqaraPanel extends LitElement {
     } else {
       await this._saveUserPreset('segment_sequence', e.detail);
     }
+    this._clearEditorDraft('segments');
     this._editingPreset = undefined;
     this._setActiveTab('presets');
   }
@@ -2448,7 +2927,7 @@ export class AqaraPanel extends LitElement {
         <div slot="header" class="section-header">
           <div>
             <div class="section-title">${title}</div>
-            <div class="section-subtitle">${presets.length} presets</div>
+            <div class="section-subtitle">${this._localize('presets.presets_count', { count: presets.length.toString() })}</div>
           </div>
           <div class="section-header-controls" @click=${(e: Event) => e.stopPropagation()}>
             ${this._renderSortDropdown(sectionId)}
@@ -2509,21 +2988,25 @@ export class AqaraPanel extends LitElement {
 
   // Edit preset methods - navigate to editor tab with preset loaded
   private _editEffectPreset(preset: UserEffectPreset): void {
+    this._clearEditorDraft('effects');
     this._editingPreset = { type: 'effect', preset };
     this._setActiveTab('effects');
   }
 
   private _editPatternPreset(preset: UserSegmentPatternPreset): void {
+    this._clearEditorDraft('patterns');
     this._editingPreset = { type: 'pattern', preset };
     this._setActiveTab('patterns');
   }
 
   private _editCCTSequencePreset(preset: UserCCTSequencePreset): void {
+    this._clearEditorDraft('cct');
     this._editingPreset = { type: 'cct', preset };
     this._setActiveTab('cct');
   }
 
   private _editSegmentSequencePreset(preset: UserSegmentSequencePreset): void {
+    this._clearEditorDraft('segments');
     this._editingPreset = { type: 'segment', preset };
     this._setActiveTab('segments');
   }
@@ -2533,10 +3016,11 @@ export class AqaraPanel extends LitElement {
     const copy: UserEffectPreset = {
       ...preset,
       id: '',
-      name: `${preset.name} (copy)`,
+      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
       created_at: '',
       modified_at: '',
     };
+    this._clearEditorDraft('effects');
     this._editingPreset = { type: 'effect', preset: copy, isDuplicate: true };
     this._setActiveTab('effects');
   }
@@ -2545,10 +3029,11 @@ export class AqaraPanel extends LitElement {
     const copy: UserSegmentPatternPreset = {
       ...preset,
       id: '',
-      name: `${preset.name} (copy)`,
+      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
       created_at: '',
       modified_at: '',
     };
+    this._clearEditorDraft('patterns');
     this._editingPreset = { type: 'pattern', preset: copy, isDuplicate: true };
     this._setActiveTab('patterns');
   }
@@ -2557,10 +3042,11 @@ export class AqaraPanel extends LitElement {
     const copy: UserCCTSequencePreset = {
       ...preset,
       id: '',
-      name: `${preset.name} (copy)`,
+      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
       created_at: '',
       modified_at: '',
     };
+    this._clearEditorDraft('cct');
     this._editingPreset = { type: 'cct', preset: copy, isDuplicate: true };
     this._setActiveTab('cct');
   }
@@ -2569,10 +3055,11 @@ export class AqaraPanel extends LitElement {
     const copy: UserSegmentSequencePreset = {
       ...preset,
       id: '',
-      name: `${preset.name} (copy)`,
+      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
       created_at: '',
       modified_at: '',
     };
+    this._clearEditorDraft('segments');
     this._editingPreset = { type: 'segment', preset: copy, isDuplicate: true };
     this._setActiveTab('segments');
   }
@@ -2581,7 +3068,7 @@ export class AqaraPanel extends LitElement {
   private _duplicateBuiltinEffectPreset(preset: DynamicEffectPreset, deviceType: string): void {
     const userPreset: UserEffectPreset = {
       id: '',
-      name: `${preset.name} (copy)`,
+      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
       effect: preset.effect,
       effect_speed: preset.speed,
       effect_brightness: preset.brightness != null ? Math.round(preset.brightness / 255 * 100) : 100,
@@ -2590,6 +3077,7 @@ export class AqaraPanel extends LitElement {
       created_at: '',
       modified_at: '',
     };
+    this._clearEditorDraft('effects');
     this._editingPreset = { type: 'effect', preset: userPreset, isDuplicate: true };
     this._setActiveTab('effects');
   }
@@ -2617,7 +3105,7 @@ export class AqaraPanel extends LitElement {
     const scaled = this._scaleSegmentPattern(preset.segments, targetCount);
     const userPreset: UserSegmentPatternPreset = {
       id: '',
-      name: `${preset.name} (copy)`,
+      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
       device_type: deviceType,
       segments: scaled.map((seg, index) => ({
         segment: index + 1,
@@ -2626,6 +3114,7 @@ export class AqaraPanel extends LitElement {
       created_at: '',
       modified_at: '',
     };
+    this._clearEditorDraft('patterns');
     this._editingPreset = { type: 'pattern', preset: userPreset, isDuplicate: true };
     this._setActiveTab('patterns');
   }
@@ -2633,7 +3122,7 @@ export class AqaraPanel extends LitElement {
   private _duplicateBuiltinCCTSequencePreset(preset: CCTSequencePreset): void {
     const userPreset: UserCCTSequencePreset = {
       id: '',
-      name: `${preset.name} (copy)`,
+      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
       steps: preset.steps.map((step) => ({
         ...step,
         brightness: Math.round(step.brightness / 255 * 100),
@@ -2644,6 +3133,7 @@ export class AqaraPanel extends LitElement {
       created_at: '',
       modified_at: '',
     };
+    this._clearEditorDraft('cct');
     this._editingPreset = { type: 'cct', preset: userPreset, isDuplicate: true };
     this._setActiveTab('cct');
   }
@@ -2651,7 +3141,7 @@ export class AqaraPanel extends LitElement {
   private _duplicateBuiltinSegmentSequencePreset(preset: SegmentSequencePreset, deviceType: string): void {
     const userPreset: UserSegmentSequencePreset = {
       id: '',
-      name: `${preset.name} (copy)`,
+      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
       device_type: deviceType,
       steps: preset.steps.map((step) => ({ ...step })),
       loop_mode: preset.loop_mode,
@@ -2660,6 +3150,7 @@ export class AqaraPanel extends LitElement {
       created_at: '',
       modified_at: '',
     };
+    this._clearEditorDraft('segments');
     this._editingPreset = { type: 'segment', preset: userPreset, isDuplicate: true };
     this._setActiveTab('segments');
   }
@@ -3179,22 +3670,22 @@ export class AqaraPanel extends LitElement {
                               @click=${this._applyCurvature}
                               ?disabled=${!transitionCurveEntity || this._applyingCurvature}
                             >
-                              ${this._applyingCurvature ? 'Applying...' : 'Apply'}
+                              ${this._applyingCurvature ? this._localize('config.applying_button') : this._localize('config.apply_button')}
                             </ha-button>
                           </div>
                         </div>
                         <div class="curve-legend">
                           <span class="legend-item">
                             <span class="legend-dot fast-slow"></span>
-                            0.2-1: Fast then slow
+                            ${this._localize('config.curve_legend_fast_slow')}
                           </span>
                           <span class="legend-item">
                             <span class="legend-dot linear"></span>
-                            1: Linear
+                            ${this._localize('config.curve_legend_linear')}
                           </span>
                           <span class="legend-item">
                             <span class="legend-dot slow-fast"></span>
-                            1-6: Slow then fast
+                            ${this._localize('config.curve_legend_slow_fast')}
                           </span>
                         </div>
                       </div>
@@ -3219,7 +3710,7 @@ export class AqaraPanel extends LitElement {
                         ></ha-selector>
                         ${!initialBrightnessEntity ? html`
                           <div style="margin-top: 8px; font-size: var(--ha-font-size-s, 12px); color: var(--secondary-text-color);">
-                            Initial brightness entity not found for this device.
+                            ${this._localize('config.initial_brightness_not_found')}
                           </div>
                         ` : ''}
                       </div>
@@ -3239,7 +3730,7 @@ export class AqaraPanel extends LitElement {
             >
               <div slot="header" class="section-header">
                 <div>
-                  <div class="section-title">Dimming settings</div>
+                  <div class="section-title">${this._localize('config.dimming_settings_title')}</div>
                 </div>
               </div>
               <div class="section-content" style="display: block; padding: 0;">
@@ -3263,7 +3754,7 @@ export class AqaraPanel extends LitElement {
                         ?disabled=${!onOffDurationEntity}
                       ></ha-selector>
                       ${!onOffDurationEntity ? html`
-                        <div class="entity-not-found">Entity not found for this device.</div>
+                        <div class="entity-not-found">${this._localize('config.entity_not_found')}</div>
                       ` : ''}
                     </div>
                   </div>
@@ -3286,7 +3777,7 @@ export class AqaraPanel extends LitElement {
                         ?disabled=${!offOnDurationEntity}
                       ></ha-selector>
                       ${!offOnDurationEntity ? html`
-                        <div class="entity-not-found">Entity not found for this device.</div>
+                        <div class="entity-not-found">${this._localize('config.entity_not_found')}</div>
                       ` : ''}
                     </div>
                   </div>
@@ -3309,7 +3800,7 @@ export class AqaraPanel extends LitElement {
                         ?disabled=${!dimmingRangeMinEntity}
                       ></ha-selector>
                       ${!dimmingRangeMinEntity ? html`
-                        <div class="entity-not-found">Entity not found for this device.</div>
+                        <div class="entity-not-found">${this._localize('config.entity_not_found')}</div>
                       ` : ''}
                     </div>
                   </div>
@@ -3332,7 +3823,7 @@ export class AqaraPanel extends LitElement {
                         ?disabled=${!dimmingRangeMaxEntity}
                       ></ha-selector>
                       ${!dimmingRangeMaxEntity ? html`
-                        <div class="entity-not-found">Entity not found for this device.</div>
+                        <div class="entity-not-found">${this._localize('config.entity_not_found')}</div>
                       ` : ''}
                     </div>
                   </div>
@@ -3340,7 +3831,7 @@ export class AqaraPanel extends LitElement {
                 ${!hasDimmingEntities ? html`
                   <div style="padding: 16px; text-align: center; color: var(--secondary-text-color);">
                     <ha-icon icon="mdi:information-outline" style="margin-right: 8px;"></ha-icon>
-                    Dimming settings are not available for this device.
+                    ${this._localize('config.dimming_not_available')}
                   </div>
                 ` : ''}
               </div>
@@ -3379,14 +3870,118 @@ export class AqaraPanel extends LitElement {
                   ></ha-selector>
                   <div style="margin-top: 8px; font-size: var(--ha-font-size-s, 12px); color: var(--secondary-text-color);">
                     ${t1StripLengthEntity
-                      ? 'Each meter has 5 addressable RGB segments (20cm each).'
-                      : 'Length entity not found for this device.'}
+                      ? this._localize('config.strip_length_info')
+                      : this._localize('config.strip_length_not_found')}
                   </div>
                 </div>
               </div>
             </ha-expansion-panel>
           `
         : ''}
+
+      ${this._renderSegmentZonesSection()}
+    `;
+  }
+
+  private _renderSegmentZonesSection() {
+    const segmentDevices = this._getSelectedSegmentDevices();
+
+    if (segmentDevices.size === 0) {
+      // Only show info message if there is a selection but no segment devices
+      if (this._selectedEntities.length > 0) {
+        const deviceTypes = this._getSelectedDeviceTypes();
+        const hasNonSegmentDevice = deviceTypes.some(dt => dt !== 't1m' && dt !== 't1_strip');
+        if (hasNonSegmentDevice) {
+          return html`
+            <ha-expansion-panel outlined .expanded=${false}>
+              <div slot="header" class="section-header">
+                <div>
+                  <div class="section-title">${this._localize('config.segment_zones_title')}</div>
+                  <div class="section-subtitle">${this._localize('config.segment_zones_subtitle')}</div>
+                </div>
+              </div>
+              <div class="section-content" style="display: block; padding: 16px;">
+                <ha-alert alert-type="info">
+                  ${this._localize('config.zone_no_segment_devices')}
+                </ha-alert>
+              </div>
+            </ha-expansion-panel>
+          `;
+        }
+      }
+      return '';
+    }
+
+    return html`
+      <ha-expansion-panel outlined .expanded=${true}>
+        <div slot="header" class="section-header">
+          <div>
+            <div class="section-title">${this._localize('config.segment_zones_title')}</div>
+            <div class="section-subtitle">${this._localize('config.segment_zones_subtitle')}</div>
+          </div>
+        </div>
+        <div class="section-content" style="display: block; padding: 0;">
+          ${Array.from(segmentDevices.entries()).map(([ieee, device]) => {
+            const editZones = this._zoneEditing.get(ieee) || [];
+            const modified = this._zonesModified(ieee);
+            return html`
+              <div class="zone-device-section">
+                <div class="zone-device-header">
+                  <ha-icon icon="${this._getEntityIcon(device.entity_id)}"></ha-icon>
+                  <span>${device.z2m_friendly_name}</span>
+                  <span class="zone-device-segments">${this._localize('config.segment_count', { count: device.segment_count.toString() })}</span>
+                </div>
+                ${editZones.length === 0
+                  ? html`<div class="zone-empty-message">${this._localize('config.zone_no_zones')}</div>`
+                  : html`
+                    <div class="zone-list">
+                      ${editZones.map((zone, index) => html`
+                        <div class="zone-row">
+                          <div class="zone-row-header">
+                            <ha-selector
+                              class="zone-name-input"
+                              .hass=${this.hass}
+                              .selector=${{ text: {} }}
+                              .value=${zone.name}
+                              .label=${this._localize('config.zone_name_label')}
+                              @value-changed=${(e: CustomEvent) => this._updateZoneField(ieee, index, 'name', e.detail.value)}
+                            ></ha-selector>
+                            <ha-icon-button
+                              @click=${() => this._removeZoneRow(ieee, index)}
+                              title=${this._localize('config.zone_delete_tooltip')}
+                            >
+                              <ha-icon icon="mdi:delete-outline"></ha-icon>
+                            </ha-icon-button>
+                          </div>
+                          <segment-selector
+                            .mode=${'selection'}
+                            .maxSegments=${device.segment_count}
+                            .value=${zone.segments}
+                            .hideControls=${true}
+                            @value-changed=${(e: CustomEvent) => this._updateZoneField(ieee, index, 'segments', e.detail.value)}
+                          ></segment-selector>
+                        </div>
+                      `)}
+                    </div>
+                  `}
+                <div class="zone-actions">
+                  <ha-button @click=${() => this._addZoneRow(ieee)}>
+                    <ha-icon icon="mdi:plus"></ha-icon>
+                    ${this._localize('config.zone_add_button')}
+                  </ha-button>
+                  <ha-button
+                    @click=${() => this._saveZones(ieee, device.segment_count)}
+                    ?disabled=${!modified || this._zoneSaving}
+                  >
+                    <ha-icon icon="mdi:content-save-outline"></ha-icon>
+                    ${this._localize('config.zone_save_button')}
+                  </ha-button>
+                </div>
+              </div>
+            `;
+          })}
+        </div>
+      </ha-expansion-panel>
     `;
   }
 
@@ -3983,11 +4578,11 @@ export class AqaraPanel extends LitElement {
 
   private _getCurvatureDescription(): string {
     if (this._localCurvature < 0.9) {
-      return 'Fast start, slow end';
+      return this._localize('config.curvature_fast_slow');
     } else if (this._localCurvature <= 1.1) {
-      return 'Linear (uniform)';
+      return this._localize('config.curvature_linear');
     } else {
-      return 'Slow start, fast end';
+      return this._localize('config.curvature_slow_fast');
     }
   }
 

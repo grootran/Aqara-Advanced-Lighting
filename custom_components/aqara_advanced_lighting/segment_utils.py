@@ -8,7 +8,11 @@ import re
 _LOGGER = logging.getLogger(__name__)
 
 
-def parse_segment_range(segment_str: str | int, max_segments: int = 100) -> list[int]:
+def parse_segment_range(
+    segment_str: str | int,
+    max_segments: int = 100,
+    zones: dict[str, str] | None = None,
+) -> list[int]:
     """Parse a segment string or int into a list of segment numbers.
 
     Supports:
@@ -19,10 +23,12 @@ def parse_segment_range(segment_str: str | int, max_segments: int = 100) -> list
     - Even segments: "even" -> [2, 4, 6, 8, ...]
     - First half: "first-half" -> first half of segments
     - Second half: "second-half" -> second half of segments
+    - Zone names: "kitchen counter" -> resolved from zones dict
 
     Args:
         segment_str: Segment specification (int or string)
         max_segments: Maximum number of segments available
+        zones: Optional dict of lowercased zone name to segment range string
 
     Returns:
         List of segment numbers
@@ -53,6 +59,15 @@ def parse_segment_range(segment_str: str | int, max_segments: int = 100) -> list
 
     if segment_str == "all":
         return list(range(1, max_segments + 1))
+
+    # Check if the input matches a zone name (pass zones=None to prevent chaining)
+    if zones and segment_str in zones:
+        _LOGGER.debug(
+            "Resolving zone '%s' to segments '%s'",
+            segment_str,
+            zones[segment_str],
+        )
+        return parse_segment_range(zones[segment_str], max_segments, zones=None)
 
     # Split by comma for multiple ranges
     parts = segment_str.split(",")
@@ -92,13 +107,16 @@ def parse_segment_range(segment_str: str | int, max_segments: int = 100) -> list
 
 
 def expand_segment_colors(
-    segment_colors: list[dict[str, any]], max_segments: int = 100
+    segment_colors: list[dict[str, any]],
+    max_segments: int = 100,
+    zones: dict[str, str] | None = None,
 ) -> list[dict[str, any]]:
     """Expand segment color definitions with ranges into individual segments.
 
     Args:
         segment_colors: List of segment/color pairs (may include ranges)
         max_segments: Maximum number of segments
+        zones: Optional dict of lowercased zone name to segment range string
 
     Returns:
         List of individual segment/color pairs
@@ -114,7 +132,7 @@ def expand_segment_colors(
             continue
 
         # Parse segment(s)
-        segment_list = parse_segment_range(segment, max_segments)
+        segment_list = parse_segment_range(segment, max_segments, zones=zones)
 
         # Create individual entries for each segment
         for seg_num in segment_list:

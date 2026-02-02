@@ -94,7 +94,7 @@ _TRIGGER_EVENT_MAP: dict[str, tuple[str, str | None]] = {
 }
 
 
-def _get_entity_ids_for_device(
+def get_entity_ids_for_device(
     hass: HomeAssistant, device_id: str
 ) -> set[str]:
     """Get all entity IDs that map to a device via our integration.
@@ -182,7 +182,7 @@ async def async_attach_trigger(
     event_type, sequence_type_filter = _TRIGGER_EVENT_MAP[trigger_type]
 
     # Get entity IDs belonging to this device
-    entity_ids = _get_entity_ids_for_device(hass, device_id)
+    entity_ids = get_entity_ids_for_device(hass, device_id)
 
     # Build base event data filter
     event_data: dict[str, Any] = {}

@@ -1,13 +1,14 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { HomeAssistant, CCTSequenceStep, UserCCTSequencePreset, DeviceContext } from './types';
+import { HomeAssistant, CCTSequenceStep, UserCCTSequencePreset, DeviceContext, CCTEditorDraft } from './types';
+import { ReorderableStepsMixin, reorderableStepStyles } from './reorderable-steps-mixin';
 
 interface EditableStep extends CCTSequenceStep {
   id: string;
 }
 
 @customElement('cct-sequence-editor')
-export class CCTSequenceEditor extends LitElement {
+export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @property({ type: Object }) public preset?: UserCCTSequencePreset;
   @property({ type: Object }) public translations: Record<string, any> = {};
@@ -17,10 +18,11 @@ export class CCTSequenceEditor extends LitElement {
   @property({ type: Array }) public selectedEntities: string[] = [];
   @property({ type: Boolean }) public previewActive = false;
   @property({ type: Object }) public deviceContext?: DeviceContext;
+  @property({ type: Object }) public draft?: CCTEditorDraft;
 
   @state() private _name = '';
   @state() private _icon = '';
-  @state() private _steps: EditableStep[] = [];
+  @state() protected _steps: EditableStep[] = [];
   @state() private _loopMode = 'once';
   @state() private _loopCount = 3;
   @state() private _endBehavior = 'maintain';
@@ -54,7 +56,7 @@ export class CCTSequenceEditor extends LitElement {
     return labels[this.deviceContext.deviceType] || this.deviceContext.deviceType;
   }
 
-  static styles = css`
+  static styles = [reorderableStepStyles, css`
     :host {
       display: block;
     }
@@ -127,6 +129,7 @@ export class CCTSequenceEditor extends LitElement {
     }
 
     .step-number {
+      flex: 1;
       font-weight: 600;
       font-size: 14px;
       color: var(--primary-color);
@@ -281,7 +284,7 @@ export class CCTSequenceEditor extends LitElement {
       color: var(--secondary-text-color);
       margin-top: -4px;
     }
-  `;
+  `];
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -293,7 +296,10 @@ export class CCTSequenceEditor extends LitElement {
   protected updated(changedProps: PropertyValues): void {
     super.updated(changedProps);
 
-    if (changedProps.has('preset') && this.preset) {
+    // Draft takes priority over preset (contains user's unsaved edits)
+    if (changedProps.has('draft') && this.draft) {
+      this._restoreDraft(this.draft);
+    } else if (changedProps.has('preset') && this.preset) {
       this._loadPreset(this.preset);
     }
   }
@@ -305,6 +311,34 @@ export class CCTSequenceEditor extends LitElement {
     this._loopCount = preset.loop_count || 3;
     this._endBehavior = preset.end_behavior;
     this._steps = preset.steps.map((step, index) => ({
+      ...step,
+      id: `step-${index}-${Date.now()}`,
+    }));
+  }
+
+  public getDraftState(): CCTEditorDraft {
+    return {
+      name: this._name,
+      icon: this._icon,
+      steps: this._steps.map(s => ({
+        color_temp: s.color_temp,
+        brightness: s.brightness,
+        transition: s.transition,
+        hold: s.hold,
+      })),
+      loopMode: this._loopMode,
+      loopCount: this._loopCount,
+      endBehavior: this._endBehavior,
+    };
+  }
+
+  private _restoreDraft(draft: CCTEditorDraft): void {
+    this._name = draft.name;
+    this._icon = draft.icon;
+    this._loopMode = draft.loopMode;
+    this._loopCount = draft.loopCount;
+    this._endBehavior = draft.endBehavior;
+    this._steps = draft.steps.map((step, index) => ({
       ...step,
       id: `step-${index}-${Date.now()}`,
     }));
@@ -505,6 +539,7 @@ export class CCTSequenceEditor extends LitElement {
     return html`
       <div class="step-item">
         <div class="step-header">
+          ${this._renderDragHandle(index)}
           <span class="step-number">Step ${index + 1}</span>
           <div class="step-actions">
             <ha-icon-button
@@ -722,7 +757,11 @@ export class CCTSequenceEditor extends LitElement {
                     ${this._localize('editors.no_steps_message')}
                   </div>
                 `
-              : this._steps.map((step, index) => this._renderStep(step, index))}
+              : this._steps.map((step, index) => html`
+                  ${this._renderDropIndicator(index)}
+                  ${this._renderStep(step, index)}
+                `)}
+            ${this._renderDropIndicator(this._steps.length)}
 
             <button
               class="add-step-btn ${this._steps.length >= 20 ? 'disabled' : ''}"

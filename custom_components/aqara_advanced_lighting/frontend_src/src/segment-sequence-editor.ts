@@ -1,8 +1,9 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { HomeAssistant, SegmentSequenceStep, XYColor, UserSegmentSequencePreset, DeviceContext } from './types';
+import { HomeAssistant, SegmentSequenceStep, XYColor, UserSegmentSequencePreset, DeviceContext, SegmentSequenceEditorDraft } from './types';
 import { xyToRgb, rgbToXy } from './color-utils';
 import { colorPickerStyles } from './styles';
+import { ReorderableStepsMixin, reorderableStepStyles } from './reorderable-steps-mixin';
 // Note: hs-color-picker import removed - now handled by segment-selector
 
 const DEVICE_LABELS: Record<string, string> = {
@@ -46,10 +47,11 @@ interface EditableStep extends SegmentSequenceStep {
   gradientInterpolation: string;
   gradientWave: boolean;
   gradientWaveCycles: number;
+  turnOffUnspecified: boolean;
 }
 
 @customElement('segment-sequence-editor')
-export class SegmentSequenceEditor extends LitElement {
+export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @property({ type: Object }) public preset?: UserSegmentSequencePreset;
   @property({ type: Object }) public translations: Record<string, any> = {};
@@ -59,11 +61,13 @@ export class SegmentSequenceEditor extends LitElement {
   @property({ type: Boolean }) public previewActive = false;
   @property({ type: Number }) public stripSegmentCount = 10; // Default 2 meters (out-of-box T1 Strip length)
   @property({ type: Object }) public deviceContext?: DeviceContext;
+  @property({ type: Array }) public colorHistory: XYColor[] = [];
+  @property({ type: Object }) public draft?: SegmentSequenceEditorDraft;
 
   @state() private _name = '';
   @state() private _icon = '';
   @state() private _deviceType = 't1m';
-  @state() private _steps: EditableStep[] = [];
+  @state() protected _steps: EditableStep[] = [];
   @state() private _loopMode = 'once';
   @state() private _loopCount = 3;
   @state() private _endBehavior = 'maintain';
@@ -108,6 +112,7 @@ export class SegmentSequenceEditor extends LitElement {
 
   static styles = [
     colorPickerStyles,
+    reorderableStepStyles,
     css`
     :host {
       display: block;
@@ -206,6 +211,7 @@ export class SegmentSequenceEditor extends LitElement {
     }
 
     .step-number {
+      flex: 1;
       font-weight: 600;
       font-size: 14px;
       color: var(--primary-color);
@@ -368,7 +374,10 @@ export class SegmentSequenceEditor extends LitElement {
   protected updated(changedProps: PropertyValues): void {
     super.updated(changedProps);
 
-    if (changedProps.has('preset')) {
+    // Draft takes priority over preset (contains user's unsaved edits)
+    if (changedProps.has('draft') && this.draft) {
+      this._restoreDraft(this.draft);
+    } else if (changedProps.has('preset')) {
       if (this.preset) {
         this._hasUserInteraction = true;
         this._loadPreset(this.preset);
@@ -464,8 +473,79 @@ export class SegmentSequenceEditor extends LitElement {
         gradientInterpolation: 'shortest',
         gradientWave: false,
         gradientWaveCycles: 1,
+        turnOffUnspecified: true,
       };
     });
+  }
+
+  public getDraftState(): SegmentSequenceEditorDraft {
+    return {
+      name: this._name,
+      icon: this._icon,
+      deviceType: this._deviceType,
+      steps: this._steps.map(s => ({
+        id: s.id,
+        duration: s.duration,
+        hold: s.hold,
+        activation_pattern: s.activation_pattern,
+        transition: s.transition,
+        coloredSegments: Array.from(s.coloredSegments.entries()),
+        colorPalette: [...s.colorPalette],
+        gradientColors: [...s.gradientColors],
+        blockColors: [...s.blockColors],
+        expandBlocks: s.expandBlocks,
+        patternMode: s.patternMode,
+        gradientMirror: s.gradientMirror,
+        gradientRepeat: s.gradientRepeat,
+        gradientReverse: s.gradientReverse,
+        gradientInterpolation: s.gradientInterpolation,
+        gradientWave: s.gradientWave,
+        gradientWaveCycles: s.gradientWaveCycles,
+        turnOffUnspecified: s.turnOffUnspecified,
+      })),
+      loopMode: this._loopMode,
+      loopCount: this._loopCount,
+      endBehavior: this._endBehavior,
+      clearSegments: this._clearSegments,
+      skipFirstInLoop: this._skipFirstInLoop,
+    };
+  }
+
+  private _restoreDraft(draft: SegmentSequenceEditorDraft): void {
+    this._name = draft.name;
+    this._icon = draft.icon;
+    this._deviceType = draft.deviceType;
+    this._loopMode = draft.loopMode;
+    this._loopCount = draft.loopCount;
+    this._endBehavior = draft.endBehavior;
+    this._clearSegments = draft.clearSegments;
+    this._skipFirstInLoop = draft.skipFirstInLoop;
+    this._steps = draft.steps.map(s => ({
+      // Provide default values for SegmentSequenceStep legacy fields
+      segments: 'all',
+      colors: [[255, 0, 0]],
+      mode: s.patternMode === 'gradient' ? 'gradient' : s.expandBlocks ? 'blocks_expand' : 'blocks_repeat',
+      duration: s.duration,
+      hold: s.hold,
+      activation_pattern: s.activation_pattern,
+      transition: s.transition,
+      // Restore editor-specific fields
+      id: s.id,
+      coloredSegments: new Map(s.coloredSegments),
+      colorPalette: [...s.colorPalette],
+      gradientColors: [...s.gradientColors],
+      blockColors: [...s.blockColors],
+      expandBlocks: s.expandBlocks,
+      patternMode: s.patternMode,
+      gradientMirror: s.gradientMirror,
+      gradientRepeat: s.gradientRepeat,
+      gradientReverse: s.gradientReverse,
+      gradientInterpolation: s.gradientInterpolation,
+      gradientWave: s.gradientWave,
+      gradientWaveCycles: s.gradientWaveCycles,
+      turnOffUnspecified: s.turnOffUnspecified,
+    }));
+    this._hasUserInteraction = true;
   }
 
   private _addDefaultStep(): void {
@@ -491,6 +571,7 @@ export class SegmentSequenceEditor extends LitElement {
         gradientInterpolation: 'shortest',
         gradientWave: false,
         gradientWaveCycles: 1,
+        turnOffUnspecified: true,
       },
     ];
   }
@@ -606,6 +687,12 @@ export class SegmentSequenceEditor extends LitElement {
     );
   }
 
+  private _handleStepTurnOffUnspecifiedChange(stepId: string, e: CustomEvent): void {
+    this._steps = this._steps.map((step) =>
+      step.id === stepId ? { ...step, turnOffUnspecified: e.detail.value } : step
+    );
+  }
+
   private _addStep(): void {
     if (this._steps.length >= 20) return;
 
@@ -633,6 +720,7 @@ export class SegmentSequenceEditor extends LitElement {
       gradientInterpolation: previousStep?.gradientInterpolation || 'shortest',
       gradientWave: previousStep?.gradientWave || false,
       gradientWaveCycles: previousStep?.gradientWaveCycles || 1,
+      turnOffUnspecified: previousStep?.turnOffUnspecified ?? true,
     };
 
     this._steps = [...this._steps, newStep];
@@ -699,6 +787,7 @@ export class SegmentSequenceEditor extends LitElement {
       gradientInterpolation,
       gradientWave,
       gradientWaveCycles,
+      turnOffUnspecified,
       ...step
     }) => {
       // Generate segment_colors from the grid (like pattern editor)
@@ -712,10 +801,12 @@ export class SegmentSequenceEditor extends LitElement {
         specifiedSegments.add(segment + 1);
       }
 
-      // Turn off all unspecified segments by setting them to black
-      for (let seg = 1; seg <= maxSegments; seg++) {
-        if (!specifiedSegments.has(seg)) {
-          segment_colors.push({ segment: seg, color: { r: 0, g: 0, b: 0 } });
+      // Turn off unspecified segments by setting them to black (if enabled)
+      if (turnOffUnspecified) {
+        for (let seg = 1; seg <= maxSegments; seg++) {
+          if (!specifiedSegments.has(seg)) {
+            segment_colors.push({ segment: seg, color: { r: 0, g: 0, b: 0 } });
+          }
         }
       }
 
@@ -801,6 +892,7 @@ export class SegmentSequenceEditor extends LitElement {
     return html`
       <div class="step-item">
         <div class="step-header">
+          ${this._renderDragHandle(index)}
           <span class="step-number">Step ${index + 1}</span>
           <div class="step-actions">
             <ha-icon-button
@@ -852,10 +944,14 @@ export class SegmentSequenceEditor extends LitElement {
             .initialPatternMode=${step.patternMode}
             .label=${this._localize('editors.segment_grid_label')}
             .translations=${this.translations}
+            .colorHistory=${this.colorHistory}
+            .zones=${this.deviceContext?.zones || []}
+            .turnOffUnspecified=${step.turnOffUnspecified}
             @color-value-changed=${(e: CustomEvent) => this._handleStepColorValueChange(step.id, e)}
             @color-palette-changed=${(e: CustomEvent) => this._handleStepColorPaletteChange(step.id, e)}
             @gradient-colors-changed=${(e: CustomEvent) => this._handleStepGradientColorsChange(step.id, e)}
             @block-colors-changed=${(e: CustomEvent) => this._handleStepBlockColorsChange(step.id, e)}
+            @turn-off-unspecified-changed=${(e: CustomEvent) => this._handleStepTurnOffUnspecifiedChange(step.id, e)}
           ></segment-selector>
         </div>
         <div class="step-fields">
@@ -1057,7 +1153,11 @@ export class SegmentSequenceEditor extends LitElement {
                     ${this._localize('editors.no_steps_message')}
                   </div>
                 `
-              : this._steps.map((step, index) => this._renderStep(step, index))}
+              : this._steps.map((step, index) => html`
+                  ${this._renderDropIndicator(index)}
+                  ${this._renderStep(step, index)}
+                `)}
+            ${this._renderDropIndicator(this._steps.length)}
 
             <button
               class="add-step-btn ${this._steps.length >= 20 ? 'disabled' : ''}"

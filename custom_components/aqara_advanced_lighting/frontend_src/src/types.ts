@@ -239,6 +239,7 @@ export interface UserPresetsData {
 export interface DeviceContext {
   deviceType: string | null;  // First compatible device type from selection
   hasSelection: boolean;       // Whether any entities are selected
+  zones?: SegmentZoneResolved[];  // Resolved segment zones for the selected device
 }
 
 // Tab type for panel navigation
@@ -248,6 +249,90 @@ export type PanelTab = 'activate' | 'effects' | 'patterns' | 'cct' | 'segments' 
 export type PresetSortOption = 'name-asc' | 'name-desc' | 'date-new' | 'date-old';
 
 export type PresetSortPreferences = Record<string, PresetSortOption>;
+
+// Per-user preferences (backed by server-side storage)
+export interface UserPreferences {
+  color_history: XYColor[];
+  sort_preferences: PresetSortPreferences;
+  collapsed_sections: Record<string, boolean>;
+}
+
+// Draft state types for editor tab caching (in-memory only, not persisted)
+export interface EffectEditorDraft {
+  name: string;
+  icon: string;
+  deviceType: string;
+  effect: string;
+  speed: number;
+  brightness: number;
+  colors: XYColor[];
+  segments: string;
+}
+
+export interface PatternEditorDraft {
+  name: string;
+  icon: string;
+  deviceType: string;
+  segments: Array<[number, XYColor]>;
+  colorPalette: XYColor[];
+  gradientColors: XYColor[];
+  blockColors: XYColor[];
+  expandBlocks: boolean;
+  gradientMirror: boolean;
+  gradientRepeat: number;
+  gradientReverse: boolean;
+  gradientInterpolation: string;
+  gradientWave: boolean;
+  gradientWaveCycles: number;
+  turnOffUnspecified: boolean;
+}
+
+export interface CCTEditorDraft {
+  name: string;
+  icon: string;
+  steps: CCTSequenceStep[];
+  loopMode: string;
+  loopCount: number;
+  endBehavior: string;
+}
+
+export interface SegmentSequenceEditorDraft {
+  name: string;
+  icon: string;
+  deviceType: string;
+  steps: Array<{
+    id: string;
+    duration: number;
+    hold: number;
+    activation_pattern: string;
+    transition?: number;
+    coloredSegments: Array<[number, XYColor]>;
+    colorPalette: XYColor[];
+    gradientColors: XYColor[];
+    blockColors: XYColor[];
+    expandBlocks: boolean;
+    patternMode: string;
+    gradientMirror: boolean;
+    gradientRepeat: number;
+    gradientReverse: boolean;
+    gradientInterpolation: string;
+    gradientWave: boolean;
+    gradientWaveCycles: number;
+    turnOffUnspecified: boolean;
+  }>;
+  loopMode: string;
+  loopCount: number;
+  endBehavior: string;
+  clearSegments: boolean;
+  skipFirstInLoop: boolean;
+}
+
+export interface EditorDraftCache {
+  effects?: EffectEditorDraft;
+  patterns?: PatternEditorDraft;
+  cct?: CCTEditorDraft;
+  segments?: SegmentSequenceEditorDraft;
+}
 
 export const SUPPORTED_MODELS = {
   T2_BULB: [
@@ -265,3 +350,15 @@ export const SUPPORTED_MODELS = {
   T1M: ['lumi.light.acn031', 'lumi.light.acn032'] as string[],
   T1_STRIP: ['lumi.light.acn132'] as string[],
 };
+
+// Segment zone definition for a device
+export interface SegmentZone {
+  name: string;
+  segments: string;  // Segment range string, e.g. "1-8"
+}
+
+// Segment zone for the segment selector (pre-resolved)
+export interface SegmentZoneResolved {
+  name: string;
+  segmentIndices: number[];  // 0-based indices for segment selector
+}

@@ -15,7 +15,7 @@
 
 import { LitElement, html, css, PropertyValues, CSSResultGroup, TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { XYColor, HSColor, HomeAssistant } from './types';
+import { XYColor, HSColor, HomeAssistant, SegmentZoneResolved } from './types';
 import {
   xyToRgb,
   rgbToXy,
@@ -24,7 +24,8 @@ import {
   rgbToHex,
   getComplementaryColor,
 } from './color-utils';
-import { getColorHistory, addColorToHistory, clearColorHistory } from './color-history';
+import { addColorToHistory } from './color-history';
+import './color-history-swatches';
 
 // Translations object type
 interface Translations {
@@ -86,12 +87,17 @@ export class SegmentSelector extends LitElement {
   @property({ type: String }) description = '';
   @property({ type: Boolean }) disabled = false;
   @property({ type: Object }) translations: Translations = {};
+  @property({ type: Array }) colorHistory: XYColor[] = [];
   @property({ type: String }) initialPatternMode?: PatternMode;
+  @property({ type: Array }) zones: SegmentZoneResolved[] = [];
+  @property({ type: Boolean }) turnOffUnspecified = true;
+  @property({ type: Boolean }) hideControls = false;
 
   @state() private _selectedSegments: Set<number> = new Set();
   @state() private _coloredSegments: Map<number, XYColor> = new Map();
   @state() private _lastSelectedIndex: number | null = null;
   @state() private _selectedPaletteIndex = 0;
+  @state() private _selectedZone = '';
   @state() private _clearMode = false;
   @state() private _selectMode = false;
   @state() private _patternMode: PatternMode = 'individual';
@@ -132,11 +138,22 @@ export class SegmentSelector extends LitElement {
         margin-bottom: 8px;
       }
 
+      .segment-grid-container.compact {
+        padding: 8px;
+        margin-bottom: 0;
+      }
+
       .segment-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
         gap: 4px;
         margin-bottom: 12px;
+      }
+
+      .compact .segment-grid {
+        grid-template-columns: repeat(auto-fill, minmax(28px, 1fr));
+        gap: 3px;
+        margin-bottom: 0;
       }
 
       .segment-cell {
@@ -153,6 +170,11 @@ export class SegmentSelector extends LitElement {
         color: var(--secondary-text-color);
         background: var(--primary-background-color);
         user-select: none;
+      }
+
+      .compact .segment-cell {
+        font-size: 9px;
+        border-width: 1px;
       }
 
       .segment-cell:hover {
@@ -231,6 +253,10 @@ export class SegmentSelector extends LitElement {
       .select-mode-toggle.active {
         --mdc-theme-primary: var(--info-color, #2196f3);
         color: var(--info-color, #2196f3);
+      }
+
+      .zone-select {
+        min-width: 200px;
       }
 
       .description {
@@ -584,65 +610,6 @@ export class SegmentSelector extends LitElement {
         margin-top: 20px;
       }
 
-      .color-history-section {
-        margin: 16px 0 0;
-        width: 100%;
-      }
-
-      .color-history-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 8px;
-      }
-
-      .color-history-label {
-        font-size: var(--ha-font-size-s, 12px);
-        font-weight: var(--ha-font-weight-medium, 500);
-        color: var(--secondary-text-color);
-      }
-
-      .color-history-clear {
-        background: none;
-        border: none;
-        color: var(--secondary-text-color);
-        cursor: pointer;
-        font-size: var(--ha-font-size-s, 12px);
-        padding: 2px 6px;
-        border-radius: 4px;
-        transition: all 0.15s ease;
-      }
-
-      .color-history-clear:hover {
-        color: var(--primary-color);
-        background: var(--secondary-background-color);
-      }
-
-      .color-history-swatches {
-        display: flex;
-        gap: 6px;
-      }
-
-      .color-history-swatch {
-        width: 32px;
-        height: 32px;
-        border: 2px solid var(--divider-color);
-        border-radius: 6px;
-        cursor: pointer;
-        transition: all 0.15s ease;
-        padding: 0;
-        flex-shrink: 0;
-      }
-
-      .color-history-swatch:hover {
-        transform: scale(1.1);
-        border-color: var(--primary-color);
-      }
-
-      .color-history-swatch:active {
-        transform: scale(0.95);
-      }
-
       @media (max-width: 600px) {
         .segment-grid {
           grid-template-columns: repeat(auto-fill, minmax(32px, 1fr));
@@ -664,6 +631,20 @@ export class SegmentSelector extends LitElement {
     `;
   }
 
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    if (this._wheelPointerMoveBound) {
+      window.removeEventListener('mousemove', this._wheelPointerMoveBound as EventListener);
+      window.removeEventListener('touchmove', this._wheelPointerMoveBound as EventListener);
+      this._wheelPointerMoveBound = null;
+    }
+    if (this._wheelPointerUpBound) {
+      window.removeEventListener('mouseup', this._wheelPointerUpBound);
+      window.removeEventListener('touchend', this._wheelPointerUpBound);
+      this._wheelPointerUpBound = null;
+    }
+  }
+
   protected updated(changedProps: PropertyValues): void {
     // Parse value string to selection when in selection/sequence mode
     if ((changedProps.has('value') && changedProps.get('value') !== this.value) &&
@@ -677,12 +658,16 @@ export class SegmentSelector extends LitElement {
       this._parseColorValue();
     }
 
-    // Apply initial pattern mode once when loading a preset with gradient/blocks
+    // Apply initial pattern mode once when loading a preset with gradient/blocks,
+    // but only if no per-segment color data was loaded (colorValue takes priority
+    // so editing a preset always shows the saved segment colors on Individual tab)
     if (this.initialPatternMode && !this._initialPatternApplied &&
         this.initialPatternMode !== 'individual' && this.maxSegments > 0) {
       this._initialPatternApplied = true;
-      this._patternMode = this.initialPatternMode;
-      this._applyToGrid();
+      if (this._coloredSegments.size === 0) {
+        this._patternMode = this.initialPatternMode;
+        this._applyToGrid();
+      }
     }
 
     // Validate selection against maxSegments
@@ -950,50 +935,66 @@ export class SegmentSelector extends LitElement {
     }
   }
 
-  private _selectFirstHalf(): void {
-    if (this.disabled) return;
-    const newSelected = new Set<number>();
+  private _getBuiltInZoneIndices(name: string): number[] | null {
     const half = Math.floor(this.maxSegments / 2);
-    for (let i = 0; i < half; i++) {
-      newSelected.add(i);
+    switch (name) {
+      case '__all':
+        return Array.from({ length: this.maxSegments }, (_, i) => i);
+      case '__first-half':
+        return Array.from({ length: half }, (_, i) => i);
+      case '__second-half':
+        return Array.from({ length: this.maxSegments - half }, (_, i) => half + i);
+      case '__odd':
+        return Array.from({ length: this.maxSegments }, (_, i) => i).filter(i => i % 2 === 0);
+      case '__even':
+        return Array.from({ length: this.maxSegments }, (_, i) => i).filter(i => i % 2 === 1);
+      default:
+        return null;
     }
-    this._selectedSegments = newSelected;
-    this._lastSelectedIndex = null;
-    this._fireValueChanged();
   }
 
-  private _selectSecondHalf(): void {
-    if (this.disabled) return;
-    const newSelected = new Set<number>();
-    const half = Math.floor(this.maxSegments / 2);
-    for (let i = half; i < this.maxSegments; i++) {
-      newSelected.add(i);
+  private _renderZoneListItems(): TemplateResult[] {
+    const items: TemplateResult[] = [];
+    if (this.zones.length > 0) {
+      for (const z of this.zones) {
+        items.push(html`<mwc-list-item value=${z.name}>${z.name}</mwc-list-item>`);
+      }
     }
-    this._selectedSegments = newSelected;
-    this._lastSelectedIndex = null;
-    this._fireValueChanged();
+    items.push(html`<mwc-list-item value="__all">${this._localize('editors.select_all_button')}</mwc-list-item>`);
+    items.push(html`<mwc-list-item value="__first-half">${this._localize('editors.first_half_button')}</mwc-list-item>`);
+    items.push(html`<mwc-list-item value="__second-half">${this._localize('editors.second_half_button')}</mwc-list-item>`);
+    items.push(html`<mwc-list-item value="__odd">${this._localize('editors.odd_button')}</mwc-list-item>`);
+    items.push(html`<mwc-list-item value="__even">${this._localize('editors.even_button')}</mwc-list-item>`);
+    return items;
   }
 
-  private _selectOdd(): void {
-    if (this.disabled) return;
-    const newSelected = new Set<number>();
-    for (let i = 0; i < this.maxSegments; i += 2) {
-      newSelected.add(i);
+  private _handleZoneSelected(e: Event): void {
+    const select = e.target as HTMLElement & { value: string };
+    const zoneName = select.value;
+    if (!zoneName || this.disabled) return;
+
+    // Check built-in zones first
+    const builtInIndices = this._getBuiltInZoneIndices(zoneName);
+    let newSelected: Set<number>;
+    if (builtInIndices) {
+      newSelected = new Set<number>(builtInIndices);
+    } else {
+      const zone = this.zones.find(z => z.name === zoneName);
+      if (!zone) return;
+      newSelected = new Set<number>(zone.segmentIndices);
     }
+
     this._selectedSegments = newSelected;
     this._lastSelectedIndex = null;
-    this._fireValueChanged();
+    if (this.mode === 'selection' || this.mode === 'sequence') {
+      this._fireValueChanged();
+    }
   }
 
-  private _selectEven(): void {
-    if (this.disabled) return;
-    const newSelected = new Set<number>();
-    for (let i = 1; i < this.maxSegments; i += 2) {
-      newSelected.add(i);
-    }
-    this._selectedSegments = newSelected;
-    this._lastSelectedIndex = null;
-    this._fireValueChanged();
+  private _handleZoneMenuClosed(e: Event): void {
+    e.stopPropagation();
+    // Reset to empty after menu closes so the same zone can be re-selected
+    this._selectedZone = '';
   }
 
   private _clearSelected(): void {
@@ -1055,7 +1056,8 @@ export class SegmentSelector extends LitElement {
 
   private _addGradientColor(): void {
     if (this.gradientColors.length >= 6 || this.gradientColors.length === 0) return;
-    const lastColor = this.gradientColors[this.gradientColors.length - 1]!;
+    const lastColor = this.gradientColors[this.gradientColors.length - 1];
+    if (!lastColor) return;
     const newColor = getComplementaryColor(lastColor);
     this.gradientColors = [...this.gradientColors, newColor];
     this._fireGradientColorsChanged();
@@ -1069,7 +1071,8 @@ export class SegmentSelector extends LitElement {
 
   private _addBlockColor(): void {
     if (this.blockColors.length >= 6 || this.blockColors.length === 0) return;
-    const lastColor = this.blockColors[this.blockColors.length - 1]!;
+    const lastColor = this.blockColors[this.blockColors.length - 1];
+    if (!lastColor) return;
     const newColor = getComplementaryColor(lastColor);
     this.blockColors = [...this.blockColors, newColor];
     this._fireBlockColorsChanged();
@@ -1223,10 +1226,13 @@ export class SegmentSelector extends LitElement {
       const colorIndex = Math.floor(colorPosition);
       const colorT = colorPosition - colorIndex;
 
-      const c1 = hsColors[Math.min(colorIndex, numColors - 1)]!;
-      const c2 = hsColors[Math.min(colorIndex + 1, numColors - 1)]!;
-      const xy1 = xyColors[Math.min(colorIndex, numColors - 1)]!;
-      const xy2 = xyColors[Math.min(colorIndex + 1, numColors - 1)]!;
+      const idx1 = Math.min(colorIndex, numColors - 1);
+      const idx2 = Math.min(colorIndex + 1, numColors - 1);
+      const c1 = hsColors[idx1];
+      const c2 = hsColors[idx2];
+      const xy1 = xyColors[idx1];
+      const xy2 = xyColors[idx2];
+      if (!c1 || !c2 || !xy1 || !xy2) continue;
 
       tile.push(this._interpolateColorPair(c1, c2, xy1, xy2, colorT));
     }
@@ -1234,7 +1240,8 @@ export class SegmentSelector extends LitElement {
     // Repeat tile to fill halfCount
     const halfPattern: XYColor[] = [];
     for (let i = 0; i < halfCount; i++) {
-      halfPattern.push(tile[i % tileSize]!);
+      const tileColor = tile[i % tileSize];
+      if (tileColor) halfPattern.push(tileColor);
     }
 
     // Apply mirror if enabled
@@ -1247,7 +1254,8 @@ export class SegmentSelector extends LitElement {
       const isOdd = segmentCount % 2 !== 0;
       const startIndex = (isOdd && halfPattern.length > 1) ? 1 : 0;
       for (let i = startIndex; i < reversed.length; i++) {
-        mirrored.push(reversed[i]!);
+        const revColor = reversed[i];
+        if (revColor) mirrored.push(revColor);
       }
       // Trim to exact segment count
       return mirrored.slice(0, segmentCount);
@@ -1338,24 +1346,29 @@ export class SegmentSelector extends LitElement {
     if (this._patternMode === 'gradient') {
       const gradientColors = this._generateGradientColorArray(selectedCount);
       for (let i = 0; i < selectedCount; i++) {
-        const segNum = selectedArray[i]!;
-        const gradColor = gradientColors[i]!;
+        const segNum = selectedArray[i];
+        const gradColor = gradientColors[i];
+        if (segNum === undefined || !gradColor) continue;
         newColored.set(segNum, gradColor);
       }
     } else if (this._patternMode === 'blocks') {
       if (this.expandBlocks) {
         const blockSize = Math.ceil(selectedCount / numColors);
         for (let i = 0; i < selectedCount; i++) {
-          const segNum = selectedArray[i]!;
+          const segNum = selectedArray[i];
+          if (segNum === undefined) continue;
           const colorIndex = Math.min(Math.floor(i / blockSize), numColors - 1);
-          const color = colors[colorIndex]!;
+          const color = colors[colorIndex];
+          if (!color) continue;
           newColored.set(segNum, { x: color.x, y: color.y });
         }
       } else {
         for (let i = 0; i < selectedCount; i++) {
-          const segNum = selectedArray[i]!;
+          const segNum = selectedArray[i];
+          if (segNum === undefined) continue;
           const colorIndex = i % numColors;
-          const color = colors[colorIndex]!;
+          const color = colors[colorIndex];
+          if (!color) continue;
           newColored.set(segNum, { x: color.x, y: color.y });
         }
       }
@@ -1404,7 +1417,14 @@ export class SegmentSelector extends LitElement {
     }
 
     const xyColor = hsToXy(this._editingColor);
-    addColorToHistory(xyColor);
+
+    // Update color history and notify parent
+    const newHistory = addColorToHistory(this.colorHistory, xyColor);
+    this.dispatchEvent(new CustomEvent('color-history-changed', {
+      detail: { colorHistory: newHistory },
+      bubbles: true,
+      composed: true,
+    }));
 
     // Cache the HS color for this XY to preserve precision on reopening
     const cacheKey = `${xyColor.x.toFixed(4)},${xyColor.y.toFixed(4)}`;
@@ -1436,7 +1456,8 @@ export class SegmentSelector extends LitElement {
     this._editingColor = null;
   }
 
-  private _selectHistoryColor(color: XYColor): void {
+  private _handleHistoryColorSelected(e: CustomEvent): void {
+    const color = e.detail.color as XYColor;
     const hs = xyToHs(color);
     this._editingColor = { h: hs.h, s: hs.s };
 
@@ -1460,37 +1481,6 @@ export class SegmentSelector extends LitElement {
     if (preview) {
       preview.style.backgroundColor = rgbToHex(rgb);
     }
-  }
-
-  private _clearColorHistory(): void {
-    clearColorHistory();
-    this.requestUpdate();
-  }
-
-  private _renderColorHistory(): TemplateResult {
-    const history = getColorHistory();
-
-    return html`
-      <div class="color-history-section">
-        <div class="color-history-header">
-          <span class="color-history-label">${this._localize('color_history.recent_colors')}</span>
-          ${history.length > 0 ? html`
-            <button class="color-history-clear" @click=${this._clearColorHistory}>
-              ${this._localize('color_history.clear')}
-            </button>
-          ` : ''}
-        </div>
-        <div class="color-history-swatches">
-          ${history.map(color => html`
-            <button
-              class="color-history-swatch"
-              style="background-color: ${xyToHex(color, 255)}"
-              @click=${() => this._selectHistoryColor(color)}
-            ></button>
-          `)}
-        </div>
-      </div>
-    `;
   }
 
   private _handleRgbInput(e: Event, channel: 'r' | 'g' | 'b'): void {
@@ -1620,6 +1610,17 @@ export class SegmentSelector extends LitElement {
     );
   }
 
+  private _handleTurnOffUnspecifiedChange(e: Event): void {
+    this.turnOffUnspecified = (e.target as HTMLInputElement).checked;
+    this.dispatchEvent(
+      new CustomEvent('turn-off-unspecified-changed', {
+        detail: { value: this.turnOffUnspecified },
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
   private _fireBlockColorsChanged(): void {
     this.dispatchEvent(
       new CustomEvent('block-colors-changed', {
@@ -1666,11 +1667,11 @@ export class SegmentSelector extends LitElement {
     }
 
     return html`
-      <div class="segment-grid-container">
+      <div class="segment-grid-container ${this.hideControls ? 'compact' : ''}">
         <div class="segment-grid ${this._clearMode ? 'clear-mode' : ''} ${this._selectMode ? 'select-mode' : ''}">
           ${cells}
         </div>
-        ${this._renderControls()}
+        ${this.hideControls ? '' : this._renderControls()}
       </div>
     `;
   }
@@ -1690,26 +1691,24 @@ export class SegmentSelector extends LitElement {
             <ha-icon icon="mdi:selection-off"></ha-icon>
             ${this._localize('editors.clear_all_button')}
           </ha-button>
-          <ha-button @click=${this._selectFirstHalf} .disabled=${this.disabled}>
-            <ha-icon icon="mdi:arrow-left-bold"></ha-icon>
-            ${this._localize('editors.first_half_button')}
-          </ha-button>
-          <ha-button @click=${this._selectSecondHalf} .disabled=${this.disabled}>
-            <ha-icon icon="mdi:arrow-right-bold"></ha-icon>
-            ${this._localize('editors.second_half_button')}
-          </ha-button>
-          <ha-button @click=${this._selectOdd} .disabled=${this.disabled}>
-            <ha-icon icon="mdi:numeric-1"></ha-icon>
-            ${this._localize('editors.odd_button')}
-          </ha-button>
-          <ha-button @click=${this._selectEven} .disabled=${this.disabled}>
-            <ha-icon icon="mdi:numeric-2"></ha-icon>
-            ${this._localize('editors.even_button')}
-          </ha-button>
           <div class="selection-info">
             <ha-icon icon="mdi:information-outline"></ha-icon>
             <span>${this._localize('editors.segments_selected', { count })}</span>
           </div>
+        </div>
+        <div class="options-row">
+          <ha-select
+            class="zone-select"
+            .label=${this._localize('editors.zone_select_label')}
+            .value=${this._selectedZone}
+            .disabled=${this.disabled}
+            fixedMenuPosition
+            naturalMenuWidth
+            @selected=${this._handleZoneSelected}
+            @closed=${this._handleZoneMenuClosed}
+          >
+            ${this._renderZoneListItems()}
+          </ha-select>
         </div>
       `;
     } else if (this.mode === 'color' || this.mode === 'sequence') {
@@ -1743,6 +1742,27 @@ export class SegmentSelector extends LitElement {
           <div class="selection-info">
             <span>${this._localize('editors.segments_selected', { count })}</span>
           </div>
+        </div>
+        <div class="options-row">
+          <ha-select
+            class="zone-select"
+            .label=${this._localize('editors.zone_select_label')}
+            .value=${this._selectedZone}
+            .disabled=${this.disabled}
+            fixedMenuPosition
+            naturalMenuWidth
+            @selected=${this._handleZoneSelected}
+            @closed=${this._handleZoneMenuClosed}
+          >
+            ${this._renderZoneListItems()}
+          </ha-select>
+          <label class="option-item">
+            <ha-switch
+              .checked=${this.turnOffUnspecified}
+              @change=${this._handleTurnOffUnspecifiedChange}
+            ></ha-switch>
+            <span class="option-label">${this._localize('editors.turn_off_unspecified_label')}</span>
+          </label>
         </div>
       `;
     }
@@ -1863,27 +1883,24 @@ export class SegmentSelector extends LitElement {
       </div>
       <div class="options-row">
         <label class="option-item">
-          <input
-            type="checkbox"
+          <ha-switch
             .checked=${this.gradientReverse}
             @change=${this._handleGradientReverseChange}
-          />
+          ></ha-switch>
           <span class="option-label">${this._localize('editors.gradient_reverse_label')}</span>
         </label>
         <label class="option-item">
-          <input
-            type="checkbox"
+          <ha-switch
             .checked=${this.gradientMirror}
             @change=${this._handleGradientMirrorChange}
-          />
+          ></ha-switch>
           <span class="option-label">${this._localize('editors.gradient_mirror_label')}</span>
         </label>
         <label class="option-item">
-          <input
-            type="checkbox"
+          <ha-switch
             .checked=${this.gradientWave}
             @change=${this._handleGradientWaveChange}
-          />
+          ></ha-switch>
           <span class="option-label">${this._localize('editors.gradient_wave_label')}</span>
         </label>
       </div>
@@ -1899,6 +1916,18 @@ export class SegmentSelector extends LitElement {
             @change=${this._handleGradientRepeatChange}
           />
         </label>
+        <label class="option-item">
+          <span class="option-label">${this._localize('editors.gradient_interpolation_label')}</span>
+          <select
+            class="option-select"
+            .value=${this.gradientInterpolation}
+            @change=${this._handleGradientInterpolationChange}
+          >
+            <option value="shortest">${this._localize('editors.gradient_interp_shortest')}</option>
+            <option value="longest">${this._localize('editors.gradient_interp_longest')}</option>
+            <option value="rgb">${this._localize('editors.gradient_interp_rgb')}</option>
+          </select>
+        </label>
         ${this.gradientWave ? html`
           <label class="option-item">
             <span class="option-label">${this._localize('editors.gradient_wave_cycles_label')}</span>
@@ -1912,18 +1941,6 @@ export class SegmentSelector extends LitElement {
             />
           </label>
         ` : ''}
-        <label class="option-item">
-          <span class="option-label">${this._localize('editors.gradient_interpolation_label')}</span>
-          <select
-            class="option-select"
-            .value=${this.gradientInterpolation}
-            @change=${this._handleGradientInterpolationChange}
-          >
-            <option value="shortest">${this._localize('editors.gradient_interp_shortest')}</option>
-            <option value="longest">${this._localize('editors.gradient_interp_longest')}</option>
-            <option value="rgb">${this._localize('editors.gradient_interp_rgb')}</option>
-          </select>
-        </label>
       </div>
       <div class="generated-actions">
         <ha-button @click=${this._applyToGrid}>
@@ -1972,11 +1989,10 @@ export class SegmentSelector extends LitElement {
       </div>
       <div class="options-row">
         <label class="option-item">
-          <input
-            type="checkbox"
+          <ha-switch
             .checked=${this.expandBlocks}
             @change=${this._handleExpandBlocksChange}
-          />
+          ></ha-switch>
           <span class="option-label">${this._localize('editors.expand_blocks_label')}</span>
         </label>
       </div>
@@ -2054,7 +2070,11 @@ export class SegmentSelector extends LitElement {
               />
             </label>
           </div>
-          ${this._renderColorHistory()}
+          <color-history-swatches
+            .colorHistory=${this.colorHistory}
+            .translations=${this.translations}
+            @color-selected=${this._handleHistoryColorSelected}
+          ></color-history-swatches>
           <div class="color-picker-modal-actions">
             <ha-button @click=${this._closeColorPicker}>${this._localize('editors.cancel_button')}</ha-button>
             <ha-button @click=${this._confirmColorPicker}>

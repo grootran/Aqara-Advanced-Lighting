@@ -34,7 +34,9 @@
     "cct_button": "CCT",
     "segment_button": "Segment",
     "no_lights_message": "Please select one or more lights to view available presets",
-    "group_label": "Group ({count} lights)"
+    "group_label": "Group ({count} lights)",
+    "lights_count": "{count} lights",
+    "favorite_lights_count": "{count} lights"
   },
   "devices": {
     "t2_bulb": "T2 Bulb",
@@ -70,7 +72,9 @@
     "export_progress": "Backing up presets...",
     "import_error_invalid_file": "Invalid backup file format",
     "import_error_unknown": "An unexpected error occurred",
-    "export_error_network": "Network error during backup"
+    "export_error_network": "Network error during backup",
+    "copy_suffix": "(copy)",
+    "presets_count": "{count} presets"
   },
   "dialogs": {
     "create_effect_title": "Create Effect Preset",
@@ -103,7 +107,40 @@
     "dimming_range_min_label": "Dimming range minimum",
     "dimming_range_max_label": "Dimming range maximum",
     "strip_length_label": "Strip length",
-    "select_light_message": "Select a light in the Activate tab to configure device-specific settings."
+    "select_light_message": "Select a light in the Activate tab to configure device-specific settings.",
+    "segment_zones_title": "Segment zones",
+    "segment_zones_subtitle": "Name segment ranges for quick selection and service calls",
+    "zone_name_label": "Zone name",
+    "zone_name_placeholder": "e.g. left side",
+    "zone_segments_label": "Segments",
+    "zone_segments_placeholder": "e.g. 1-8",
+    "zone_add_button": "Add zone",
+    "zone_save_button": "Save zones",
+    "zone_delete_tooltip": "Delete zone",
+    "zone_no_zones": "No zones defined for this device.",
+    "zone_saved": "Zones saved successfully.",
+    "zone_save_error": "Failed to save zones.",
+    "zone_name_required": "Zone name is required.",
+    "zone_segments_required": "Select at least one segment for each zone.",
+    "zone_invalid_range": "Zone \"{name}\": invalid segment range \"{range}\"",
+    "zone_out_of_range": "Zone \"{name}\": segment {segment} exceeds device maximum of {max}",
+    "zone_no_segment_devices": "Segment zones are only available for devices that support segment addressing (T1M, T1 Strip).",
+    "zone_duplicate_name": "Duplicate zone name: \"{name}\"",
+    "dimming_settings_title": "Dimming settings",
+    "entity_not_found": "Entity not found for this device.",
+    "initial_brightness_not_found": "Initial brightness entity not found for this device.",
+    "dimming_not_available": "Dimming settings are not available for this device.",
+    "strip_length_info": "Each meter has 5 addressable RGB segments (20cm each).",
+    "strip_length_not_found": "Length entity not found for this device.",
+    "segment_count": "{count} segments",
+    "applying_button": "Applying...",
+    "apply_button": "Apply",
+    "curvature_fast_slow": "Fast start, slow end",
+    "curvature_linear": "Linear (uniform)",
+    "curvature_slow_fast": "Slow start, fast end",
+    "curve_legend_fast_slow": "0.2-1: Fast then slow",
+    "curve_legend_linear": "1: Linear",
+    "curve_legend_slow_fast": "1-6: Slow then fast"
   },
   "instances": {
     "section_title": "Zigbee2MQTT instances",
@@ -164,6 +201,7 @@
     "clear_mode_on": "Clear: ON",
     "clear_mode_off": "Clear: OFF",
     "segments_selected": "{count} selected",
+    "zone_select_label": "Select zone...",
     "select_mode_on": "Select: ON",
     "select_mode_off": "Select: OFF",
     "add_step_button": "Add step",
@@ -222,6 +260,7 @@
     "tooltip_light_not_compatible": "Selected light is not compatible",
     "tooltip_light_no_cct": "Selected light does not support color temperature",
     "tooltip_fix_gradient_errors": "Fix gradient validation errors first",
+    "turn_off_unspecified_label": "Turn off unspecified segments",
     "incompatible_cct_endpoints": "One or more selected lights do not support color temperature control. CCT sequences require lights with color_temp capability. For T1M devices, select the white/CCT endpoint instead of the RGB ring endpoint."
   },
   "color_history": {

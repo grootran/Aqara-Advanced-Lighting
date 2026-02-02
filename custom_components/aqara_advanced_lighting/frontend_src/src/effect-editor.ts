@@ -1,10 +1,11 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { HomeAssistant, RGBColor, XYColor, UserEffectPreset, DeviceContext } from './types';
+import { HomeAssistant, RGBColor, XYColor, UserEffectPreset, DeviceContext, EffectEditorDraft } from './types';
 import { xyToHex, rgbToXy, getComplementaryColor } from './color-utils';
 import { colorPickerStyles } from './styles';
-import { getColorHistory, addColorToHistory, clearColorHistory } from './color-history';
+import { addColorToHistory } from './color-history';
 import './xy-color-picker';
+import './color-history-swatches';
 
 // Effect types available for each device
 const EFFECT_TYPES: Record<string, string[]> = {
@@ -35,6 +36,8 @@ export class EffectEditor extends LitElement {
   @property({ type: Boolean }) public previewActive = false;
   @property({ type: Number }) public stripSegmentCount = 10; // Default 2 meters (out-of-box T1 Strip length)
   @property({ type: Object }) public deviceContext?: DeviceContext;
+  @property({ type: Array }) public colorHistory: XYColor[] = [];
+  @property({ type: Object }) public draft?: EffectEditorDraft;
 
   @state() private _name = '';
   @state() private _icon = '';
@@ -231,7 +234,10 @@ export class EffectEditor extends LitElement {
   protected updated(changedProps: PropertyValues): void {
     super.updated(changedProps);
 
-    if (changedProps.has('preset')) {
+    // Draft takes priority over preset (contains user's unsaved edits)
+    if (changedProps.has('draft') && this.draft) {
+      this._restoreDraft(this.draft);
+    } else if (changedProps.has('preset')) {
       if (this.preset) {
         this._hasUserInteraction = true;
         this._loadPreset(this.preset);
@@ -248,6 +254,10 @@ export class EffectEditor extends LitElement {
     ) {
       this._deviceType = this.deviceContext.deviceType;
       this._effect = '';
+      // Default to all segments selected for T1 Strip
+      if (this._deviceType === 't1_strip' && !this._segments) {
+        this._segments = 'all';
+      }
     }
   }
 
@@ -273,6 +283,31 @@ export class EffectEditor extends LitElement {
     this._segments = preset.effect_segments || '';
   }
 
+  public getDraftState(): EffectEditorDraft {
+    return {
+      name: this._name,
+      icon: this._icon,
+      deviceType: this._deviceType,
+      effect: this._effect,
+      speed: this._speed,
+      brightness: this._brightness,
+      colors: [...this._colors],
+      segments: this._segments,
+    };
+  }
+
+  private _restoreDraft(draft: EffectEditorDraft): void {
+    this._name = draft.name;
+    this._icon = draft.icon;
+    this._deviceType = draft.deviceType;
+    this._effect = draft.effect;
+    this._speed = draft.speed;
+    this._brightness = draft.brightness;
+    this._colors = [...draft.colors];
+    this._segments = draft.segments;
+    this._hasUserInteraction = true;
+  }
+
   private _handleNameChange(e: CustomEvent): void {
     this._name = e.detail.value || '';
   }
@@ -286,6 +321,10 @@ export class EffectEditor extends LitElement {
     this._hasUserInteraction = true;
     // Reset effect to empty so user must select from new device's effects
     this._effect = '';
+    // Default to all segments selected for T1 Strip
+    if (this._deviceType === 't1_strip' && !this._segments) {
+      this._segments = 'all';
+    }
   }
 
   private _handleSpeedChange(e: CustomEvent): void {
@@ -313,7 +352,13 @@ export class EffectEditor extends LitElement {
 
   private _confirmColorPicker(): void {
     if (this._editingColorIndex !== null && this._editingColor !== null) {
-      addColorToHistory(this._editingColor);
+      // Update color history and notify parent
+      const newHistory = addColorToHistory(this.colorHistory, this._editingColor);
+      this.dispatchEvent(new CustomEvent('color-history-changed', {
+        detail: { colorHistory: newHistory },
+        bubbles: true,
+        composed: true,
+      }));
       this._colors = this._colors.map((c, i) =>
         i === this._editingColorIndex ? this._editingColor! : c
       );
@@ -321,13 +366,9 @@ export class EffectEditor extends LitElement {
     this._closeColorPicker();
   }
 
-  private _selectHistoryColor(color: XYColor): void {
+  private _handleHistoryColorSelected(e: CustomEvent): void {
+    const color = e.detail.color as XYColor;
     this._editingColor = { x: color.x, y: color.y };
-  }
-
-  private _clearColorHistory(): void {
-    clearColorHistory();
-    this.requestUpdate();
   }
 
   private _closeColorPicker(): void {
@@ -350,32 +391,6 @@ export class EffectEditor extends LitElement {
     }
   }
 
-  private _renderColorHistory() {
-    const history = getColorHistory();
-
-    return html`
-      <div class="color-history-section">
-        <div class="color-history-header">
-          <span class="color-history-label">${this._localize('color_history.recent_colors')}</span>
-          ${history.length > 0 ? html`
-            <button class="color-history-clear" @click=${this._clearColorHistory}>
-              ${this._localize('color_history.clear')}
-            </button>
-          ` : ''}
-        </div>
-        <div class="color-history-swatches">
-          ${history.map(color => html`
-            <button
-              class="color-history-swatch"
-              style="background-color: ${xyToHex(color, 255)}"
-              @click=${() => this._selectHistoryColor(color)}
-            ></button>
-          `)}
-        </div>
-      </div>
-    `;
-  }
-
   private _colorToHex(color: XYColor): string {
     return xyToHex(color, 255);
   }
@@ -387,6 +402,7 @@ export class EffectEditor extends LitElement {
 
   private _selectEffect(effect: string): void {
     this._effect = effect;
+    this._hasUserInteraction = true;
   }
 
   private _getPresetData(): Record<string, unknown> {
@@ -575,6 +591,7 @@ export class EffectEditor extends LitElement {
                   .value=${this._segments}
                   .label=${this._localize('editors.segments_label')}
                   .translations=${this.translations}
+                  .zones=${this.deviceContext?.zones || []}
                   @value-changed=${this._handleSegmentsChange}
                 ></segment-selector>
               </div>
@@ -661,7 +678,11 @@ export class EffectEditor extends LitElement {
                     .showRgbInputs=${true}
                     @color-changed=${this._handleColorPickerChange}
                   ></xy-color-picker>
-                  ${this._renderColorHistory()}
+                  <color-history-swatches
+                    .colorHistory=${this.colorHistory}
+                    .translations=${this.translations}
+                    @color-selected=${this._handleHistoryColorSelected}
+                  ></color-history-swatches>
                   <div class="color-picker-modal-actions">
                     <ha-button @click=${this._closeColorPicker}>${this._localize('editors.cancel_button')}</ha-button>
                     <ha-button @click=${this._confirmColorPicker}>

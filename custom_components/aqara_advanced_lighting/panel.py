@@ -7,22 +7,34 @@ import json
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from urllib.parse import unquote
 
 from aiohttp import web
 
 from homeassistant.components import frontend
 from homeassistant.components.http import HomeAssistantView
+from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 
 if TYPE_CHECKING:
     from .favorites_store import FavoritesStore
     from .preset_store import PresetStore
+    from .segment_zone_store import SegmentZoneStore
+    from .user_preferences_store import UserPreferencesStore
 
 from .const import (
+    ATTR_BRIGHTNESS,
+    ATTR_PRESET,
+    ATTR_RESTORE_STATE,
+    ATTR_SEGMENTS,
     CCT_SEQUENCE_PRESETS,
     DATA_FAVORITES_STORE,
     DATA_PRESET_STORE,
+    DATA_SEGMENT_ZONE_STORE,
+    DATA_USER_PREFERENCES_STORE,
     DOMAIN,
+    MAX_COLOR_HISTORY_SIZE,
     EFFECT_PRESETS,
     MODEL_T1M_20_SEGMENT,
     MODEL_T1M_26_SEGMENT,
@@ -37,7 +49,15 @@ from .const import (
     MODEL_T2_CCT_GU10_230V,
     SEGMENT_PATTERN_PRESETS,
     SEGMENT_SEQUENCE_PRESETS,
+    SERVICE_SET_DYNAMIC_EFFECT,
+    SERVICE_SET_SEGMENT_PATTERN,
+    SERVICE_START_CCT_SEQUENCE,
+    SERVICE_START_SEGMENT_SEQUENCE,
+    SERVICE_STOP_CCT_SEQUENCE,
+    SERVICE_STOP_EFFECT,
+    SERVICE_STOP_SEGMENT_SEQUENCE,
     VALID_PRESET_TYPES,
+    VALID_SORT_OPTIONS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -90,11 +110,21 @@ async def async_register_panel(hass: HomeAssistant) -> None:
     hass.http.register_view(ExportPresetsView)
     hass.http.register_view(ImportPresetsView)
 
+    # Register user preferences endpoint
+    hass.http.register_view(UserPreferencesView)
+
     # Register version endpoint
     hass.http.register_view(VersionView)
 
+    # Register segment zone endpoints
+    hass.http.register_view(SegmentZonesView)
+    hass.http.register_view(SegmentZoneView)
+
     # Register supported entities endpoint
     hass.http.register_view(SupportedEntitiesView)
+
+    # Register REST trigger endpoint for external systems
+    hass.http.register_view(TriggerView)
 
     _LOGGER.info("Aqara Advanced Lighting panel registered")
 
@@ -614,6 +644,170 @@ class UserPresetDuplicateView(HomeAssistantView):
         return web.json_response({"preset": preset}, status=201)
 
 
+def _get_user_preferences_store(
+    hass: HomeAssistant,
+) -> UserPreferencesStore | None:
+    """Get the user preferences store from hass.data."""
+    if DOMAIN not in hass.data:
+        return None
+    return hass.data[DOMAIN].get(DATA_USER_PREFERENCES_STORE)
+
+
+def _validate_color_history(color_history: Any) -> str | None:
+    """Validate color history data.
+
+    Returns an error message if invalid, or None if valid.
+    """
+    if not isinstance(color_history, list):
+        return "color_history must be a list"
+
+    if len(color_history) > MAX_COLOR_HISTORY_SIZE:
+        return f"color_history must have at most {MAX_COLOR_HISTORY_SIZE} entries"
+
+    for i, color in enumerate(color_history):
+        if not isinstance(color, dict):
+            return f"color_history[{i}] must be an object"
+        if "x" not in color or "y" not in color:
+            return f"color_history[{i}] must have `x` and `y` keys"
+        try:
+            x = float(color["x"])
+            y = float(color["y"])
+        except (TypeError, ValueError):
+            return f"color_history[{i}] `x` and `y` must be numbers"
+        if not (0.0 <= x <= 1.0 and 0.0 <= y <= 1.0):
+            return f"color_history[{i}] `x` and `y` must be between 0.0 and 1.0"
+
+    return None
+
+
+def _validate_sort_preferences(sort_preferences: Any) -> str | None:
+    """Validate sort preferences data.
+
+    Returns an error message if invalid, or None if valid.
+    """
+    if not isinstance(sort_preferences, dict):
+        return "sort_preferences must be an object"
+
+    for key, value in sort_preferences.items():
+        if not isinstance(key, str):
+            return f"sort_preferences key `{key}` must be a string"
+        if value not in VALID_SORT_OPTIONS:
+            return (
+                f"sort_preferences[{key!r}] value `{value}` is invalid. "
+                f"Valid options: {', '.join(sorted(VALID_SORT_OPTIONS))}"
+            )
+
+    return None
+
+
+def _validate_collapsed_sections(collapsed_sections: Any) -> str | None:
+    """Validate collapsed sections data.
+
+    Returns an error message if invalid, or None if valid.
+    """
+    if not isinstance(collapsed_sections, dict):
+        return "collapsed_sections must be an object"
+
+    for key, value in collapsed_sections.items():
+        if not isinstance(key, str):
+            return f"collapsed_sections key `{key}` must be a string"
+        if not isinstance(value, bool):
+            return f"collapsed_sections[{key!r}] value must be a boolean"
+
+    return None
+
+
+class UserPreferencesView(HomeAssistantView):
+    """View to manage per-user preferences (color history, sort preferences)."""
+
+    url = f"/api/{DOMAIN}/user_preferences"
+    name = f"api:{DOMAIN}:user_preferences"
+    requires_auth = True
+
+    async def get(self, request: web.Request) -> web.Response:
+        """Get preferences for the current user."""
+        hass = request.app["hass"]
+        user = request["hass_user"]
+
+        if not user:
+            return web.Response(status=401, text="Unauthorized")
+
+        store = _get_user_preferences_store(hass)
+        if not store:
+            return web.Response(
+                status=503, text="User preferences store not initialized"
+            )
+
+        preferences = store.get_preferences(user.id)
+        return web.json_response(preferences)
+
+    async def put(self, request: web.Request) -> web.Response:
+        """Partially update preferences for the current user.
+
+        Accepts any subset of preference keys and merges them into the
+        existing preferences.
+        """
+        hass = request.app["hass"]
+        user = request["hass_user"]
+
+        if not user:
+            return web.Response(status=401, text="Unauthorized")
+
+        store = _get_user_preferences_store(hass)
+        if not store:
+            return web.Response(
+                status=503, text="User preferences store not initialized"
+            )
+
+        try:
+            data = await request.json()
+        except ValueError:
+            return web.Response(status=400, text="Invalid JSON")
+
+        if not isinstance(data, dict):
+            return web.Response(status=400, text="Request body must be a JSON object")
+
+        # Validate provided fields
+        color_history = None
+        sort_preferences = None
+        collapsed_sections = None
+
+        if "color_history" in data:
+            error = _validate_color_history(data["color_history"])
+            if error:
+                return web.Response(status=400, text=error)
+            color_history = data["color_history"]
+
+        if "sort_preferences" in data:
+            error = _validate_sort_preferences(data["sort_preferences"])
+            if error:
+                return web.Response(status=400, text=error)
+            sort_preferences = data["sort_preferences"]
+
+        if "collapsed_sections" in data:
+            error = _validate_collapsed_sections(data["collapsed_sections"])
+            if error:
+                return web.Response(status=400, text=error)
+            collapsed_sections = data["collapsed_sections"]
+
+        if (
+            color_history is None
+            and sort_preferences is None
+            and collapsed_sections is None
+        ):
+            # Nothing to update, return current preferences
+            preferences = store.get_preferences(user.id)
+            return web.json_response(preferences)
+
+        preferences = await store.update_preferences(
+            user.id,
+            color_history=color_history,
+            sort_preferences=sort_preferences,
+            collapsed_sections=collapsed_sections,
+        )
+        return web.json_response(preferences)
+
+
 class VersionView(HomeAssistantView):
     """View to get the integration version."""
 
@@ -747,7 +941,7 @@ class SupportedEntitiesView(HomeAssistantView):
 
     url = f"/api/{DOMAIN}/supported_entities"
     name = f"api:{DOMAIN}:supported_entities"
-    requires_auth = False
+    requires_auth = True
 
     async def get(self, request: web.Request) -> web.Response:
         """Get all supported entities with their device info.
@@ -862,6 +1056,10 @@ class SupportedEntitiesView(HomeAssistantView):
                     # Check for CCT-only models
                     device_type = "t2_cct" if "cct" in model_id.lower() else "unknown"
 
+                # Get segment count for this device model
+                from .light_capabilities import get_segment_count
+                segment_count = get_segment_count(model_id)
+
                 supported_entities[entity_id] = {
                     "entity_id": entity_id,
                     "z2m_friendly_name": z2m_friendly_name,
@@ -869,6 +1067,8 @@ class SupportedEntitiesView(HomeAssistantView):
                     "device_type": device_type,
                     "entry_id": entry_id,
                     "z2m_base_topic": z2m_base_topic,
+                    "ieee_address": device.ieee_address,
+                    "segment_count": segment_count,
                 }
 
         # Detect light groups where ALL members are supported Aqara devices
@@ -937,3 +1137,263 @@ class SupportedEntitiesView(HomeAssistantView):
             "instances": instances,
             "light_groups": light_groups,
         })
+
+
+def _get_segment_zone_store(hass: HomeAssistant) -> SegmentZoneStore | None:
+    """Get the segment zone store from hass.data."""
+    if DOMAIN not in hass.data:
+        return None
+    return hass.data[DOMAIN].get(DATA_SEGMENT_ZONE_STORE)
+
+
+class SegmentZonesView(HomeAssistantView):
+    """View to get and set segment zones for a device."""
+
+    url = f"/api/{DOMAIN}/segment_zones/{{ieee_address}}"
+    name = f"api:{DOMAIN}:segment_zones"
+    requires_auth = True
+
+    async def get(
+        self, request: web.Request, ieee_address: str
+    ) -> web.Response:
+        """Get all zones for a device."""
+        hass = request.app["hass"]
+
+        zone_store = _get_segment_zone_store(hass)
+        if not zone_store:
+            return web.Response(
+                status=503, text="Segment zone store not initialized"
+            )
+
+        zones = zone_store.get_zones(ieee_address)
+        return web.json_response({"zones": zones})
+
+    async def put(
+        self, request: web.Request, ieee_address: str
+    ) -> web.Response:
+        """Replace all zones for a device."""
+        hass = request.app["hass"]
+
+        zone_store = _get_segment_zone_store(hass)
+        if not zone_store:
+            return web.Response(
+                status=503, text="Segment zone store not initialized"
+            )
+
+        try:
+            data = await request.json()
+        except ValueError:
+            return web.Response(status=400, text="Invalid JSON")
+
+        zones = data.get("zones")
+        if zones is None or not isinstance(zones, dict):
+            return web.Response(
+                status=400, text="Request body must contain a `zones` object"
+            )
+
+        # Validate all values are strings
+        for name, segment_range in zones.items():
+            if not isinstance(name, str) or not isinstance(segment_range, str):
+                return web.Response(
+                    status=400,
+                    text="Zone names and segment ranges must be strings",
+                )
+
+        try:
+            saved_zones = await zone_store.set_zones(ieee_address, zones)
+        except ValueError as ex:
+            return web.Response(status=400, text=str(ex))
+
+        return web.json_response({"zones": saved_zones})
+
+
+class SegmentZoneView(HomeAssistantView):
+    """View to delete a single segment zone."""
+
+    url = f"/api/{DOMAIN}/segment_zones/{{ieee_address}}/{{zone_name}}"
+    name = f"api:{DOMAIN}:segment_zone"
+    requires_auth = True
+
+    async def delete(
+        self, request: web.Request, ieee_address: str, zone_name: str
+    ) -> web.Response:
+        """Delete a single zone from a device."""
+        hass = request.app["hass"]
+        zone_name = unquote(zone_name)
+
+        zone_store = _get_segment_zone_store(hass)
+        if not zone_store:
+            return web.Response(
+                status=503, text="Segment zone store not initialized"
+            )
+
+        deleted = await zone_store.delete_zone(ieee_address, zone_name)
+        if not deleted:
+            return web.Response(status=404, text="Zone not found")
+
+        return web.Response(status=204)
+
+
+# Mapping from preset type to the service used for activation
+_ACTIVATE_SERVICE_MAP: dict[str, str] = {
+    "effect": SERVICE_SET_DYNAMIC_EFFECT,
+    "segment_pattern": SERVICE_SET_SEGMENT_PATTERN,
+    "cct_sequence": SERVICE_START_CCT_SEQUENCE,
+    "segment_sequence": SERVICE_START_SEGMENT_SEQUENCE,
+}
+
+# Mapping from preset type to the service used for stopping
+_STOP_SERVICE_MAP: dict[str, str] = {
+    "effect": SERVICE_STOP_EFFECT,
+    "cct_sequence": SERVICE_STOP_CCT_SEQUENCE,
+    "segment_sequence": SERVICE_STOP_SEGMENT_SEQUENCE,
+}
+
+# Valid actions for the trigger endpoint
+_VALID_ACTIONS = {"activate", "stop"}
+
+
+class TriggerView(HomeAssistantView):
+    """REST endpoint for triggering presets from external systems.
+
+    Allows Node-RED, phone shortcuts, voice assistants, and other HTTP
+    clients to activate presets or stop effects without using HA's
+    service call mechanism directly.
+    """
+
+    url = f"/api/{DOMAIN}/trigger"
+    name = f"api:{DOMAIN}:trigger"
+    requires_auth = True
+
+    async def post(self, request: web.Request) -> web.Response:
+        """Trigger a preset or stop an active effect/sequence.
+
+        Expects JSON body with:
+            entity_id: Target light entity ID (required)
+            action: "activate" or "stop" (required)
+            preset_type: One of "effect", "segment_pattern",
+                "cct_sequence", "segment_sequence" (required)
+            preset: Preset name (required for activate action)
+            brightness: Optional brightness percentage override (1-100)
+            segments: Optional segment range override (e.g. "1-10")
+        """
+        hass: HomeAssistant = request.app["hass"]
+
+        # Parse request body
+        try:
+            data: dict[str, Any] = await request.json()
+        except (json.JSONDecodeError, ValueError):
+            return web.json_response(
+                {"success": False, "error": "Invalid JSON"}, status=400
+            )
+
+        if not isinstance(data, dict):
+            return web.json_response(
+                {"success": False, "error": "Request body must be a JSON object"},
+                status=400,
+            )
+
+        # Validate required fields
+        entity_id = data.get("entity_id")
+        if not entity_id or not isinstance(entity_id, str):
+            return web.json_response(
+                {"success": False, "error": "Missing or invalid `entity_id`"},
+                status=400,
+            )
+
+        # Verify the entity exists
+        state = hass.states.get(entity_id)
+        if not state:
+            return web.json_response(
+                {"success": False, "error": f"Entity `{entity_id}` not found"},
+                status=404,
+            )
+
+        action = data.get("action")
+        if action not in _VALID_ACTIONS:
+            return web.json_response(
+                {
+                    "success": False,
+                    "error": f"Invalid `action`: must be one of {sorted(_VALID_ACTIONS)}",
+                },
+                status=400,
+            )
+
+        preset_type = data.get("preset_type")
+        if not preset_type or preset_type not in _ACTIVATE_SERVICE_MAP:
+            return web.json_response(
+                {
+                    "success": False,
+                    "error": (
+                        "Invalid `preset_type`: must be one of "
+                        f"{sorted(_ACTIVATE_SERVICE_MAP.keys())}"
+                    ),
+                },
+                status=400,
+            )
+
+        # Build the service call data (services expect entity_id as a list)
+        service_data: dict[str, Any] = {ATTR_ENTITY_ID: [entity_id]}
+
+        if action == "activate":
+            preset = data.get("preset")
+            if not preset or not isinstance(preset, str):
+                return web.json_response(
+                    {
+                        "success": False,
+                        "error": "Missing or invalid `preset` (required for activate action)",
+                    },
+                    status=400,
+                )
+
+            service_data[ATTR_PRESET] = preset
+            service_name = _ACTIVATE_SERVICE_MAP[preset_type]
+
+            # Optional overrides
+            brightness = data.get("brightness")
+            if brightness is not None:
+                service_data[ATTR_BRIGHTNESS] = brightness
+
+            segments = data.get("segments")
+            if segments is not None:
+                service_data[ATTR_SEGMENTS] = segments
+
+        else:
+            # Stop action
+            if preset_type not in _STOP_SERVICE_MAP:
+                return web.json_response(
+                    {
+                        "success": False,
+                        "error": (
+                            f"Stop action is not supported for preset type "
+                            f"`{preset_type}` (segment patterns are static)"
+                        ),
+                    },
+                    status=400,
+                )
+            service_name = _STOP_SERVICE_MAP[preset_type]
+
+            # Stop effect supports restore_state
+            restore_state = data.get("restore_state")
+            if restore_state is not None:
+                service_data[ATTR_RESTORE_STATE] = restore_state
+
+        # Call the service
+        try:
+            await hass.services.async_call(
+                DOMAIN, service_name, service_data, blocking=True
+            )
+        except ServiceValidationError as ex:
+            _LOGGER.warning("Trigger validation error: %s", ex)
+            return web.json_response(
+                {"success": False, "error": str(ex)}, status=422
+            )
+        except HomeAssistantError as ex:
+            _LOGGER.error("Trigger service error: %s", ex)
+            return web.json_response(
+                {"success": False, "error": str(ex)}, status=500
+            )
+
+        return web.json_response(
+            {"success": True, "service": service_name, "entity_id": entity_id}
+        )
