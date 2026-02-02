@@ -256,7 +256,7 @@ export class SegmentSelector extends LitElement {
       }
 
       .zone-select {
-        min-width: 140px;
+        min-width: 200px;
       }
 
       .description {
@@ -935,65 +935,65 @@ export class SegmentSelector extends LitElement {
     }
   }
 
-  private _selectFirstHalf(): void {
-    if (this.disabled) return;
-    const newSelected = new Set<number>();
+  private _getBuiltInZoneIndices(name: string): number[] | null {
     const half = Math.floor(this.maxSegments / 2);
-    for (let i = 0; i < half; i++) {
-      newSelected.add(i);
+    switch (name) {
+      case '__all':
+        return Array.from({ length: this.maxSegments }, (_, i) => i);
+      case '__first-half':
+        return Array.from({ length: half }, (_, i) => i);
+      case '__second-half':
+        return Array.from({ length: this.maxSegments - half }, (_, i) => half + i);
+      case '__odd':
+        return Array.from({ length: this.maxSegments }, (_, i) => i).filter(i => i % 2 === 0);
+      case '__even':
+        return Array.from({ length: this.maxSegments }, (_, i) => i).filter(i => i % 2 === 1);
+      default:
+        return null;
     }
-    this._selectedSegments = newSelected;
-    this._lastSelectedIndex = null;
-    this._fireValueChanged();
   }
 
-  private _selectSecondHalf(): void {
-    if (this.disabled) return;
-    const newSelected = new Set<number>();
-    const half = Math.floor(this.maxSegments / 2);
-    for (let i = half; i < this.maxSegments; i++) {
-      newSelected.add(i);
+  private _renderZoneListItems(): TemplateResult[] {
+    const items: TemplateResult[] = [];
+    if (this.zones.length > 0) {
+      for (const z of this.zones) {
+        items.push(html`<mwc-list-item value=${z.name}>${z.name}</mwc-list-item>`);
+      }
     }
-    this._selectedSegments = newSelected;
-    this._lastSelectedIndex = null;
-    this._fireValueChanged();
+    items.push(html`<mwc-list-item value="__all">${this._localize('editors.select_all_button')}</mwc-list-item>`);
+    items.push(html`<mwc-list-item value="__first-half">${this._localize('editors.first_half_button')}</mwc-list-item>`);
+    items.push(html`<mwc-list-item value="__second-half">${this._localize('editors.second_half_button')}</mwc-list-item>`);
+    items.push(html`<mwc-list-item value="__odd">${this._localize('editors.odd_button')}</mwc-list-item>`);
+    items.push(html`<mwc-list-item value="__even">${this._localize('editors.even_button')}</mwc-list-item>`);
+    return items;
   }
 
-  private _selectOdd(): void {
-    if (this.disabled) return;
-    const newSelected = new Set<number>();
-    for (let i = 0; i < this.maxSegments; i += 2) {
-      newSelected.add(i);
-    }
-    this._selectedSegments = newSelected;
-    this._lastSelectedIndex = null;
-    this._fireValueChanged();
-  }
-
-  private _selectEven(): void {
-    if (this.disabled) return;
-    const newSelected = new Set<number>();
-    for (let i = 1; i < this.maxSegments; i += 2) {
-      newSelected.add(i);
-    }
-    this._selectedSegments = newSelected;
-    this._lastSelectedIndex = null;
-    this._fireValueChanged();
-  }
-
-  private _handleZoneSelect(e: CustomEvent): void {
-    e.stopPropagation();
-    const zoneName = e.detail.value;
+  private _handleZoneSelected(e: Event): void {
+    const select = e.target as HTMLElement & { value: string };
+    const zoneName = select.value;
     if (!zoneName || this.disabled) return;
-    const zone = this.zones.find(z => z.name === zoneName);
-    if (!zone) return;
-    const newSelected = new Set<number>(zone.segmentIndices);
+
+    // Check built-in zones first
+    const builtInIndices = this._getBuiltInZoneIndices(zoneName);
+    let newSelected: Set<number>;
+    if (builtInIndices) {
+      newSelected = new Set<number>(builtInIndices);
+    } else {
+      const zone = this.zones.find(z => z.name === zoneName);
+      if (!zone) return;
+      newSelected = new Set<number>(zone.segmentIndices);
+    }
+
     this._selectedSegments = newSelected;
     this._lastSelectedIndex = null;
     if (this.mode === 'selection' || this.mode === 'sequence') {
       this._fireValueChanged();
     }
-    // Reset dropdown to placeholder
+  }
+
+  private _handleZoneMenuClosed(e: Event): void {
+    e.stopPropagation();
+    // Reset to empty after menu closes so the same zone can be re-selected
     this._selectedZone = '';
   }
 
@@ -1691,45 +1691,25 @@ export class SegmentSelector extends LitElement {
             <ha-icon icon="mdi:selection-off"></ha-icon>
             ${this._localize('editors.clear_all_button')}
           </ha-button>
-          <ha-button @click=${this._selectFirstHalf} .disabled=${this.disabled}>
-            <ha-icon icon="mdi:arrow-left-bold"></ha-icon>
-            ${this._localize('editors.first_half_button')}
-          </ha-button>
-          <ha-button @click=${this._selectSecondHalf} .disabled=${this.disabled}>
-            <ha-icon icon="mdi:arrow-right-bold"></ha-icon>
-            ${this._localize('editors.second_half_button')}
-          </ha-button>
-          <ha-button @click=${this._selectOdd} .disabled=${this.disabled}>
-            <ha-icon icon="mdi:numeric-1"></ha-icon>
-            ${this._localize('editors.odd_button')}
-          </ha-button>
-          <ha-button @click=${this._selectEven} .disabled=${this.disabled}>
-            <ha-icon icon="mdi:numeric-2"></ha-icon>
-            ${this._localize('editors.even_button')}
-          </ha-button>
           <div class="selection-info">
             <ha-icon icon="mdi:information-outline"></ha-icon>
             <span>${this._localize('editors.segments_selected', { count })}</span>
           </div>
         </div>
-        ${this.zones.length > 0 ? html`
-          <div class="options-row">
-            <ha-selector
-              class="zone-select"
-              .hass=${this.hass}
-              .selector=${{
-                select: {
-                  options: this.zones.map(z => ({ value: z.name, label: z.name })),
-                  mode: 'dropdown',
-                },
-              }}
-              .value=${this._selectedZone}
-              .label=${this._localize('editors.zone_select_label')}
-              .disabled=${this.disabled}
-              @value-changed=${this._handleZoneSelect}
-            ></ha-selector>
-          </div>
-        ` : ''}
+        <div class="options-row">
+          <ha-select
+            class="zone-select"
+            .label=${this._localize('editors.zone_select_label')}
+            .value=${this._selectedZone}
+            .disabled=${this.disabled}
+            fixedMenuPosition
+            naturalMenuWidth
+            @selected=${this._handleZoneSelected}
+            @closed=${this._handleZoneMenuClosed}
+          >
+            ${this._renderZoneListItems()}
+          </ha-select>
+        </div>
       `;
     } else if (this.mode === 'color' || this.mode === 'sequence') {
       return html`
@@ -1764,22 +1744,18 @@ export class SegmentSelector extends LitElement {
           </div>
         </div>
         <div class="options-row">
-          ${this.zones.length > 0 ? html`
-            <ha-selector
-              class="zone-select"
-              .hass=${this.hass}
-              .selector=${{
-                select: {
-                  options: this.zones.map(z => ({ value: z.name, label: z.name })),
-                  mode: 'dropdown',
-                },
-              }}
-              .value=${this._selectedZone}
-              .label=${this._localize('editors.zone_select_label')}
-              .disabled=${this.disabled}
-              @value-changed=${this._handleZoneSelect}
-            ></ha-selector>
-          ` : ''}
+          <ha-select
+            class="zone-select"
+            .label=${this._localize('editors.zone_select_label')}
+            .value=${this._selectedZone}
+            .disabled=${this.disabled}
+            fixedMenuPosition
+            naturalMenuWidth
+            @selected=${this._handleZoneSelected}
+            @closed=${this._handleZoneMenuClosed}
+          >
+            ${this._renderZoneListItems()}
+          </ha-select>
           <label class="option-item">
             <ha-switch
               .checked=${this.turnOffUnspecified}
