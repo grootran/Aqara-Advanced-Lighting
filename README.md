@@ -52,7 +52,7 @@ _If you want to show your support please_
 - Sidebar-accessible UI for controlling lights and managing presets
 - Visual editors for effects, segment patterns, CCT sequences, and segment sequences
 - Favorite lights with control tiles for quick on/off and brightness adjustment
-- Device configuration: transition curves (T2), initial brightness (T2), dimming settings, strip length (T1 Strip)
+- Device configuration: transition curves (T2), initial brightness (T2), dimming settings, strip length (T1 Strip), segment zone presets (T1M/T1 Strip)
 - Multi-device configuration for pushing settings to multiple devices at once
 
 **Automation**
@@ -405,6 +405,7 @@ Create custom effects and patterns with interactive builders:
 - Gradient mirror, repeat (1-10 tiles), and reverse options
 - Generate color block patterns
 - Option to turn off unspecified segments
+- Use the zone dropdown to quickly select saved segment zones or built-in presets (All, First Half, Second Half, Odd, Even)
 - Works with T1M and T1 Strip lights
 - Save patterns as custom presets
 
@@ -474,6 +475,15 @@ Configure device-specific settings directly from the Device Config tab in the pa
 - **Dimming range minimum**: Lowest brightness level (1-99%)
 - **Dimming range maximum**: Highest brightness level (2-100%)
 - Apply to multiple devices simultaneously for synchronized behavior
+
+**For T1M and T1 Strip**
+
+**Segment Zones**
+- Create named zones to group segments for quick selection in the pattern and sequence editors
+- Each zone maps a name (e.g., "Left Side", "Accent") to a segment range (e.g., `1-8`, `1-5,10,15-20`)
+- Zones are saved per device and persist across sessions
+- Zone names must be unique per device (case-insensitive) and cannot conflict with built-in keywords (all, odd, even, first-half, second-half)
+- Up to 20 zones per device
 
 **For T1 Strip**
 
