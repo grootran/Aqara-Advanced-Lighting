@@ -6,7 +6,7 @@
 
 ![Aqara Advanced Lighting](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/main/images/aqara-advanced-lighting.png "Aqara Advanced Lighting")
 
-**Aqara Advanced Lighting** [Home Assistant](https://www.home-assistant.io/) integration for control of the **[Aqara T1M Ceiling Light](https://www.aqara.com/en/product/ceiling-light-t1m/)**, **[T1 LED Strip](https://www.aqara.com/en/product/led-strip-t1/)**, and **[T2 RGB & CCT bulbs](https://www.aqara.com/en/product/led-bulb-t2/)** via [Zigbee2MQTT](https://www.zigbee2mqtt.io/).
+**Aqara Advanced Lighting** [Home Assistant](https://www.home-assistant.io/) integration for control of the **[Aqara T1M Ceiling Light](https://www.aqara.com/en/product/ceiling-light-t1m/)**, **[T1 LED Strip](https://www.aqara.com/en/product/led-strip-t1/)**, and **[T2 RGB & CCT bulbs](https://www.aqara.com/en/product/led-bulb-t2/)** via [Zigbee2MQTT](https://www.zigbee2mqtt.io/). All the features of the Aqara Home app and more but without an Aqara Hub.
 
 ## Overview
 
