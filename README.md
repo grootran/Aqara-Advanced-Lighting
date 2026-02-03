@@ -6,13 +6,13 @@
 
 ![Aqara Advanced Lighting](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/main/images/aqara-advanced-lighting.png "Aqara Advanced Lighting")
 
-[Home Assistant](https://www.home-assistant.io/) integration for advanced control of the Aqara [T1M Ceiling Light](https://www.aqara.com/en/product/ceiling-light-t1m/), [T1 LED Strip](https://www.aqara.com/en/product/led-strip-t1/), and [T2 bulbs](https://www.aqara.com/en/product/led-bulb-t2/) via [Zigbee2MQTT](https://www.zigbee2mqtt.io/).
+**Aqara Advanced Lighting** [Home Assistant](https://www.home-assistant.io/) integration for control of the **[Aqara T1M Ceiling Light](https://www.aqara.com/en/product/ceiling-light-t1m/)**, **[T1 LED Strip](https://www.aqara.com/en/product/led-strip-t1/)**, and **[T2 RGB & CCT bulbs](https://www.aqara.com/en/product/led-bulb-t2/)** via [Zigbee2MQTT](https://www.zigbee2mqtt.io/).
 
 ## Overview
 
-Easily control the more advanced features of the Aqara T1M Ceiling Light, T1 LED Strip and T2 RGB+CCT bulbs through Home Assistant: dynamic RGB effects, per-segment colors and gradients, animated segment sequences, and multi-step color temperature transitions. Save and reuse custom presets across all feature types.
+Easily control the more advanced features of the **Aqara T1M Ceiling Light**, **T1 LED Strip** and **T2 RGB+CCT bulbs** through **Home Assistant**, with support for dynamic RGB effects, per-segment colors and gradients, animated segment sequences, multi-step color temperature transitions and more. Save and reuse custom presets across all feature types.
 
-Includes a sidebar panel with visual editors for building effects, patterns, and sequences, plus 13 service actions and 14 device triggers for use in automations and scripts.
+Includes a sidebar panel with visual editors for building effects, patterns, and sequences, plus 13 service actions, and 14 device triggers for use in automations and scripts.
 
 _Please :star: this integration if you find it useful_
 
@@ -22,17 +22,19 @@ _If you want to show your support please_
 
 ### Supported Devices
 
-| Device | Model | Segments | Dynamic Effects | Segment Control | CCT Sequences |
-|-------|--------|----------|-----------------|-----------------|---------------|
-| T1 Ceiling Light (20 segments) | ACN031 | 20 | ✓ 6 effects | ✓ | ✓ |
-| T1M Ceiling Light (26 segments) | ACN032 | 26 | ✓ 6 effects | ✓ | ✓ |
-| T1 LED Strip | ACN132 | Variable (5/meter) | ✓ 8 effects | ✓ | ✓ |
-| T2 RGB Bulb (E26/E27/GU10) | AGL001/3/5/7 | N/A | ✓ 4 effects | N/A | ✓ |
-| T2 CCT Bulb (E26/E27/GU10) | AGL002/4/6/8 | N/A | N/A | N/A | ✓ |
+
+| Device                          | Model        | Segments           | Dynamic Effects | Segment Control | CCT Sequences |
+| --------------------------------- | -------------- | -------------------- | ----------------- | ----------------- | --------------- |
+| T1 Ceiling Light (20 segments)  | ACN031       | 20                 | ✓ 6 effects    | ✓              | ✓            |
+| T1M Ceiling Light (26 segments) | ACN032       | 26                 | ✓ 6 effects    | ✓              | ✓            |
+| T1 LED Strip                    | ACN132       | Variable (5/meter) | ✓ 8 effects    | ✓              | ✓            |
+| T2 RGB Bulb (E26/E27/GU10)      | AGL001/3/5/7 | N/A                | ✓ 4 effects    | N/A             | ✓            |
+| T2 CCT Bulb (E26/E27/GU10)      | AGL002/4/6/8 | N/A                | N/A             | N/A             | ✓            |
 
 ### Features
 
 **Lighting Control**
+
 - 13 dynamic RGB effects (breathing, fading, flowing, chasing, rainbow, and more)
 - Individual segment colors, smooth gradients (2-6 colors), and color block patterns
 - RGB segment sequences with up to 20 steps and 8 activation patterns
@@ -41,6 +43,7 @@ _If you want to show your support please_
 - Flexible segment selection: ranges, individual, odd/even, first-half, last-third, etc.
 
 **Presets**
+
 - 42 built-in presets: 20 effects, 12 segment patterns, 4 CCT sequences, 6 segment sequences
 - Unlimited custom user presets with create, edit, duplicate, and delete
 - Auto-genertaion of preset icons based on colors of preset
@@ -49,6 +52,7 @@ _If you want to show your support please_
 - Persistent storage across devices and restarts
 
 **Frontend Panel**
+
 - Sidebar-accessible UI for controlling lights and managing presets
 - Visual editors for effects, segment patterns, CCT sequences, and segment sequences
 - Favorite lights with control tiles for quick on/off and brightness adjustment
@@ -56,6 +60,7 @@ _If you want to show your support please_
 - Multi-device configuration for pushing settings to multiple devices at once
 
 **Automation**
+
 - 13 service actions for use in automations, scripts, and Developer Tools
 - 14 device triggers for sequence and effect lifecycle events (started, completed, stopped, paused, resumed, step changed)
 - REST API trigger endpoint for external systems (Node-RED, phone shortcuts, voice assistants)
@@ -63,6 +68,7 @@ _If you want to show your support please_
 - Auto turn-on option for all services
 
 **Integration**
+
 - Automatic device discovery via Zigbee2MQTT
 - Multiple Zigbee2MQTT instance support
 - State capture and restoration when applying effects
@@ -113,6 +119,7 @@ Restart Home Assistant
 
 1. Copy the `custom_components/aqara_advanced_lighting` folder to your Home Assistant `custom_components` directory
 2. Restart Home Assistant
+
 </details>
 
 ## Updating
@@ -121,18 +128,20 @@ Restart Home Assistant
 
 1. A notification will appear in Home Assistant when an update is available
 2. Click **Update**
-4. **Restart Home Assistant**
-5. **Clear your browser/app cache** (see Version Mismatch Warning)
+3. **Restart Home Assistant**
+4. **Clear your browser/app cache** (see Version Mismatch Warning)
 
 <details>
 <summary>Manual Update
 </summary>
 
 If you installed manually:
+
 1. Download the latest release from [GitHub Releases](https://github.com/absent42/Aqara-Advanced-Lighting/releases)
 2. Replace the `custom_components/aqara_advanced_lighting` folder
 3. Restart Home Assistant
 4. Clear browser cache (see above)
+
 </details>
 
 <details>
@@ -144,6 +153,7 @@ If you see a version mismatch warning in the panel after updating, this means th
 **To resolve:**
 
 **Desktop Browser:**
+
 1. Perform a hard refresh to clear the cache:
    - **Windows/Linux**: `Ctrl + Shift + R` or `Ctrl + F5`
    - **Mac**: `Cmd + Shift + R`
@@ -155,12 +165,14 @@ If you see a version mismatch warning in the panel after updating, this means th
 4. If still showing, restart Home Assistant
 
 **Mobile App (Home Assistant Companion):**
+
 1. **iOS**:
    - Go to **Settings** → **Apps** → **Home Assistant** → **Clear cache**
    - Force close the app and reopen
 2. **Android**:
    - Go to **Settings** → **Apps** → **Home Assistant** → **Clear cache**
    - Force close the app and reopen
+
 </details>
 
 ## Configuration
@@ -189,6 +201,7 @@ The integration requires one configuration parameter during setup:
 The MQTT base topic used by your Zigbee2MQTT installation. This integration subscribes to MQTT messages under this topic to discover and communicate with Aqara lights. The base topic must match the `base_topic` configured in your Zigbee2MQTT `configuration.yaml`.
 
 **Examples**:
+
 - Default installation: `zigbee2mqtt`
 - Custom topic: `z2m`
 - Hierarchical topic: `home/zigbee2mqtt`
@@ -209,6 +222,7 @@ The MQTT base topic used by your Zigbee2MQTT installation. This integration subs
 - Ensure Zigbee2MQTT is running and connected to the same MQTT broker
 - The integration validates the Z2M instance by subscribing to the `bridge/state` topic during setup
 - Use the Reconfigure option to update the base topic if needed
+
 </details>
 
 <details>
@@ -230,6 +244,7 @@ To add another Zigbee2MQTT instance after initial setup:
 Each instance is automatically titled based on its base topic (e.g., "Aqara Lighting (zigbee2mqtt2)").
 
 The integration will:
+
 - Validate the Z2M instance is running (5-second timeout)
 - Prevent duplicate instances with the same base topic
 - Automatically route service calls to the correct instance
@@ -238,16 +253,19 @@ The integration will:
 #### Multi-Instance Features
 
 **Automatic Entity Routing**
+
 - Service calls automatically find the correct Z2M instance for each entity
 - Fast O(1) lookup using entity routing map
 - No manual instance selection needed
 
 **Instance Validation**
+
 - Subscribes to `bridge/state` topic during setup to confirm Z2M is running
 - Clear error messages if Z2M instance not found
 - 5-second validation timeout
 
 **Instance Management**
+
 - Each instance maintains its own MQTT client and state managers
 - Shared presets and favorites work across all instances
 - Independent configuration and reconfiguration per instance
@@ -255,6 +273,7 @@ The integration will:
 #### Use Cases
 
 **Multiple Locations**
+
 ```
 Instance 1: zigbee2mqtt (Main Floor)
 Instance 2: zigbee2mqtt_upstairs (Upstairs)
@@ -262,16 +281,19 @@ Instance 3: zigbee2mqtt_garage (Garage)
 ```
 
 **Zone Separation**
+
 ```
 Instance 1: zigbee2mqtt_indoor (Indoor Lights)
 Instance 2: zigbee2mqtt_outdoor (Outdoor Lights)
 ```
 
 **Device Type Separation**
+
 ```
 Instance 1: zigbee2mqtt (Smart Bulbs)
 Instance 2: zigbee2mqtt_strips (LED Strips)
 ```
+
 </details>
 
 <details>
@@ -286,6 +308,7 @@ To change the Z2M base topic for an existing instance:
 3. Click the three dots menu → "Reconfigure"
 4. Update the base topic
 5. Click "Submit"
+
 </details>
 
 <details>
@@ -295,31 +318,34 @@ To change the Z2M base topic for an existing instance:
 To remove the integration from Home Assistant:
 
 1. **Remove the Integration**:
+
    - Go to **Settings** → **Devices & Services**
    - Find "Aqara Advanced Lighting"
    - Click the three dots menu → **Delete**
    - Confirm the removal
-
 2. **Remove Associated Devices** (Optional):
+
    - After removing the integration, associated Aqara light devices will remain in the device registry
    - To remove devices, go to **Settings** → **Devices & Services** → **Devices**
    - Find each Aqara light device
    - Click the device → Click the three dots menu → **Delete**
    - Confirm the removal for each device
-
 3. **Uninstall Integration Files**:
 
    **If installed via HACS**:
+
    - Go to **HACS**
    - Find "Aqara Advanced Lighting"
    - Click the three dots menu → **Remove**
    - Restart Home Assistant
 
    **If installed manually**:
+
    - Delete the `custom_components/aqara_advanced_lighting` folder from your Home Assistant configuration directory
    - Restart Home Assistant
 
 **Note**: Removing the integration does not affect your Zigbee2MQTT configuration or your Aqara lights themselves. The lights will continue to work with Zigbee2MQTT and the standard Home Assistant MQTT Light integration.
+
 </details>
 
 ## Usage
@@ -337,6 +363,7 @@ Access the Aqara Lighting panel from the Home Assistant sidebar for a user-frien
 #### Favorite Lights
 
 Save your frequently used lights and light groups as favorites for quick access:
+
 - Click the star icon next to any light to add it to favorites
 - Favorite lights appear at the top of the panel
 - Control tiles show current state and brightness
@@ -356,12 +383,14 @@ Save your frequently used lights and light groups as favorites for quick access:
 Create, organize, and use custom presets for all features:
 
 **Built-in Aqara Presets**
+
 - 24 effect presets from the Aqara Home app
 - 12 segment pattern presets
 - 4 CCT sequence presets (Goodnight, Wakeup, Mindful Breathing, Circadian)
 - 6 RGB segment sequence presets (Loading Bar, Wave, Sparkle, Theater Chase, Rainbow Fill, Comet)
 
 **User Presets**
+
 - Create unlimited custom presets for any feature
 - Edit existing presets to fine-tune settings
 - Duplicate presets to create variations
@@ -371,6 +400,7 @@ Create, organize, and use custom presets for all features:
 - Backup and restore functions for user saved presets
 
 **Applying Presets**
+
 1. Select target light(s) from favorites or target searchbar
 2. Choose a preset from any category
 3. Click the preset to apply immediately
@@ -445,6 +475,7 @@ Create custom effects and patterns with interactive builders:
 Configure device-specific settings directly from the Device Config tab in the panel:
 
 **Multi-Device Configuration**
+
 - **Select multiple devices** to configure them simultaneously
 - Push the same settings to all selected devices at once
 - Ideal for maintaining consistent settings across multiple lights
@@ -452,6 +483,7 @@ Configure device-specific settings directly from the Device Config tab in the pa
 **For T2 Bulbs**
 
 **Transition Curve Editor**
+
 - Visual curve editor with interactive graph showing brightness vs time
 - Adjust transition curvature from 0.2 to 6.0
 - Three curve types:
@@ -462,6 +494,7 @@ Configure device-specific settings directly from the Device Config tab in the pa
 - Apply button sends settings directly to your selected T2 bulbs
 
 **Initial Brightness**
+
 - Set startup brightness from 0-50%
 - Direct entity control via slider
 - Immediate feedback and updates
@@ -470,6 +503,7 @@ Configure device-specific settings directly from the Device Config tab in the pa
 **For All Devices**
 
 **Dimming Settings**
+
 - **On-to-off duration**: Fade time when turning light off (0-10 seconds)
 - **Off-to-on duration**: Fade time when turning light on (0-10 seconds)
 - **Dimming range minimum**: Lowest brightness level (1-99%)
@@ -479,6 +513,7 @@ Configure device-specific settings directly from the Device Config tab in the pa
 **For T1M and T1 Strip**
 
 **Segment Zones**
+
 - Create named zones to group segments for quick selection in the pattern and sequence editors
 - Each zone maps a name (e.g., "Left Side", "Accent") to a segment range (e.g., `1-8`, `1-5,10,15-20`)
 - Zones are saved per device and persist across sessions
@@ -488,10 +523,12 @@ Configure device-specific settings directly from the Device Config tab in the pa
 **For T1 Strip**
 
 **Strip Length Configuration**
+
 - Set T1 Strip length directly from the panel
 - Automatic segment count calculation (5 segments per meter)
 
 **Smart Features**
+
 - Config tab automatically shows only settings relevant to your selected device type
 - Automatic entity discovery for configuration parameters
 - Clear messaging when entities are not found
@@ -509,17 +546,17 @@ A UI will pop up showing the parameters for configuring the action. To edit the 
 
 ![Aqara Advanced Lighting Action](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/main/images/action.png "Aqara Advanced Lighting Action")
 
-
 <details>
 <summary>
 1. Set Dynamic Effect
 </summary>
-  
+
 Activate a dynamic RGB effect on your lights - choose from Aqara app presets or create your own custom effect.
 
 **Service:** `aqara_advanced_lighting.set_dynamic_effect`
 
 **Example (Using Preset):**
+
 ```yaml
 service: aqara_advanced_lighting.set_dynamic_effect
 target:
@@ -529,6 +566,7 @@ data:
 ```
 
 **Example (Custom Effect):**
+
 ```yaml
 service: aqara_advanced_lighting.set_dynamic_effect
 target:
@@ -542,6 +580,7 @@ data:
 ```
 
 **Parameters:**
+
 - `entity_id` (required): Light entity or group to control
 - `preset` (optional): Aqara app preset effect - dropdown selector with 24 built-in presets. You can also type the name of a custom preset you created in the frontend panel (case-insensitive)
 - `effect` (required if no preset): Effect type - dropdown selector with all available effects
@@ -552,6 +591,7 @@ data:
 - `turn_on` (optional): Turn light on before applying effect (default: false)
 
 **Note:** When using `preset`, manual `effect`, `speed`, and `color` parameters are ignored. Custom presets created in the frontend panel can be used by typing their name exactly as you saved it (case doesn't matter).
+
 </details>
 
 <details>
@@ -564,6 +604,7 @@ Stop a running dynamic effect and optionally restore the light to its previous s
 **Service:** `aqara_advanced_lighting.stop_effect`
 
 **Example:**
+
 ```yaml
 service: aqara_advanced_lighting.stop_effect
 target:
@@ -573,6 +614,7 @@ data:
 ```
 
 **Parameters:**
+
 - `entity_id` (required): Light entity or group to stop effect on
 - `restore_state` (optional): Restore light to pre-effect state (default: true)
   - When true: Restores brightness, color (RGB), and color temperature
@@ -580,6 +622,7 @@ data:
   - Falls back to warm white if no previous state is saved
 
 **Note:** The integration automatically saves light state when applying effects or patterns. Saved states persist for 24 hours and across Home Assistant restarts.
+
 </details>
 
 <details>
@@ -591,6 +634,7 @@ Set individual segment colors (T1M and T1 Strip only) - choose from 12 Aqara app
 **Service:** `aqara_advanced_lighting.set_segment_pattern`
 
 **Example (Using Preset):**
+
 ```yaml
 service: aqara_advanced_lighting.set_segment_pattern
 target:
@@ -601,6 +645,7 @@ data:
 ```
 
 **Example (Custom Pattern):**
+
 ```yaml
 service: aqara_advanced_lighting.set_segment_pattern
 target:
@@ -625,6 +670,7 @@ data:
 ```
 
 **Parameters:**
+
 - `entity_id` (required): Light entity with segment support
 - `preset` (optional): Aqara app segment pattern preset (Preset 1 through Preset 12) - dropdown selector with 12 built-in presets. You can also type the name of a custom pattern preset you created in the frontend panel (case-insensitive)
 - `segment_colors` (required if no preset): List of segment/color pairs
@@ -635,6 +681,7 @@ data:
 - `turn_off_unspecified` (optional): Turn off segments not specified (default: false)
 
 **Note:** When using `preset`, the `segment_colors` parameter is ignored. Presets work on T1M (20 & 26 segment) and T1 Strip devices. Custom presets created in the frontend panel can be used by typing their name exactly as you saved it (case doesn't matter).
+
 </details>
 
 <details>
@@ -646,6 +693,7 @@ Create a smooth color gradient across segments.
 **Service:** `aqara_advanced_lighting.create_gradient`
 
 **Example:**
+
 ```yaml
 service: aqara_advanced_lighting.create_gradient
 target:
@@ -658,6 +706,7 @@ data:
 ```
 
 **Parameters:**
+
 - `entity_id` (required): Light entity with segment support
 - `color_1` (required): First gradient color - RGB color picker
 - `color_2` (required): Second gradient color - RGB color picker
@@ -666,6 +715,7 @@ data:
 - `brightness` (optional): Brightness level (1-255)
 - `turn_on` (optional): Turn light on before applying gradient (default: false)
 - `turn_off_unspecified` (optional): Turn off segments not specified (default: false)
+
 </details>
 
 <details>
@@ -677,6 +727,7 @@ Create evenly spaced blocks of color.
 **Service:** `aqara_advanced_lighting.create_blocks`
 
 **Example:**
+
 ```yaml
 service: aqara_advanced_lighting.create_blocks
 target:
@@ -690,6 +741,7 @@ data:
 ```
 
 **Parameters:**
+
 - `entity_id` (required): Light entity with segment support
 - `color_1` (required): First block color - RGB color picker
 - `color_2` through `color_6` (optional): Additional block colors - RGB color pickers
@@ -698,6 +750,7 @@ data:
 - `brightness` (optional): Brightness level (1-255)
 - `turn_on` (optional): Turn light on before applying blocks (default: false)
 - `turn_off_unspecified` (optional): Turn off segments not specified (default: false)
+
 </details>
 
 <details>
@@ -711,11 +764,13 @@ Create and run dynamic CCT (color temperature) sequences with up to 20 customiza
 **Usage:** Choose a preset from the dropdown, or use the Home Assistant UI to configure each step individually. Step 1 is required, steps 2-20 are optional and collapsed by default (click "Show advanced fields" to access them).
 
 **Available Presets:**
+
 - **Goodnight**: Gently fade from neutral white to warm dim light over 30 minutes, ideal for falling asleep
 - **Wakeup**: Gradually brighten from warm dim to cool daylight over 30 minutes, simulating sunrise
 - **Mindful breathing**: Smooth breathing pattern alternating between warm and cool tones, continuous loop
 
 **Example YAML - Using a preset:**
+
 ```yaml
 service: aqara_advanced_lighting.start_cct_sequence
 target:
@@ -726,6 +781,7 @@ data:
 ```
 
 **Example YAML - Custom sequence (for automations/scripts):**
+
 ```yaml
 service: aqara_advanced_lighting.start_cct_sequence
 target:
@@ -750,6 +806,7 @@ data:
 ```
 
 **Parameters:**
+
 - `entity_id` (required): Light entity or group to control
 - `preset` (optional): Use a built-in preset ("goodnight", "wakeup", "mindful_breathing", "circadian") - dropdown selector with 4 built-in presets. You can also type the name of a custom CCT sequence preset you created in the frontend panel (case-insensitive). When preset is selected, manual step/loop/end_behavior parameters are ignored
 - `turn_on` (optional): Turn light on before starting sequence (default: false)
@@ -769,6 +826,7 @@ data:
   - `"turn_off"`: Turn off the light
 
 **Note:** Each step consists of a transition period followed by a hold period. For example, if transition is 2s and hold is 10s, the light will fade for 2s then remain at those settings for 10s before the next step starts. Transitions use smooth step-based interpolation for gradual brightness and color temperature changes.
+
 </details>
 
 <details>
@@ -780,6 +838,7 @@ Stop a running CCT sequence on a light.
 **Service:** `aqara_advanced_lighting.stop_cct_sequence`
 
 **Example:**
+
 ```yaml
 service: aqara_advanced_lighting.stop_cct_sequence
 target:
@@ -787,7 +846,9 @@ target:
 ```
 
 **Parameters:**
+
 - `entity_id` (required): Light entity or group to stop sequence on
+
 </details>
 
 <details>
@@ -799,6 +860,7 @@ Pause a running CCT sequence while maintaining its current state.
 **Service:** `aqara_advanced_lighting.pause_cct_sequence`
 
 **Example:**
+
 ```yaml
 service: aqara_advanced_lighting.pause_cct_sequence
 target:
@@ -806,7 +868,9 @@ target:
 ```
 
 **Parameters:**
+
 - `entity_id` (required): Light entity or group to pause sequence on
+
 </details>
 
 <details>
@@ -818,6 +882,7 @@ Resume a paused CCT sequence from where it was paused.
 **Service:** `aqara_advanced_lighting.resume_cct_sequence`
 
 **Example:**
+
 ```yaml
 service: aqara_advanced_lighting.resume_cct_sequence
 target:
@@ -825,7 +890,9 @@ target:
 ```
 
 **Parameters:**
+
 - `entity_id` (required): Light entity or group to resume sequence on
+
 </details>
 
 <details>
@@ -839,11 +906,13 @@ Create and run dynamic RGB segment sequences with up to 20 customizable steps on
 **Usage:** Choose a preset from the dropdown, or use the Home Assistant UI to configure each step individually. Step 1 is required, steps 2-20 are optional and collapsed by default (click "Show advanced fields" to access them).
 
 **Available Presets:**
+
 - **Loading bar**: Sequential segment activation creating a loading bar effect
 - **Wave**: Smooth color gradient wave flowing back and forth
 - **Sparkle**: Random twinkling segments creating a sparkle effect
 
 **Example YAML - Using a preset:**
+
 ```yaml
 service: aqara_advanced_lighting.start_segment_sequence
 target:
@@ -854,6 +923,7 @@ data:
 ```
 
 **Example YAML - Custom sequence:**
+
 ```yaml
 service: aqara_advanced_lighting.start_segment_sequence
 target:
@@ -886,6 +956,7 @@ data:
 ```
 
 **Parameters:**
+
 - `entity_id` (required): Light entity with segment support (T1M or T1 Strip)
 - `preset` (optional): Use a built-in preset ("loading_bar", "wave", "sparkle", "theater_chase", "rainbow_fill", "comet") - dropdown selector with 6 built-in presets. You can also type the name of a custom RGB segment sequence preset you created in the frontend panel (case-insensitive). When preset is selected, manual step parameters are ignored
 - `turn_on` (optional): Turn light on before starting sequence (default: false)
@@ -917,6 +988,7 @@ data:
   - `"turn_off"`: Turn off the light
 
 **Note:** Each step consists of an activation period (duration) followed by a hold period. Activation patterns determine how segments light up during the duration phase.
+
 </details>
 
 <details>
@@ -928,6 +1000,7 @@ Stop a running RGB segment sequence on a light.
 **Service:** `aqara_advanced_lighting.stop_segment_sequence`
 
 **Example:**
+
 ```yaml
 service: aqara_advanced_lighting.stop_segment_sequence
 target:
@@ -935,7 +1008,9 @@ target:
 ```
 
 **Parameters:**
+
 - `entity_id` (required): Light entity to stop sequence on
+
 </details>
 
 <details>
@@ -947,6 +1022,7 @@ Pause a running RGB segment sequence while maintaining its current state.
 **Service:** `aqara_advanced_lighting.pause_segment_sequence`
 
 **Example:**
+
 ```yaml
 service: aqara_advanced_lighting.pause_segment_sequence
 target:
@@ -954,7 +1030,9 @@ target:
 ```
 
 **Parameters:**
+
 - `entity_id` (required): Light entity to pause sequence on
+
 </details>
 
 <details>
@@ -966,6 +1044,7 @@ Resume a paused RGB segment sequence from where it was paused.
 **Service:** `aqara_advanced_lighting.resume_segment_sequence`
 
 **Example:**
+
 ```yaml
 service: aqara_advanced_lighting.resume_segment_sequence
 target:
@@ -973,7 +1052,9 @@ target:
 ```
 
 **Parameters:**
+
 - `entity_id` (required): Light entity to resume sequence on
+
 </details>
 
 ### Device Triggers
@@ -993,32 +1074,35 @@ To use a device trigger in an automation:
 
 **CCT Sequence Triggers**
 
-| Trigger | Description |
-|---------|-------------|
-| CCT sequence started | Fires when a CCT sequence begins playing |
-| CCT sequence completed | Fires when a CCT sequence finishes all steps and loops |
-| CCT sequence stopped | Fires when a CCT sequence is manually stopped |
+
+| Trigger                   | Description                                              |
+| --------------------------- | ---------------------------------------------------------- |
+| CCT sequence started      | Fires when a CCT sequence begins playing                 |
+| CCT sequence completed    | Fires when a CCT sequence finishes all steps and loops   |
+| CCT sequence stopped      | Fires when a CCT sequence is manually stopped            |
 | CCT sequence step changed | Fires each time a CCT sequence advances to the next step |
-| CCT sequence paused | Fires when a CCT sequence is paused |
-| CCT sequence resumed | Fires when a paused CCT sequence is resumed |
+| CCT sequence paused       | Fires when a CCT sequence is paused                      |
+| CCT sequence resumed      | Fires when a paused CCT sequence is resumed              |
 
 **RGB Segment Sequence Triggers**
 
-| Trigger | Description |
-|---------|-------------|
-| Segment sequence started | Fires when an RGB segment sequence begins playing |
-| Segment sequence completed | Fires when an RGB segment sequence finishes all steps and loops |
-| Segment sequence stopped | Fires when an RGB segment sequence is manually stopped |
+
+| Trigger                       | Description                                                       |
+| ------------------------------- | ------------------------------------------------------------------- |
+| Segment sequence started      | Fires when an RGB segment sequence begins playing                 |
+| Segment sequence completed    | Fires when an RGB segment sequence finishes all steps and loops   |
+| Segment sequence stopped      | Fires when an RGB segment sequence is manually stopped            |
 | Segment sequence step changed | Fires each time an RGB segment sequence advances to the next step |
-| Segment sequence paused | Fires when an RGB segment sequence is paused |
-| Segment sequence resumed | Fires when a paused RGB segment sequence is resumed |
+| Segment sequence paused       | Fires when an RGB segment sequence is paused                      |
+| Segment sequence resumed      | Fires when a paused RGB segment sequence is resumed               |
 
 **Dynamic Effect Triggers**
 
-| Trigger | Description |
-|---------|-------------|
+
+| Trigger                  | Description                                               |
+| -------------------------- | ----------------------------------------------------------- |
 | Dynamic effect activated | Fires when a dynamic RGB effect is activated on the light |
-| Dynamic effect stopped | Fires when a dynamic RGB effect is stopped |
+| Dynamic effect stopped   | Fires when a dynamic RGB effect is stopped                |
 
 #### Example Automations Using Triggers
 
@@ -1038,6 +1122,7 @@ automation:
         target:
           entity_id: light.hallway
 ```
+
 </details>
 
 <details>
@@ -1056,6 +1141,7 @@ automation:
         data:
           message: "Party lights are on!"
 ```
+
 </details>
 
 <details>
@@ -1076,6 +1162,7 @@ automation:
         data:
           preset: "wave"
 ```
+
 </details>
 
 <details>
@@ -1096,11 +1183,13 @@ automation:
         data:
           position: 50
 ```
+
 </details>
 
 ### Working with Light Groups
 
 All services support Home Assistant light groups. When you target a light group, the integration automatically:
+
 - Detects the group and expands it to individual light entities
 - Removes any duplicate entities
 - Routes each entity to the correct Zigbee2MQTT instance automatically
@@ -1109,11 +1198,13 @@ All services support Home Assistant light groups. When you target a light group,
 
 **Multi-Instance Support:**
 Light groups can contain entities from multiple Zigbee2MQTT instances. The integration automatically:
+
 - Identifies which Z2M instance owns each entity
 - Routes service calls to the appropriate instance
 - Processes all entities in parallel for synchronized effects
 
 **Example - Applying an effect to a group:**
+
 ```yaml
 service: aqara_advanced_lighting.set_dynamic_effect
 target:
@@ -1123,6 +1214,7 @@ data:
 ```
 
 **Example - Multi-instance group:**
+
 ```yaml
 # light.whole_house_group contains:
 #   - light.living_room (from zigbee2mqtt instance)
@@ -1145,6 +1237,7 @@ data:
 You can use custom icons with your user presets using the [Custom Icons integration](https://github.com/thomasloven/hass-custom_icons).
 
 **Using custom icons:**
+
 1. Install and configure the Custom Icons integration
 2. When creating or editing a preset, set the icon field to your custom icon identifier (e.g., `local:my_preset_icon`)
 3. Standard MDI icons use the format `mdi:icon-name`, while custom icons use `local:icon-name`
@@ -1175,22 +1268,24 @@ curl -X POST http://homeassistant.local:8123/api/aqara_advanced_lighting/trigger
 
 **Request fields:**
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `entity_id` | Yes | Target light entity ID |
-| `action` | Yes | `"activate"` or `"stop"` |
-| `preset_type` | Yes | `"effect"`, `"segment_pattern"`, `"cct_sequence"`, or `"segment_sequence"` |
-| `preset` | Yes (activate) | Preset name (built-in or user-created, case-insensitive) |
-| `brightness` | No | Brightness percentage override (1-100) |
-| `segments` | No | Segment range override (e.g. `"1-10"`, `"odd"`) |
+
+| Field         | Required       | Description                                                                |
+| --------------- | ---------------- | ---------------------------------------------------------------------------- |
+| `entity_id`   | Yes            | Target light entity ID                                                     |
+| `action`      | Yes            | `"activate"` or `"stop"`                                                   |
+| `preset_type` | Yes            | `"effect"`, `"segment_pattern"`, `"cct_sequence"`, or `"segment_sequence"` |
+| `preset`      | Yes (activate) | Preset name (built-in or user-created, case-insensitive)                   |
+| `brightness`  | No             | Brightness percentage override (1-100)                                     |
+| `segments`    | No             | Segment range override (e.g.`"1-10"`, `"odd"`)                             |
 
 **Supported preset types and their actions:**
 
-| Preset type | Activate | Stop |
-|-------------|----------|------|
-| `effect` | Starts a dynamic effect | Stops the running effect |
-| `segment_pattern` | Applies a segment pattern | N/A (patterns are static) |
-| `cct_sequence` | Starts a CCT sequence | Stops the running sequence |
+
+| Preset type        | Activate                  | Stop                       |
+| -------------------- | --------------------------- | ---------------------------- |
+| `effect`           | Starts a dynamic effect   | Stops the running effect   |
+| `segment_pattern`  | Applies a segment pattern | N/A (patterns are static)  |
+| `cct_sequence`     | Starts a CCT sequence     | Stops the running sequence |
 | `segment_sequence` | Starts a segment sequence | Stops the running sequence |
 
 #### Stopping an effect or sequence
@@ -1227,34 +1322,39 @@ curl -X POST http://homeassistant.local:8123/api/aqara_advanced_lighting/trigger
 #### Response format
 
 **Success:**
+
 ```json
 {"success": true, "service": "set_dynamic_effect", "entity_id": "light.aqara_ceiling_light"}
 ```
 
 **Error:**
+
 ```json
 {"success": false, "error": "Entity `light.nonexistent` not found"}
 ```
 
 **HTTP status codes:**
 
-| Code | Meaning |
-|------|---------|
-| 200 | Preset triggered or effect stopped successfully |
-| 400 | Invalid request (missing fields, invalid preset type, etc.) |
-| 401 | Missing or invalid authentication token |
-| 404 | Entity not found |
-| 422 | Service validation error (unsupported device, invalid preset name, etc.) |
-| 500 | Internal error during service execution |
+
+| Code | Meaning                                                                  |
+| ------ | -------------------------------------------------------------------------- |
+| 200  | Preset triggered or effect stopped successfully                          |
+| 400  | Invalid request (missing fields, invalid preset type, etc.)              |
+| 401  | Missing or invalid authentication token                                  |
+| 404  | Entity not found                                                         |
+| 422  | Service validation error (unsupported device, invalid preset name, etc.) |
+| 500  | Internal error during service execution                                  |
 
 <details>
 <summary>Node-RED example</summary>
 
 Use an HTTP Request node with:
+
 - **Method**: POST
 - **URL**: `http://homeassistant.local:8123/api/aqara_advanced_lighting/trigger`
 - **Headers**: `Authorization: Bearer YOUR_LONG_LIVED_TOKEN`, `Content-Type: application/json`
 - **Payload**:
+
 ```json
 {
   "entity_id": "light.aqara_ceiling_light",
@@ -1263,6 +1363,7 @@ Use an HTTP Request node with:
   "preset": "t1m_sunset"
 }
 ```
+
 </details>
 
 <details>
@@ -1274,6 +1375,7 @@ Use an HTTP Request node with:
 4. Set method to POST
 5. Add headers: `Authorization: Bearer YOUR_LONG_LIVED_TOKEN` and `Content-Type: application/json`
 6. Set the request body to JSON with your trigger parameters
+
 </details>
 
 ## Example Automations YAML
@@ -1304,6 +1406,7 @@ automation:
               g: 50
               b: 0
 ```
+
 </details>
 
 <details>
@@ -1340,6 +1443,7 @@ script:
               g: 0
               b: 255
 ```
+
 </details>
 
 <details>
@@ -1360,6 +1464,7 @@ automation:
           color_2: [255, 255, 200]   # Soft white
           turn_on: true
 ```
+
 </details>
 
 ### CCT Preset Automations
@@ -1381,6 +1486,7 @@ automation:
           preset: "wakeup"
           turn_on: true
 ```
+
 </details>
 
 <details>
@@ -1400,6 +1506,7 @@ automation:
           preset: "goodnight"
           turn_on: true
 ```
+
 </details>
 
 <details>
@@ -1417,6 +1524,7 @@ script:
           preset: "mindful_breathing"
           turn_on: true
 ```
+
 </details>
 
 <details>
@@ -1457,6 +1565,7 @@ automation:
           loop_mode: "once"
           end_behavior: "maintain"
 ```
+
 </details>
 
 <details>
@@ -1487,6 +1596,7 @@ script:
           loop_mode: "once"
           end_behavior: "maintain"
 ```
+
 </details>
 
 ### RGB Segment Sequence Examples
@@ -1509,6 +1619,7 @@ automation:
           preset: "wave"
           turn_on: true
 ```
+
 </details>
 
 <details>
@@ -1526,6 +1637,7 @@ script:
           preset: "loading_bar"
           turn_on: true
 ```
+
 </details>
 
 <details>
@@ -1566,6 +1678,7 @@ automation:
           loop_count: 5
           end_behavior: "turn_off"
 ```
+
 </details>
 
 <details>
@@ -1632,6 +1745,7 @@ script:
           loop_mode: "continuous"
           end_behavior: "maintain"
 ```
+
 </details>
 
 <details>
@@ -1685,36 +1799,43 @@ automation:
           skip_first_in_loop: true  # Skip the white flash intro when looping
           end_behavior: "turn_off"
 ```
+
 </details>
 
 ## Troubleshooting
 
 ### Integration won't load
+
 - Verify MQTT integration is configured and running
 - Check that Zigbee2MQTT is connected
 - Review Home Assistant logs for specific errors
 
 ### Lights not discovered
+
 - Ensure lights are paired with Zigbee2MQTT
 - Verify Z2M base topic matches your configuration
 - Check that lights are one of the supported models
 
 ### Effects not working
+
 - Verify the effect type is supported for your light model
 - Check Z2M logs for MQTT communication
 - Ensure light entity IDs are correct
 
 ### Service calls failing
+
 - Check that entity_id exists and is correct
 - Verify RGB color values are 0-255
 - Ensure speed is 1-100
 
 ### T1 Strip segment count issues
+
 - Ensure your T1 Strip's `length` attribute is correctly set in Z2M or HA
 - The integration reads this to calculate segment count (5 segments per meter)
 - If unavailable, it defaults to 10 segments (2 meters) with a warning
 
 ### Device firmware
+
 - Make sure your device firmware is up to date
 - T1M: 0.0.0_0027
 - T1 strip: 0.0.0_0027
@@ -1725,6 +1846,7 @@ automation:
 The integration provides downloadable diagnostics data to help with troubleshooting. This includes discovered devices, entity mappings, active effects and sequences, and configuration details. Sensitive data is automatically redacted.
 
 To download diagnostics:
+
 1. Go to **Settings** → **Devices & Services**
 2. Find "Aqara Advanced Lighting" and click the three dots menu
 3. Select **Download diagnostics**
@@ -1744,6 +1866,7 @@ We welcome contributions from the community! Whether you want to fix a bug, add 
 - **Testing**: Test on different hardware, report issues
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on:
+
 - Development setup and workflow
 - Code standards and best practices
 - How to submit custom presets for inclusion
