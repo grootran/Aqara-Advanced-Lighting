@@ -556,13 +556,13 @@ class MQTTClient:
         brightness: int,
         transition: float,
         stop_event: asyncio.Event | None = None,
-        z2m_base_topic: str | None = None,
+        z2m_base_topic: str | None = None,  # noqa: ARG002 - kept for API compatibility
     ) -> bool:
-        """Apply CCT step to light entity using Z2M's native hardware transitions.
+        """Apply CCT step to light entity using HA light service.
 
-        Uses Z2M MQTT commands with the transition parameter for smooth
-        hardware-accelerated transitions. The light's Zigbee firmware handles
-        the interpolation between values.
+        Uses Home Assistant's light.turn_on service which properly interfaces
+        with standard Zigbee clusters (genLevelCtrl, lightingColorCtrl). This
+        avoids "No converter available" errors from Z2M custom converters.
 
         Args:
             entity_id: The Home Assistant light entity ID
@@ -570,7 +570,7 @@ class MQTTClient:
             brightness: Target brightness level (1-255)
             transition: Transition time in seconds
             stop_event: Optional event to signal transition should be interrupted
-            z2m_base_topic: Optional custom Z2M base topic override
+            z2m_base_topic: Unused, kept for API compatibility
 
         Returns:
             True if transition completed, False if interrupted by stop_event
@@ -583,17 +583,11 @@ class MQTTClient:
             transition,
         )
 
-        # Get Z2M friendly name
-        z2m_friendly_name = self.get_z2m_friendly_name(entity_id)
-        if z2m_friendly_name is None:
-            _LOGGER.warning(
-                "No Z2M mapping for %s, cannot apply CCT transition", entity_id
-            )
-            return False
-
-        # Send command directly to Z2M with hardware transition
-        await self._apply_cct_values_via_z2m(
-            z2m_friendly_name, color_temp_kelvin, brightness, transition, z2m_base_topic
+        # Use HA light service for CCT control - this properly interfaces with
+        # standard Zigbee clusters (genLevelCtrl, lightingColorCtrl) and avoids
+        # "No converter available" errors from Z2M custom converters
+        await self._apply_cct_values_via_service(
+            entity_id, color_temp_kelvin, brightness, transition
         )
 
         # Wait for transition to complete (interruptible)
