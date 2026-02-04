@@ -2286,8 +2286,28 @@ export class AqaraPanel extends LitElement {
 
   private _handleEditorCancel(): void {
     this._clearEditorDraft(this._activeTab);
+    this._resetCurrentEditor();
     this._editingPreset = undefined;
     this._setActiveTab('activate');
+  }
+
+  private _resetCurrentEditor(): void {
+    const editorSelectors: Partial<Record<PanelTab, string>> = {
+      effects: 'effect-editor',
+      patterns: 'pattern-editor',
+      cct: 'cct-sequence-editor',
+      segments: 'segment-sequence-editor',
+    };
+
+    const selector = editorSelectors[this._activeTab];
+    if (!selector) return;
+
+    const editor = this.shadowRoot?.querySelector(selector) as
+      | { resetToDefaults?: () => void }
+      | null;
+    if (editor && typeof editor.resetToDefaults === 'function') {
+      editor.resetToDefaults();
+    }
   }
 
   private async _handleEffectPreview(e: CustomEvent): Promise<void> {

@@ -296,6 +296,18 @@ export class EffectEditor extends LitElement {
     };
   }
 
+  public resetToDefaults(): void {
+    this._name = '';
+    this._icon = '';
+    this._deviceType = 't2_bulb';
+    this._effect = '';
+    this._speed = 50;
+    this._brightness = 100;
+    this._colors = [{ x: 0.6800, y: 0.3100 }];
+    this._segments = '';
+    this._hasUserInteraction = false;
+  }
+
   private _restoreDraft(draft: EffectEditorDraft): void {
     this._name = draft.name;
     this._icon = draft.icon;
