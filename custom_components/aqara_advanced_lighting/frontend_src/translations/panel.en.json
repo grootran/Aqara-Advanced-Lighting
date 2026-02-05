@@ -34,6 +34,7 @@
     "effect_button": "Effect",
     "cct_button": "CCT",
     "segment_button": "Segment",
+    "scene_button": "Scene",
     "no_lights_message": "Please select one or more lights to view available presets",
     "group_label": "Group ({count} lights)",
     "lights_count": "{count} lights",

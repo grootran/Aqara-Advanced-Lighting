@@ -34,6 +34,7 @@ from .const import (
     DATA_SEGMENT_ZONE_STORE,
     DATA_USER_PREFERENCES_STORE,
     DOMAIN,
+    DYNAMIC_SCENE_PRESETS,
     MAX_COLOR_HISTORY_SIZE,
     EFFECT_PRESETS,
     MODEL_T1M_20_SEGMENT,
@@ -312,11 +313,31 @@ def _build_presets_data() -> dict[str, Any]:
             "end_behavior": preset_data["end_behavior"],
         })
 
+    # Build dynamic scenes
+    dynamic_scenes = []
+    for preset_id, preset_data in DYNAMIC_SCENE_PRESETS.items():
+        dynamic_scenes.append({
+            "id": preset_id,
+            "name": preset_data["name"],
+            "icon": preset_data.get("icon"),
+            "colors": preset_data["colors"],
+            "transition_time": preset_data["transition_time"],
+            "hold_time": preset_data["hold_time"],
+            "distribution_mode": preset_data["distribution_mode"],
+            "offset_delay": preset_data.get("offset_delay", 0.0),
+            "random_order": preset_data.get("random_order", False),
+            "scene_brightness_pct": preset_data["scene_brightness_pct"],
+            "loop_mode": preset_data["loop_mode"],
+            "loop_count": preset_data.get("loop_count"),
+            "end_behavior": preset_data["end_behavior"],
+        })
+
     return {
         "dynamic_effects": dynamic_effects,
         "segment_patterns": segment_patterns,
         "cct_sequences": cct_sequences,
         "segment_sequences": segment_sequences,
+        "dynamic_scenes": dynamic_scenes,
     }
 
 

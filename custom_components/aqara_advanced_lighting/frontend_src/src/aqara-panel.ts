@@ -18,6 +18,7 @@ import {
   SegmentPatternPreset,
   CCTSequencePreset,
   SegmentSequencePreset,
+  DynamicScenePreset,
   Favorite,
   PanelTab,
   DeviceContext,
@@ -835,6 +836,21 @@ export class AqaraPanel extends LitElement {
     }
   }
 
+  private _sortDynamicScenePresets(presets: DynamicScenePreset[], sortOption: PresetSortOption): DynamicScenePreset[] {
+    const sorted = [...presets];
+    switch (sortOption) {
+      case 'name-asc':
+        return sorted.sort((a, b) => a.name.localeCompare(b.name));
+      case 'name-desc':
+        return sorted.sort((a, b) => b.name.localeCompare(a.name));
+      // Built-in presets don't have dates
+      case 'date-new':
+      case 'date-old':
+      default:
+        return sorted.sort((a, b) => a.name.localeCompare(b.name));
+    }
+  }
+
   // Device type keys for My Presets sub-categories
   // Order defines display order of sub-categories
   private static readonly PRESET_DEVICE_TYPES: string[] = [
@@ -1474,12 +1490,15 @@ export class AqaraPanel extends LitElement {
     const showSegmentPatterns = hasSelection && (hasT1M || hasT1Strip);
     const showCCTSequences = hasSelection && (hasT2 || hasT2CCT || hasT1MWhite || hasT1Strip);
     const showSegmentSequences = hasSelection && (hasT1M || hasT1Strip);
+    // Dynamic scenes work on any RGB-capable device
+    const showDynamicScenes = hasSelection && (hasT2 || hasT1M || hasT1Strip);
 
     return {
       showDynamicEffects,
       showSegmentPatterns,
       showCCTSequences,
       showSegmentSequences,
+      showDynamicScenes,
       hasT2,
       hasT1M,
       hasT1Strip,
@@ -1590,6 +1609,44 @@ export class AqaraPanel extends LitElement {
     });
   }
 
+  private async _activateDynamicScene(preset: DynamicScenePreset): Promise<void> {
+    if (!this._selectedEntities.length) return;
+
+    const serviceData: Record<string, unknown> = {
+      entity_id: this._selectedEntities,
+      transition_time: preset.transition_time,
+      hold_time: preset.hold_time,
+      distribution_mode: preset.distribution_mode,
+      random_order: preset.random_order,
+      scene_brightness_pct: preset.scene_brightness_pct,
+      loop_mode: preset.loop_mode,
+      end_behavior: preset.end_behavior,
+    };
+
+    // Add offset_delay only if provided and non-zero
+    if (preset.offset_delay !== undefined && preset.offset_delay > 0) {
+      serviceData.offset_delay = preset.offset_delay;
+    }
+
+    // Add loop_count only if loop_mode is 'loop'
+    if (preset.loop_mode === 'loop' && preset.loop_count !== undefined) {
+      serviceData.loop_count = preset.loop_count;
+    }
+
+    // Add colors as individual color parameters (color_1, color_2, etc.)
+    preset.colors.forEach((color, index) => {
+      if (index < 20) {
+        serviceData[`color_${index + 1}`] = {
+          x: color.x,
+          y: color.y,
+          brightness_pct: color.brightness_pct,
+        };
+      }
+    });
+
+    await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
+  }
+
   private async _stopEffect(): Promise<void> {
     if (!this._selectedEntities.length) return;
 
@@ -1647,6 +1704,30 @@ export class AqaraPanel extends LitElement {
     });
   }
 
+  private async _pauseDynamicScene(): Promise<void> {
+    if (!this._selectedEntities.length) return;
+
+    await this.hass.callService('aqara_advanced_lighting', 'pause_dynamic_scene', {
+      entity_id: this._selectedEntities,
+    });
+  }
+
+  private async _resumeDynamicScene(): Promise<void> {
+    if (!this._selectedEntities.length) return;
+
+    await this.hass.callService('aqara_advanced_lighting', 'resume_dynamic_scene', {
+      entity_id: this._selectedEntities,
+    });
+  }
+
+  private async _stopDynamicScene(): Promise<void> {
+    if (!this._selectedEntities.length) return;
+
+    await this.hass.callService('aqara_advanced_lighting', 'stop_dynamic_scene', {
+      entity_id: this._selectedEntities,
+    });
+  }
+
   // Filter user effect presets for a specific device type section
   private _getUserEffectPresetsForDeviceType(deviceType: string): UserEffectPreset[] {
     if (!this._userPresets?.effect_presets) return [];
@@ -1695,6 +1776,13 @@ export class AqaraPanel extends LitElement {
       }
       return preset.device_type === deviceType;
     });
+  }
+
+  private _getFilteredUserDynamicScenePresets(): UserDynamicScenePreset[] {
+    if (!this._userPresets?.dynamic_scene_presets) return [];
+    const deviceTypes = this._getSelectedDeviceTypes();
+    // Dynamic scenes apply to all RGB-capable lights
+    return deviceTypes.length > 0 ? this._userPresets.dynamic_scene_presets : [];
   }
 
   // Activate user presets
@@ -2207,6 +2295,22 @@ export class AqaraPanel extends LitElement {
                           </ha-button>
                         `
                       : ''}
+                    ${filtered.showDynamicScenes
+                      ? html`
+                          <ha-button @click=${this._pauseDynamicScene}>
+                            <ha-icon icon="mdi:pause"></ha-icon>
+                            ${this._localize('target.scene_button')}
+                          </ha-button>
+                          <ha-button @click=${this._resumeDynamicScene}>
+                            <ha-icon icon="mdi:play"></ha-icon>
+                            ${this._localize('target.scene_button')}
+                          </ha-button>
+                          <ha-button @click=${this._stopDynamicScene}>
+                            <ha-icon icon="mdi:stop"></ha-icon>
+                            ${this._localize('target.scene_button')}
+                          </ha-button>
+                        `
+                      : ''}
                   </div>
                 </div>
 
@@ -2294,6 +2398,10 @@ export class AqaraPanel extends LitElement {
               ? this._renderSegmentSequencesSection(this._localize('devices.t1_strip'), this._presets?.segment_sequences || [], 't1_strip')
               : ''}
           `
+        : ''}
+
+      ${filtered.showDynamicScenes && ((this._presets?.dynamic_scenes?.length ?? 0) > 0 || this._getFilteredUserDynamicScenePresets().length > 0) && !this._hasIncompatibleLights
+        ? this._renderDynamicScenesSection()
         : ''}
     `;
   }
@@ -3398,6 +3506,28 @@ export class AqaraPanel extends LitElement {
     this._setActiveTab('segments');
   }
 
+  private _duplicateBuiltinDynamicScenePreset(preset: DynamicScenePreset): void {
+    const userPreset: UserDynamicScenePreset = {
+      id: '',
+      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
+      colors: preset.colors.map((color) => ({ ...color })),
+      transition_time: preset.transition_time,
+      hold_time: preset.hold_time,
+      distribution_mode: preset.distribution_mode,
+      offset_delay: preset.offset_delay,
+      random_order: preset.random_order,
+      scene_brightness_pct: preset.scene_brightness_pct,
+      loop_mode: preset.loop_mode,
+      loop_count: preset.loop_count,
+      end_behavior: preset.end_behavior,
+      created_at: '',
+      modified_at: '',
+    };
+    this._clearEditorDraft('scenes');
+    this._editingPreset = { type: 'dynamic_scene', preset: userPreset, isDuplicate: true };
+    this._setActiveTab('scenes');
+  }
+
   private _renderSortDropdown(sectionId: string) {
     const currentSort = this._getSortPreference(sectionId);
     return html`
@@ -3708,6 +3838,67 @@ export class AqaraPanel extends LitElement {
                 </div>
                 <div class="preset-icon">
                   ${this._renderPresetIcon(preset.icon, 'mdi:animation-play')}
+                </div>
+                <div class="preset-name">${preset.name}</div>
+              </div>
+            `
+          )}
+        </div>
+      </ha-expansion-panel>
+    `;
+  }
+
+  private _renderDynamicScenesSection() {
+    const sectionId = 'dynamic_scenes';
+    const isExpanded = !this._collapsed[sectionId];
+    const userPresets = this._getFilteredUserDynamicScenePresets();
+    const builtinPresets = this._presets!.dynamic_scenes || [];
+    const totalCount = userPresets.length + builtinPresets.length;
+
+    // Apply sorting
+    const sortOption = this._getSortPreference(sectionId);
+    const sortedUserPresets = this._sortUserDynamicScenePresets(userPresets, sortOption);
+    const sortedBuiltinPresets = this._sortDynamicScenePresets(builtinPresets, sortOption);
+
+    return html`
+      <ha-expansion-panel
+        outlined
+        .expanded=${isExpanded}
+        @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange(sectionId, e)}
+      >
+        <div slot="header" class="section-header">
+          <div>
+            <div class="section-title">${this._localize('sections.dynamic_scenes')}</div>
+            <div class="section-subtitle">${userPresets.length > 0 ? this._localize('sections.subtitle_presets_custom', {count: totalCount.toString(), custom: userPresets.length.toString()}) : this._localize('sections.subtitle_presets', {count: totalCount.toString()})}</div>
+          </div>
+          <div class="section-header-controls" @click=${(e: Event) => e.stopPropagation()}>
+            ${this._renderSortDropdown(sectionId)}
+          </div>
+        </div>
+        <div class="section-content">
+          ${sortedUserPresets.map(
+            (preset) => html`
+              <div class="preset-button user-preset" @click=${() => this._activateUserDynamicScenePreset(preset)}>
+                <div class="preset-icon">
+                  ${this._renderUserDynamicSceneIcon(preset)}
+                </div>
+                <div class="preset-name">${preset.name}</div>
+              </div>
+            `
+          )}
+          ${sortedBuiltinPresets.map(
+            (preset) => html`
+              <div class="preset-button builtin-preset" @click=${() => this._activateDynamicScene(preset)}>
+                <div class="preset-card-actions">
+                  <ha-icon-button
+                    @click=${(e: Event) => { e.stopPropagation(); this._duplicateBuiltinDynamicScenePreset(preset); }}
+                    title="${this._localize('tooltips.preset_duplicate')}"
+                  >
+                    <ha-icon icon="mdi:content-copy"></ha-icon>
+                  </ha-icon-button>
+                </div>
+                <div class="preset-icon">
+                  ${this._renderPresetIcon(preset.icon, 'mdi:lamps')}
                 </div>
                 <div class="preset-name">${preset.name}</div>
               </div>

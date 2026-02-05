@@ -95,6 +95,23 @@ export interface SegmentSequencePreset {
   end_behavior: string;
 }
 
+// Bundled dynamic scene preset (from backend)
+export interface DynamicScenePreset {
+  id: string;
+  name: string;
+  icon?: string;
+  colors: DynamicSceneColor[];
+  transition_time: number;
+  hold_time: number;
+  distribution_mode: string;
+  offset_delay: number;
+  random_order: boolean;
+  scene_brightness_pct: number;
+  loop_mode: string;
+  loop_count?: number;
+  end_behavior: string;
+}
+
 export interface PresetsData {
   dynamic_effects: {
     t2_bulb: DynamicEffectPreset[];
@@ -104,6 +121,7 @@ export interface PresetsData {
   segment_patterns: SegmentPatternPreset[];
   cct_sequences: CCTSequencePreset[];
   segment_sequences: SegmentSequencePreset[];
+  dynamic_scenes: DynamicScenePreset[];
 }
 
 export interface FilteredPresets {
@@ -111,6 +129,7 @@ export interface FilteredPresets {
   showSegmentPatterns: boolean;
   showCCTSequences: boolean;
   showSegmentSequences: boolean;
+  showDynamicScenes: boolean;
   hasT2: boolean;
   hasT1M: boolean;
   hasT1Strip: boolean;
