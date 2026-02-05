@@ -274,5 +274,19 @@
   "color_history": {
     "recent_colors": "Recent colors",
     "clear": "Clear"
+  },
+  "dynamic_scene": {
+    "add_color_button": "Add color",
+    "timing_label": "Timing",
+    "distribution_mode_label": "Distribution mode",
+    "distribution_shuffle_rotate": "Shuffle and rotate",
+    "distribution_synchronized": "Synchronized",
+    "distribution_random": "Random",
+    "ripple_effect_label": "Ripple effect",
+    "random_order_label": "Random light order",
+    "scene_brightness_label": "Scene brightness",
+    "offset_delay_label": "Offset delay between lights",
+    "end_behavior_restore": "Restore previous state",
+    "select_lights_for_preview": "Select light entities in the Activate tab to preview dynamic scenes on your devices."
   }
 }
