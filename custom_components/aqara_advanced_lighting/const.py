@@ -1137,6 +1137,9 @@ SEGMENT_SEQUENCE_PRESETS: Final = {
     },
 }
 
+# Dynamic scene bundled presets (populated in Task 13)
+DYNAMIC_SCENE_PRESETS: Final = {}
+
 
 # Utility functions
 def brightness_percent_to_device(percent: int) -> int:
