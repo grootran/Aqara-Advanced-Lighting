@@ -14,14 +14,22 @@
       "segment_sequence_paused": "Segment sequence paused",
       "segment_sequence_resumed": "Segment sequence resumed",
       "effect_activated": "Dynamic effect activated",
-      "effect_stopped": "Dynamic effect stopped"
+      "effect_stopped": "Dynamic effect stopped",
+      "dynamic_scene_started": "Dynamic scene started",
+      "dynamic_scene_paused": "Dynamic scene paused",
+      "dynamic_scene_resumed": "Dynamic scene resumed",
+      "dynamic_scene_stopped": "Dynamic scene stopped",
+      "dynamic_scene_loop_completed": "Dynamic scene loop completed",
+      "dynamic_scene_finished": "Dynamic scene finished"
     },
     "condition_type": {
       "cct_sequence_running": "CCT sequence is running",
       "cct_sequence_paused": "CCT sequence is paused",
       "segment_sequence_running": "Segment sequence is running",
       "segment_sequence_paused": "Segment sequence is paused",
-      "effect_active": "Dynamic effect is active"
+      "effect_active": "Dynamic effect is active",
+      "dynamic_scene_running": "Dynamic scene is running",
+      "dynamic_scene_paused": "Dynamic scene is paused"
     },
     "extra_fields": {
       "preset": {
@@ -607,6 +615,122 @@
         "z2m_base_topic": {
           "name": "Z2M base topic",
           "description": "Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup."
+        }
+      }
+    },
+    "start_dynamic_scene": {
+      "name": "Start dynamic scene",
+      "description": "Start a dynamic scene on target lights with slow color transitions. Creates ambient lighting by cycling through colors with configurable timing and distribution across multiple lights.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
+        },
+        "preset": {
+          "name": "Preset scene",
+          "description": "Choose a preset dynamic scene or your custom preset name."
+        },
+        "color_1": {
+          "name": "Color 1",
+          "description": "First scene color in XY format."
+        },
+        "color_2": {
+          "name": "Color 2",
+          "description": "Second scene color in XY format."
+        },
+        "color_3": {
+          "name": "Color 3",
+          "description": "Third scene color in XY format."
+        },
+        "color_4": {
+          "name": "Color 4",
+          "description": "Fourth scene color in XY format."
+        },
+        "color_5": {
+          "name": "Color 5",
+          "description": "Fifth scene color in XY format."
+        },
+        "color_6": {
+          "name": "Color 6",
+          "description": "Sixth scene color in XY format."
+        },
+        "color_7": {
+          "name": "Color 7",
+          "description": "Seventh scene color in XY format."
+        },
+        "color_8": {
+          "name": "Color 8",
+          "description": "Eighth scene color in XY format."
+        },
+        "transition_time": {
+          "name": "Transition time",
+          "description": "Time in seconds for color transitions."
+        },
+        "hold_time": {
+          "name": "Hold time",
+          "description": "Time in seconds to hold each color before transitioning."
+        },
+        "distribution_mode": {
+          "name": "Distribution mode",
+          "description": "How colors are distributed across lights."
+        },
+        "offset_delay": {
+          "name": "Offset delay",
+          "description": "Delay in seconds between lights when applying colors. Creates a ripple effect."
+        },
+        "random_order": {
+          "name": "Random order",
+          "description": "Randomize the order of color cycling."
+        },
+        "scene_brightness_pct": {
+          "name": "Scene brightness",
+          "description": "Overall brightness for the scene (1-100%)."
+        },
+        "loop_mode": {
+          "name": "Loop mode",
+          "description": "How the scene should loop."
+        },
+        "loop_count": {
+          "name": "Loop count",
+          "description": "Number of times to loop the scene."
+        },
+        "end_behavior": {
+          "name": "End behavior",
+          "description": "What to do when the scene completes."
+        }
+      }
+    },
+    "stop_dynamic_scene": {
+      "name": "Stop dynamic scene",
+      "description": "Stop running dynamic scene(s) on the target lights.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
+        },
+        "restore_state": {
+          "name": "Restore state",
+          "description": "Restore lights to their pre-scene state."
+        }
+      }
+    },
+    "pause_dynamic_scene": {
+      "name": "Pause dynamic scene",
+      "description": "Pause running dynamic scene(s) on the target lights. Lights hold their current color until resumed.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
+        }
+      }
+    },
+    "resume_dynamic_scene": {
+      "name": "Resume dynamic scene",
+      "description": "Resume paused dynamic scene(s) on the target lights. The scene continues from where it was paused.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The light entity or group to control."
         }
       }
     }
