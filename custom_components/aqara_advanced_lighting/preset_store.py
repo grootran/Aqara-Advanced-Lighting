@@ -14,6 +14,7 @@ from homeassistant.helpers.storage import Store
 from .const import (
     DOMAIN,
     PRESET_TYPE_CCT_SEQUENCE,
+    PRESET_TYPE_DYNAMIC_SCENE,
     PRESET_TYPE_EFFECT,
     PRESET_TYPE_SEGMENT_PATTERN,
     PRESET_TYPE_SEGMENT_SEQUENCE,
@@ -177,6 +178,26 @@ class UserSegmentSequencePreset(TypedDict):
     modified_at: str
 
 
+class UserDynamicScenePreset(TypedDict):
+    """User-defined dynamic scene preset."""
+
+    id: str
+    name: str
+    icon: str | None
+    colors: list[dict[str, float | int]]  # List of {x, y, brightness_pct}
+    transition_time: float
+    hold_time: float
+    distribution_mode: str
+    offset_delay: float
+    random_order: bool
+    scene_brightness_pct: int
+    loop_mode: str
+    loop_count: int | None
+    end_behavior: str
+    created_at: str
+    modified_at: str
+
+
 class PresetsData(TypedDict):
     """Storage data structure for all user presets."""
 
@@ -184,6 +205,7 @@ class PresetsData(TypedDict):
     segment_pattern_presets: list[UserSegmentPatternPreset]
     cct_sequence_presets: list[UserCCTSequencePreset]
     segment_sequence_presets: list[UserSegmentSequencePreset]
+    dynamic_scene_presets: list[UserDynamicScenePreset]
 
 
 class PresetStore:
@@ -200,6 +222,7 @@ class PresetStore:
             "segment_pattern_presets": [],
             "cct_sequence_presets": [],
             "segment_sequence_presets": [],
+            "dynamic_scene_presets": [],
         }
 
     async def async_load(self) -> None:
@@ -212,6 +235,7 @@ class PresetStore:
                 "segment_pattern_presets": data.get("segment_pattern_presets", []),
                 "cct_sequence_presets": data.get("cct_sequence_presets", []),
                 "segment_sequence_presets": data.get("segment_sequence_presets", []),
+                "dynamic_scene_presets": data.get("dynamic_scene_presets", []),
             }
 
             # Migrate RGB colors to XY format
@@ -239,11 +263,12 @@ class PresetStore:
                 await self.async_save()
 
         _LOGGER.debug(
-            "Loaded user presets: %d effects, %d patterns, %d CCT sequences, %d segment sequences",
+            "Loaded user presets: %d effects, %d patterns, %d CCT sequences, %d segment sequences, %d dynamic scenes",
             len(self._data["effect_presets"]),
             len(self._data["segment_pattern_presets"]),
             len(self._data["cct_sequence_presets"]),
             len(self._data["segment_sequence_presets"]),
+            len(self._data["dynamic_scene_presets"]),
         )
 
     async def async_save(self) -> None:
@@ -471,6 +496,7 @@ class PresetStore:
             "segment_sequence_presets": len(
                 all_presets.get("segment_sequence_presets", [])
             ),
+            "dynamic_scene_presets": len(all_presets.get("dynamic_scene_presets", [])),
         }
 
         # Build export structure
@@ -482,12 +508,13 @@ class PresetStore:
         }
 
         _LOGGER.debug(
-            "Exported %d presets (%d effects, %d patterns, %d CCT sequences, %d segment sequences)",
+            "Exported %d presets (%d effects, %d patterns, %d CCT sequences, %d segment sequences, %d dynamic scenes)",
             sum(preset_counts.values()),
             preset_counts["effect_presets"],
             preset_counts["segment_pattern_presets"],
             preset_counts["cct_sequence_presets"],
             preset_counts["segment_sequence_presets"],
+            preset_counts["dynamic_scene_presets"],
         )
 
         return export_data
@@ -537,6 +564,16 @@ class PresetStore:
             PRESET_TYPE_SEGMENT_SEQUENCE: {
                 "name",
                 "steps",
+                "loop_mode",
+                "end_behavior",
+            },
+            PRESET_TYPE_DYNAMIC_SCENE: {
+                "name",
+                "colors",
+                "transition_time",
+                "hold_time",
+                "distribution_mode",
+                "scene_brightness_pct",
                 "loop_mode",
                 "end_behavior",
             },
@@ -603,6 +640,28 @@ class PresetStore:
                                 translation_key="invalid_color_format",
                             )
 
+        # Validate dynamic scene colors
+        if preset_type == PRESET_TYPE_DYNAMIC_SCENE:
+            if not isinstance(preset_data.get("colors"), list):
+                raise ServiceValidationError(
+                    "Colors must be a list",
+                    translation_domain=DOMAIN,
+                    translation_key="invalid_color_format",
+                )
+            if not (1 <= len(preset_data["colors"]) <= 8):
+                raise ServiceValidationError(
+                    "Dynamic scene must have 1-8 colors",
+                    translation_domain=DOMAIN,
+                    translation_key="invalid_color_count",
+                )
+            for color in preset_data["colors"]:
+                if not isinstance(color, dict) or "x" not in color or "y" not in color:
+                    raise ServiceValidationError(
+                        "Each color must have x and y coordinates",
+                        translation_domain=DOMAIN,
+                        translation_key="invalid_color_format",
+                    )
+
     async def import_presets(self, import_data: dict[str, Any]) -> dict[str, int]:
         """Import presets from backup data with conflict resolution.
 
@@ -644,6 +703,7 @@ class PresetStore:
             "segment_pattern_presets": 0,
             "cct_sequence_presets": 0,
             "segment_sequence_presets": 0,
+            "dynamic_scene_presets": 0,
         }
 
         # Import effect presets
@@ -747,13 +807,44 @@ class PresetStore:
                 existing_names.add(unique_name)
                 imported_counts["segment_sequence_presets"] += 1
 
+        # Import dynamic scene presets
+        if "dynamic_scene_presets" in data:
+            existing_names = {
+                p["name"] for p in current_presets.get("dynamic_scene_presets", [])
+            }
+            for preset in data["dynamic_scene_presets"]:
+                self._validate_preset_structure(preset, PRESET_TYPE_DYNAMIC_SCENE)
+
+                original_name = preset["name"]
+                unique_name = self._generate_unique_name(original_name, existing_names)
+
+                new_preset_data = {
+                    "name": unique_name,
+                    "icon": preset.get("icon"),
+                    "colors": preset["colors"],
+                    "transition_time": preset["transition_time"],
+                    "hold_time": preset["hold_time"],
+                    "distribution_mode": preset["distribution_mode"],
+                    "offset_delay": preset.get("offset_delay", 0.0),
+                    "random_order": preset.get("random_order", False),
+                    "scene_brightness_pct": preset["scene_brightness_pct"],
+                    "loop_mode": preset["loop_mode"],
+                    "loop_count": preset.get("loop_count"),
+                    "end_behavior": preset["end_behavior"],
+                }
+
+                await self.add_preset(PRESET_TYPE_DYNAMIC_SCENE, new_preset_data)
+                existing_names.add(unique_name)
+                imported_counts["dynamic_scene_presets"] += 1
+
         _LOGGER.info(
-            "Imported %d presets (%d effects, %d patterns, %d CCT sequences, %d segment sequences)",
+            "Imported %d presets (%d effects, %d patterns, %d CCT sequences, %d segment sequences, %d dynamic scenes)",
             sum(imported_counts.values()),
             imported_counts["effect_presets"],
             imported_counts["segment_pattern_presets"],
             imported_counts["cct_sequence_presets"],
             imported_counts["segment_sequence_presets"],
+            imported_counts["dynamic_scene_presets"],
         )
 
         return imported_counts
