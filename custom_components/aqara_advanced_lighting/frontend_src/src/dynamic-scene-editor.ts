@@ -6,7 +6,7 @@
 import { LitElement, html, css, PropertyValues, TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, XYColor, UserDynamicScenePreset, DynamicSceneEditorDraft, DynamicSceneColor } from './types';
-import { xyToHex, getComplementaryColor } from './color-utils';
+import { xyToHex, getAnalogousColor } from './color-utils';
 import { colorPickerStyles } from './styles';
 import { addColorToHistory } from './color-history';
 import { ReorderableStepsMixin, reorderableStepStyles, ReorderableStepItem } from './reorderable-steps-mixin';
@@ -561,12 +561,12 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   private _addColor(): void {
     if (this._colors.length >= 8) return;
 
-    // Get the last color and calculate its complementary color
+    // Get the last color and calculate an analogous color (30 degree hue shift)
     const lastColor = this._colors[this._colors.length - 1];
     const baseColor = lastColor
       ? { x: lastColor.x, y: lastColor.y }
       : { x: 0.6800, y: 0.3100 };  // Default to red
-    const newColor = getComplementaryColor(baseColor);
+    const newColor = getAnalogousColor(baseColor);
 
     this._colors = [...this._colors, {
       id: this._generateColorId(),
@@ -680,7 +680,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     const hexColor = xyToHex({ x: color.x, y: color.y }, 255);
 
     return html`
-      <div class="color-slot">
+      <div class="color-slot step-item">
         ${this._renderDragHandle(index)}
         <span class="color-slot-number">${index + 1}</span>
         <div
@@ -860,8 +860,8 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
                 .selector=${{
                   number: {
                     min: 0,
-                    max: 10,
-                    step: 0.1,
+                    max: 120,
+                    step: 1,
                     mode: 'slider',
                     unit_of_measurement: 's',
                   },

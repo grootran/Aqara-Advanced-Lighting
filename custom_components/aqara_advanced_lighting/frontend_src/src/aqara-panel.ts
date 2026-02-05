@@ -8,6 +8,7 @@ import {
   renderSegmentPatternThumbnail,
   renderCCTSequenceThumbnail,
   renderSegmentSequenceThumbnail,
+  renderDynamicSceneThumbnail,
 } from './preset-thumbnails';
 import { PANEL_TRANSLATIONS } from './panel-translations';
 import {
@@ -1612,13 +1613,18 @@ export class AqaraPanel extends LitElement {
   private async _activateDynamicScene(preset: DynamicScenePreset): Promise<void> {
     if (!this._selectedEntities.length) return;
 
+    // Use custom brightness override if enabled, otherwise use preset value
+    const sceneBrightness = this._useCustomBrightness
+      ? this._brightness
+      : preset.scene_brightness_pct;
+
     const serviceData: Record<string, unknown> = {
       entity_id: this._selectedEntities,
       transition_time: preset.transition_time,
       hold_time: preset.hold_time,
       distribution_mode: preset.distribution_mode,
       random_order: preset.random_order,
-      scene_brightness_pct: preset.scene_brightness_pct,
+      scene_brightness_pct: sceneBrightness,
       loop_mode: preset.loop_mode,
       end_behavior: preset.end_behavior,
     };
@@ -1930,13 +1936,18 @@ export class AqaraPanel extends LitElement {
   private async _activateUserDynamicScenePreset(preset: UserDynamicScenePreset): Promise<void> {
     if (!this._selectedEntities.length) return;
 
+    // Use custom brightness override if enabled, otherwise use preset value
+    const sceneBrightness = this._useCustomBrightness
+      ? this._brightness
+      : preset.scene_brightness_pct;
+
     const serviceData: Record<string, unknown> = {
       entity_id: this._selectedEntities,
       transition_time: preset.transition_time,
       hold_time: preset.hold_time,
       distribution_mode: preset.distribution_mode,
       random_order: preset.random_order,
-      scene_brightness_pct: preset.scene_brightness_pct,
+      scene_brightness_pct: sceneBrightness,
       loop_mode: preset.loop_mode,
       end_behavior: preset.end_behavior,
     };
@@ -2037,6 +2048,9 @@ export class AqaraPanel extends LitElement {
           <ha-tab-group-tab slot="nav" panel="activate" .active=${this._activeTab === 'activate'}>
             ${this._localize('tabs.activate')}
           </ha-tab-group-tab>
+          <ha-tab-group-tab slot="nav" panel="scenes" .active=${this._activeTab === 'scenes'}>
+            ${this._localize('tabs.scenes')}
+          </ha-tab-group-tab>
           <ha-tab-group-tab slot="nav" panel="effects" .active=${this._activeTab === 'effects'}>
             ${this._localize('tabs.effects')}
           </ha-tab-group-tab>
@@ -2048,9 +2062,6 @@ export class AqaraPanel extends LitElement {
           </ha-tab-group-tab>
           <ha-tab-group-tab slot="nav" panel="segments" .active=${this._activeTab === 'segments'}>
             ${this._localize('tabs.segments')}
-          </ha-tab-group-tab>
-          <ha-tab-group-tab slot="nav" panel="scenes" .active=${this._activeTab === 'scenes'}>
-            ${this._localize('tabs.scenes')}
           </ha-tab-group-tab>
           <ha-tab-group-tab slot="nav" panel="presets" .active=${this._activeTab === 'presets'}>
             ${this._localize('tabs.presets')}
@@ -2360,6 +2371,10 @@ export class AqaraPanel extends LitElement {
           `
         : ''}
 
+      ${filtered.showDynamicScenes && ((this._presets?.dynamic_scenes?.length ?? 0) > 0 || this._getFilteredUserDynamicScenePresets().length > 0) && !this._hasIncompatibleLights
+        ? this._renderDynamicScenesSection()
+        : ''}
+
       ${filtered.showDynamicEffects && !this._hasIncompatibleLights
         ? html`
             ${filtered.hasT2 && (filtered.t2Presets.length > 0 || this._getUserEffectPresetsForDeviceType('t2_bulb').length > 0)
@@ -2398,10 +2413,6 @@ export class AqaraPanel extends LitElement {
               ? this._renderSegmentSequencesSection(this._localize('devices.t1_strip'), this._presets?.segment_sequences || [], 't1_strip')
               : ''}
           `
-        : ''}
-
-      ${filtered.showDynamicScenes && ((this._presets?.dynamic_scenes?.length ?? 0) > 0 || this._getFilteredUserDynamicScenePresets().length > 0) && !this._hasIncompatibleLights
-        ? this._renderDynamicScenesSection()
         : ''}
     `;
   }
@@ -3718,13 +3729,22 @@ export class AqaraPanel extends LitElement {
       ?? html`<ha-icon icon="mdi:animation-play"></ha-icon>`;
   }
 
-  /** Render a user dynamic scene preset icon: MDI icon (custom icon or default). */
+  /** Render a user dynamic scene preset icon: generated thumbnail or MDI icon. */
   private _renderUserDynamicSceneIcon(preset: UserDynamicScenePreset) {
     if (preset.icon) {
       return this._renderPresetIcon(preset.icon, 'mdi:lamps');
     }
-    // Dynamic scenes don't have a thumbnail renderer yet, just use icon
-    return html`<ha-icon icon="mdi:lamps"></ha-icon>`;
+    return renderDynamicSceneThumbnail(preset)
+      ?? html`<ha-icon icon="mdi:lamps"></ha-icon>`;
+  }
+
+  /** Render a builtin dynamic scene preset icon: generated thumbnail or MDI icon. */
+  private _renderBuiltinDynamicSceneIcon(preset: DynamicScenePreset) {
+    if (preset.icon) {
+      return this._renderPresetIcon(preset.icon, 'mdi:lamps');
+    }
+    return renderDynamicSceneThumbnail(preset)
+      ?? html`<ha-icon icon="mdi:lamps"></ha-icon>`;
   }
 
   private _renderCCTSequencesSection() {
@@ -3898,7 +3918,7 @@ export class AqaraPanel extends LitElement {
                   </ha-icon-button>
                 </div>
                 <div class="preset-icon">
-                  ${this._renderPresetIcon(preset.icon, 'mdi:lamps')}
+                  ${this._renderBuiltinDynamicSceneIcon(preset)}
                 </div>
                 <div class="preset-name">${preset.name}</div>
               </div>

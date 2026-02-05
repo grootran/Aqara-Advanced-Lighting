@@ -397,11 +397,32 @@ export function getComplementaryColor(color: XYColor): XYColor {
   const hs = xyToHs(color);
 
   // Rotate hue by 180 degrees for complementary color
-  let newHue = (hs.h + 180) % 360;
+  const newHue = (hs.h + 180) % 360;
 
   // Keep same saturation
   const complementary = { h: newHue, s: hs.s };
 
   // Convert back to XY
   return hsToXy(complementary);
+}
+
+/**
+ * Calculate an analogous color from the given XY color
+ * Uses hue rotation by 30 degrees on the color wheel
+ *
+ * @param color - XY color object
+ * @returns Analogous XY color object
+ */
+export function getAnalogousColor(color: XYColor): XYColor {
+  // Convert to HS color space
+  const hs = xyToHs(color);
+
+  // Rotate hue by 30 degrees for analogous color
+  const newHue = (hs.h + 30) % 360;
+
+  // Keep same saturation
+  const analogous = { h: newHue, s: hs.s };
+
+  // Convert back to XY
+  return hsToXy(analogous);
 }

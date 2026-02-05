@@ -12,6 +12,7 @@ import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { xyToRgb, rgbToHex } from './color-utils';
 import type {
   DynamicSceneColor,
+  DynamicScenePreset,
   RGBColor,
   XYColor,
   UserDynamicScenePreset,
@@ -370,10 +371,10 @@ export function renderCCTSequenceThumbnail(
  * Shows 1-8 XY colors as equal pie slices, applying each color's brightness_pct
  * to accurately represent the visual appearance of the scene.
  *
- * Accepts either a DynamicSceneColor array directly or a UserDynamicScenePreset.
+ * Accepts a DynamicSceneColor array, UserDynamicScenePreset, or DynamicScenePreset.
  */
 export function renderDynamicSceneThumbnail(
-  colorsOrPreset: DynamicSceneColor[] | UserDynamicScenePreset,
+  colorsOrPreset: DynamicSceneColor[] | UserDynamicScenePreset | DynamicScenePreset,
 ): TemplateResult | null {
   // Extract colors array from preset if needed
   const colors = Array.isArray(colorsOrPreset)

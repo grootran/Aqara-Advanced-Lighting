@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import random
 import uuid
 from dataclasses import dataclass, field
@@ -28,7 +29,7 @@ from .const import (
     SEQUENCE_TYPE_DYNAMIC_SCENE,
     brightness_percent_to_device,
 )
-from .models import DynamicScene, XYColor
+from .models import DynamicScene, DynamicSceneColor
 
 if TYPE_CHECKING:
     from .state_manager import StateManager
@@ -61,6 +62,8 @@ class SceneState:
     current_color_index: int = 0
     light_color_indices: dict[str, int] = field(default_factory=dict)
     light_order: list[str] = field(default_factory=list)
+    # Hue-sorted color indices for shuffle_rotate mode (smooth color wheel rotation)
+    hue_sorted_indices: list[int] = field(default_factory=list)
 
 
 class DynamicSceneManager:
@@ -123,6 +126,12 @@ class DynamicSceneManager:
             light_order, len(scene.colors), scene.distribution_mode
         )
 
+        # Pre-compute hue-sorted indices for shuffle_rotate mode
+        # This ensures smooth color wheel rotation instead of random jumps
+        hue_sorted_indices: list[int] = []
+        if scene.distribution_mode == "shuffle_rotate":
+            hue_sorted_indices = self._get_hue_sorted_indices(scene.colors)
+
         # Create scene state
         scene_state = SceneState(
             scene_id=scene_id,
@@ -131,6 +140,7 @@ class DynamicSceneManager:
             preset_name=preset_name,
             light_color_indices=light_color_indices,
             light_order=light_order,
+            hue_sorted_indices=hue_sorted_indices,
         )
         self._scene_states[scene_id] = scene_state
 
@@ -388,6 +398,170 @@ class DynamicSceneManager:
         self._pause_flags.pop(scene_id, None)
         self._scene_states.pop(scene_id, None)
 
+    # -------------------------------------------------------------------------
+    # Color transition helpers (Smart Shuffle implementation)
+    # -------------------------------------------------------------------------
+
+    # CIE 1931 D65 white point coordinates
+    _WHITE_POINT_X = 0.3127
+    _WHITE_POINT_Y = 0.3290
+
+    @staticmethod
+    def _xy_to_hue(x: float, y: float) -> float:
+        """Convert XY color to hue angle (0-360 degrees).
+
+        Calculates hue by measuring the angle from white point to the color
+        in CIE xy chromaticity space.
+
+        Args:
+            x: CIE x coordinate
+            y: CIE y coordinate
+
+        Returns:
+            Hue angle in degrees (0-360)
+        """
+        # Vector from white point to color
+        dx = x - DynamicSceneManager._WHITE_POINT_X
+        dy = y - DynamicSceneManager._WHITE_POINT_Y
+
+        # Calculate angle in radians, convert to degrees
+        angle_rad = math.atan2(dy, dx)
+        angle_deg = math.degrees(angle_rad)
+
+        # Normalize to 0-360 range
+        if angle_deg < 0:
+            angle_deg += 360
+
+        return angle_deg
+
+    @staticmethod
+    def _angle_through_white(
+        from_x: float, from_y: float, to_x: float, to_y: float
+    ) -> float:
+        """Calculate the angle between two colors as seen from the white point.
+
+        This determines whether a transition would pass through or near white.
+        A large angle (close to 180) means the transition passes through white.
+        A small angle means the colors are close together on the color wheel.
+
+        Based on Smart Shuffle algorithm from hass-scene_presets.
+
+        Args:
+            from_x: Starting color CIE x coordinate
+            from_y: Starting color CIE y coordinate
+            to_x: Target color CIE x coordinate
+            to_y: Target color CIE y coordinate
+
+        Returns:
+            Angle in degrees (0-180)
+        """
+        white_x = DynamicSceneManager._WHITE_POINT_X
+        white_y = DynamicSceneManager._WHITE_POINT_Y
+
+        # Vectors from white point to each color
+        vec_from_x = from_x - white_x
+        vec_from_y = from_y - white_y
+        vec_to_x = to_x - white_x
+        vec_to_y = to_y - white_y
+
+        # Calculate magnitudes
+        mag_from = math.sqrt(vec_from_x**2 + vec_from_y**2)
+        mag_to = math.sqrt(vec_to_x**2 + vec_to_y**2)
+
+        # Handle edge case of colors at white point
+        if mag_from < 0.001 or mag_to < 0.001:
+            return 0.0
+
+        # Dot product gives cos(angle)
+        dot = vec_from_x * vec_to_x + vec_from_y * vec_to_y
+        cos_angle = dot / (mag_from * mag_to)
+
+        # Clamp to valid range for acos (floating point errors can exceed -1,1)
+        cos_angle = max(-1.0, min(1.0, cos_angle))
+
+        # Return angle in degrees
+        return math.degrees(math.acos(cos_angle))
+
+    def _get_smart_next_color(
+        self,
+        current_index: int,
+        colors: list[DynamicSceneColor],
+    ) -> int:
+        """Select the next color using smart angle-based filtering.
+
+        Avoids selecting colors that would cause a transition through or near
+        the white point, which causes undesirable bright flashes.
+
+        Based on Smart Shuffle algorithm from hass-scene_presets.
+
+        Args:
+            current_index: Index of current color
+            colors: List of available colors
+
+        Returns:
+            Index of the selected next color
+        """
+        if len(colors) <= 1:
+            return 0
+
+        current = colors[current_index]
+        candidates: list[int] = []
+
+        # Thresholds from Smart Shuffle algorithm
+        # Reject colors > 150 degrees apart (would pass through white)
+        # Reject colors < 2 degrees apart (essentially the same color)
+        max_angle = 150.0
+        min_angle = 2.0
+
+        for i, candidate in enumerate(colors):
+            if i == current_index:
+                continue
+
+            angle = self._angle_through_white(
+                current.x, current.y, candidate.x, candidate.y
+            )
+
+            # Accept if angle is between min and max thresholds
+            if min_angle <= angle <= max_angle:
+                candidates.append(i)
+
+        # If no candidates passed filtering, fall back to random selection
+        # (but still avoid current color)
+        if not candidates:
+            candidates = [i for i in range(len(colors)) if i != current_index]
+
+        return random.choice(candidates)
+
+    def _get_hue_sorted_indices(
+        self, colors: list[DynamicSceneColor]
+    ) -> list[int]:
+        """Get color indices sorted by hue for smooth color wheel rotation.
+
+        Sorting colors by their hue angle ensures that shuffle_rotate mode
+        produces visually pleasing transitions around the color wheel instead
+        of jumping across colors randomly.
+
+        Args:
+            colors: List of DynamicSceneColor objects
+
+        Returns:
+            List of indices sorted by hue angle
+        """
+        # Calculate hue for each color and pair with index
+        hue_index_pairs = [
+            (self._xy_to_hue(c.x, c.y), i) for i, c in enumerate(colors)
+        ]
+
+        # Sort by hue angle
+        hue_index_pairs.sort(key=lambda pair: pair[0])
+
+        # Return just the indices
+        return [pair[1] for pair in hue_index_pairs]
+
+    # -------------------------------------------------------------------------
+    # Color index initialization and advancement
+    # -------------------------------------------------------------------------
+
     def _initialize_color_indices(
         self,
         light_order: list[str],
@@ -536,7 +710,12 @@ class DynamicSceneManager:
                     pass  # Normal - delay elapsed
 
             # Get color for this light
-            color_index = scene_state.light_color_indices[entity_id]
+            # For shuffle_rotate mode, map through hue-sorted indices for smooth transitions
+            position = scene_state.light_color_indices[entity_id]
+            if scene.distribution_mode == "shuffle_rotate" and scene_state.hue_sorted_indices:
+                color_index = scene_state.hue_sorted_indices[position]
+            else:
+                color_index = position
             color = scene.colors[color_index]
 
             # Calculate effective brightness (per-color * scene brightness)
@@ -547,17 +726,13 @@ class DynamicSceneManager:
                 effective_brightness_pct
             )
 
-            # Convert XY to RGB for the light.turn_on call
-            xy_color = XYColor(x=color.x, y=color.y)
-            rgb_color = xy_color.to_rgb()
-
-            # Send command via HA light service
+            # Send XY color directly for better precision (avoids RGB conversion loss)
             await self.hass.services.async_call(
                 "light",
                 "turn_on",
                 {
                     ATTR_ENTITY_ID: entity_id,
-                    "rgb_color": [rgb_color.r, rgb_color.g, rgb_color.b],
+                    "xy_color": [color.x, color.y],
                     "brightness": effective_brightness,
                     "transition": scene.transition_time,
                 },
@@ -565,12 +740,11 @@ class DynamicSceneManager:
             )
 
             _LOGGER.debug(
-                "Applied color %d to %s: RGB(%d,%d,%d) brightness=%d transition=%ss",
+                "Applied color %d to %s: XY(%.4f,%.4f) brightness=%d transition=%ss",
                 color_index,
                 entity_id,
-                rgb_color.r,
-                rgb_color.g,
-                rgb_color.b,
+                color.x,
+                color.y,
                 effective_brightness,
                 scene.transition_time,
             )
@@ -610,13 +784,15 @@ class DynamicSceneManager:
                 ) % num_colors
 
         elif scene.distribution_mode == "random":
-            # Each light picks a new random color
+            # Each light picks a new color using smart selection
+            # (avoids transitions through white point)
             scene_state.current_color_index = (
                 scene_state.current_color_index + 1
             ) % num_colors
             for entity_id in scene_state.light_color_indices:
-                scene_state.light_color_indices[entity_id] = random.randint(
-                    0, num_colors - 1
+                current_idx = scene_state.light_color_indices[entity_id]
+                scene_state.light_color_indices[entity_id] = (
+                    self._get_smart_next_color(current_idx, scene.colors)
                 )
 
     async def _restore_states(self, entity_ids: list[str]) -> None:
