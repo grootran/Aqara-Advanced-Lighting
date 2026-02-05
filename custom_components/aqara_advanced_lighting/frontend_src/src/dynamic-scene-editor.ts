@@ -582,16 +582,6 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   }
 
   private _getPresetData(): Record<string, unknown> {
-    // Build colors array for service call (color_1, color_2, etc.)
-    const colorParams: Record<string, unknown> = {};
-    this._colors.forEach((color, index) => {
-      colorParams[`color_${index + 1}`] = {
-        x: color.x,
-        y: color.y,
-        brightness_pct: color.brightness_pct,
-      };
-    });
-
     const data: Record<string, unknown> = {
       name: this._name,
       icon: this._icon || undefined,
