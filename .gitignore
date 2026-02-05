@@ -1,4 +1,5 @@
 # Development files
+.worktrees/
 DEVELOPMENT.md
 PRE_RELEASE_CHECKLIST.md
 CCT_PERSISTENCE_IDEAS.md
