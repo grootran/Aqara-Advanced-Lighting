@@ -6,6 +6,7 @@
     "patterns": "Patterns",
     "cct": "CCT",
     "segments": "Segments",
+    "scenes": "Scenes",
     "presets": "My Presets",
     "config": "Device Config"
   },
@@ -49,6 +50,7 @@
     "segment_patterns": "Segment Patterns",
     "cct_sequences": "CCT Sequences",
     "segment_sequences": "Segment Sequences",
+    "dynamic_scenes": "Dynamic Scenes",
     "subtitle_presets": "{count} presets",
     "subtitle_presets_custom": "{count} presets ({custom} custom)",
     "subtitle_user_presets": "{count} presets",
@@ -93,10 +95,15 @@
     "edit_segment_title": "Edit Segment Sequence",
     "create_segment_description": "Design animated segment sequences with multiple steps and transition effects.",
     "edit_segment_description": "Update your segment sequence settings.",
+    "create_scene_title": "Create Dynamic Scene",
+    "edit_scene_title": "Edit Dynamic Scene",
+    "create_scene_description": "Create ambient lighting scenes with slow color transitions across multiple lights.",
+    "edit_scene_description": "Update your dynamic scene settings.",
     "compatibility_warning_effects": "Preview not available, the selected light does not support dynamic effects. Compatible devices: T2 RGB bulb, T1M RGB endpoint, T1 Strip.",
     "compatibility_warning_patterns": "Preview not available, the selected light does not support segment patterns. Compatible devices: T1M RGB endpoint, T1 Strip.",
     "compatibility_warning_cct": "Preview not available, the selected light does not support CCT sequences. Compatible devices: T2 RGB bulb, T2 CCT bulb, T1M white endpoint, T1 Strip.",
-    "compatibility_warning_segments": "Preview not available, the selected light does not support segment sequences. Compatible devices: T1M RGB endpoint, T1 Strip."
+    "compatibility_warning_segments": "Preview not available, the selected light does not support segment sequences. Compatible devices: T1M RGB endpoint, T1 Strip.",
+    "compatibility_warning_scenes": "Preview not available, the selected light does not support RGB colors. Compatible devices: T2 RGB bulb, T1M RGB endpoint, T1 Strip."
   },
   "config": {
     "transition_settings": "T2 transition settings",

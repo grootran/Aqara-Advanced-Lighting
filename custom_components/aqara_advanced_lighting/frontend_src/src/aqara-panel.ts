@@ -26,6 +26,7 @@ import {
   UserSegmentPatternPreset,
   UserCCTSequencePreset,
   UserSegmentSequencePreset,
+  UserDynamicScenePreset,
   UserPreferences,
   XYColor,
   PresetSortOption,
@@ -37,6 +38,7 @@ import './effect-editor';
 import './pattern-editor';
 import './cct-sequence-editor';
 import './segment-sequence-editor';
+import './dynamic-scene-editor';
 import './transition-curve-editor';
 import './color-history-swatches';
 
@@ -59,10 +61,11 @@ export class AqaraPanel extends LitElement {
   @state() private _favoriteInputName = '';
   @state() private _activeTab: PanelTab = 'activate';
   @state() private _userPresets?: UserPresetsData;
-  @state() private _editingPreset?: { type: string; preset: UserEffectPreset | UserSegmentPatternPreset | UserCCTSequencePreset | UserSegmentSequencePreset; isDuplicate?: boolean };
+  @state() private _editingPreset?: { type: string; preset: UserEffectPreset | UserSegmentPatternPreset | UserCCTSequencePreset | UserSegmentSequencePreset | UserDynamicScenePreset; isDuplicate?: boolean };
   @state() private _effectPreviewActive = false;
   @state() private _cctPreviewActive = false;
   @state() private _segmentSequencePreviewActive = false;
+  @state() private _scenePreviewActive = false;
   @state() private _sortPreferences: PresetSortPreferences = {};
   @state() private _colorHistory: XYColor[] = [];
   @state() private _backendVersion?: string;
@@ -756,6 +759,22 @@ export class AqaraPanel extends LitElement {
     }
   }
 
+  private _sortUserDynamicScenePresets(presets: UserDynamicScenePreset[], sortOption: PresetSortOption): UserDynamicScenePreset[] {
+    const sorted = [...presets];
+    switch (sortOption) {
+      case 'name-asc':
+        return sorted.sort((a, b) => a.name.localeCompare(b.name));
+      case 'name-desc':
+        return sorted.sort((a, b) => b.name.localeCompare(a.name));
+      case 'date-new':
+        return sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      case 'date-old':
+        return sorted.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      default:
+        return sorted;
+    }
+  }
+
   private _sortDynamicEffectPresets(presets: DynamicEffectPreset[], sortOption: PresetSortOption): DynamicEffectPreset[] {
     const sorted = [...presets];
     switch (sortOption) {
@@ -902,6 +921,7 @@ export class AqaraPanel extends LitElement {
       patterns: 'pattern-editor',
       cct: 'cct-sequence-editor',
       segments: 'segment-sequence-editor',
+      scenes: 'dynamic-scene-editor',
     };
 
     const selector = editorSelectors[this._activeTab];
@@ -1819,6 +1839,44 @@ export class AqaraPanel extends LitElement {
     await this.hass.callService('aqara_advanced_lighting', 'start_segment_sequence', serviceData);
   }
 
+  private async _activateUserDynamicScenePreset(preset: UserDynamicScenePreset): Promise<void> {
+    if (!this._selectedEntities.length) return;
+
+    const serviceData: Record<string, unknown> = {
+      entity_id: this._selectedEntities,
+      transition_time: preset.transition_time,
+      hold_time: preset.hold_time,
+      distribution_mode: preset.distribution_mode,
+      random_order: preset.random_order,
+      scene_brightness_pct: preset.scene_brightness_pct,
+      loop_mode: preset.loop_mode,
+      end_behavior: preset.end_behavior,
+    };
+
+    // Add offset_delay only if provided and non-zero
+    if (preset.offset_delay !== undefined && preset.offset_delay > 0) {
+      serviceData.offset_delay = preset.offset_delay;
+    }
+
+    // Add loop_count only if loop_mode is 'loop'
+    if (preset.loop_mode === 'loop' && preset.loop_count !== undefined) {
+      serviceData.loop_count = preset.loop_count;
+    }
+
+    // Add colors as individual color parameters (color_1, color_2, etc.)
+    preset.colors.forEach((color, index) => {
+      if (index < 20) {
+        serviceData[`color_${index + 1}`] = {
+          x: color.x,
+          y: color.y,
+          brightness_pct: color.brightness_pct,
+        };
+      }
+    });
+
+    await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
+  }
+
   protected render() {
     if (this._loading) {
       return html`
@@ -1903,6 +1961,9 @@ export class AqaraPanel extends LitElement {
           <ha-tab-group-tab slot="nav" panel="segments" .active=${this._activeTab === 'segments'}>
             ${this._localize('tabs.segments')}
           </ha-tab-group-tab>
+          <ha-tab-group-tab slot="nav" panel="scenes" .active=${this._activeTab === 'scenes'}>
+            ${this._localize('tabs.scenes')}
+          </ha-tab-group-tab>
           <ha-tab-group-tab slot="nav" panel="presets" .active=${this._activeTab === 'presets'}>
             ${this._localize('tabs.presets')}
           </ha-tab-group-tab>
@@ -1931,6 +1992,8 @@ export class AqaraPanel extends LitElement {
         return this._renderCCTTab();
       case 'segments':
         return this._renderSegmentsTab();
+      case 'scenes':
+        return this._renderScenesTab();
       case 'presets':
         return this._renderPresetsTab();
       case 'config':
@@ -2297,6 +2360,7 @@ export class AqaraPanel extends LitElement {
       patterns: 'pattern-editor',
       cct: 'cct-sequence-editor',
       segments: 'segment-sequence-editor',
+      scenes: 'dynamic-scene-editor',
     };
 
     const selector = editorSelectors[this._activeTab];
@@ -2657,6 +2721,132 @@ export class AqaraPanel extends LitElement {
     this._segmentSequencePreviewActive = false;
   }
 
+  // Dynamic scenes: Any light with RGB color mode (T2 RGB, T1M RGB endpoint, T1 Strip)
+  private _isScenesCompatible(): boolean {
+    if (!this.hass || !this._selectedEntities.length) return false;
+    return this._selectedEntities.some(entityId => {
+      const entity = this.hass!.states[entityId];
+      if (!entity) return false;
+      // Dynamic scenes require RGB color capability
+      return this._hasRGBColorMode(entity);
+    });
+  }
+
+  private _getScenesCompatibleEntities(): string[] {
+    if (!this.hass) return [];
+    return this._selectedEntities.filter(entityId => {
+      const entity = this.hass!.states[entityId];
+      if (!entity) return false;
+      return this._hasRGBColorMode(entity);
+    });
+  }
+
+  private _renderScenesTab() {
+    const editingScene = this._editingPreset?.type === 'dynamic_scene' ? this._editingPreset.preset as UserDynamicScenePreset : undefined;
+    const isCompatible = this._isScenesCompatible();
+    const hasSelection = this._selectedEntities.length > 0;
+
+    return html`
+      <ha-card class="editor-form">
+        <h2>${editingScene ? this._localize('dialogs.edit_scene_title') : this._localize('dialogs.create_scene_title')}</h2>
+        <p class="editor-description">
+          ${editingScene ? this._localize('dialogs.edit_scene_description') : this._localize('dialogs.create_scene_description')}
+        </p>
+        ${hasSelection && !isCompatible ? html`
+          <ha-alert alert-type="warning" class="compatibility-warning">
+            ${this._localize('dialogs.compatibility_warning_scenes')}
+          </ha-alert>
+        ` : ''}
+        <dynamic-scene-editor
+          .hass=${this.hass}
+          .preset=${editingScene}
+          .draft=${this._getEditorDraft('scenes')}
+          .translations=${this._translations}
+          .editMode=${!!editingScene && !this._editingPreset?.isDuplicate}
+          .hasSelectedEntities=${hasSelection}
+          .isCompatible=${isCompatible}
+          .selectedEntities=${this._selectedEntities}
+          .previewActive=${this._scenePreviewActive}
+          .colorHistory=${this._colorHistory}
+          @save=${this._handleSceneSave}
+          @preview=${this._handleScenePreview}
+          @stop-preview=${this._handleSceneStopPreview}
+          @cancel=${this._handleEditorCancel}
+          @color-history-changed=${this._handleColorHistoryChanged}
+        ></dynamic-scene-editor>
+      </ha-card>
+    `;
+  }
+
+  private async _handleSceneSave(e: CustomEvent): Promise<void> {
+    if (this._editingPreset?.type === 'dynamic_scene' && !this._editingPreset.isDuplicate) {
+      const existingPreset = this._editingPreset.preset as UserDynamicScenePreset;
+      await this._updateUserPreset('dynamic_scene', existingPreset.id, e.detail);
+    } else {
+      await this._saveUserPreset('dynamic_scene', e.detail);
+    }
+    this._clearEditorDraft('scenes');
+    this._editingPreset = undefined;
+    this._setActiveTab('presets');
+  }
+
+  private async _handleScenePreview(e: CustomEvent): Promise<void> {
+    const compatibleEntities = this._getScenesCompatibleEntities();
+    if (!compatibleEntities.length) {
+      console.warn('No compatible entities selected for scene preview');
+      return;
+    }
+
+    const data = e.detail;
+    const serviceData: Record<string, unknown> = {
+      entity_id: compatibleEntities,
+      transition_time: data.transition_time,
+      hold_time: data.hold_time,
+      distribution_mode: data.distribution_mode,
+      random_order: data.random_order,
+      scene_brightness_pct: data.scene_brightness_pct,
+      loop_mode: data.loop_mode,
+      end_behavior: data.end_behavior,
+    };
+
+    // Add offset_delay only if provided and non-zero
+    if (data.offset_delay !== undefined && data.offset_delay > 0) {
+      serviceData.offset_delay = data.offset_delay;
+    }
+
+    // Add loop_count only if loop_mode is 'loop'
+    if (data.loop_mode === 'loop' && data.loop_count !== undefined) {
+      serviceData.loop_count = data.loop_count;
+    }
+
+    // Add colors as individual color parameters (color_1, color_2, etc.)
+    // Colors are in XY format with brightness: {x, y, brightness_pct}
+    if (data.colors && Array.isArray(data.colors)) {
+      data.colors.forEach((color: { x: number; y: number; brightness_pct: number }, index: number) => {
+        if (index < 20) {
+          serviceData[`color_${index + 1}`] = {
+            x: color.x,
+            y: color.y,
+            brightness_pct: color.brightness_pct,
+          };
+        }
+      });
+    }
+
+    await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
+    this._scenePreviewActive = true;
+  }
+
+  private async _handleSceneStopPreview(): Promise<void> {
+    const compatibleEntities = this._getScenesCompatibleEntities();
+    if (!compatibleEntities.length) return;
+
+    await this.hass.callService('aqara_advanced_lighting', 'stop_dynamic_scene', {
+      entity_id: compatibleEntities,
+    });
+    this._scenePreviewActive = false;
+  }
+
   private async _handleExportPresets(): Promise<void> {
     this._isExporting = true;
     this.requestUpdate();
@@ -2772,7 +2962,8 @@ export class AqaraPanel extends LitElement {
     const patternPresets = this._userPresets?.segment_pattern_presets || [];
     const cctPresets = this._userPresets?.cct_sequence_presets || [];
     const segmentPresets = this._userPresets?.segment_sequence_presets || [];
-    const totalCount = effectPresets.length + patternPresets.length + cctPresets.length + segmentPresets.length;
+    const scenePresets = this._userPresets?.dynamic_scene_presets || [];
+    const totalCount = effectPresets.length + patternPresets.length + cctPresets.length + segmentPresets.length + scenePresets.length;
     const hasSelection = this._selectedEntities.length > 0;
 
     const myPresetsSectionId = 'my_presets_overview';
@@ -2873,6 +3064,19 @@ export class AqaraPanel extends LitElement {
               (presets, opt) => this._sortUserSegmentSequencePresets(presets, opt),
               (p) => this._duplicateUserSegmentSequencePreset(p),
             )}
+
+            ${scenePresets.length > 0
+              ? this._renderPresetSection(
+                  this._localize('sections.dynamic_scenes'), 'presets_scenes',
+                  scenePresets, hasSelection,
+                  (p) => this._activateUserDynamicScenePreset(p),
+                  (p) => this._editDynamicScenePreset(p),
+                  'dynamic_scene',
+                  (p) => this._renderUserDynamicSceneIcon(p),
+                  (presets, opt) => this._sortUserDynamicScenePresets(presets, opt),
+                  (p) => this._duplicateUserDynamicScenePreset(p),
+                )
+              : ''}
           `}
     `;
   }
@@ -3082,6 +3286,25 @@ export class AqaraPanel extends LitElement {
     this._clearEditorDraft('segments');
     this._editingPreset = { type: 'segment', preset: copy, isDuplicate: true };
     this._setActiveTab('segments');
+  }
+
+  private _editDynamicScenePreset(preset: UserDynamicScenePreset): void {
+    this._clearEditorDraft('scenes');
+    this._editingPreset = { type: 'dynamic_scene', preset };
+    this._setActiveTab('scenes');
+  }
+
+  private _duplicateUserDynamicScenePreset(preset: UserDynamicScenePreset): void {
+    const copy: UserDynamicScenePreset = {
+      ...preset,
+      id: '',
+      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
+      created_at: '',
+      modified_at: '',
+    };
+    this._clearEditorDraft('scenes');
+    this._editingPreset = { type: 'dynamic_scene', preset: copy, isDuplicate: true };
+    this._setActiveTab('scenes');
   }
 
   // Duplicate built-in preset methods - convert from built-in format to user format and open editor
@@ -3363,6 +3586,15 @@ export class AqaraPanel extends LitElement {
     }
     return renderSegmentSequenceThumbnail(preset)
       ?? html`<ha-icon icon="mdi:animation-play"></ha-icon>`;
+  }
+
+  /** Render a user dynamic scene preset icon: MDI icon (custom icon or default). */
+  private _renderUserDynamicSceneIcon(preset: UserDynamicScenePreset) {
+    if (preset.icon) {
+      return this._renderPresetIcon(preset.icon, 'mdi:lamps');
+    }
+    // Dynamic scenes don't have a thumbnail renderer yet, just use icon
+    return html`<ha-icon icon="mdi:lamps"></ha-icon>`;
   }
 
   private _renderCCTSequencesSection() {

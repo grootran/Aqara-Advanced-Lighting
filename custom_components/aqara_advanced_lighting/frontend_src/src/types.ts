@@ -269,7 +269,7 @@ export interface DeviceContext {
 }
 
 // Tab type for panel navigation
-export type PanelTab = 'activate' | 'effects' | 'patterns' | 'cct' | 'segments' | 'presets' | 'config';
+export type PanelTab = 'activate' | 'effects' | 'patterns' | 'cct' | 'segments' | 'scenes' | 'presets' | 'config';
 
 // Sort options for presets
 export type PresetSortOption = 'name-asc' | 'name-desc' | 'date-new' | 'date-old';
