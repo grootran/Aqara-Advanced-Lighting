@@ -11,8 +11,10 @@ import { html, TemplateResult } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { xyToRgb, rgbToHex } from './color-utils';
 import type {
+  DynamicSceneColor,
   RGBColor,
   XYColor,
+  UserDynamicScenePreset,
   UserEffectPreset,
   UserSegmentPatternPreset,
   UserCCTSequencePreset,
@@ -85,6 +87,16 @@ function donutArc(startDeg: number, endDeg: number, color: string): string {
  */
 function xyToHex(c: XYColor): string {
   return rgbToHex(xyToRgb(c.x, c.y, 255));
+}
+
+/**
+ * Convert a DynamicSceneColor (XY + brightness_pct) to a hex string.
+ * Applies brightness_pct to dim the color appropriately.
+ */
+function dynamicSceneColorToHex(c: DynamicSceneColor): string {
+  // Convert brightness_pct (0-100) to 0-255 range
+  const brightness = Math.round((c.brightness_pct / 100) * 255);
+  return rgbToHex(xyToRgb(c.x, c.y, brightness));
 }
 
 // ---------------------------------------------------------------------------
@@ -350,6 +362,37 @@ export function renderCCTSequenceThumbnail(
     `<rect fill="url(#${gradientId})" x="20" y="20" width="360" height="360" rx="4" />`;
 
   return html`${unsafeSvg(wrapSvg(inner))}`;
+}
+
+/**
+ * Dynamic scene preset -- pie chart with brightness-adjusted colors.
+ *
+ * Shows 1-8 XY colors as equal pie slices, applying each color's brightness_pct
+ * to accurately represent the visual appearance of the scene.
+ *
+ * Accepts either a DynamicSceneColor array directly or a UserDynamicScenePreset.
+ */
+export function renderDynamicSceneThumbnail(
+  colorsOrPreset: DynamicSceneColor[] | UserDynamicScenePreset,
+): TemplateResult | null {
+  // Extract colors array from preset if needed
+  const colors = Array.isArray(colorsOrPreset)
+    ? colorsOrPreset.slice(0, 8)
+    : (colorsOrPreset.colors ?? []).slice(0, 8);
+
+  if (colors.length === 0) return null;
+
+  if (colors.length === 1) {
+    const hex = dynamicSceneColorToHex(colors[0]!);
+    return html`${unsafeSvg(wrapSvg(`<circle cx="${CX}" cy="${CY}" r="${R}" fill="${hex}" />`))}`;
+  }
+
+  const degPer = 360 / colors.length;
+  const paths = colors
+    .map((c, i) => pieSlice(i * degPer, (i + 1) * degPer, dynamicSceneColorToHex(c)))
+    .join('');
+
+  return html`${unsafeSvg(wrapSvg(paths))}`;
 }
 
 // ---------------------------------------------------------------------------
