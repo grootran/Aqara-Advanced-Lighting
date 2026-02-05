@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 
 from .const import DATA_CCT_SEQUENCE_MANAGER, DOMAIN
-from .device_trigger import get_entity_ids_for_device
+from .device_automation_helpers import get_entity_ids_for_device
 from .models import AqaraLightingConfigEntry
 
 # Fields to redact from diagnostics output

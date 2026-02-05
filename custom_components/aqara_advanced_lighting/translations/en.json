@@ -15,6 +15,19 @@
       "segment_sequence_resumed": "Segment sequence resumed",
       "effect_activated": "Dynamic effect activated",
       "effect_stopped": "Dynamic effect stopped"
+    },
+    "condition_type": {
+      "cct_sequence_running": "CCT sequence is running",
+      "cct_sequence_paused": "CCT sequence is paused",
+      "segment_sequence_running": "Segment sequence is running",
+      "segment_sequence_paused": "Segment sequence is paused",
+      "effect_active": "Dynamic effect is active"
+    },
+    "extra_fields": {
+      "preset": {
+        "name": "Preset filter",
+        "description": "Only match when this specific preset is active. Leave empty to match any preset."
+      }
     }
   },
   "config": {

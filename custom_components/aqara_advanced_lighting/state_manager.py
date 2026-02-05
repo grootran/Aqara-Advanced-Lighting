@@ -173,9 +173,15 @@ class StateManager:
         return device_state
 
     def mark_effect_active(
-        self, entity_id: str, effect: DynamicEffect
+        self, entity_id: str, effect: DynamicEffect | None, preset: str | None = None
     ) -> None:
-        """Mark an effect as active for an entity."""
+        """Mark an effect as active for an entity.
+
+        Args:
+            entity_id: The entity to mark active
+            effect: The DynamicEffect object (None for segment patterns)
+            preset: Optional preset name for event tracking
+        """
         if entity_id not in self._states:
             _LOGGER.warning(
                 "Cannot mark effect active: no state captured for %s", entity_id
@@ -184,17 +190,29 @@ class StateManager:
 
         self._states[entity_id].effect_active = True
         self._states[entity_id].current_effect = effect
+        self._states[entity_id].current_preset = preset
 
         _LOGGER.debug(
-            "Marked effect %s active for %s", effect.effect, entity_id
+            "Marked effect %s active for %s (preset=%s)",
+            effect.effect if effect else "segment_pattern",
+            entity_id,
+            preset,
         )
 
-    def mark_effect_inactive(self, entity_id: str) -> None:
-        """Mark effect as inactive for an entity."""
+    def mark_effect_inactive(self, entity_id: str) -> str | None:
+        """Mark effect as inactive for an entity.
+
+        Returns:
+            The preset name that was active, or None if no preset was set.
+        """
+        preset = None
         if entity_id in self._states:
+            preset = self._states[entity_id].current_preset
             self._states[entity_id].effect_active = False
             self._states[entity_id].current_effect = None
-            _LOGGER.debug("Marked effect inactive for %s", entity_id)
+            self._states[entity_id].current_preset = None
+            _LOGGER.debug("Marked effect inactive for %s (was preset=%s)", entity_id, preset)
+        return preset
 
     def get_device_state(self, entity_id: str) -> DeviceState | None:
         """Get stored device state."""

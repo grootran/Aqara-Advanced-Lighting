@@ -1303,7 +1303,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
         # Mark effects as active and fire events
         for entity_id, z2m_name, dynamic_effect, entity_state_mgr in all_entities_published:
-            entity_state_mgr.mark_effect_active(entity_id, dynamic_effect)
+            entity_state_mgr.mark_effect_active(entity_id, dynamic_effect, preset)
             _LOGGER.info("Applied effect %s to %s", effect, entity_id)
 
             # Fire effect activated event
@@ -1412,8 +1412,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     )
                     _LOGGER.info("Stopped effect for %s (set to default warm white)", entity_id)
 
-                # Mark effect as inactive
-                entity_state_manager.mark_effect_inactive(entity_id)
+                # Mark effect as inactive (returns the preset that was active)
+                stopped_preset = entity_state_manager.mark_effect_inactive(entity_id)
 
                 # Resume any sequences that were paused when effect started
                 device_state = entity_state_manager.get_device_state(entity_id)
@@ -1433,10 +1433,13 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         segment_manager.resume_sequence(entity_id)
                         device_state.paused_segment_sequence = False
 
-                # Fire effect stopped event
+                # Fire effect stopped event with preset info
                 hass.bus.async_fire(
                     EVENT_EFFECT_STOPPED,
-                    {EVENT_ATTR_ENTITY_ID: entity_id},
+                    {
+                        EVENT_ATTR_ENTITY_ID: entity_id,
+                        EVENT_ATTR_PRESET: stopped_preset,
+                    },
                 )
             except Exception as ex:
                 _LOGGER.warning("Failed to stop effect for %s: %s", entity_id, ex)
@@ -1655,7 +1658,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 )
                 _LOGGER.info("Applied segment pattern to %s", entity_id)
 
-                # Fire effect activated event
+                # Mark effect active and fire event
+                entity_state_manager.mark_effect_active(entity_id, None, preset)
+
                 hass.bus.async_fire(
                     EVENT_EFFECT_ACTIVATED,
                     {
@@ -1823,7 +1828,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 )
                 _LOGGER.info("Applied gradient to %s", entity_id)
 
-                # Fire effect activated event
+                # Mark effect active and fire event
+                entity_state_manager.mark_effect_active(entity_id, None, None)
+
                 hass.bus.async_fire(
                     EVENT_EFFECT_ACTIVATED,
                     {
@@ -1992,7 +1999,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 )
                 _LOGGER.info("Applied block pattern to %s", entity_id)
 
-                # Fire effect activated event
+                # Mark effect active and fire event
+                entity_state_manager.mark_effect_active(entity_id, None, None)
+
                 hass.bus.async_fire(
                     EVENT_EFFECT_ACTIVATED,
                     {
@@ -2248,7 +2257,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             try:
                 # Use synchronized group start for multiple entities
                 await cct_manager.start_synchronized_group(
-                    entity_list, sequence, z2m_base_topic
+                    entity_list, sequence, z2m_base_topic, preset
                 )
                 _LOGGER.info(
                     "Started synchronized CCT sequence for %d entities: loop_mode=%s",
@@ -2651,7 +2660,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             try:
                 # Use synchronized group start for multiple entities
                 sequence_ids = await segment_manager.start_synchronized_group(
-                    entity_list, sequence, z2m_base_topic
+                    entity_list, sequence, z2m_base_topic, preset
                 )
                 _LOGGER.info(
                     "Started synchronized segment sequence for %d entities",
