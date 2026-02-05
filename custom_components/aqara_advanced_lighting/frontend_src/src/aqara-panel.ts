@@ -1639,16 +1639,12 @@ export class AqaraPanel extends LitElement {
       serviceData.loop_count = preset.loop_count;
     }
 
-    // Add colors as individual color parameters (color_1, color_2, etc.)
-    preset.colors.forEach((color, index) => {
-      if (index < 20) {
-        serviceData[`color_${index + 1}`] = {
-          x: color.x,
-          y: color.y,
-          brightness_pct: color.brightness_pct,
-        };
-      }
-    });
+    // Add colors array (service expects colors: [{x, y, brightness_pct}, ...])
+    serviceData.colors = preset.colors.map((color) => ({
+      x: color.x,
+      y: color.y,
+      brightness_pct: color.brightness_pct,
+    }));
 
     await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
   }
@@ -1962,16 +1958,12 @@ export class AqaraPanel extends LitElement {
       serviceData.loop_count = preset.loop_count;
     }
 
-    // Add colors as individual color parameters (color_1, color_2, etc.)
-    preset.colors.forEach((color, index) => {
-      if (index < 20) {
-        serviceData[`color_${index + 1}`] = {
-          x: color.x,
-          y: color.y,
-          brightness_pct: color.brightness_pct,
-        };
-      }
-    });
+    // Add colors array (service expects colors: [{x, y, brightness_pct}, ...])
+    serviceData.colors = preset.colors.map((color) => ({
+      x: color.x,
+      y: color.y,
+      brightness_pct: color.brightness_pct,
+    }));
 
     await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
   }
