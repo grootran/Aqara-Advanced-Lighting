@@ -2847,8 +2847,13 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
         preset_name: str | None = call.data.get(ATTR_PRESET)
 
-        # Get dynamic scene manager
-        manager = hass.data[DOMAIN].get(DATA_DYNAMIC_SCENE_MANAGER)
+        # Get dynamic scene manager from first available config entry
+        # (scenes work across all Z2M instances so any manager will do)
+        manager = None
+        for instance_data in hass.data[DOMAIN].get("entries", {}).values():
+            manager = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+            if manager:
+                break
         if not manager:
             raise HomeAssistantError("Dynamic scene manager not initialized")
 
@@ -2934,7 +2939,12 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         """Handle stop_dynamic_scene service call."""
         entity_ids: list[str] | None = call.data.get(ATTR_ENTITY_ID)
 
-        manager = hass.data[DOMAIN].get(DATA_DYNAMIC_SCENE_MANAGER)
+        # Get dynamic scene manager from first available config entry
+        manager = None
+        for instance_data in hass.data[DOMAIN].get("entries", {}).values():
+            manager = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+            if manager:
+                break
         if not manager:
             raise HomeAssistantError("Dynamic scene manager not initialized")
 
@@ -2944,7 +2954,12 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         """Handle pause_dynamic_scene service call."""
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
 
-        manager = hass.data[DOMAIN].get(DATA_DYNAMIC_SCENE_MANAGER)
+        # Get dynamic scene manager from first available config entry
+        manager = None
+        for instance_data in hass.data[DOMAIN].get("entries", {}).values():
+            manager = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+            if manager:
+                break
         if not manager:
             raise HomeAssistantError("Dynamic scene manager not initialized")
 
@@ -2954,7 +2969,12 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         """Handle resume_dynamic_scene service call."""
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
 
-        manager = hass.data[DOMAIN].get(DATA_DYNAMIC_SCENE_MANAGER)
+        # Get dynamic scene manager from first available config entry
+        manager = None
+        for instance_data in hass.data[DOMAIN].get("entries", {}).values():
+            manager = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+            if manager:
+                break
         if not manager:
             raise HomeAssistantError("Dynamic scene manager not initialized")
 
@@ -3116,9 +3136,9 @@ async def async_unload_services(hass: HomeAssistant) -> None:
         if segment_manager:
             await segment_manager.stop_all_sequences()
 
-    # Stop all running dynamic scenes
-    dynamic_scene_manager = hass.data.get(DOMAIN, {}).get(DATA_DYNAMIC_SCENE_MANAGER)
-    if dynamic_scene_manager:
-        dynamic_scene_manager.cleanup()
+        # Stop all running dynamic scenes for this instance
+        dynamic_scene_manager = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+        if dynamic_scene_manager:
+            dynamic_scene_manager.cleanup()
 
     _LOGGER.info("Aqara Advanced Lighting services unloaded")
