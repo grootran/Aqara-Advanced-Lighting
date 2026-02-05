@@ -1137,8 +1137,151 @@ SEGMENT_SEQUENCE_PRESETS: Final = {
     },
 }
 
-# Dynamic scene bundled presets (populated in Task 13)
-DYNAMIC_SCENE_PRESETS: Final = {}
+# Dynamic scene bundled presets
+DYNAMIC_SCENE_PRESETS: Final = {
+    "sunset_glow": {
+        "name": "Sunset Glow",
+        "icon": "mdi:weather-sunset",
+        "colors": [
+            {"x": 0.5916, "y": 0.3824, "brightness_pct": 100},  # Deep orange
+            {"x": 0.6399, "y": 0.3297, "brightness_pct": 90},  # Warm red
+            {"x": 0.5143, "y": 0.4400, "brightness_pct": 100},  # Golden yellow
+            {"x": 0.4112, "y": 0.2598, "brightness_pct": 80},  # Soft pink
+        ],
+        "transition_time": 120.0,
+        "hold_time": 180.0,
+        "distribution_mode": DISTRIBUTION_SHUFFLE_ROTATE,
+        "offset_delay": 30.0,
+        "random_order": False,
+        "scene_brightness_pct": 70,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_MAINTAIN,
+    },
+    "ocean_waves": {
+        "name": "Ocean Waves",
+        "icon": "mdi:waves",
+        "colors": [
+            {"x": 0.1561, "y": 0.1547, "brightness_pct": 100},  # Deep blue
+            {"x": 0.2038, "y": 0.3088, "brightness_pct": 90},  # Teal
+            {"x": 0.2211, "y": 0.3494, "brightness_pct": 100},  # Cyan
+            {"x": 0.2547, "y": 0.4053, "brightness_pct": 80},  # Seafoam green
+        ],
+        "transition_time": 90.0,
+        "hold_time": 150.0,
+        "distribution_mode": DISTRIBUTION_SHUFFLE_ROTATE,
+        "offset_delay": 20.0,
+        "random_order": False,
+        "scene_brightness_pct": 60,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_MAINTAIN,
+    },
+    "northern_lights": {
+        "name": "Northern Lights",
+        "icon": "mdi:aurora",
+        "colors": [
+            {"x": 0.2151, "y": 0.5489, "brightness_pct": 100},  # Aurora green
+            {"x": 0.2211, "y": 0.3494, "brightness_pct": 90},  # Cyan
+            {"x": 0.2951, "y": 0.1783, "brightness_pct": 100},  # Purple
+            {"x": 0.1561, "y": 0.0955, "brightness_pct": 85},  # Deep blue
+            {"x": 0.3787, "y": 0.2238, "brightness_pct": 90},  # Magenta pink
+        ],
+        "transition_time": 180.0,
+        "hold_time": 120.0,
+        "distribution_mode": DISTRIBUTION_RANDOM,
+        "offset_delay": 0.0,
+        "random_order": False,
+        "scene_brightness_pct": 50,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_MAINTAIN,
+    },
+    "relax": {
+        "name": "Relax",
+        "icon": "mdi:yoga",
+        "colors": [
+            {"x": 0.3127, "y": 0.2187, "brightness_pct": 100},  # Soft lavender
+            {"x": 0.2436, "y": 0.2514, "brightness_pct": 90},  # Pale blue
+        ],
+        "transition_time": 300.0,
+        "hold_time": 240.0,
+        "distribution_mode": DISTRIBUTION_SYNCHRONIZED,
+        "offset_delay": 0.0,
+        "random_order": False,
+        "scene_brightness_pct": 35,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_MAINTAIN,
+    },
+    "forest_canopy": {
+        "name": "Forest Canopy",
+        "icon": "mdi:pine-tree",
+        "colors": [
+            {"x": 0.2268, "y": 0.5012, "brightness_pct": 100},  # Deep forest green
+            {"x": 0.2841, "y": 0.4763, "brightness_pct": 90},  # Moss green
+            {"x": 0.3547, "y": 0.4489, "brightness_pct": 85},  # Olive
+            {"x": 0.5016, "y": 0.4152, "brightness_pct": 80},  # Warm amber
+        ],
+        "transition_time": 240.0,
+        "hold_time": 300.0,
+        "distribution_mode": DISTRIBUTION_SHUFFLE_ROTATE,
+        "offset_delay": 45.0,
+        "random_order": False,
+        "scene_brightness_pct": 45,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_MAINTAIN,
+    },
+    "fireplace": {
+        "name": "Fireplace",
+        "icon": "mdi:fire",
+        "colors": [
+            {"x": 0.6399, "y": 0.3297, "brightness_pct": 100},  # Deep red
+            {"x": 0.5763, "y": 0.3842, "brightness_pct": 90},  # Burnt orange
+            {"x": 0.5489, "y": 0.4075, "brightness_pct": 80},  # Dark amber
+        ],
+        "transition_time": 150.0,
+        "hold_time": 210.0,
+        "distribution_mode": DISTRIBUTION_SHUFFLE_ROTATE,
+        "offset_delay": 30.0,
+        "random_order": False,
+        "scene_brightness_pct": 40,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_MAINTAIN,
+    },
+    "tropical_paradise": {
+        "name": "Tropical Paradise",
+        "icon": "mdi:island",
+        "colors": [
+            {"x": 0.2211, "y": 0.3494, "brightness_pct": 100},  # Turquoise
+            {"x": 0.4112, "y": 0.3068, "brightness_pct": 90},  # Coral pink
+            {"x": 0.4475, "y": 0.4521, "brightness_pct": 95},  # Sunny yellow
+            {"x": 0.5916, "y": 0.3824, "brightness_pct": 85},  # Mango orange
+        ],
+        "transition_time": 120.0,
+        "hold_time": 180.0,
+        "distribution_mode": DISTRIBUTION_SHUFFLE_ROTATE,
+        "offset_delay": 25.0,
+        "random_order": False,
+        "scene_brightness_pct": 65,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_MAINTAIN,
+    },
+    "deep_space": {
+        "name": "Deep Space",
+        "icon": "mdi:space-station",
+        "colors": [
+            {"x": 0.2743, "y": 0.1562, "brightness_pct": 100},  # Dark purple
+            {"x": 0.1561, "y": 0.0812, "brightness_pct": 90},  # Deep blue
+            {"x": 0.1472, "y": 0.0633, "brightness_pct": 70},  # Near-black blue
+            {"x": 0.3214, "y": 0.1841, "brightness_pct": 85},  # Violet
+        ],
+        "transition_time": 300.0,
+        "hold_time": 360.0,
+        "distribution_mode": DISTRIBUTION_SHUFFLE_ROTATE,
+        "offset_delay": 60.0,
+        "random_order": False,
+        "scene_brightness_pct": 30,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_MAINTAIN,
+    },
+}
 
 
 # Utility functions

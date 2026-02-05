@@ -2292,6 +2292,10 @@ start_dynamic_scene:
               value: "fireplace"
             - label: "Tropical Paradise"
               value: "tropical_paradise"
+            - label: "Relax"
+              value: "relax"
+            - label: "Deep Space"
+              value: "deep_space"
           mode: dropdown
           custom_value: true
     color_1:
