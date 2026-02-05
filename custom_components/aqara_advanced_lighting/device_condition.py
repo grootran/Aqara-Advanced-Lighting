@@ -19,15 +19,19 @@ from .const import (
     CCT_CONDITION_TYPES,
     CONDITION_TYPE_CCT_SEQUENCE_PAUSED,
     CONDITION_TYPE_CCT_SEQUENCE_RUNNING,
+    CONDITION_TYPE_DYNAMIC_SCENE_PAUSED,
+    CONDITION_TYPE_DYNAMIC_SCENE_RUNNING,
     CONDITION_TYPE_EFFECT_ACTIVE,
     CONDITION_TYPE_SEGMENT_SEQUENCE_PAUSED,
     CONDITION_TYPE_SEGMENT_SEQUENCE_RUNNING,
     CONDITION_TYPES,
     CONF_PRESET_FILTER,
     DATA_CCT_SEQUENCE_MANAGER,
+    DATA_DYNAMIC_SCENE_MANAGER,
     DATA_SEGMENT_SEQUENCE_MANAGER,
     DATA_STATE_MANAGER,
     DOMAIN,
+    DYNAMIC_SCENE_CONDITION_TYPES,
     EFFECT_CONDITION_TYPES,
     SEGMENT_CONDITION_TYPES,
 )
@@ -61,6 +65,7 @@ async def async_get_condition_capabilities(
         CCT_CONDITION_TYPES,
         SEGMENT_CONDITION_TYPES,
         EFFECT_CONDITION_TYPES,
+        DYNAMIC_SCENE_CONDITION_TYPES,
     )
 
     if not options:
@@ -111,11 +116,12 @@ async def async_get_conditions(
 
 def _get_managers_for_entity(
     hass: HomeAssistant, entity_id: str
-) -> tuple[Any, Any, Any] | None:
-    """Get the CCT manager, segment manager, and state manager for an entity.
+) -> tuple[Any, Any, Any, Any] | None:
+    """Get managers for an entity.
 
     Returns:
-        Tuple of (cct_manager, segment_manager, state_manager) or None if not found.
+        Tuple of (cct_manager, segment_manager, state_manager, dynamic_scene_manager)
+        or None if not found.
     """
     for entry in hass.config_entries.async_entries(DOMAIN):
         if entry.state is not ConfigEntryState.LOADED:
@@ -131,6 +137,7 @@ def _get_managers_for_entity(
                 instance_data.get(DATA_CCT_SEQUENCE_MANAGER),
                 instance_data.get(DATA_SEGMENT_SEQUENCE_MANAGER),
                 instance_data.get(DATA_STATE_MANAGER),
+                instance_data.get(DATA_DYNAMIC_SCENE_MANAGER),
             )
 
     return None
@@ -167,7 +174,7 @@ def async_condition_from_config(
             if not managers:
                 continue
 
-            cct_manager, segment_manager, state_manager = managers
+            cct_manager, segment_manager, state_manager, dynamic_scene_manager = managers
 
             if condition_type == CONDITION_TYPE_CCT_SEQUENCE_RUNNING:
                 if cct_manager and cct_manager.is_sequence_running(entity_id):
@@ -211,6 +218,32 @@ def async_condition_from_config(
                     if preset_filter:
                         device_state = state_manager.get_device_state(entity_id)
                         if device_state and device_state.current_preset == preset_filter:
+                            return True
+                    else:
+                        return True
+
+            elif condition_type == CONDITION_TYPE_DYNAMIC_SCENE_RUNNING:
+                if dynamic_scene_manager and dynamic_scene_manager.is_scene_running(
+                    entity_id
+                ):
+                    if preset_filter:
+                        current_preset = dynamic_scene_manager.get_scene_preset(
+                            entity_id
+                        )
+                        if current_preset == preset_filter:
+                            return True
+                    else:
+                        return True
+
+            elif condition_type == CONDITION_TYPE_DYNAMIC_SCENE_PAUSED:
+                if dynamic_scene_manager and dynamic_scene_manager.is_scene_paused(
+                    entity_id
+                ):
+                    if preset_filter:
+                        current_preset = dynamic_scene_manager.get_scene_preset(
+                            entity_id
+                        )
+                        if current_preset == preset_filter:
                             return True
                     else:
                         return True
