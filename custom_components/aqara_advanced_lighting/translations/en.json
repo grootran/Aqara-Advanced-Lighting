@@ -24,10 +24,7 @@
       "effect_active": "Dynamic effect is active"
     },
     "extra_fields": {
-      "preset": {
-        "name": "Preset filter",
-        "description": "Only match when this specific preset is active. Leave empty to match any preset."
-      }
+      "preset": "Preset filter"
     }
   },
   "config": {
