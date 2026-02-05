@@ -227,12 +227,68 @@ PRESET_TYPE_SEGMENT_PATTERN: Final = "segment_pattern"
 PRESET_TYPE_CCT_SEQUENCE: Final = "cct_sequence"
 PRESET_TYPE_SEGMENT_SEQUENCE: Final = "segment_sequence"
 
+# Dynamic scene preset type
+PRESET_TYPE_DYNAMIC_SCENE: Final = "dynamic_scene"
+
 VALID_PRESET_TYPES: Final = [
     PRESET_TYPE_EFFECT,
     PRESET_TYPE_SEGMENT_PATTERN,
     PRESET_TYPE_CCT_SEQUENCE,
     PRESET_TYPE_SEGMENT_SEQUENCE,
+    PRESET_TYPE_DYNAMIC_SCENE,
 ]
+
+# Dynamic scene distribution modes
+DISTRIBUTION_SHUFFLE_ROTATE: Final = "shuffle_rotate"
+DISTRIBUTION_SYNCHRONIZED: Final = "synchronized"
+DISTRIBUTION_RANDOM: Final = "random"
+
+VALID_DISTRIBUTION_MODES: Final = [
+    DISTRIBUTION_SHUFFLE_ROTATE,
+    DISTRIBUTION_SYNCHRONIZED,
+    DISTRIBUTION_RANDOM,
+]
+
+# Dynamic scene timing constraints (seconds)
+MIN_DYNAMIC_SCENE_TRANSITION_TIME: Final = 1.0
+MAX_DYNAMIC_SCENE_TRANSITION_TIME: Final = 600.0  # 10 minutes
+MIN_DYNAMIC_SCENE_HOLD_TIME: Final = 0.0
+MAX_DYNAMIC_SCENE_HOLD_TIME: Final = 600.0  # 10 minutes
+DEFAULT_DYNAMIC_SCENE_TRANSITION_TIME: Final = 120.0  # 2 minutes
+DEFAULT_DYNAMIC_SCENE_HOLD_TIME: Final = 180.0  # 3 minutes
+
+# Dynamic scene color constraints
+MIN_DYNAMIC_SCENE_COLORS: Final = 1
+MAX_DYNAMIC_SCENE_COLORS: Final = 8
+
+# Dynamic scene ripple offset constraints (seconds)
+MIN_OFFSET_DELAY: Final = 0.0
+MAX_OFFSET_DELAY: Final = 120.0  # 2 minutes
+
+# Dynamic scene brightness constraints (percentage)
+MIN_SCENE_BRIGHTNESS_PCT: Final = 1
+MAX_SCENE_BRIGHTNESS_PCT: Final = 100
+DEFAULT_SCENE_BRIGHTNESS_PCT: Final = 100
+
+# Dynamic scene sequence type for events
+SEQUENCE_TYPE_DYNAMIC_SCENE: Final = "dynamic_scene"
+
+# Dynamic scene service names
+SERVICE_START_DYNAMIC_SCENE: Final = "start_dynamic_scene"
+SERVICE_STOP_DYNAMIC_SCENE: Final = "stop_dynamic_scene"
+SERVICE_PAUSE_DYNAMIC_SCENE: Final = "pause_dynamic_scene"
+SERVICE_RESUME_DYNAMIC_SCENE: Final = "resume_dynamic_scene"
+
+# Dynamic scene event types
+EVENT_DYNAMIC_SCENE_STARTED: Final = f"{DOMAIN}_dynamic_scene_started"
+EVENT_DYNAMIC_SCENE_PAUSED: Final = f"{DOMAIN}_dynamic_scene_paused"
+EVENT_DYNAMIC_SCENE_RESUMED: Final = f"{DOMAIN}_dynamic_scene_resumed"
+EVENT_DYNAMIC_SCENE_STOPPED: Final = f"{DOMAIN}_dynamic_scene_stopped"
+EVENT_DYNAMIC_SCENE_LOOP_COMPLETED: Final = f"{DOMAIN}_dynamic_scene_loop_completed"
+EVENT_DYNAMIC_SCENE_FINISHED: Final = f"{DOMAIN}_dynamic_scene_finished"
+
+# Dynamic scene runtime data key
+DATA_DYNAMIC_SCENE_MANAGER: Final = "dynamic_scene_manager"
 
 # Event types for automation triggers
 EVENT_SEQUENCE_STARTED: Final = f"{DOMAIN}_sequence_started"
@@ -274,6 +330,12 @@ TRIGGER_TYPE_SEGMENT_SEQUENCE_PAUSED: Final = "segment_sequence_paused"
 TRIGGER_TYPE_SEGMENT_SEQUENCE_RESUMED: Final = "segment_sequence_resumed"
 TRIGGER_TYPE_EFFECT_ACTIVATED: Final = "effect_activated"
 TRIGGER_TYPE_EFFECT_STOPPED: Final = "effect_stopped"
+TRIGGER_TYPE_DYNAMIC_SCENE_STARTED: Final = "dynamic_scene_started"
+TRIGGER_TYPE_DYNAMIC_SCENE_PAUSED: Final = "dynamic_scene_paused"
+TRIGGER_TYPE_DYNAMIC_SCENE_RESUMED: Final = "dynamic_scene_resumed"
+TRIGGER_TYPE_DYNAMIC_SCENE_STOPPED: Final = "dynamic_scene_stopped"
+TRIGGER_TYPE_DYNAMIC_SCENE_LOOP_COMPLETED: Final = "dynamic_scene_loop_completed"
+TRIGGER_TYPE_DYNAMIC_SCENE_FINISHED: Final = "dynamic_scene_finished"
 
 # All device trigger types
 TRIGGER_TYPES: Final = {
@@ -291,6 +353,12 @@ TRIGGER_TYPES: Final = {
     TRIGGER_TYPE_SEGMENT_SEQUENCE_RESUMED,
     TRIGGER_TYPE_EFFECT_ACTIVATED,
     TRIGGER_TYPE_EFFECT_STOPPED,
+    TRIGGER_TYPE_DYNAMIC_SCENE_STARTED,
+    TRIGGER_TYPE_DYNAMIC_SCENE_PAUSED,
+    TRIGGER_TYPE_DYNAMIC_SCENE_RESUMED,
+    TRIGGER_TYPE_DYNAMIC_SCENE_STOPPED,
+    TRIGGER_TYPE_DYNAMIC_SCENE_LOOP_COMPLETED,
+    TRIGGER_TYPE_DYNAMIC_SCENE_FINISHED,
 }
 
 # Trigger type groupings for preset filtering
@@ -317,12 +385,23 @@ EFFECT_TRIGGER_TYPES: Final = {
     TRIGGER_TYPE_EFFECT_STOPPED,
 }
 
+DYNAMIC_SCENE_TRIGGER_TYPES: Final = {
+    TRIGGER_TYPE_DYNAMIC_SCENE_STARTED,
+    TRIGGER_TYPE_DYNAMIC_SCENE_PAUSED,
+    TRIGGER_TYPE_DYNAMIC_SCENE_RESUMED,
+    TRIGGER_TYPE_DYNAMIC_SCENE_STOPPED,
+    TRIGGER_TYPE_DYNAMIC_SCENE_LOOP_COMPLETED,
+    TRIGGER_TYPE_DYNAMIC_SCENE_FINISHED,
+}
+
 # Device condition types for HA automation UI
 CONDITION_TYPE_CCT_SEQUENCE_RUNNING: Final = "cct_sequence_running"
 CONDITION_TYPE_CCT_SEQUENCE_PAUSED: Final = "cct_sequence_paused"
 CONDITION_TYPE_SEGMENT_SEQUENCE_RUNNING: Final = "segment_sequence_running"
 CONDITION_TYPE_SEGMENT_SEQUENCE_PAUSED: Final = "segment_sequence_paused"
 CONDITION_TYPE_EFFECT_ACTIVE: Final = "effect_active"
+CONDITION_TYPE_DYNAMIC_SCENE_RUNNING: Final = "dynamic_scene_running"
+CONDITION_TYPE_DYNAMIC_SCENE_PAUSED: Final = "dynamic_scene_paused"
 
 # All device condition types
 CONDITION_TYPES: Final = {
@@ -331,6 +410,8 @@ CONDITION_TYPES: Final = {
     CONDITION_TYPE_SEGMENT_SEQUENCE_RUNNING,
     CONDITION_TYPE_SEGMENT_SEQUENCE_PAUSED,
     CONDITION_TYPE_EFFECT_ACTIVE,
+    CONDITION_TYPE_DYNAMIC_SCENE_RUNNING,
+    CONDITION_TYPE_DYNAMIC_SCENE_PAUSED,
 }
 
 # Condition type groupings for preset filtering
@@ -346,6 +427,11 @@ SEGMENT_CONDITION_TYPES: Final = {
 
 EFFECT_CONDITION_TYPES: Final = {
     CONDITION_TYPE_EFFECT_ACTIVE,
+}
+
+DYNAMIC_SCENE_CONDITION_TYPES: Final = {
+    CONDITION_TYPE_DYNAMIC_SCENE_RUNNING,
+    CONDITION_TYPE_DYNAMIC_SCENE_PAUSED,
 }
 
 # Friendly model names for device registry display
