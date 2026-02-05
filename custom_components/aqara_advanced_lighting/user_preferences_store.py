@@ -8,7 +8,7 @@ from typing import Any, TypedDict
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
-from .const import DOMAIN, MAX_COLOR_HISTORY_SIZE, VALID_SORT_OPTIONS
+from .const import DOMAIN, MAX_COLOR_HISTORY_SIZE
 
 _LOGGER = logging.getLogger(__name__)
 

@@ -8,7 +8,7 @@ import uuid
 from typing import Any, NotRequired, TypedDict
 
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.storage import Store
 
 from .const import (
