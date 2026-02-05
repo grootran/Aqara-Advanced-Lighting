@@ -9,13 +9,11 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.components import mqtt
 from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
-from homeassistant.const import CONF_MODEL
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from .const import (
     DOMAIN,
-    MIN_TRANSITION_STEPS,
     MODEL_FRIENDLY_NAMES,
     MODEL_T1M_20_SEGMENT,
     MODEL_T1M_26_SEGMENT,
@@ -28,14 +26,8 @@ from .const import (
     MODEL_T2_CCT_E27,
     MODEL_T2_CCT_GU10_110V,
     MODEL_T2_CCT_GU10_230V,
-    PAYLOAD_EFFECT,
-    PAYLOAD_EFFECT_COLORS,
-    PAYLOAD_EFFECT_SEGMENTS,
-    PAYLOAD_EFFECT_SPEED,
     PAYLOAD_SEGMENT_COLORS,
     TOPIC_Z2M_BRIDGE_DEVICES,
-    TOPIC_Z2M_DEVICE_SET,
-    TRANSITION_STEP_INTERVAL,
 )
 from .models import DynamicEffect, SegmentColor, Z2MDevice
 

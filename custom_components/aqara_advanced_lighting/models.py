@@ -194,6 +194,52 @@ class XYColor:
 
 
 @dataclass
+class DynamicSceneColor:
+    """Single color in a dynamic scene palette with per-color brightness."""
+
+    x: float  # CIE x coordinate (0.0-1.0)
+    y: float  # CIE y coordinate (0.0-1.0)
+    brightness_pct: int  # Per-color brightness percentage (1-100)
+
+    def to_dict(self) -> dict[str, float | int]:
+        """Convert to dictionary for storage/API."""
+        return {
+            "x": round_xy(self.x),
+            "y": round_xy(self.y),
+            "brightness_pct": self.brightness_pct,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, float | int]) -> DynamicSceneColor:
+        """Create from dictionary."""
+        return cls(
+            x=float(data["x"]),
+            y=float(data["y"]),
+            brightness_pct=int(data.get("brightness_pct", 100)),
+        )
+
+    def to_xy_color(self) -> XYColor:
+        """Convert to XYColor for color operations."""
+        from .const import brightness_percent_to_device
+
+        return XYColor(
+            x=self.x, y=self.y, brightness=brightness_percent_to_device(self.brightness_pct)
+        )
+
+    def __post_init__(self) -> None:
+        """Validate color values."""
+        if not (0.0 <= self.x <= 1.0):
+            msg = f"X value must be 0.0-1.0, got {self.x}"
+            raise ValueError(msg)
+        if not (0.0 <= self.y <= 1.0):
+            msg = f"Y value must be 0.0-1.0, got {self.y}"
+            raise ValueError(msg)
+        if not (1 <= self.brightness_pct <= 100):
+            msg = f"Brightness percentage must be 1-100, got {self.brightness_pct}"
+            raise ValueError(msg)
+
+
+@dataclass
 class SegmentColor:
     """Segment color assignment for individual segment patterns."""
 
@@ -449,6 +495,63 @@ class SegmentSequence:
 
         if self.end_behavior not in ("maintain", "turn_off"):
             msg = f"End behavior must be 'maintain' or 'turn_off', got {self.end_behavior}"
+            raise ValueError(msg)
+
+
+@dataclass
+class DynamicScene:
+    """Dynamic scene configuration for ambient lighting."""
+
+    colors: list[DynamicSceneColor]  # 1-8 colors
+    transition_time: float  # Seconds for fade between colors
+    hold_time: float  # Seconds to hold each color
+    distribution_mode: str  # "shuffle_rotate", "synchronized", "random"
+    offset_delay: float  # Seconds between lights for ripple effect (0 = no ripple)
+    random_order: bool  # Randomize light order for offset
+    scene_brightness_pct: int  # Master brightness percentage (1-100)
+    loop_mode: str  # "once", "count", "continuous"
+    loop_count: int | None = None  # Number of loops if mode is "count"
+    end_behavior: str = "maintain"  # "maintain" or "restore"
+
+    def __post_init__(self) -> None:
+        """Validate scene parameters."""
+        if not (1 <= len(self.colors) <= 8):
+            msg = f"Scene must have 1-8 colors, got {len(self.colors)}"
+            raise ValueError(msg)
+
+        if self.transition_time < 0:
+            msg = "Transition time cannot be negative"
+            raise ValueError(msg)
+
+        if self.hold_time < 0:
+            msg = "Hold time cannot be negative"
+            raise ValueError(msg)
+
+        valid_modes = ("shuffle_rotate", "synchronized", "random")
+        if self.distribution_mode not in valid_modes:
+            msg = f"Distribution mode must be one of {valid_modes}, got {self.distribution_mode}"
+            raise ValueError(msg)
+
+        if self.offset_delay < 0:
+            msg = "Offset delay cannot be negative"
+            raise ValueError(msg)
+
+        if not (1 <= self.scene_brightness_pct <= 100):
+            msg = f"Scene brightness must be 1-100%, got {self.scene_brightness_pct}"
+            raise ValueError(msg)
+
+        if self.loop_mode not in ("once", "count", "continuous"):
+            msg = f"Loop mode must be 'once', 'count', or 'continuous', got {self.loop_mode}"
+            raise ValueError(msg)
+
+        if self.loop_mode == "count" and (
+            self.loop_count is None or self.loop_count < 1
+        ):
+            msg = "Loop count must be >= 1 when loop_mode is 'count'"
+            raise ValueError(msg)
+
+        if self.end_behavior not in ("maintain", "restore"):
+            msg = f"End behavior must be 'maintain' or 'restore', got {self.end_behavior}"
             raise ValueError(msg)
 
 

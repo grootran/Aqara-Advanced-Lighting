@@ -7,13 +7,12 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.const import (
-    ATTR_ENTITY_ID,
     STATE_OFF,
     STATE_ON,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
 )
-from homeassistant.core import HomeAssistant, State
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
@@ -149,6 +148,10 @@ class StateManager:
             if color_temp := state.attributes.get("color_temp"):
                 state_data["color_temp"] = color_temp
 
+            # Capture color mode to know whether light was in RGB or CCT mode
+            if color_mode := state.attributes.get("color_mode"):
+                state_data["color_mode"] = color_mode
+
         else:
             state_data["state"] = STATE_OFF
 
@@ -231,6 +234,9 @@ class StateManager:
     def get_restoration_payload(self, entity_id: str) -> dict[str, Any] | None:
         """Get MQTT payload to restore previous state.
 
+        Uses color_mode to determine whether to send RGB or color_temp values,
+        ensuring accurate restoration for lights that support both modes (e.g., T2 bulbs).
+
         Returns:
             Dict with MQTT payload for state restoration, or None if no state stored.
         """
@@ -255,11 +261,23 @@ class StateManager:
         if brightness := previous_state.get("brightness"):
             payload["brightness"] = brightness
 
-        if color := previous_state.get("color"):
-            payload["color"] = color
+        # Use color_mode to determine what color values to restore
+        color_mode = previous_state.get("color_mode")
 
-        if color_temp := previous_state.get("color_temp"):
-            payload["color_temp"] = color_temp
+        if color_mode in ("color_temp", "ct"):
+            # Light was in CCT mode - only restore color_temp
+            if color_temp := previous_state.get("color_temp"):
+                payload["color_temp"] = color_temp
+        elif color_mode in ("xy", "rgb", "hs", "rgbw", "rgbww"):
+            # Light was in color mode - only restore color
+            if color := previous_state.get("color"):
+                payload["color"] = color
+        else:
+            # Unknown or no color_mode - restore both if available (legacy behavior)
+            if color := previous_state.get("color"):
+                payload["color"] = color
+            if color_temp := previous_state.get("color_temp"):
+                payload["color_temp"] = color_temp
 
         return payload
 

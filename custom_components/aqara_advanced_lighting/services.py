@@ -22,7 +22,6 @@ from .const import (
     ACTIVATION_RANDOM,
     ACTIVATION_SEQUENTIAL_FORWARD,
     ACTIVATION_SEQUENTIAL_REVERSE,
-    ATTR_ACTIVATION_PATTERN,
     ATTR_BRIGHTNESS,
     ATTR_CLEAR_SEGMENTS,
     ATTR_COLOR_1,
@@ -33,35 +32,35 @@ from .const import (
     ATTR_COLOR_6,
     ATTR_COLOR_7,
     ATTR_COLOR_8,
-    ATTR_COLOR_TEMP,
-    ATTR_DURATION,
     ATTR_EFFECT,
     ATTR_END_BEHAVIOR,
     ATTR_EXPAND,
-    ATTR_HOLD,
     ATTR_LOOP_COUNT,
     ATTR_LOOP_MODE,
-    ATTR_MODE,
     ATTR_PRESET,
     ATTR_RESTORE_STATE,
     ATTR_SEGMENT_COLORS,
     ATTR_SEGMENTS,
     ATTR_SKIP_FIRST_IN_LOOP,
     ATTR_SPEED,
-    ATTR_STEPS,
     ATTR_SYNC,
-    ATTR_TRANSITION,
     ATTR_TURN_OFF_UNSPECIFIED,
     ATTR_TURN_ON,
     ATTR_Z2M_BASE_TOPIC,
     CCT_SEQUENCE_PRESETS,
     DATA_CCT_SEQUENCE_MANAGER,
+    DATA_DYNAMIC_SCENE_MANAGER,
     DATA_PRESET_STORE,
     DATA_SEGMENT_SEQUENCE_MANAGER,
     DATA_SEGMENT_ZONE_STORE,
+    DEFAULT_DYNAMIC_SCENE_HOLD_TIME,
+    DEFAULT_DYNAMIC_SCENE_TRANSITION_TIME,
+    DEFAULT_SCENE_BRIGHTNESS_PCT,
+    DISTRIBUTION_SHUFFLE_ROTATE,
     DOMAIN,
     EFFECT_PRESETS,
     PRESET_TYPE_CCT_SEQUENCE,
+    PRESET_TYPE_DYNAMIC_SCENE,
     PRESET_TYPE_EFFECT,
     PRESET_TYPE_SEGMENT_PATTERN,
     PRESET_TYPE_SEGMENT_SEQUENCE,
@@ -78,27 +77,24 @@ from .const import (
     MAX_BRIGHTNESS_PERCENT,
     MAX_COLOR_TEMP_KELVIN,
     MAX_DURATION,
-    MAX_EFFECT_COLORS,
-    MAX_GRADIENT_COLORS,
     MAX_HOLD_TIME,
     MAX_LOOP_COUNT,
     MAX_RGB_VALUE,
-    MAX_SEGMENT_COLORS,
-    MAX_SEQUENCE_STEPS,
     MAX_SPEED,
     MAX_TRANSITION_TIME,
     MIN_BRIGHTNESS_PERCENT,
     MIN_COLOR_TEMP_KELVIN,
     MIN_DURATION,
-    MIN_EFFECT_COLORS,
-    MIN_GRADIENT_COLORS,
     MIN_HOLD_TIME,
     MIN_LOOP_COUNT,
     MIN_RGB_VALUE,
-    MIN_SEGMENT_COLORS,
-    MIN_SEQUENCE_STEPS,
     MIN_SPEED,
     MIN_TRANSITION_TIME,
+    SERVICE_PAUSE_DYNAMIC_SCENE,
+    SERVICE_RESUME_DYNAMIC_SCENE,
+    SERVICE_START_DYNAMIC_SCENE,
+    SERVICE_STOP_DYNAMIC_SCENE,
+    VALID_DISTRIBUTION_MODES,
     MODEL_T1_STRIP,
     SEGMENT_MODE_BLOCKS_EXPAND,
     SEGMENT_MODE_BLOCKS_REPEAT,
@@ -131,6 +127,8 @@ from .models import (
     CCTSequence,
     CCTSequenceStep,
     DynamicEffect,
+    DynamicScene,
+    DynamicSceneColor,
     EffectType,
     RGBColor,
     SegmentColor,
@@ -468,6 +466,70 @@ SERVICE_RESUME_SEGMENT_SEQUENCE_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
         vol.Optional(ATTR_Z2M_BASE_TOPIC): cv.string,
+    }
+)
+
+# Dynamic scene color schema with optional brightness percentage
+DYNAMIC_SCENE_COLOR_SCHEMA = vol.Schema(
+    {
+        vol.Required("x"): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1.0)),
+        vol.Required("y"): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1.0)),
+        vol.Optional("brightness_pct", default=100): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=100)
+        ),
+    }
+)
+
+# Dynamic scene service schemas
+SERVICE_START_DYNAMIC_SCENE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+        vol.Exclusive(ATTR_PRESET, "scene_source"): cv.string,
+        vol.Exclusive("colors", "scene_source"): vol.All(
+            cv.ensure_list,
+            [DYNAMIC_SCENE_COLOR_SCHEMA],
+        ),
+        vol.Optional(
+            "transition_time", default=DEFAULT_DYNAMIC_SCENE_TRANSITION_TIME
+        ): vol.Coerce(float),
+        vol.Optional(
+            "hold_time", default=DEFAULT_DYNAMIC_SCENE_HOLD_TIME
+        ): vol.Coerce(float),
+        vol.Optional(
+            "distribution_mode", default=DISTRIBUTION_SHUFFLE_ROTATE
+        ): vol.In(VALID_DISTRIBUTION_MODES),
+        vol.Optional("offset_delay", default=0.0): vol.Coerce(float),
+        vol.Optional("random_order", default=False): cv.boolean,
+        vol.Optional(
+            "scene_brightness_pct", default=DEFAULT_SCENE_BRIGHTNESS_PCT
+        ): vol.All(vol.Coerce(int), vol.Range(min=1, max=100)),
+        vol.Optional(ATTR_LOOP_MODE, default="continuous"): vol.In(
+            ["once", "count", "continuous"]
+        ),
+        vol.Optional(ATTR_LOOP_COUNT): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=100)
+        ),
+        vol.Optional(ATTR_END_BEHAVIOR, default="maintain"): vol.In(
+            ["maintain", "restore"]
+        ),
+    }
+)
+
+SERVICE_STOP_DYNAMIC_SCENE_SCHEMA = vol.Schema(
+    {
+        vol.Optional(ATTR_ENTITY_ID): cv.entity_ids,
+    }
+)
+
+SERVICE_PAUSE_DYNAMIC_SCENE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+    }
+)
+
+SERVICE_RESUME_DYNAMIC_SCENE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
     }
 )
 
@@ -2780,6 +2842,124 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             else:
                 _LOGGER.warning("Failed to resume segment sequence for %s", entity_id)
 
+    async def handle_start_dynamic_scene(call: ServiceCall) -> None:
+        """Handle start_dynamic_scene service call."""
+        entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+        preset_name: str | None = call.data.get(ATTR_PRESET)
+
+        # Get dynamic scene manager
+        manager = hass.data[DOMAIN].get(DATA_DYNAMIC_SCENE_MANAGER)
+        if not manager:
+            raise HomeAssistantError("Dynamic scene manager not initialized")
+
+        # Build scene from preset or manual parameters
+        if preset_name:
+            # Look up preset
+            preset_store = hass.data[DOMAIN].get(DATA_PRESET_STORE)
+            if not preset_store:
+                raise HomeAssistantError("Preset store not initialized")
+
+            preset = preset_store.get_preset_by_name(PRESET_TYPE_DYNAMIC_SCENE, preset_name)
+            if not preset:
+                preset = preset_store.get_preset(PRESET_TYPE_DYNAMIC_SCENE, preset_name)
+            if not preset:
+                raise ServiceValidationError(
+                    f"Dynamic scene preset '{preset_name}' not found",
+                    translation_domain=DOMAIN,
+                    translation_key="preset_not_found",
+                )
+
+            colors = [
+                DynamicSceneColor(
+                    x=c["x"],
+                    y=c["y"],
+                    brightness_pct=c.get("brightness_pct", 100),
+                )
+                for c in preset["colors"]
+            ]
+
+            scene = DynamicScene(
+                colors=colors,
+                transition_time=preset["transition_time"],
+                hold_time=preset["hold_time"],
+                distribution_mode=preset["distribution_mode"],
+                offset_delay=preset.get("offset_delay", 0.0),
+                random_order=preset.get("random_order", False),
+                scene_brightness_pct=preset["scene_brightness_pct"],
+                loop_mode=preset["loop_mode"],
+                loop_count=preset.get("loop_count"),
+                end_behavior=preset["end_behavior"],
+            )
+        else:
+            # Build from manual parameters
+            colors_data = call.data.get("colors")
+            if not colors_data:
+                raise ServiceValidationError(
+                    "Either preset or colors must be provided",
+                    translation_domain=DOMAIN,
+                    translation_key="missing_scene_source",
+                )
+
+            colors = [
+                DynamicSceneColor(
+                    x=c["x"],
+                    y=c["y"],
+                    brightness_pct=c.get("brightness_pct", 100),
+                )
+                for c in colors_data
+            ]
+
+            scene = DynamicScene(
+                colors=colors,
+                transition_time=call.data.get(
+                    "transition_time", DEFAULT_DYNAMIC_SCENE_TRANSITION_TIME
+                ),
+                hold_time=call.data.get("hold_time", DEFAULT_DYNAMIC_SCENE_HOLD_TIME),
+                distribution_mode=call.data.get(
+                    "distribution_mode", DISTRIBUTION_SHUFFLE_ROTATE
+                ),
+                offset_delay=call.data.get("offset_delay", 0.0),
+                random_order=call.data.get("random_order", False),
+                scene_brightness_pct=call.data.get(
+                    "scene_brightness_pct", DEFAULT_SCENE_BRIGHTNESS_PCT
+                ),
+                loop_mode=call.data.get(ATTR_LOOP_MODE, "continuous"),
+                loop_count=call.data.get(ATTR_LOOP_COUNT),
+                end_behavior=call.data.get(ATTR_END_BEHAVIOR, "maintain"),
+            )
+
+        await manager.start_scene(entity_ids, scene, preset_name)
+
+    async def handle_stop_dynamic_scene(call: ServiceCall) -> None:
+        """Handle stop_dynamic_scene service call."""
+        entity_ids: list[str] | None = call.data.get(ATTR_ENTITY_ID)
+
+        manager = hass.data[DOMAIN].get(DATA_DYNAMIC_SCENE_MANAGER)
+        if not manager:
+            raise HomeAssistantError("Dynamic scene manager not initialized")
+
+        await manager.stop_scene(entity_ids=entity_ids)
+
+    async def handle_pause_dynamic_scene(call: ServiceCall) -> None:
+        """Handle pause_dynamic_scene service call."""
+        entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+
+        manager = hass.data[DOMAIN].get(DATA_DYNAMIC_SCENE_MANAGER)
+        if not manager:
+            raise HomeAssistantError("Dynamic scene manager not initialized")
+
+        manager.pause_scene(entity_ids)
+
+    async def handle_resume_dynamic_scene(call: ServiceCall) -> None:
+        """Handle resume_dynamic_scene service call."""
+        entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+
+        manager = hass.data[DOMAIN].get(DATA_DYNAMIC_SCENE_MANAGER)
+        if not manager:
+            raise HomeAssistantError("Dynamic scene manager not initialized")
+
+        manager.resume_scene(entity_ids)
+
     # Register services
     hass.services.async_register(
         DOMAIN,
@@ -2872,6 +3052,34 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         schema=SERVICE_RESUME_SEGMENT_SEQUENCE_SCHEMA,
     )
 
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_START_DYNAMIC_SCENE,
+        handle_start_dynamic_scene,
+        schema=SERVICE_START_DYNAMIC_SCENE_SCHEMA,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_STOP_DYNAMIC_SCENE,
+        handle_stop_dynamic_scene,
+        schema=SERVICE_STOP_DYNAMIC_SCENE_SCHEMA,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_PAUSE_DYNAMIC_SCENE,
+        handle_pause_dynamic_scene,
+        schema=SERVICE_PAUSE_DYNAMIC_SCENE_SCHEMA,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_RESUME_DYNAMIC_SCENE,
+        handle_resume_dynamic_scene,
+        schema=SERVICE_RESUME_DYNAMIC_SCENE_SCHEMA,
+    )
+
     _LOGGER.info("Aqara Advanced Lighting services registered")
 
 
@@ -2890,6 +3098,10 @@ async def async_unload_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(DOMAIN, SERVICE_STOP_SEGMENT_SEQUENCE)
     hass.services.async_remove(DOMAIN, SERVICE_PAUSE_SEGMENT_SEQUENCE)
     hass.services.async_remove(DOMAIN, SERVICE_RESUME_SEGMENT_SEQUENCE)
+    hass.services.async_remove(DOMAIN, SERVICE_START_DYNAMIC_SCENE)
+    hass.services.async_remove(DOMAIN, SERVICE_STOP_DYNAMIC_SCENE)
+    hass.services.async_remove(DOMAIN, SERVICE_PAUSE_DYNAMIC_SCENE)
+    hass.services.async_remove(DOMAIN, SERVICE_RESUME_DYNAMIC_SCENE)
 
     # Stop all running sequences across all instances
     entries = hass.data.get(DOMAIN, {}).get("entries", {})
@@ -2903,5 +3115,10 @@ async def async_unload_services(hass: HomeAssistant) -> None:
         segment_manager = instance_data.get(DATA_SEGMENT_SEQUENCE_MANAGER)
         if segment_manager:
             await segment_manager.stop_all_sequences()
+
+    # Stop all running dynamic scenes
+    dynamic_scene_manager = hass.data.get(DOMAIN, {}).get(DATA_DYNAMIC_SCENE_MANAGER)
+    if dynamic_scene_manager:
+        dynamic_scene_manager.cleanup()
 
     _LOGGER.info("Aqara Advanced Lighting services unloaded")
