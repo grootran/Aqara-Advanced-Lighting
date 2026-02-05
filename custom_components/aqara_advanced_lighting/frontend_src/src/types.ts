@@ -144,6 +144,13 @@ export interface HSColor {
   s: number;  // Saturation: 0-100 percent
 }
 
+// Dynamic scene color with XY coordinates and brightness
+export interface DynamicSceneColor {
+  x: number;
+  y: number;
+  brightness_pct: number;
+}
+
 // Color gamut definition per device type
 export interface ColorGamut {
   red: [number, number];    // [x, y]
@@ -228,11 +235,30 @@ export interface UserSegmentSequencePreset {
   modified_at: string;
 }
 
+export interface UserDynamicScenePreset {
+  id: string;
+  name: string;
+  icon?: string;
+  colors: DynamicSceneColor[];
+  transition_time: number;
+  hold_time: number;
+  distribution_mode: string;
+  offset_delay: number;
+  random_order: boolean;
+  scene_brightness_pct: number;
+  loop_mode: string;
+  loop_count?: number;
+  end_behavior: string;
+  created_at: string;
+  modified_at: string;
+}
+
 export interface UserPresetsData {
   effect_presets: UserEffectPreset[];
   segment_pattern_presets: UserSegmentPatternPreset[];
   cct_sequence_presets: UserCCTSequencePreset[];
   segment_sequence_presets: UserSegmentSequencePreset[];
+  dynamic_scene_presets: UserDynamicScenePreset[];
 }
 
 // Device context passed from Activate tab to editor tabs
@@ -327,11 +353,27 @@ export interface SegmentSequenceEditorDraft {
   skipFirstInLoop: boolean;
 }
 
+export interface DynamicSceneEditorDraft {
+  name: string;
+  icon: string;
+  colors: DynamicSceneColor[];
+  transitionTime: number;
+  holdTime: number;
+  distributionMode: string;
+  offsetDelay: number;
+  randomOrder: boolean;
+  sceneBrightness: number;
+  loopMode: string;
+  loopCount: number;
+  endBehavior: string;
+}
+
 export interface EditorDraftCache {
   effects?: EffectEditorDraft;
   patterns?: PatternEditorDraft;
   cct?: CCTEditorDraft;
   segments?: SegmentSequenceEditorDraft;
+  scenes?: DynamicSceneEditorDraft;
 }
 
 export const SUPPORTED_MODELS = {
