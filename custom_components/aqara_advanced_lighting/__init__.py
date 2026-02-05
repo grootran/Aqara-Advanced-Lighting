@@ -15,6 +15,7 @@ from .cct_sequence_manager import CCTSequenceManager
 from .const import (
     CONF_Z2M_BASE_TOPIC,
     DATA_CCT_SEQUENCE_MANAGER,
+    DATA_DYNAMIC_SCENE_MANAGER,
     DATA_FAVORITES_STORE,
     DATA_PRESET_STORE,
     DATA_SEGMENT_SEQUENCE_MANAGER,
@@ -23,6 +24,7 @@ from .const import (
     DEFAULT_Z2M_BASE_TOPIC,
     DOMAIN,
 )
+from .dynamic_scene_manager import DynamicSceneManager
 from .favorites_store import FavoritesStore
 from .preset_store import PresetStore
 from .segment_zone_store import SegmentZoneStore
@@ -159,6 +161,9 @@ async def async_setup_entry(
     # Initialize segment sequence manager (needs mqtt_client for direct Z2M communication)
     segment_sequence_manager = SegmentSequenceManager(hass, mqtt_client)
 
+    # Initialize dynamic scene manager (uses HA light.turn_on for transitions)
+    dynamic_scene_manager = DynamicSceneManager(hass, state_manager)
+
     # Ensure domain data structure exists (handles case where async_setup wasn't called)
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {
@@ -176,6 +181,7 @@ async def async_setup_entry(
         "state_manager": state_manager,
         DATA_CCT_SEQUENCE_MANAGER: cct_sequence_manager,
         DATA_SEGMENT_SEQUENCE_MANAGER: segment_sequence_manager,
+        DATA_DYNAMIC_SCENE_MANAGER: dynamic_scene_manager,
     }
 
     _LOGGER.info(
@@ -210,6 +216,11 @@ async def async_unload_entry(
             await segment_manager.stop_all_sequences()
             # Cleanup state listeners
             segment_manager.cleanup()
+
+        dynamic_scene_manager = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+        if dynamic_scene_manager:
+            # Stop all running scenes and cleanup
+            await dynamic_scene_manager.cleanup()
 
         # Get MQTT client from instance data
         mqtt_client = instance_data.get("mqtt_client")
