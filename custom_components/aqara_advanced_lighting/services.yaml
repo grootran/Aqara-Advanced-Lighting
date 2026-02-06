@@ -2375,8 +2375,8 @@ start_dynamic_scene:
           unit_of_measurement: "s"
           mode: slider
     distribution_mode:
-      name: Distribution mode
-      description: How colors are distributed across lights.
+      name: Color assignment
+      description: How colors are assigned and cycled across lights.
       required: false
       default: "shuffle_rotate"
       selector:
@@ -2389,8 +2389,8 @@ start_dynamic_scene:
             - label: "Random"
               value: "random"
     offset_delay:
-      name: Offset delay
-      description: Delay in seconds between lights when applying colors (0-10 seconds). Creates a ripple effect.
+      name: Transition stagger
+      description: Delay in seconds between each light's color transition (0-10 seconds). Creates a staggered wave effect.
       required: false
       default: 0.0
       selector:
@@ -2401,15 +2401,15 @@ start_dynamic_scene:
           unit_of_measurement: "s"
           mode: slider
     random_order:
-      name: Random order
-      description: Randomize the order of color cycling.
+      name: Randomize light order
+      description: Randomize the order in which lights transition.
       required: false
       default: false
       selector:
         boolean:
     scene_brightness_pct:
-      name: Scene brightness
-      description: Overall brightness for the scene (1-100%). Individual color brightness is relative to this.
+      name: Maximum scene brightness
+      description: Maximum brightness for the scene (1-100%). Individual color brightness is relative to this.
       required: false
       default: 100
       selector:

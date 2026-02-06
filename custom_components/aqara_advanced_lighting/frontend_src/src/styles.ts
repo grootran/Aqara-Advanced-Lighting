@@ -1391,11 +1391,14 @@ export const panelStyles = css`
   }
 
   .user-preset-card:hover .preset-card-actions,
+  .user-preset:hover .preset-card-actions,
   .builtin-preset:hover .preset-card-actions {
     opacity: 1;
   }
 
-  .preset-card-actions ha-icon-button {
+
+  .preset-card-actions ha-icon-button,
+  .preset-card-actions .favorite-star {
     --mdc-icon-button-size: 28px;
     --mdc-icon-size: 16px;
     color: white;
@@ -1404,13 +1407,19 @@ export const panelStyles = css`
     justify-content: center;
   }
 
-  .preset-card-actions ha-icon-button ha-icon {
+  .preset-card-actions .favorite-star.favorited {
+    color: var(--accent-color, #ffc107);
+  }
+
+  .preset-card-actions ha-icon-button ha-icon,
+  .preset-card-actions .favorite-star ha-icon {
     display: flex;
     align-items: center;
     justify-content: center;
   }
 
-  .preset-card-actions ha-icon-button:hover {
+  .preset-card-actions ha-icon-button:hover,
+  .preset-card-actions .favorite-star:hover {
     background: rgba(255, 255, 255, 0.2);
     border-radius: var(--ha-border-radius-sm, 4px);
   }

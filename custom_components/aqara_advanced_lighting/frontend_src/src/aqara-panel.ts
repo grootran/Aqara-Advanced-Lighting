@@ -35,6 +35,7 @@ import {
   PresetSortPreferences,
   SegmentZoneResolved,
   EditorDraftCache,
+  FavoritePresetRef,
 } from './types';
 import './effect-editor';
 import './pattern-editor';
@@ -88,6 +89,7 @@ export class AqaraPanel extends LitElement {
   @state() private _applyingCurvature = false;
   @state() private _isExporting = false;
   @state() private _isImporting = false;
+  @state() private _favoritePresets: FavoritePresetRef[] = [];
   private _translations: Record<string, any> = PANEL_TRANSLATIONS;
   private _fileInputRef: HTMLInputElement | null = null;
 
@@ -303,6 +305,7 @@ export class AqaraPanel extends LitElement {
 
       this._colorHistory = prefs.color_history;
       this._sortPreferences = prefs.sort_preferences;
+      this._favoritePresets = prefs.favorite_presets || [];
       if (prefs.collapsed_sections) {
         this._collapsed = prefs.collapsed_sections;
       }
@@ -378,6 +381,7 @@ export class AqaraPanel extends LitElement {
           sort_preferences: this._sortPreferences,
           collapsed_sections: this._collapsed,
           include_all_lights: this._includeAllLights,
+          favorite_presets: this._favoritePresets,
         } as unknown as Record<string, unknown>
       ).catch(err => {
         console.warn('Failed to save user preferences:', err);
@@ -403,6 +407,174 @@ export class AqaraPanel extends LitElement {
     this._colorHistory = [];
     this._saveUserPreferences(true); // Immediate save for clear
   };
+
+  /** Check if a preset is in the favorites list. */
+  private _isPresetFavorited(type: string, id: string): boolean {
+    return this._favoritePresets.some(fav => fav.type === type && fav.id === id);
+  }
+
+  /** Toggle favorite status for a preset. Stops propagation to prevent activation. */
+  private _toggleFavoritePreset(type: string, id: string, event: Event): void {
+    event.stopPropagation();
+    const index = this._favoritePresets.findIndex(fav => fav.type === type && fav.id === id);
+    if (index >= 0) {
+      this._favoritePresets = [
+        ...this._favoritePresets.slice(0, index),
+        ...this._favoritePresets.slice(index + 1),
+      ];
+    } else {
+      this._favoritePresets = [...this._favoritePresets, { type, id }];
+    }
+    this._saveUserPreferences(true);
+  }
+
+  /** Render a star icon for favorite toggling on preset buttons. */
+  private _renderFavoriteStar(type: string, id: string) {
+    const isFav = this._isPresetFavorited(type, id);
+    return html`
+      <ha-icon-button
+        class="favorite-star ${isFav ? 'favorited' : ''}"
+        @click=${(e: Event) => this._toggleFavoritePreset(type, id, e)}
+        title="${isFav ? this._localize('tooltips.favorite_preset_remove') : this._localize('tooltips.favorite_preset_add')}"
+      >
+        <ha-icon icon="${isFav ? 'mdi:star' : 'mdi:star-outline'}"></ha-icon>
+      </ha-icon-button>
+    `;
+  }
+
+  /**
+   * Resolve favorite preset references to actual preset objects.
+   * Filters out references to deleted presets and cleans up stale entries.
+   */
+  private _getResolvedFavoritePresets(): Array<{
+    ref: FavoritePresetRef;
+    preset: any;
+    isUser: boolean;
+  }> {
+    const resolved: Array<{ ref: FavoritePresetRef; preset: any; isUser: boolean }> = [];
+
+    for (const ref of this._favoritePresets) {
+      let preset: any = null;
+      let isUser = false;
+
+      switch (ref.type) {
+        case 'effect': {
+          for (const key of ['t2_bulb', 't1m', 't1_strip'] as const) {
+            const found = this._presets?.dynamic_effects?.[key]?.find(p => p.id === ref.id);
+            if (found) { preset = found; break; }
+          }
+          if (!preset) {
+            preset = this._userPresets?.effect_presets?.find(p => p.id === ref.id) || null;
+            if (preset) isUser = true;
+          }
+          break;
+        }
+        case 'segment_pattern': {
+          preset = this._presets?.segment_patterns?.find(p => p.id === ref.id) || null;
+          if (!preset) {
+            preset = this._userPresets?.segment_pattern_presets?.find(p => p.id === ref.id) || null;
+            if (preset) isUser = true;
+          }
+          break;
+        }
+        case 'cct_sequence': {
+          preset = this._presets?.cct_sequences?.find(p => p.id === ref.id) || null;
+          if (!preset) {
+            preset = this._userPresets?.cct_sequence_presets?.find(p => p.id === ref.id) || null;
+            if (preset) isUser = true;
+          }
+          break;
+        }
+        case 'segment_sequence': {
+          preset = this._presets?.segment_sequences?.find(p => p.id === ref.id) || null;
+          if (!preset) {
+            preset = this._userPresets?.segment_sequence_presets?.find(p => p.id === ref.id) || null;
+            if (preset) isUser = true;
+          }
+          break;
+        }
+        case 'dynamic_scene': {
+          preset = this._presets?.dynamic_scenes?.find(p => p.id === ref.id) || null;
+          if (!preset) {
+            preset = this._userPresets?.dynamic_scene_presets?.find(p => p.id === ref.id) || null;
+            if (preset) isUser = true;
+          }
+          break;
+        }
+      }
+
+      if (preset) {
+        resolved.push({ ref, preset, isUser });
+      }
+    }
+
+    // Clean up stale references to deleted presets
+    if (resolved.length !== this._favoritePresets.length) {
+      this._favoritePresets = resolved.map(r => r.ref);
+      this._saveUserPreferences();
+    }
+
+    return resolved;
+  }
+
+  /** Activate a favorite preset by dispatching to the appropriate activation method. */
+  private async _activateFavoritePreset(ref: FavoritePresetRef, preset: any, isUser: boolean): Promise<void> {
+    switch (ref.type) {
+      case 'effect':
+        if (isUser) {
+          await this._activateUserEffectPreset(preset);
+        } else {
+          await this._activateDynamicEffect(preset);
+        }
+        break;
+      case 'segment_pattern':
+        if (isUser) {
+          await this._activateUserPatternPreset(preset);
+        } else {
+          await this._activateSegmentPattern(preset);
+        }
+        break;
+      case 'cct_sequence':
+        if (isUser) {
+          await this._activateUserCCTSequencePreset(preset);
+        } else {
+          await this._activateCCTSequence(preset);
+        }
+        break;
+      case 'segment_sequence':
+        if (isUser) {
+          await this._activateUserSegmentSequencePreset(preset);
+        } else {
+          await this._activateSegmentSequence(preset);
+        }
+        break;
+      case 'dynamic_scene':
+        if (isUser) {
+          await this._activateUserDynamicScenePreset(preset);
+        } else {
+          await this._activateDynamicScene(preset);
+        }
+        break;
+    }
+  }
+
+  /** Render the icon/thumbnail for a favorite preset based on its type. */
+  private _renderFavoritePresetIcon(ref: FavoritePresetRef, preset: any, isUser: boolean) {
+    switch (ref.type) {
+      case 'effect':
+        return isUser ? this._renderUserEffectIcon(preset) : this._renderPresetIcon(preset.icon, 'mdi:lightbulb-on');
+      case 'segment_pattern':
+        return isUser ? this._renderUserPatternIcon(preset) : this._renderPresetIcon(preset.icon, 'mdi:palette');
+      case 'cct_sequence':
+        return isUser ? this._renderUserCCTIcon(preset) : this._renderPresetIcon(preset.icon, 'mdi:temperature-kelvin');
+      case 'segment_sequence':
+        return isUser ? this._renderUserSegmentSequenceIcon(preset) : this._renderPresetIcon(preset.icon, 'mdi:animation-play');
+      case 'dynamic_scene':
+        return isUser ? this._renderUserDynamicSceneIcon(preset) : this._renderBuiltinDynamicSceneIcon(preset);
+      default:
+        return html`<ha-icon icon="mdi:star"></ha-icon>`;
+    }
+  }
 
   private _getSortPreference(sectionId: string): PresetSortOption {
     return this._sortPreferences[sectionId] || 'name-asc';
@@ -854,6 +1026,25 @@ export class AqaraPanel extends LitElement {
       case 'date-old':
       default:
         return sorted.sort((a, b) => a.name.localeCompare(b.name));
+    }
+  }
+
+  private _sortResolvedFavorites(
+    items: Array<{ ref: FavoritePresetRef; preset: any; isUser: boolean }>,
+    sortOption: PresetSortOption,
+  ): Array<{ ref: FavoritePresetRef; preset: any; isUser: boolean }> {
+    const sorted = [...items];
+    switch (sortOption) {
+      case 'name-asc':
+        return sorted.sort((a, b) => a.preset.name.localeCompare(b.preset.name));
+      case 'name-desc':
+        return sorted.sort((a, b) => b.preset.name.localeCompare(a.preset.name));
+      // Date sort uses the order they were favorited (array position)
+      case 'date-new':
+        return sorted.reverse();
+      case 'date-old':
+      default:
+        return sorted;
     }
   }
 
@@ -2425,6 +2616,8 @@ export class AqaraPanel extends LitElement {
           `
         : ''}
 
+      ${hasSelection ? this._renderFavoritesSection() : ''}
+
       ${filtered.showDynamicScenes && ((this._presets?.dynamic_scenes?.length ?? 0) > 0 || this._getFilteredUserDynamicScenePresets().length > 0) && !this._hasIncompatibleLights
         ? this._renderDynamicScenesSection()
         : ''}
@@ -3595,6 +3788,48 @@ export class AqaraPanel extends LitElement {
     `;
   }
 
+  /** Render the Favorite Presets section in the Activate tab. Hidden when empty. */
+  private _renderFavoritesSection() {
+    const resolved = this._getResolvedFavoritePresets();
+    if (resolved.length === 0) return '';
+
+    const sectionId = 'favorite_presets';
+    const isExpanded = !this._collapsed[sectionId];
+    const sortOption = this._getSortPreference(sectionId);
+    const sortedFavorites = this._sortResolvedFavorites(resolved, sortOption);
+
+    return html`
+      <ha-expansion-panel
+        outlined
+        .expanded=${isExpanded}
+        @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange(sectionId, e)}
+      >
+        <div slot="header" class="section-header">
+          <div>
+            <div class="section-title">${this._localize('sections.favorite_presets')}</div>
+            <div class="section-subtitle">${this._localize('sections.subtitle_favorites', { count: resolved.length.toString() })}</div>
+          </div>
+          <div class="section-header-controls" @click=${(e: Event) => e.stopPropagation()}>
+            ${this._renderSortDropdown(sectionId)}
+          </div>
+        </div>
+        <div class="section-content">
+          ${sortedFavorites.map(({ ref, preset, isUser }) => html`
+            <div class="preset-button ${isUser ? 'user-preset' : 'builtin-preset'}" @click=${() => this._activateFavoritePreset(ref, preset, isUser)}>
+              <div class="preset-card-actions">
+                ${this._renderFavoriteStar(ref.type, ref.id)}
+              </div>
+              <div class="preset-icon">
+                ${this._renderFavoritePresetIcon(ref, preset, isUser)}
+              </div>
+              <div class="preset-name">${preset.name}</div>
+            </div>
+          `)}
+        </div>
+      </ha-expansion-panel>
+    `;
+  }
+
   private _renderDynamicEffectsSection(title: string, presets: DynamicEffectPreset[], deviceType: string) {
     const sectionId = `dynamic_${title.toLowerCase().replace(/\s+/g, '_')}`;
     const isExpanded = !this._collapsed[sectionId];
@@ -3625,6 +3860,9 @@ export class AqaraPanel extends LitElement {
           ${sortedUserPresets.map(
             (preset) => html`
               <div class="preset-button user-preset" @click=${() => this._activateUserEffectPreset(preset)}>
+                <div class="preset-card-actions">
+                  ${this._renderFavoriteStar('effect', preset.id)}
+                </div>
                 <div class="preset-icon">
                   ${this._renderUserEffectIcon(preset)}
                 </div>
@@ -3636,6 +3874,7 @@ export class AqaraPanel extends LitElement {
             (preset) => html`
               <div class="preset-button builtin-preset" @click=${() => this._activateDynamicEffect(preset)}>
                 <div class="preset-card-actions">
+                  ${this._renderFavoriteStar('effect', preset.id)}
                   <ha-icon-button
                     @click=${(e: Event) => { e.stopPropagation(); this._duplicateBuiltinEffectPreset(preset, deviceType); }}
                     title="${this._localize('tooltips.preset_duplicate')}"
@@ -3685,6 +3924,9 @@ export class AqaraPanel extends LitElement {
           ${sortedUserPresets.map(
             (preset) => html`
               <div class="preset-button user-preset" @click=${() => this._activateUserPatternPreset(preset)}>
+                <div class="preset-card-actions">
+                  ${this._renderFavoriteStar('segment_pattern', preset.id)}
+                </div>
                 <div class="preset-icon">
                   ${this._renderUserPatternIcon(preset)}
                 </div>
@@ -3696,6 +3938,7 @@ export class AqaraPanel extends LitElement {
             (preset) => html`
               <div class="preset-button builtin-preset" @click=${() => this._activateSegmentPattern(preset)}>
                 <div class="preset-card-actions">
+                  ${this._renderFavoriteStar('segment_pattern', preset.id)}
                   <ha-icon-button
                     @click=${(e: Event) => { e.stopPropagation(); this._duplicateBuiltinPatternPreset(preset, deviceType); }}
                     title="${this._localize('tooltips.preset_duplicate')}"
@@ -3814,6 +4057,9 @@ export class AqaraPanel extends LitElement {
           ${sortedUserPresets.map(
             (preset) => html`
               <div class="preset-button user-preset" @click=${() => this._activateUserCCTSequencePreset(preset)}>
+                <div class="preset-card-actions">
+                  ${this._renderFavoriteStar('cct_sequence', preset.id)}
+                </div>
                 <div class="preset-icon">
                   ${this._renderUserCCTIcon(preset)}
                 </div>
@@ -3825,6 +4071,7 @@ export class AqaraPanel extends LitElement {
             (preset) => html`
               <div class="preset-button builtin-preset" @click=${() => this._activateCCTSequence(preset)}>
                 <div class="preset-card-actions">
+                  ${this._renderFavoriteStar('cct_sequence', preset.id)}
                   <ha-icon-button
                     @click=${(e: Event) => { e.stopPropagation(); this._duplicateBuiltinCCTSequencePreset(preset); }}
                     title="${this._localize('tooltips.preset_duplicate')}"
@@ -3874,6 +4121,9 @@ export class AqaraPanel extends LitElement {
           ${sortedUserPresets.map(
             (preset) => html`
               <div class="preset-button user-preset" @click=${() => this._activateUserSegmentSequencePreset(preset)}>
+                <div class="preset-card-actions">
+                  ${this._renderFavoriteStar('segment_sequence', preset.id)}
+                </div>
                 <div class="preset-icon">
                   ${this._renderUserSegmentSequenceIcon(preset)}
                 </div>
@@ -3885,6 +4135,7 @@ export class AqaraPanel extends LitElement {
             (preset) => html`
               <div class="preset-button builtin-preset" @click=${() => this._activateSegmentSequence(preset)}>
                 <div class="preset-card-actions">
+                  ${this._renderFavoriteStar('segment_sequence', preset.id)}
                   <ha-icon-button
                     @click=${(e: Event) => { e.stopPropagation(); this._duplicateBuiltinSegmentSequencePreset(preset, deviceType); }}
                     title="${this._localize('tooltips.preset_duplicate')}"
@@ -3935,6 +4186,9 @@ export class AqaraPanel extends LitElement {
           ${sortedUserPresets.map(
             (preset) => html`
               <div class="preset-button user-preset" @click=${() => this._activateUserDynamicScenePreset(preset)}>
+                <div class="preset-card-actions">
+                  ${this._renderFavoriteStar('dynamic_scene', preset.id)}
+                </div>
                 <div class="preset-icon">
                   ${this._renderUserDynamicSceneIcon(preset)}
                 </div>
@@ -3946,6 +4200,7 @@ export class AqaraPanel extends LitElement {
             (preset) => html`
               <div class="preset-button builtin-preset" @click=${() => this._activateDynamicScene(preset)}>
                 <div class="preset-card-actions">
+                  ${this._renderFavoriteStar('dynamic_scene', preset.id)}
                   <ha-icon-button
                     @click=${(e: Event) => { e.stopPropagation(); this._duplicateBuiltinDynamicScenePreset(preset); }}
                     title="${this._localize('tooltips.preset_duplicate')}"

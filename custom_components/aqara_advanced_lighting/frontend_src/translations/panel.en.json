@@ -57,6 +57,8 @@
     "subtitle_presets": "{count} presets",
     "subtitle_presets_custom": "{count} presets ({custom} custom)",
     "subtitle_user_presets": "{count} presets",
+    "favorite_presets": "Favorite presets",
+    "subtitle_favorites": "{count} favorites",
     "t1_strip_settings": "T1 Strip settings"
   },
   "presets": {
@@ -178,6 +180,8 @@
     "step_duplicate": "Duplicate",
     "step_remove": "Remove",
     "favorite_save": "Save as favorite",
+    "favorite_preset_add": "Add to favorites",
+    "favorite_preset_remove": "Remove from favorites",
     "preset_edit": "Edit preset",
     "preset_duplicate": "Duplicate preset",
     "preset_delete": "Delete preset",

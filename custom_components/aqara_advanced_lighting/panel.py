@@ -738,6 +738,27 @@ def _validate_collapsed_sections(collapsed_sections: Any) -> str | None:
     return None
 
 
+def _validate_favorite_presets(favorite_presets: Any) -> str | None:
+    """Validate favorite presets references.
+
+    Returns an error message if invalid, or None if valid.
+    """
+    if not isinstance(favorite_presets, list):
+        return "favorite_presets must be a list"
+
+    for i, ref in enumerate(favorite_presets):
+        if not isinstance(ref, dict):
+            return f"favorite_presets[{i}] must be an object"
+        if "type" not in ref or "id" not in ref:
+            return f"favorite_presets[{i}] must have `type` and `id` keys"
+        if ref["type"] not in VALID_PRESET_TYPES:
+            return f"favorite_presets[{i}] has invalid type `{ref['type']}`"
+        if not isinstance(ref["id"], str):
+            return f"favorite_presets[{i}] `id` must be a string"
+
+    return None
+
+
 class UserPreferencesView(HomeAssistantView):
     """View to manage per-user preferences (color history, sort preferences)."""
 
@@ -793,6 +814,7 @@ class UserPreferencesView(HomeAssistantView):
         sort_preferences = None
         collapsed_sections = None
         include_all_lights = None
+        favorite_presets = None
 
         if "color_history" in data:
             error = _validate_color_history(data["color_history"])
@@ -819,11 +841,18 @@ class UserPreferencesView(HomeAssistantView):
                 )
             include_all_lights = data["include_all_lights"]
 
+        if "favorite_presets" in data:
+            error = _validate_favorite_presets(data["favorite_presets"])
+            if error:
+                return web.Response(status=400, text=error)
+            favorite_presets = data["favorite_presets"]
+
         if (
             color_history is None
             and sort_preferences is None
             and collapsed_sections is None
             and include_all_lights is None
+            and favorite_presets is None
         ):
             # Nothing to update, return current preferences
             preferences = store.get_preferences(user.id)
@@ -835,6 +864,7 @@ class UserPreferencesView(HomeAssistantView):
             sort_preferences=sort_preferences,
             collapsed_sections=collapsed_sections,
             include_all_lights=include_all_lights,
+            favorite_presets=favorite_presets,
         )
         return web.json_response(preferences)
 

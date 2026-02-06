@@ -23,6 +23,7 @@ class UserPreferences(TypedDict):
     sort_preferences: dict[str, str]
     collapsed_sections: dict[str, bool]
     include_all_lights: bool
+    favorite_presets: list[dict[str, str]]
 
 
 DEFAULT_PREFERENCES: UserPreferences = {
@@ -30,6 +31,7 @@ DEFAULT_PREFERENCES: UserPreferences = {
     "sort_preferences": {},
     "collapsed_sections": {},
     "include_all_lights": False,
+    "favorite_presets": [],
 }
 
 
@@ -75,6 +77,7 @@ class UserPreferencesStore:
                 "sort_preferences": prefs.get("sort_preferences", {}),
                 "collapsed_sections": prefs.get("collapsed_sections", {}),
                 "include_all_lights": prefs.get("include_all_lights", False),
+                "favorite_presets": prefs.get("favorite_presets", []),
             }
         return {**DEFAULT_PREFERENCES}
 
@@ -135,6 +138,7 @@ class UserPreferencesStore:
         sort_preferences: dict[str, str] | None = None,
         collapsed_sections: dict[str, bool] | None = None,
         include_all_lights: bool | None = None,
+        favorite_presets: list[dict[str, str]] | None = None,
     ) -> UserPreferences:
         """Partially update a user's preferences.
 
@@ -146,6 +150,7 @@ class UserPreferencesStore:
             sort_preferences: New sort preferences, or None to leave unchanged.
             collapsed_sections: New collapsed section state, or None to leave unchanged.
             include_all_lights: Whether to show all lights in selector, or None to leave unchanged.
+            favorite_presets: Favorite preset references, or None to leave unchanged.
 
         Returns:
             The full updated preferences.
@@ -166,6 +171,9 @@ class UserPreferencesStore:
 
         if include_all_lights is not None:
             self._data[user_id]["include_all_lights"] = include_all_lights
+
+        if favorite_presets is not None:
+            self._data[user_id]["favorite_presets"] = favorite_presets
 
         await self.async_save()
 

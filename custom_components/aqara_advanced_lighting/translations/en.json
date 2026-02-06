@@ -668,20 +668,20 @@
           "description": "Time in seconds to hold each color before transitioning."
         },
         "distribution_mode": {
-          "name": "Distribution mode",
-          "description": "How colors are distributed across lights."
+          "name": "Color assignment",
+          "description": "How colors are assigned and cycled across lights."
         },
         "offset_delay": {
-          "name": "Offset delay",
-          "description": "Delay in seconds between lights when applying colors. Creates a ripple effect."
+          "name": "Transition stagger",
+          "description": "Delay in seconds between each light's color transition. Creates a staggered wave effect."
         },
         "random_order": {
-          "name": "Random order",
-          "description": "Randomize the order of color cycling."
+          "name": "Randomize light order",
+          "description": "Randomize the order in which lights transition."
         },
         "scene_brightness_pct": {
-          "name": "Scene brightness",
-          "description": "Overall brightness for the scene (1-100%)."
+          "name": "Maximum scene brightness",
+          "description": "Maximum brightness for the scene (1-100%). Individual color brightness is relative to this."
         },
         "loop_mode": {
           "name": "Loop mode",

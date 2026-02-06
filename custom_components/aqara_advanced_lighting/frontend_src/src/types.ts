@@ -295,12 +295,19 @@ export type PresetSortOption = 'name-asc' | 'name-desc' | 'date-new' | 'date-old
 
 export type PresetSortPreferences = Record<string, PresetSortOption>;
 
+// Reference to a favourited preset (type + id)
+export interface FavoritePresetRef {
+  type: string;
+  id: string;
+}
+
 // Per-user preferences (backed by server-side storage)
 export interface UserPreferences {
   color_history: XYColor[];
   sort_preferences: PresetSortPreferences;
   collapsed_sections: Record<string, boolean>;
   include_all_lights?: boolean;
+  favorite_presets: FavoritePresetRef[];
 }
 
 // Draft state types for editor tab caching (in-memory only, not persisted)
