@@ -64,6 +64,8 @@ class SceneState:
     light_order: list[str] = field(default_factory=list)
     # Hue-sorted color indices for shuffle_rotate mode (smooth color wheel rotation)
     hue_sorted_indices: list[int] = field(default_factory=list)
+    # Track whether initial colors have been applied (for instant first transition)
+    initial_applied: bool = False
 
 
 class DynamicSceneManager:
@@ -695,12 +697,17 @@ class DynamicSceneManager:
         scene = scene_state.scene
         light_order = scene_state.light_order
 
+        # Use instant transition for initial application (immediate visual feedback)
+        # Subsequent transitions use the configured transition_time
+        is_initial = not scene_state.initial_applied
+        transition_time = 0 if is_initial else scene.transition_time
+
         for i, entity_id in enumerate(light_order):
             if stop_event.is_set():
                 return
 
-            # Apply offset delay between lights (skip first light)
-            if i > 0 and scene.offset_delay > 0:
+            # Apply offset delay between lights (skip first light, skip on initial)
+            if not is_initial and i > 0 and scene.offset_delay > 0:
                 try:
                     await asyncio.wait_for(
                         stop_event.wait(), timeout=scene.offset_delay
@@ -734,26 +741,31 @@ class DynamicSceneManager:
                     ATTR_ENTITY_ID: entity_id,
                     "xy_color": [color.x, color.y],
                     "brightness": effective_brightness,
-                    "transition": scene.transition_time,
+                    "transition": transition_time,
                 },
                 blocking=False,
             )
 
             _LOGGER.debug(
-                "Applied color %d to %s: XY(%.4f,%.4f) brightness=%d transition=%ss",
+                "Applied color %d to %s: XY(%.4f,%.4f) brightness=%d transition=%ss%s",
                 color_index,
                 entity_id,
                 color.x,
                 color.y,
                 effective_brightness,
-                scene.transition_time,
+                transition_time,
+                " (initial)" if is_initial else "",
             )
 
-        # Wait for transition to complete
-        if scene.transition_time > 0:
+        # Mark initial application complete
+        if is_initial:
+            scene_state.initial_applied = True
+
+        # Wait for transition to complete (skip wait on initial instant transition)
+        if transition_time > 0:
             try:
                 await asyncio.wait_for(
-                    stop_event.wait(), timeout=scene.transition_time
+                    stop_event.wait(), timeout=transition_time
                 )
             except TimeoutError:
                 pass  # Normal - transition time elapsed
@@ -800,6 +812,9 @@ class DynamicSceneManager:
         for entity_id in entity_ids:
             payload = self.state_manager.get_restoration_payload(entity_id)
             if not payload:
+                _LOGGER.warning(
+                    "No stored state found for %s, skipping restoration", entity_id
+                )
                 continue
 
             try:
@@ -809,23 +824,31 @@ class DynamicSceneManager:
                     await self.hass.services.async_call(
                         "light", "turn_off", service_data, blocking=False
                     )
+                    _LOGGER.debug("Restored state for %s: turned off", entity_id)
                 else:
                     if "brightness" in payload:
                         service_data["brightness"] = payload["brightness"]
-                    if "color" in payload:
+
+                    # Prefer xy_color for precision, fall back to rgb_color
+                    if "xy_color" in payload:
+                        xy = payload["xy_color"]
+                        service_data["xy_color"] = [xy["x"], xy["y"]]
+                    elif "color" in payload:
                         color = payload["color"]
                         service_data["rgb_color"] = [
                             color["r"],
                             color["g"],
                             color["b"],
                         ]
+
                     if "color_temp" in payload:
                         service_data["color_temp"] = payload["color_temp"]
 
                     await self.hass.services.async_call(
                         "light", "turn_on", service_data, blocking=False
                     )
-
-                _LOGGER.debug("Restored state for %s", entity_id)
+                    _LOGGER.debug(
+                        "Restored state for %s: %s", entity_id, service_data
+                    )
             except Exception:
                 _LOGGER.warning("Failed to restore state for %s", entity_id, exc_info=True)

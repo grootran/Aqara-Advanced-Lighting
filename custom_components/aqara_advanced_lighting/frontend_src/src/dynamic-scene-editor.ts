@@ -155,15 +155,10 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
       background: var(--card-background-color);
       border: 1px solid var(--divider-color);
       border-radius: 8px;
-      transition: all 0.2s ease;
     }
 
     .color-slot.dragging {
       opacity: 0.4;
-    }
-
-    .color-slot:hover {
-      border-color: var(--primary-color);
     }
 
     .color-preview {
@@ -172,20 +167,15 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
       border-radius: 8px;
       cursor: pointer;
       border: 2px solid var(--divider-color);
-      transition: all 0.2s ease;
       flex-shrink: 0;
-    }
-
-    .color-preview:hover {
-      transform: scale(1.05);
-      border-color: var(--primary-color);
     }
 
     .color-slot-number {
       font-size: 14px;
       font-weight: 600;
       color: var(--primary-color);
-      min-width: 24px;
+      min-width: 20px;
+      flex-shrink: 0;
     }
 
     .brightness-control {
@@ -194,11 +184,12 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
       align-items: center;
       gap: 8px;
       min-width: 0;
+      overflow: hidden;
     }
 
     .brightness-control ha-selector {
       flex: 1;
-      min-width: 100px;
+      min-width: 80px;
     }
 
     .brightness-value {
@@ -352,14 +343,36 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
         margin-bottom: 4px;
       }
 
+      .color-slots-container {
+        gap: 8px;
+      }
+
       .color-slot {
-        flex-wrap: wrap;
+        gap: 8px;
+        padding: 8px;
+      }
+
+      .color-preview {
+        width: 40px;
+        height: 40px;
+      }
+
+      .color-slot-number {
+        min-width: 16px;
+        font-size: 13px;
       }
 
       .brightness-control {
-        width: 100%;
-        order: 1;
-        margin-top: 8px;
+        gap: 4px;
+      }
+
+      .brightness-control ha-selector {
+        min-width: 60px;
+      }
+
+      .color-slot-actions ha-icon-button {
+        --mdc-icon-button-size: 28px;
+        --mdc-icon-size: 16px;
       }
     }
   `];

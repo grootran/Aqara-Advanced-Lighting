@@ -136,7 +136,14 @@ class StateManager:
             if brightness := state.attributes.get("brightness"):
                 state_data["brightness"] = brightness
 
-            # Capture color if available (RGB)
+            # Capture XY color if available (preferred for precision)
+            if xy_color := state.attributes.get("xy_color"):
+                state_data["xy_color"] = {
+                    "x": xy_color[0],
+                    "y": xy_color[1],
+                }
+
+            # Capture RGB color if available (fallback)
             if rgb_color := state.attributes.get("rgb_color"):
                 state_data["color"] = {
                     "r": rgb_color[0],
@@ -269,12 +276,16 @@ class StateManager:
             if color_temp := previous_state.get("color_temp"):
                 payload["color_temp"] = color_temp
         elif color_mode in ("xy", "rgb", "hs", "rgbw", "rgbww"):
-            # Light was in color mode - only restore color
-            if color := previous_state.get("color"):
+            # Light was in color mode - prefer xy_color for precision
+            if xy_color := previous_state.get("xy_color"):
+                payload["xy_color"] = xy_color
+            elif color := previous_state.get("color"):
                 payload["color"] = color
         else:
-            # Unknown or no color_mode - restore both if available (legacy behavior)
-            if color := previous_state.get("color"):
+            # Unknown or no color_mode - restore best available
+            if xy_color := previous_state.get("xy_color"):
+                payload["xy_color"] = xy_color
+            elif color := previous_state.get("color"):
                 payload["color"] = color
             if color_temp := previous_state.get("color_temp"):
                 payload["color_temp"] = color_temp
