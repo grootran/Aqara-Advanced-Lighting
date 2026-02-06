@@ -34,6 +34,7 @@ from .models import DynamicEffect, SegmentColor, Z2MDevice
 if TYPE_CHECKING:
     from homeassistant.components.mqtt import ReceiveMessage
 
+    from .entity_controller import EntityController
     from .models import AqaraLightingConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
@@ -73,11 +74,15 @@ class MQTTClient:
     """MQTT client for communicating with Zigbee2MQTT."""
 
     def __init__(
-        self, hass: HomeAssistant, entry: AqaraLightingConfigEntry
+        self,
+        hass: HomeAssistant,
+        entry: AqaraLightingConfigEntry,
+        entity_controller: EntityController | None = None,
     ) -> None:
         """Initialize the MQTT client."""
         self.hass = hass
         self.entry = entry
+        self._entity_controller = entity_controller
         self._subscriptions: list[mqtt.SubscriptionState] = []
 
     async def async_setup(self) -> None:
@@ -702,12 +707,19 @@ class MQTTClient:
         if transition is not None:
             service_data["transition"] = transition
 
+        context = (
+            self._entity_controller.create_context()
+            if self._entity_controller
+            else None
+        )
+
         _LOGGER.debug("Setting CCT values via HA service: %s", service_data)
         await self.hass.services.async_call(
             "light",
             "turn_on",
             service_data,
             blocking=True,
+            context=context,
         )
 
     async def async_turn_off_light(self, entity_id: str) -> None:
@@ -716,6 +728,12 @@ class MQTTClient:
         Args:
             entity_id: The Home Assistant light entity ID
         """
+        context = (
+            self._entity_controller.create_context()
+            if self._entity_controller
+            else None
+        )
+
         _LOGGER.debug("Turning off light %s via HA service", entity_id)
 
         await self.hass.services.async_call(
@@ -723,4 +741,5 @@ class MQTTClient:
             "turn_off",
             {"entity_id": entity_id},
             blocking=True,
+            context=context,
         )

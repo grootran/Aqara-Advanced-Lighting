@@ -29,6 +29,7 @@ from .models import CCTSequence
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
+    from .entity_controller import EntityController
     from .mqtt_client import MQTTClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -37,59 +38,31 @@ _LOGGER = logging.getLogger(__name__)
 class CCTSequenceManager:
     """Manages CCT sequence execution as background tasks."""
 
-    def __init__(self, hass: HomeAssistant, mqtt_client: MQTTClient) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        mqtt_client: MQTTClient,
+        entity_controller: EntityController | None = None,
+    ) -> None:
         """Initialize the CCT sequence manager."""
         self.hass = hass
         self.mqtt_client = mqtt_client
+        self._entity_controller = entity_controller
         self._active_sequences: dict[str, asyncio.Task] = {}  # entity_id -> task
         self._stop_flags: dict[str, asyncio.Event] = {}  # entity_id -> stop event
         self._sequence_ids: dict[str, str] = {}  # entity_id -> sequence_id
         self._pause_flags: dict[str, asyncio.Event] = {}  # entity_id -> pause event
         self._sequence_state: dict[str, dict] = {}  # entity_id -> state info
         self._sequence_presets: dict[str, str | None] = {}  # entity_id -> preset name
-        self._state_listener_remove = None  # State change listener cleanup function
         # Group synchronization support
         self._group_barriers: dict[str, asyncio.Barrier] = {}  # group_id -> barrier
         self._entity_to_group: dict[str, str] = {}  # entity_id -> group_id
 
-        # Setup state change listener to stop sequences when lights turn off
-        self._setup_state_listener()
-
-    def _setup_state_listener(self) -> None:
-        """Setup state change listener to monitor light entities."""
-        from homeassistant.core import callback
-        from homeassistant.const import STATE_OFF
-
-        @callback
-        def _async_state_changed_listener(event):
-            """Handle state changes for light entities."""
-            entity_id = event.data.get("entity_id")
-            new_state = event.data.get("new_state")
-
-            # Check if entity has a running sequence and is now off
-            if (
-                entity_id
-                and new_state
-                and new_state.state == STATE_OFF
-                and self.is_sequence_running(entity_id)
-            ):
-                _LOGGER.debug(
-                    "Light %s turned off, stopping CCT sequence", entity_id
-                )
-                # Stop sequence asynchronously
-                self.hass.async_create_task(self.stop_sequence(entity_id))
-
-        # Register the listener for state changes
-        self._state_listener_remove = self.hass.bus.async_listen(
-            "state_changed", _async_state_changed_listener
-        )
-
     def cleanup(self) -> None:
-        """Cleanup resources and remove listeners."""
-        # Remove state change listener
-        if self._state_listener_remove:
-            self._state_listener_remove()
-            self._state_listener_remove = None
+        """Cleanup resources.
+
+        State change listening is now managed by the centralized EntityController.
+        """
 
     async def start_sequence(
         self,
@@ -672,6 +645,10 @@ class CCTSequenceManager:
             if entity_id in self._sequence_presets:
                 del self._sequence_presets[entity_id]
 
+            # Clear entity controller tracking
+            if self._entity_controller:
+                self._entity_controller.clear_entity(entity_id)
+
             # Fire sequence completed event if it finished naturally
             if completed_naturally:
                 self.hass.bus.async_fire(
@@ -879,6 +856,10 @@ class CCTSequenceManager:
                 del self._sequence_presets[entity_id]
             if entity_id in self._entity_to_group:
                 del self._entity_to_group[entity_id]
+
+            # Clear entity controller tracking
+            if self._entity_controller:
+                self._entity_controller.clear_entity(entity_id)
 
             # Check if this was the last entity in the group and clean up
             if group_id and not any(

@@ -50,6 +50,7 @@ from .const import (
     CCT_SEQUENCE_PRESETS,
     DATA_CCT_SEQUENCE_MANAGER,
     DATA_DYNAMIC_SCENE_MANAGER,
+    DATA_ENTITY_CONTROLLER,
     DATA_PRESET_STORE,
     DATA_SEGMENT_SEQUENCE_MANAGER,
     DATA_SEGMENT_ZONE_STORE,
@@ -106,6 +107,7 @@ from .const import (
     SERVICE_PAUSE_CCT_SEQUENCE,
     SERVICE_PAUSE_SEGMENT_SEQUENCE,
     SERVICE_RESUME_CCT_SEQUENCE,
+    SERVICE_RESUME_ENTITY_CONTROL,
     SERVICE_RESUME_SEGMENT_SEQUENCE,
     SERVICE_SET_DYNAMIC_EFFECT,
     SERVICE_SET_SEGMENT_PATTERN,
@@ -1373,6 +1375,12 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 segment_manager.pause_sequence(entity_id)
                 paused_segment = True
 
+            # Detach from dynamic scene if running (one-time effect overrides scene)
+            dsm = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+            if dsm and dsm.is_scene_running(entity_id):
+                _LOGGER.debug("Detaching %s from dynamic scene before applying effect", entity_id)
+                dsm.detach_entity(entity_id)
+
             # Capture current state before applying effect
             entity_state_manager.capture_state(entity_id, z2m_name)
 
@@ -1781,6 +1789,12 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 segment_manager.pause_sequence(entity_id)
                 paused_segment = True
 
+            # Detach from dynamic scene if running (one-time pattern overrides scene)
+            dsm = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+            if dsm and dsm.is_scene_running(entity_id):
+                _LOGGER.debug("Detaching %s from dynamic scene before applying segment pattern", entity_id)
+                dsm.detach_entity(entity_id)
+
             # Capture state and publish pattern
             entity_state_manager.capture_state(entity_id, z2m_name)
 
@@ -1896,6 +1910,13 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     translation_key="segment_addressing_not_supported",
                     translation_placeholders={"device": z2m_name},
                 )
+
+            # Detach from dynamic scene if running (one-time gradient overrides scene)
+            instance_data = hass.data[DOMAIN]["entries"].get(entry_id, {})
+            dsm = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+            if dsm and dsm.is_scene_running(entity_id):
+                _LOGGER.debug("Detaching %s from dynamic scene before applying gradient", entity_id)
+                dsm.detach_entity(entity_id)
 
             # Ensure light is on if requested
             await _ensure_light_on(hass, entity_mqtt_client, entity_id, z2m_name, turn_on)
@@ -2067,6 +2088,13 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     translation_key="segment_addressing_not_supported",
                     translation_placeholders={"device": z2m_name},
                 )
+
+            # Detach from dynamic scene if running (one-time blocks overrides scene)
+            instance_data = hass.data[DOMAIN]["entries"].get(entry_id, {})
+            dsm = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+            if dsm and dsm.is_scene_running(entity_id):
+                _LOGGER.debug("Detaching %s from dynamic scene before applying blocks", entity_id)
+                dsm.detach_entity(entity_id)
 
             # Ensure light is on if requested
             await _ensure_light_on(hass, entity_mqtt_client, entity_id, z2m_name, turn_on)
@@ -2428,6 +2456,12 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     )
             if turn_on_tasks:
                 await asyncio.gather(*turn_on_tasks, return_exceptions=True)
+
+        # Stop all conflicting continuous actions on these entities
+        entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+        if entity_controller:
+            for entity_id in aqara_entity_ids + generic_entity_ids:
+                await entity_controller.stop_all_for_entity(entity_id)
 
         # Start synchronized sequences for each Aqara instance group
         start_tasks = []
@@ -2806,6 +2840,12 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             if turn_on_tasks:
                 await asyncio.gather(*turn_on_tasks, return_exceptions=True)
 
+        # Stop all conflicting continuous actions on these entities
+        entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+        if entity_controller:
+            for entity_id in resolved_entity_ids:
+                await entity_controller.stop_all_for_entity(entity_id)
+
         # Start synchronized sequences for each instance group
         for entry_id, group_data in instance_groups.items():
             segment_manager = group_data["manager"]
@@ -3045,6 +3085,12 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 end_behavior=call.data.get(ATTR_END_BEHAVIOR, "maintain"),
             )
 
+        # Stop all conflicting continuous actions on these entities
+        entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+        if entity_controller:
+            for entity_id in valid_entity_ids:
+                await entity_controller.stop_all_for_entity(entity_id)
+
         await manager.start_scene(valid_entity_ids, scene, preset_name)
 
     async def handle_stop_dynamic_scene(call: ServiceCall) -> None:
@@ -3091,6 +3137,25 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             raise HomeAssistantError("Dynamic scene manager not initialized")
 
         manager.resume_scene(entity_ids)
+
+    async def handle_resume_entity_control(call: ServiceCall) -> None:
+        """Handle resume_entity_control service call.
+
+        Resumes control of entities that were paused due to external changes.
+        """
+        entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+
+        entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+        if not entity_controller:
+            raise HomeAssistantError("Entity controller not initialized")
+
+        for entity_id in entity_ids:
+            resumed = await entity_controller.resume_entity(entity_id)
+            if not resumed:
+                _LOGGER.debug(
+                    "Entity %s was not externally paused, nothing to resume",
+                    entity_id,
+                )
 
     # Register services
     hass.services.async_register(
@@ -3212,6 +3277,17 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         schema=SERVICE_RESUME_DYNAMIC_SCENE_SCHEMA,
     )
 
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_RESUME_ENTITY_CONTROL,
+        handle_resume_entity_control,
+        schema=vol.Schema(
+            {
+                vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+            }
+        ),
+    )
+
     _LOGGER.info("Aqara Advanced Lighting services registered")
 
 
@@ -3234,6 +3310,7 @@ async def async_unload_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(DOMAIN, SERVICE_STOP_DYNAMIC_SCENE)
     hass.services.async_remove(DOMAIN, SERVICE_PAUSE_DYNAMIC_SCENE)
     hass.services.async_remove(DOMAIN, SERVICE_RESUME_DYNAMIC_SCENE)
+    hass.services.async_remove(DOMAIN, SERVICE_RESUME_ENTITY_CONTROL)
 
     # Stop all running sequences across all instances
     entries = hass.data.get(DOMAIN, {}).get("entries", {})

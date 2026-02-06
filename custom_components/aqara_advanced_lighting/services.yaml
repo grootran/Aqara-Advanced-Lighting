@@ -2485,3 +2485,22 @@ resume_dynamic_scene:
     entity:
       domain: light
       integration: mqtt
+
+resume_entity_control:
+  name: Resume entity control
+  description: >-
+    Resume control of light entities that were paused due to external changes.
+    When you manually change a light that is part of a running dynamic scene,
+    CCT sequence, or segment sequence, the integration pauses control of that
+    individual light. This service resumes control so the light rejoins the
+    running action.
+  fields:
+    entity_id:
+      name: Entity
+      description: The light entity or entities to resume control for
+      required: true
+      selector:
+        entity:
+          multiple: true
+          filter:
+            domain: light

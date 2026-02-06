@@ -16,6 +16,7 @@ from .const import (
     CONF_Z2M_BASE_TOPIC,
     DATA_CCT_SEQUENCE_MANAGER,
     DATA_DYNAMIC_SCENE_MANAGER,
+    DATA_ENTITY_CONTROLLER,
     DATA_FAVORITES_STORE,
     DATA_PRESET_STORE,
     DATA_SEGMENT_SEQUENCE_MANAGER,
@@ -24,6 +25,7 @@ from .const import (
     DEFAULT_Z2M_BASE_TOPIC,
     DOMAIN,
 )
+from .entity_controller import EntityController
 from .dynamic_scene_manager import DynamicSceneManager
 from .favorites_store import FavoritesStore
 from .preset_store import PresetStore
@@ -110,6 +112,14 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         hass.data[DOMAIN][DATA_SEGMENT_ZONE_STORE] = zone_store
         _LOGGER.debug("Segment zone store initialized")
 
+    # Initialize entity controller for cross-type conflict resolution
+    # and external change detection (integration-level singleton)
+    if DATA_ENTITY_CONTROLLER not in hass.data[DOMAIN]:
+        entity_controller = EntityController(hass)
+        entity_controller.setup()
+        hass.data[DOMAIN][DATA_ENTITY_CONTROLLER] = entity_controller
+        _LOGGER.debug("Entity controller initialized")
+
     # Register services
     await async_setup_services(hass)
 
@@ -147,8 +157,11 @@ async def async_setup_entry(
         z2m_base_topic,
     )
 
-    # Initialize MQTT client
-    mqtt_client = MQTTClient(hass, entry)
+    # Get integration-level entity controller
+    entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+
+    # Initialize MQTT client (pass entity controller for context tagging)
+    mqtt_client = MQTTClient(hass, entry, entity_controller)
     await mqtt_client.async_setup()
 
     # Initialize state manager and load persisted states
@@ -156,13 +169,13 @@ async def async_setup_entry(
     await state_manager.async_load()
 
     # Initialize CCT sequence manager (needs mqtt_client for direct Z2M communication)
-    cct_sequence_manager = CCTSequenceManager(hass, mqtt_client)
+    cct_sequence_manager = CCTSequenceManager(hass, mqtt_client, entity_controller)
 
     # Initialize segment sequence manager (needs mqtt_client for direct Z2M communication)
-    segment_sequence_manager = SegmentSequenceManager(hass, mqtt_client)
+    segment_sequence_manager = SegmentSequenceManager(hass, mqtt_client, entity_controller)
 
     # Initialize dynamic scene manager (uses HA light.turn_on for transitions)
-    dynamic_scene_manager = DynamicSceneManager(hass, state_manager)
+    dynamic_scene_manager = DynamicSceneManager(hass, state_manager, entity_controller)
 
     # Ensure domain data structure exists (handles case where async_setup wasn't called)
     if DOMAIN not in hass.data:
@@ -219,8 +232,8 @@ async def async_unload_entry(
 
         dynamic_scene_manager = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
         if dynamic_scene_manager:
-            # Stop all running scenes and cleanup
-            await dynamic_scene_manager.cleanup()
+            # Stop all running scenes and cleanup (cleanup is synchronous)
+            dynamic_scene_manager.cleanup()
 
         # Get MQTT client from instance data
         mqtt_client = instance_data.get("mqtt_client")
@@ -239,6 +252,14 @@ async def async_unload_entry(
     ]
     for entity_id in entities_to_remove:
         del entity_routing[entity_id]
+
+    # Clean up entity controller when the last config entry is unloaded
+    if not hass.data[DOMAIN].get("entries"):
+        entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+        if entity_controller:
+            entity_controller.cleanup()
+            del hass.data[DOMAIN][DATA_ENTITY_CONTROLLER]
+            _LOGGER.debug("Entity controller cleaned up (last entry unloaded)")
 
     # NOTE: Services are NOT unloaded here because they are integration-level
     # (registered in async_setup) and should persist even when config entries

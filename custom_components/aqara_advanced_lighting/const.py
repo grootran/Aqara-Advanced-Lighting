@@ -290,6 +290,13 @@ EVENT_DYNAMIC_SCENE_FINISHED: Final = f"{DOMAIN}_dynamic_scene_finished"
 # Dynamic scene runtime data key
 DATA_DYNAMIC_SCENE_MANAGER: Final = "dynamic_scene_manager"
 
+# Entity controller constants
+INTEGRATION_CONTEXT_PARENT_ID: Final = "aal_entity_control"
+DATA_ENTITY_CONTROLLER: Final = "entity_controller"
+EVENT_ENTITY_EXTERNALLY_CONTROLLED: Final = f"{DOMAIN}_entity_externally_controlled"
+EVENT_ENTITY_CONTROL_RESUMED: Final = f"{DOMAIN}_entity_control_resumed"
+SERVICE_RESUME_ENTITY_CONTROL: Final = "resume_entity_control"
+
 # Event types for automation triggers
 EVENT_SEQUENCE_STARTED: Final = f"{DOMAIN}_sequence_started"
 EVENT_SEQUENCE_COMPLETED: Final = f"{DOMAIN}_sequence_completed"

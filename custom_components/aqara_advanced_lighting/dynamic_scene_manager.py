@@ -32,6 +32,7 @@ from .const import (
 from .models import DynamicScene, DynamicSceneColor
 
 if TYPE_CHECKING:
+    from .entity_controller import EntityController
     from .state_manager import StateManager
 
 _LOGGER = logging.getLogger(__name__)
@@ -66,6 +67,8 @@ class SceneState:
     hue_sorted_indices: list[int] = field(default_factory=list)
     # Track whether initial colors have been applied (for instant first transition)
     initial_applied: bool = False
+    # Entities paused by external changes or detached by cross-type conflicts
+    externally_paused_entities: set[str] = field(default_factory=set)
 
 
 class DynamicSceneManager:
@@ -75,10 +78,12 @@ class DynamicSceneManager:
         self,
         hass: HomeAssistant,
         state_manager: StateManager,
+        entity_controller: EntityController | None = None,
     ) -> None:
         """Initialize the dynamic scene manager."""
         self.hass = hass
         self.state_manager = state_manager
+        self._entity_controller = entity_controller
         self._active_scenes: dict[str, asyncio.Task[None]] = {}  # scene_id -> task
         self._stop_flags: dict[str, asyncio.Event] = {}  # scene_id -> stop event
         self._pause_flags: dict[str, asyncio.Event] = {}  # scene_id -> pause event
@@ -342,6 +347,88 @@ class DynamicSceneManager:
         scene_state = self._scene_states.get(scene_id)
         return scene_state.paused if scene_state else False
 
+    def detach_entity(self, entity_id: str) -> None:
+        """Detach an entity from its running scene permanently.
+
+        Used for cross-type conflict resolution. The entity is removed from
+        the scene's control but the scene continues for other entities.
+        If no entities remain, the scene is stopped.
+        """
+        scene_id = self._entity_to_scene.pop(entity_id, None)
+        if not scene_id:
+            return
+
+        scene_state = self._scene_states.get(scene_id)
+        if not scene_state:
+            return
+
+        # Mark entity as paused so the loop skips it
+        scene_state.externally_paused_entities.add(entity_id)
+
+        # Remove from the scene's active entity list
+        scene_state.entity_ids = [
+            eid for eid in scene_state.entity_ids if eid != entity_id
+        ]
+
+        # Clean up per-entity data structures to prevent stale entries
+        scene_state.light_color_indices.pop(entity_id, None)
+        scene_state.light_order = [
+            eid for eid in scene_state.light_order if eid != entity_id
+        ]
+
+        # Clear entity controller tracking
+        if self._entity_controller:
+            self._entity_controller.clear_entity(entity_id)
+
+        _LOGGER.info(
+            "Detached entity %s from scene %s (%d entities remaining)",
+            entity_id,
+            scene_id,
+            len(scene_state.entity_ids),
+        )
+
+        # If no entities remain, stop the scene
+        if not scene_state.entity_ids:
+            _LOGGER.info(
+                "All entities detached from scene %s, stopping", scene_id
+            )
+            self.hass.async_create_task(
+                self._stop_single_scene(scene_id, reason="all_entities_detached")
+            )
+
+    def externally_pause_entity(self, entity_id: str) -> None:
+        """Pause a single entity due to external change.
+
+        The entity stays in the scene and can be resumed later.
+        The scene loop will skip this entity.
+        """
+        scene_id = self._entity_to_scene.get(entity_id)
+        if not scene_id:
+            return
+
+        scene_state = self._scene_states.get(scene_id)
+        if scene_state:
+            scene_state.externally_paused_entities.add(entity_id)
+            _LOGGER.info(
+                "Entity %s externally paused in scene %s", entity_id, scene_id
+            )
+
+    def externally_resume_entity(self, entity_id: str) -> None:
+        """Resume a single externally paused entity.
+
+        The entity will rejoin the scene's color cycle on the next iteration.
+        """
+        scene_id = self._entity_to_scene.get(entity_id)
+        if not scene_id:
+            return
+
+        scene_state = self._scene_states.get(scene_id)
+        if scene_state:
+            scene_state.externally_paused_entities.discard(entity_id)
+            _LOGGER.info(
+                "Entity %s resumed in scene %s", entity_id, scene_id
+            )
+
     def get_scene_preset(self, entity_id: str) -> str | None:
         """Get the preset name for a running scene on an entity."""
         scene_id = self._entity_to_scene.get(entity_id)
@@ -366,6 +453,11 @@ class DynamicSceneManager:
 
     def cleanup(self) -> None:
         """Cleanup all resources."""
+        # Clear entity controller tracking for all controlled entities
+        if self._entity_controller:
+            for entity_id in self._entity_to_scene:
+                self._entity_controller.clear_entity(entity_id)
+
         for scene_id in list(self._active_scenes.keys()):
             if scene_id in self._stop_flags:
                 self._stop_flags[scene_id].set()
@@ -394,6 +486,9 @@ class DynamicSceneManager:
             for entity_id in scene_state.entity_ids:
                 if self._entity_to_scene.get(entity_id) == scene_id:
                     del self._entity_to_scene[entity_id]
+                # Clear entity controller tracking for this entity
+                if self._entity_controller:
+                    self._entity_controller.clear_entity(entity_id)
 
         self._active_scenes.pop(scene_id, None)
         self._stop_flags.pop(scene_id, None)
@@ -702,9 +797,20 @@ class DynamicSceneManager:
         is_initial = not scene_state.initial_applied
         transition_time = 0 if is_initial else scene.transition_time
 
+        # Build context for service calls (identifies these as integration-originated)
+        context = (
+            self._entity_controller.create_context()
+            if self._entity_controller
+            else None
+        )
+
         for i, entity_id in enumerate(light_order):
             if stop_event.is_set():
                 return
+
+            # Skip entities that are externally paused or detached
+            if entity_id in scene_state.externally_paused_entities:
+                continue
 
             # Apply offset delay between lights (skip first light, skip on initial)
             if not is_initial and i > 0 and scene.offset_delay > 0:
@@ -744,6 +850,7 @@ class DynamicSceneManager:
                     "transition": transition_time,
                 },
                 blocking=False,
+                context=context,
             )
 
             _LOGGER.debug(
@@ -809,6 +916,12 @@ class DynamicSceneManager:
 
     async def _restore_states(self, entity_ids: list[str]) -> None:
         """Restore light states from StateManager."""
+        context = (
+            self._entity_controller.create_context()
+            if self._entity_controller
+            else None
+        )
+
         for entity_id in entity_ids:
             payload = self.state_manager.get_restoration_payload(entity_id)
             if not payload:
@@ -822,7 +935,8 @@ class DynamicSceneManager:
 
                 if payload.get("state") == "off":
                     await self.hass.services.async_call(
-                        "light", "turn_off", service_data, blocking=False
+                        "light", "turn_off", service_data,
+                        blocking=False, context=context,
                     )
                     _LOGGER.debug("Restored state for %s: turned off", entity_id)
                 else:
@@ -845,7 +959,8 @@ class DynamicSceneManager:
                         service_data["color_temp"] = payload["color_temp"]
 
                     await self.hass.services.async_call(
-                        "light", "turn_on", service_data, blocking=False
+                        "light", "turn_on", service_data,
+                        blocking=False, context=context,
                     )
                     _LOGGER.debug(
                         "Restored state for %s: %s", entity_id, service_data
