@@ -23,6 +23,12 @@ export interface HomeAssistant {
       access_token: string;
     };
   };
+  connection: {
+    subscribeEvents: (
+      callback: (event: HassEvent) => void,
+      eventType: string,
+    ) => Promise<() => void>;
+  };
 }
 
 export interface HassEntity {
@@ -430,4 +436,41 @@ export interface SegmentZone {
 export interface SegmentZoneResolved {
   name: string;
   segmentIndices: number[];  // 0-based indices for segment selector
+}
+
+// HA event from websocket subscription
+export interface HassEvent {
+  event_type: string;
+  data: Record<string, unknown>;
+  origin: string;
+  time_fired: string;
+  context: {
+    id: string;
+    parent_id: string | null;
+    user_id: string | null;
+  };
+}
+
+// Running operation types for the active presets display
+export type RunningOperationType = 'effect' | 'cct_sequence' | 'segment_sequence' | 'dynamic_scene';
+
+export interface RunningOperation {
+  type: RunningOperationType;
+  // Per-entity operations (effect, cct_sequence, segment_sequence)
+  entity_id?: string;
+  // Per-scene operations (dynamic_scene)
+  scene_id?: string;
+  entity_ids?: string[];
+  externally_paused_entities?: string[];
+  // Common
+  preset_id: string | null;
+  paused: boolean;
+  externally_paused?: boolean;
+  // Sequence progress
+  current_step?: number;
+  total_steps?: number;
+}
+
+export interface RunningOperationsResponse {
+  operations: RunningOperation[];
 }

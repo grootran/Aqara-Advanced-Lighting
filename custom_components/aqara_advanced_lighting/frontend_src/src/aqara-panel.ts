@@ -36,6 +36,8 @@ import {
   SegmentZoneResolved,
   EditorDraftCache,
   FavoritePresetRef,
+  RunningOperation,
+  RunningOperationsResponse,
 } from './types';
 import './effect-editor';
 import './pattern-editor';
@@ -90,8 +92,10 @@ export class AqaraPanel extends LitElement {
   @state() private _isExporting = false;
   @state() private _isImporting = false;
   @state() private _favoritePresets: FavoritePresetRef[] = [];
+  @state() private _runningOperations: RunningOperation[] = [];
   private _translations: Record<string, any> = PANEL_TRANSLATIONS;
   private _fileInputRef: HTMLInputElement | null = null;
+  private _eventUnsubscribers: Array<() => void> = [];
 
   private _tileCardRef: Ref<HTMLElement> = createRef();
   private _tileCards: Map<string, any> = new Map();
@@ -143,6 +147,8 @@ export class AqaraPanel extends LitElement {
     this._loadUserPreferences();
     this._loadBackendVersion();
     this._loadSupportedEntities();
+    this._loadRunningOperations();
+    this._subscribeToOperationEvents();
 
     // Listen for color history events from child editors (bubbles through shadow DOM)
     this.addEventListener('color-history-changed', this._handleColorHistoryChanged as EventListener);
@@ -158,6 +164,11 @@ export class AqaraPanel extends LitElement {
       this._preferencesSaveTimer = undefined;
     }
     this._tileCards.clear();
+    // Unsubscribe from HA events
+    for (const unsub of this._eventUnsubscribers) {
+      unsub();
+    }
+    this._eventUnsubscribers = [];
   }
 
   protected updated(changedProps: PropertyValues): void {
@@ -633,6 +644,53 @@ export class AqaraPanel extends LitElement {
       this._z2mInstances = data.instances || [];
     } catch (err) {
       console.warn('Failed to load supported entities:', err);
+    }
+  }
+
+  private async _loadRunningOperations(): Promise<void> {
+    if (!this.hass?.auth?.data?.access_token) return;
+    try {
+      const response = await fetch('/api/aqara_advanced_lighting/running_operations', {
+        headers: { Authorization: `Bearer ${this.hass.auth.data.access_token}` },
+      });
+      if (!response.ok) return;
+      const data: RunningOperationsResponse = await response.json();
+      this._runningOperations = data.operations || [];
+    } catch (err) {
+      console.warn('Failed to load running operations:', err);
+    }
+  }
+
+  private async _subscribeToOperationEvents(): Promise<void> {
+    if (!this.hass?.connection) return;
+
+    const eventTypes = [
+      'aqara_advanced_lighting_sequence_started',
+      'aqara_advanced_lighting_sequence_stopped',
+      'aqara_advanced_lighting_sequence_completed',
+      'aqara_advanced_lighting_sequence_paused',
+      'aqara_advanced_lighting_sequence_resumed',
+      'aqara_advanced_lighting_dynamic_scene_started',
+      'aqara_advanced_lighting_dynamic_scene_stopped',
+      'aqara_advanced_lighting_dynamic_scene_finished',
+      'aqara_advanced_lighting_dynamic_scene_paused',
+      'aqara_advanced_lighting_dynamic_scene_resumed',
+      'aqara_advanced_lighting_effect_activated',
+      'aqara_advanced_lighting_effect_stopped',
+      'aqara_advanced_lighting_entity_externally_controlled',
+      'aqara_advanced_lighting_entity_control_resumed',
+    ];
+
+    for (const eventType of eventTypes) {
+      try {
+        const unsub = await this.hass.connection.subscribeEvents(
+          () => { this._loadRunningOperations(); },
+          eventType,
+        );
+        this._eventUnsubscribers.push(unsub);
+      } catch (err) {
+        console.warn(`Failed to subscribe to ${eventType}:`, err);
+      }
     }
   }
 
@@ -1863,6 +1921,7 @@ export class AqaraPanel extends LitElement {
 
     const serviceData: Record<string, unknown> = {
       entity_id: this._selectedEntities,
+      scene_name: preset.name,
       transition_time: preset.transition_time,
       hold_time: preset.hold_time,
       distribution_mode: preset.distribution_mode,
@@ -1892,84 +1951,275 @@ export class AqaraPanel extends LitElement {
     await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
   }
 
-  private async _stopEffect(): Promise<void> {
-    if (!this._selectedEntities.length) return;
+  // --- Running operations rendering and actions ---
 
+  private _getEntityName(entityId: string): string {
+    const state = this.hass?.states?.[entityId];
+    return (state?.attributes?.friendly_name as string) || entityId;
+  }
+
+  private _resolvePresetInfo(presetId: string | null): { name: string | null; icon: string | null } {
+    if (!presetId) return { name: null, icon: null };
+
+    // Search built-in effects (keyed by device type)
+    if (this._presets?.dynamic_effects) {
+      for (const presets of Object.values(this._presets.dynamic_effects)) {
+        const found = presets.find(p => p.id === presetId);
+        if (found) return { name: found.name, icon: found.icon || null };
+      }
+    }
+
+    // Search built-in segment patterns
+    const pattern = this._presets?.segment_patterns?.find(p => p.id === presetId);
+    if (pattern) return { name: pattern.name, icon: pattern.icon || null };
+
+    // Search built-in CCT sequences
+    const cct = this._presets?.cct_sequences?.find(p => p.id === presetId);
+    if (cct) return { name: cct.name, icon: cct.icon || null };
+
+    // Search built-in segment sequences
+    const seg = this._presets?.segment_sequences?.find(p => p.id === presetId);
+    if (seg) return { name: seg.name, icon: seg.icon || null };
+
+    // Search built-in dynamic scenes
+    const scene = this._presets?.dynamic_scenes?.find(p => p.id === presetId);
+    if (scene) return { name: scene.name, icon: scene.icon || null };
+
+    // Search user presets (match by id or name)
+    if (this._userPresets) {
+      const allUserPresets = [
+        ...(this._userPresets.effect_presets || []),
+        ...(this._userPresets.segment_pattern_presets || []),
+        ...(this._userPresets.cct_sequence_presets || []),
+        ...(this._userPresets.segment_sequence_presets || []),
+        ...(this._userPresets.dynamic_scene_presets || []),
+      ];
+      const userPreset = allUserPresets.find(
+        p => p.id === presetId || p.name === presetId,
+      );
+      if (userPreset) return { name: userPreset.name, icon: userPreset.icon || null };
+    }
+
+    return { name: presetId, icon: null };
+  }
+
+  private _renderRunningOperations() {
+    if (this._runningOperations.length === 0) {
+      return html`
+        <div class="running-ops-empty">
+          ${this._localize('target.no_running_operations')}
+        </div>
+      `;
+    }
+
+    return html`
+      <div class="running-ops-container">
+        <span class="control-label">${this._localize('target.running_operations_label')}</span>
+        <div class="running-ops-list">
+          ${this._runningOperations.map(op => this._renderOperationCard(op))}
+        </div>
+      </div>
+    `;
+  }
+
+  private _renderOperationCard(op: RunningOperation) {
+    switch (op.type) {
+      case 'effect':
+        return this._renderEffectOp(op);
+      case 'cct_sequence':
+      case 'segment_sequence':
+        return this._renderSequenceOp(op);
+      case 'dynamic_scene':
+        return this._renderSceneOp(op);
+      default:
+        return '';
+    }
+  }
+
+  private _renderEffectOp(op: RunningOperation) {
+    const entityName = this._getEntityName(op.entity_id!);
+    const preset = this._resolvePresetInfo(op.preset_id);
+    return html`
+      <div class="running-op-card">
+        <div class="running-op-info">
+          <ha-icon class="running-op-icon" icon="${preset.icon || 'mdi:palette'}"></ha-icon>
+          <div class="running-op-details">
+            <span class="running-op-name">${preset.name || this._localize('target.effect_button')}</span>
+            <span class="running-op-entity"><span class="running-op-entity-name">${entityName}</span></span>
+          </div>
+        </div>
+        <div class="running-op-actions">
+          <ha-icon-button
+            .label=${this._localize('target.stop')}
+            @click=${() => this._stopRunningEffect(op.entity_id!)}
+          >
+            <ha-icon icon="mdi:stop"></ha-icon>
+          </ha-icon-button>
+        </div>
+      </div>
+    `;
+  }
+
+  private _renderSequenceOp(op: RunningOperation) {
+    const entityName = this._getEntityName(op.entity_id!);
+    const preset = this._resolvePresetInfo(op.preset_id);
+    const isCCT = op.type === 'cct_sequence';
+    const fallbackIcon = isCCT ? 'mdi:thermometer' : 'mdi:led-strip-variant';
+    const typeLabel = isCCT
+      ? this._localize('target.cct_button')
+      : this._localize('target.segment_button');
+    const progressText = op.total_steps
+      ? `${(op.current_step || 0) + 1}/${op.total_steps}`
+      : '';
+
+    return html`
+      <div class="running-op-card ${op.externally_paused ? 'externally-paused' : ''}">
+        <div class="running-op-info">
+          <ha-icon class="running-op-icon" icon="${preset.icon || fallbackIcon}"></ha-icon>
+          <div class="running-op-details">
+            <span class="running-op-name">${preset.name || typeLabel}</span>
+            <span class="running-op-entity">
+              <span class="running-op-entity-name">${entityName}</span>
+              ${progressText ? html`<span class="running-op-progress">${progressText}</span>` : ''}
+              ${op.paused ? html`<span class="running-op-status">${this._localize('target.paused')}</span>` : ''}
+              ${op.externally_paused ? html`<span class="running-op-status externally-paused-text">${this._localize('target.externally_paused')}</span>` : ''}
+            </span>
+          </div>
+        </div>
+        <div class="running-op-actions">
+          ${op.externally_paused
+            ? html`
+                <ha-icon-button
+                  .label=${this._localize('target.resume_control')}
+                  @click=${() => this._resumeEntityControl(op.entity_id!)}
+                >
+                  <ha-icon icon="mdi:play-circle-outline"></ha-icon>
+                </ha-icon-button>
+              `
+            : html`
+                <ha-icon-button
+                  .label=${op.paused ? this._localize('target.resume') : this._localize('target.pause')}
+                  @click=${() => this._toggleSequencePause(op)}
+                >
+                  <ha-icon icon="mdi:${op.paused ? 'play' : 'pause'}"></ha-icon>
+                </ha-icon-button>
+              `
+          }
+          <ha-icon-button
+            .label=${this._localize('target.stop')}
+            @click=${() => this._stopRunningSequence(op)}
+          >
+            <ha-icon icon="mdi:stop"></ha-icon>
+          </ha-icon-button>
+        </div>
+      </div>
+    `;
+  }
+
+  private _renderSceneOp(op: RunningOperation) {
+    const preset = this._resolvePresetInfo(op.preset_id);
+    const entityNames = (op.entity_ids || [])
+      .map(id => this._getEntityName(id))
+      .join(', ');
+    const extPausedEntities = op.externally_paused_entities || [];
+
+    return html`
+      <div class="running-op-card">
+        <div class="running-op-info">
+          <ha-icon class="running-op-icon" icon="${preset.icon || 'mdi:palette-swatch-variant'}"></ha-icon>
+          <div class="running-op-details">
+            <span class="running-op-name">${preset.name || this._localize('target.scene_button')}</span>
+            <span class="running-op-entity">
+              <span class="running-op-entity-name">${entityNames}</span>
+              ${op.paused ? html`<span class="running-op-status">${this._localize('target.paused')}</span>` : ''}
+              ${extPausedEntities.length > 0
+                ? html`<span class="running-op-status externally-paused-text">
+                    ${this._localize('target.entities_externally_paused', { count: String(extPausedEntities.length) })}
+                  </span>`
+                : ''}
+            </span>
+          </div>
+        </div>
+        <div class="running-op-actions">
+          ${extPausedEntities.length > 0
+            ? html`
+                <ha-icon-button
+                  .label=${this._localize('target.resume_control')}
+                  @click=${() => this._resumeSceneEntities(extPausedEntities)}
+                >
+                  <ha-icon icon="mdi:play-circle-outline"></ha-icon>
+                </ha-icon-button>
+              `
+            : ''}
+          <ha-icon-button
+            .label=${op.paused ? this._localize('target.resume') : this._localize('target.pause')}
+            @click=${() => this._toggleScenePause(op)}
+          >
+            <ha-icon icon="mdi:${op.paused ? 'play' : 'pause'}"></ha-icon>
+          </ha-icon-button>
+          <ha-icon-button
+            .label=${this._localize('target.stop')}
+            @click=${() => this._stopRunningScene(op)}
+          >
+            <ha-icon icon="mdi:stop"></ha-icon>
+          </ha-icon-button>
+        </div>
+      </div>
+    `;
+  }
+
+  private async _stopRunningEffect(entityId: string): Promise<void> {
     await this.hass.callService('aqara_advanced_lighting', 'stop_effect', {
-      entity_id: this._selectedEntities,
+      entity_id: [entityId],
       restore_state: true,
     });
   }
 
-  private async _pauseCCTSequence(): Promise<void> {
-    if (!this._selectedEntities.length) return;
-
-    await this.hass.callService('aqara_advanced_lighting', 'pause_cct_sequence', {
-      entity_id: this._selectedEntities,
+  private async _toggleSequencePause(op: RunningOperation): Promise<void> {
+    if (!op.entity_id) return;
+    const isCCT = op.type === 'cct_sequence';
+    const service = op.paused
+      ? (isCCT ? 'resume_cct_sequence' : 'resume_segment_sequence')
+      : (isCCT ? 'pause_cct_sequence' : 'pause_segment_sequence');
+    await this.hass.callService('aqara_advanced_lighting', service, {
+      entity_id: [op.entity_id],
     });
   }
 
-  private async _resumeCCTSequence(): Promise<void> {
-    if (!this._selectedEntities.length) return;
-
-    await this.hass.callService('aqara_advanced_lighting', 'resume_cct_sequence', {
-      entity_id: this._selectedEntities,
+  private async _stopRunningSequence(op: RunningOperation): Promise<void> {
+    if (!op.entity_id) return;
+    const service = op.type === 'cct_sequence'
+      ? 'stop_cct_sequence'
+      : 'stop_segment_sequence';
+    await this.hass.callService('aqara_advanced_lighting', service, {
+      entity_id: [op.entity_id],
     });
   }
 
-  private async _stopCCTSequence(): Promise<void> {
-    if (!this._selectedEntities.length) return;
-
-    await this.hass.callService('aqara_advanced_lighting', 'stop_cct_sequence', {
-      entity_id: this._selectedEntities,
+  private async _toggleScenePause(op: RunningOperation): Promise<void> {
+    if (!op.entity_ids?.length) return;
+    const service = op.paused ? 'resume_dynamic_scene' : 'pause_dynamic_scene';
+    await this.hass.callService('aqara_advanced_lighting', service, {
+      entity_id: op.entity_ids,
     });
   }
 
-  private async _pauseSegmentSequence(): Promise<void> {
-    if (!this._selectedEntities.length) return;
-
-    await this.hass.callService('aqara_advanced_lighting', 'pause_segment_sequence', {
-      entity_id: this._selectedEntities,
-    });
-  }
-
-  private async _resumeSegmentSequence(): Promise<void> {
-    if (!this._selectedEntities.length) return;
-
-    await this.hass.callService('aqara_advanced_lighting', 'resume_segment_sequence', {
-      entity_id: this._selectedEntities,
-    });
-  }
-
-  private async _stopSegmentSequence(): Promise<void> {
-    if (!this._selectedEntities.length) return;
-
-    await this.hass.callService('aqara_advanced_lighting', 'stop_segment_sequence', {
-      entity_id: this._selectedEntities,
-    });
-  }
-
-  private async _pauseDynamicScene(): Promise<void> {
-    if (!this._selectedEntities.length) return;
-
-    await this.hass.callService('aqara_advanced_lighting', 'pause_dynamic_scene', {
-      entity_id: this._selectedEntities,
-    });
-  }
-
-  private async _resumeDynamicScene(): Promise<void> {
-    if (!this._selectedEntities.length) return;
-
-    await this.hass.callService('aqara_advanced_lighting', 'resume_dynamic_scene', {
-      entity_id: this._selectedEntities,
-    });
-  }
-
-  private async _stopDynamicScene(): Promise<void> {
-    if (!this._selectedEntities.length) return;
-
+  private async _stopRunningScene(op: RunningOperation): Promise<void> {
+    if (!op.entity_ids?.length) return;
     await this.hass.callService('aqara_advanced_lighting', 'stop_dynamic_scene', {
-      entity_id: this._selectedEntities,
+      entity_id: op.entity_ids,
+    });
+  }
+
+  private async _resumeEntityControl(entityId: string): Promise<void> {
+    await this.hass.callService('aqara_advanced_lighting', 'resume_entity_control', {
+      entity_id: [entityId],
+    });
+  }
+
+  private async _resumeSceneEntities(entityIds: string[]): Promise<void> {
+    await this.hass.callService('aqara_advanced_lighting', 'resume_entity_control', {
+      entity_id: entityIds,
     });
   }
 
@@ -2038,6 +2288,7 @@ export class AqaraPanel extends LitElement {
       entity_id: this._selectedEntities,
       effect: preset.effect,
       speed: preset.effect_speed,
+      preset: preset.name,
       turn_on: true,
       sync: true,
     };
@@ -2086,6 +2337,7 @@ export class AqaraPanel extends LitElement {
     const serviceData: Record<string, unknown> = {
       entity_id: this._selectedEntities,
       segment_colors,
+      preset: preset.name,
       turn_on: true,
       sync: true,
       turn_off_unspecified: true,
@@ -2107,6 +2359,7 @@ export class AqaraPanel extends LitElement {
 
     const serviceData: Record<string, unknown> = {
       entity_id: this._selectedEntities,
+      preset: preset.name,
       loop_mode: preset.loop_mode,
       end_behavior: preset.end_behavior,
       turn_on: true,
@@ -2137,6 +2390,7 @@ export class AqaraPanel extends LitElement {
 
     const serviceData: Record<string, unknown> = {
       entity_id: this._selectedEntities,
+      preset: preset.name,
       loop_mode: preset.loop_mode,
       end_behavior: preset.end_behavior,
       turn_on: true,
@@ -2182,6 +2436,7 @@ export class AqaraPanel extends LitElement {
 
     const serviceData: Record<string, unknown> = {
       entity_id: this._selectedEntities,
+      scene_name: preset.name,
       transition_time: preset.transition_time,
       hold_time: preset.hold_time,
       distribution_mode: preset.distribution_mode,
@@ -2499,7 +2754,7 @@ export class AqaraPanel extends LitElement {
         </div>
       </ha-expansion-panel>
 
-      ${hasSelection
+      ${hasSelection || this._runningOperations.length > 0
         ? html`
             <ha-expansion-panel
               outlined
@@ -2512,93 +2767,41 @@ export class AqaraPanel extends LitElement {
                 </div>
               </div>
               <div class="section-content controls-content">
-                <div class="control-row">
-                  <span class="control-label quick-controls-label">${this._localize('target.quick_controls_label')}</span>
-                  <div class="control-input control-buttons">
-                    ${filtered.showDynamicEffects
-                      ? html`
-                          <ha-button @click=${this._stopEffect}>
-                            <ha-icon icon="mdi:stop"></ha-icon>
-                            ${this._localize('target.effect_button')}
-                          </ha-button>
-                        `
-                      : ''}
-                    <ha-button @click=${this._pauseCCTSequence}>
-                      <ha-icon icon="mdi:pause"></ha-icon>
-                      ${this._localize('target.cct_button')}
-                    </ha-button>
-                    <ha-button @click=${this._resumeCCTSequence}>
-                      <ha-icon icon="mdi:play"></ha-icon>
-                      ${this._localize('target.cct_button')}
-                    </ha-button>
-                    <ha-button @click=${this._stopCCTSequence}>
-                      <ha-icon icon="mdi:stop"></ha-icon>
-                      ${this._localize('target.cct_button')}
-                    </ha-button>
-                    ${filtered.showSegmentSequences
-                      ? html`
-                          <ha-button @click=${this._pauseSegmentSequence}>
-                            <ha-icon icon="mdi:pause"></ha-icon>
-                            ${this._localize('target.segment_button')}
-                          </ha-button>
-                          <ha-button @click=${this._resumeSegmentSequence}>
-                            <ha-icon icon="mdi:play"></ha-icon>
-                            ${this._localize('target.segment_button')}
-                          </ha-button>
-                          <ha-button @click=${this._stopSegmentSequence}>
-                            <ha-icon icon="mdi:stop"></ha-icon>
-                            ${this._localize('target.segment_button')}
-                          </ha-button>
-                        `
-                      : ''}
-                    ${filtered.showDynamicScenes
-                      ? html`
-                          <ha-button @click=${this._pauseDynamicScene}>
-                            <ha-icon icon="mdi:pause"></ha-icon>
-                            ${this._localize('target.scene_button')}
-                          </ha-button>
-                          <ha-button @click=${this._resumeDynamicScene}>
-                            <ha-icon icon="mdi:play"></ha-icon>
-                            ${this._localize('target.scene_button')}
-                          </ha-button>
-                          <ha-button @click=${this._stopDynamicScene}>
-                            <ha-icon icon="mdi:stop"></ha-icon>
-                            ${this._localize('target.scene_button')}
-                          </ha-button>
-                        `
-                      : ''}
-                  </div>
-                </div>
+                ${this._renderRunningOperations()}
 
-                <div class="brightness-override-section">
-                  <div class="form-section">
-                    <span class="form-label">${this._localize('target.custom_brightness_label')}</span>
-                    <ha-switch
-                      .checked=${this._useCustomBrightness}
-                      @change=${this._handleCustomBrightnessToggle}
-                    ></ha-switch>
-                  </div>
-
-                  ${this._useCustomBrightness
-                    ? html`
-                        <div class="brightness-slider">
-                          <ha-selector
-                            .hass=${this.hass}
-                            .selector=${{
-                              number: {
-                                min: 1,
-                                max: 100,
-                                mode: 'slider',
-                                unit_of_measurement: '%',
-                              },
-                            }}
-                            .value=${this._brightness}
-                            @value-changed=${this._handleBrightnessChange}
-                          ></ha-selector>
+                ${hasSelection
+                  ? html`
+                      <div class="brightness-override-section">
+                        <div class="form-section">
+                          <span class="form-label">${this._localize('target.custom_brightness_label')}</span>
+                          <ha-switch
+                            .checked=${this._useCustomBrightness}
+                            @change=${this._handleCustomBrightnessToggle}
+                          ></ha-switch>
                         </div>
-                      `
-                    : ''}
-                </div>
+
+                        ${this._useCustomBrightness
+                          ? html`
+                              <div class="brightness-slider">
+                                <ha-selector
+                                  .hass=${this.hass}
+                                  .selector=${{
+                                    number: {
+                                      min: 1,
+                                      max: 100,
+                                      mode: 'slider',
+                                      unit_of_measurement: '%',
+                                    },
+                                  }}
+                                  .value=${this._brightness}
+                                  @value-changed=${this._handleBrightnessChange}
+                                ></ha-selector>
+                              </div>
+                            `
+                          : ''}
+                      </div>
+                    `
+                  : ''}
               </div>
             </ha-expansion-panel>
           `

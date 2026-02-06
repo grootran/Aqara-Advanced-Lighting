@@ -156,6 +156,113 @@ export const panelStyles = css`
     margin-right: 4px;
   }
 
+  /* Running operations display */
+  .running-ops-container {
+    width: 100%;
+  }
+
+  .running-ops-empty {
+    text-align: center;
+    color: var(--secondary-text-color);
+    padding: 12px 0;
+    font-size: var(--ha-font-size-m, 14px);
+  }
+
+  .running-ops-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .running-op-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--card-background-color, var(--ha-card-background, #fff));
+    border: 1px solid var(--divider-color, #e0e0e0);
+    border-radius: var(--ha-card-border-radius, 12px);
+    gap: 8px;
+  }
+
+  .running-op-card.externally-paused {
+    border-color: var(--warning-color, #ff9800);
+    border-style: dashed;
+  }
+
+  .running-op-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .running-op-icon {
+    color: var(--primary-color);
+    flex-shrink: 0;
+    --mdc-icon-size: 20px;
+  }
+
+  .running-op-details {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .running-op-name {
+    font-size: var(--ha-font-size-m, 14px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    color: var(--primary-text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .running-op-entity {
+    font-size: var(--ha-font-size-s, 12px);
+    color: var(--secondary-text-color);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .running-op-entity-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+
+  .running-op-progress {
+    color: var(--primary-color);
+    font-weight: var(--ha-font-weight-medium, 500);
+  }
+
+  .running-op-status {
+    font-style: italic;
+  }
+
+  .externally-paused-text {
+    color: var(--warning-color, #ff9800);
+  }
+
+  .running-op-actions {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-shrink: 0;
+  }
+
+  .running-op-actions ha-icon-button {
+    --mdc-icon-button-size: 36px;
+    --mdc-icon-size: 20px;
+  }
+
   /* Target input with selector and favorite button */
   .target-input {
     display: flex;

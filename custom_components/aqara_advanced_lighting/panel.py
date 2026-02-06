@@ -29,9 +29,14 @@ from .const import (
     ATTR_RESTORE_STATE,
     ATTR_SEGMENTS,
     CCT_SEQUENCE_PRESETS,
+    DATA_CCT_SEQUENCE_MANAGER,
+    DATA_DYNAMIC_SCENE_MANAGER,
+    DATA_ENTITY_CONTROLLER,
     DATA_FAVORITES_STORE,
     DATA_PRESET_STORE,
+    DATA_SEGMENT_SEQUENCE_MANAGER,
     DATA_SEGMENT_ZONE_STORE,
+    DATA_STATE_MANAGER,
     DATA_USER_PREFERENCES_STORE,
     DOMAIN,
     DYNAMIC_SCENE_PRESETS,
@@ -126,6 +131,9 @@ async def async_register_panel(hass: HomeAssistant) -> None:
 
     # Register REST trigger endpoint for external systems
     hass.http.register_view(TriggerView)
+
+    # Register running operations endpoint for panel status display
+    hass.http.register_view(RunningOperationsView)
 
     _LOGGER.info("Aqara Advanced Lighting panel registered")
 
@@ -1458,3 +1466,100 @@ class TriggerView(HomeAssistantView):
         return web.json_response(
             {"success": True, "service": service_name, "entity_id": entity_id}
         )
+
+
+class RunningOperationsView(HomeAssistantView):
+    """View to get all currently running operations across all instances."""
+
+    url = f"/api/{DOMAIN}/running_operations"
+    name = f"api:{DOMAIN}:running_operations"
+    requires_auth = True
+
+    async def get(self, request: web.Request) -> web.Response:
+        """Get all running operations (effects, sequences, scenes)."""
+        hass: HomeAssistant = request.app["hass"]
+
+        operations: list[dict[str, Any]] = []
+
+        if DOMAIN not in hass.data:
+            return web.json_response({"operations": operations})
+
+        entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+        entries_data = hass.data[DOMAIN].get("entries", {})
+
+        for instance_data in entries_data.values():
+            # Effects (from state manager)
+            state_manager = instance_data.get(DATA_STATE_MANAGER)
+            if state_manager:
+                for entity_id, device_state in (
+                    state_manager.get_all_active_effects().items()
+                ):
+                    operations.append({
+                        "type": "effect",
+                        "entity_id": entity_id,
+                        "preset_id": device_state.current_preset,
+                        "paused": False,
+                        "externally_paused": False,
+                    })
+
+            # CCT sequences
+            cct_mgr = instance_data.get(DATA_CCT_SEQUENCE_MANAGER)
+            if cct_mgr:
+                for entity_id in cct_mgr.get_running_sequences():
+                    status = cct_mgr.get_sequence_status(entity_id) or {}
+                    ext_paused = (
+                        entity_controller.is_entity_externally_paused(entity_id)
+                        if entity_controller
+                        else False
+                    )
+                    operations.append({
+                        "type": "cct_sequence",
+                        "entity_id": entity_id,
+                        "preset_id": cct_mgr.get_sequence_preset(entity_id),
+                        "paused": status.get("paused", False),
+                        "externally_paused": ext_paused,
+                        "current_step": status.get("current_step", 0),
+                        "total_steps": status.get("total_steps", 0),
+                    })
+
+            # Segment sequences
+            seg_mgr = instance_data.get(DATA_SEGMENT_SEQUENCE_MANAGER)
+            if seg_mgr:
+                for entity_id in seg_mgr.get_running_sequences():
+                    status = seg_mgr.get_sequence_status(entity_id) or {}
+                    ext_paused = (
+                        entity_controller.is_entity_externally_paused(entity_id)
+                        if entity_controller
+                        else False
+                    )
+                    operations.append({
+                        "type": "segment_sequence",
+                        "entity_id": entity_id,
+                        "preset_id": seg_mgr.get_sequence_preset(entity_id),
+                        "paused": status.get("paused", False),
+                        "externally_paused": ext_paused,
+                        "current_step": status.get("current_step", 0),
+                        "total_steps": status.get("total_steps", 0),
+                    })
+
+            # Dynamic scenes (grouped by scene, not per-entity)
+            scene_mgr = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+            if scene_mgr:
+                for scene_id, scene_info in scene_mgr.get_active_scenes().items():
+                    ext_paused_entities = []
+                    if entity_controller:
+                        ext_paused_entities = [
+                            eid
+                            for eid in scene_info.entity_ids
+                            if entity_controller.is_entity_externally_paused(eid)
+                        ]
+                    operations.append({
+                        "type": "dynamic_scene",
+                        "scene_id": scene_id,
+                        "entity_ids": list(scene_info.entity_ids),
+                        "preset_id": scene_info.preset_name,
+                        "paused": scene_info.paused,
+                        "externally_paused_entities": ext_paused_entities,
+                    })
+
+        return web.json_response({"operations": operations})
