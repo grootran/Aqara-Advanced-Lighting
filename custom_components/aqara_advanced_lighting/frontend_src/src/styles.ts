@@ -177,6 +177,19 @@ export const panelStyles = css`
     width: 100%;
   }
 
+  .include-all-lights-toggle {
+    margin-top: 8px;
+  }
+
+  .include-all-lights-toggle .toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--ha-font-size-s, 12px);
+    color: var(--secondary-text-color);
+    cursor: pointer;
+  }
+
   .add-favorite-btn {
     --mdc-icon-button-size: 36px;
     color: var(--primary-color);

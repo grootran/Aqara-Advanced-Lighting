@@ -863,6 +863,82 @@ def _validate_supported_entities(
         )
 
 
+def _is_aqara_entity(hass: HomeAssistant, entity_id: str) -> bool:
+    """Check if an entity is a supported Aqara device.
+
+    Args:
+        hass: Home Assistant instance
+        entity_id: Entity ID to check
+
+    Returns:
+        True if entity is a supported Aqara device
+    """
+    mqtt_client = _get_mqtt_client_for_entity(hass, entity_id)
+    if not mqtt_client:
+        return False
+    is_supported, _ = mqtt_client.is_supported_entity(entity_id)
+    return is_supported
+
+
+def _is_valid_light_entity(hass: HomeAssistant, entity_id: str) -> bool:
+    """Check if an entity is a valid light entity in Home Assistant.
+
+    Args:
+        hass: Home Assistant instance
+        entity_id: Entity ID to check
+
+    Returns:
+        True if entity exists and is a light
+    """
+    state = hass.states.get(entity_id)
+    return state is not None and state.domain == "light"
+
+
+def _get_any_cct_manager(
+    hass: HomeAssistant,
+) -> tuple[Any, StateManager] | None:
+    """Get any available CCT sequence manager and state manager.
+
+    Used for generic (non-Aqara) lights that don't belong to a specific
+    Z2M instance. CCT sequences use HA service calls so any manager works.
+
+    Returns:
+        Tuple of (cct_manager, state_manager) or None if unavailable
+    """
+    if DOMAIN not in hass.data:
+        return None
+    for instance_data in hass.data[DOMAIN].get("entries", {}).values():
+        cct_manager = instance_data.get(DATA_CCT_SEQUENCE_MANAGER)
+        state_manager = instance_data.get("state_manager")
+        if cct_manager and state_manager:
+            return cct_manager, state_manager
+    return None
+
+
+def _find_cct_manager_for_entity(
+    hass: HomeAssistant, entity_id: str
+) -> Any | None:
+    """Find the CCT manager that has an active sequence for an entity.
+
+    Searches all instances including generic routing. Used by stop/pause/resume
+    handlers where the entity may be running on any manager.
+
+    Args:
+        hass: Home Assistant instance
+        entity_id: Entity ID to find manager for
+
+    Returns:
+        CCT sequence manager or None
+    """
+    if DOMAIN not in hass.data:
+        return None
+    for instance_data in hass.data[DOMAIN].get("entries", {}).values():
+        cct_manager = instance_data.get(DATA_CCT_SEQUENCE_MANAGER)
+        if cct_manager and cct_manager.is_sequence_running(entity_id):
+            return cct_manager
+    return None
+
+
 def _get_actual_segment_count(
     hass: HomeAssistant, entity_id: str, model_id: str
 ) -> int:
@@ -2100,8 +2176,26 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
 
-        # Validate all entities are supported Aqara devices
-        _validate_supported_entities(hass, resolved_entity_ids)
+        # Separate Aqara and generic light entities
+        aqara_entity_ids = []
+        generic_entity_ids = []
+        invalid_entity_ids = []
+        for entity_id in resolved_entity_ids:
+            if _is_aqara_entity(hass, entity_id):
+                aqara_entity_ids.append(entity_id)
+            elif _is_valid_light_entity(hass, entity_id):
+                generic_entity_ids.append(entity_id)
+            else:
+                invalid_entity_ids.append(entity_id)
+
+        if invalid_entity_ids:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="unsupported_entities",
+                translation_placeholders={
+                    "entity_list": ", ".join(invalid_entity_ids)
+                },
+            )
 
         turn_on: bool = call.data.get(ATTR_TURN_ON, False)
         preset: str | None = call.data.get(ATTR_PRESET)
@@ -2260,10 +2354,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 translation_placeholders={"error": str(ex)},
             ) from ex
 
-        # Group entities by their CCT manager instance for synchronized starting
-        instance_groups: dict[str, dict] = {}  # entry_id -> {manager, entities, mqtt_clients}
+        # Group Aqara entities by their CCT manager instance for synchronized starting
+        instance_groups: dict[str, dict] = {}  # entry_id -> {manager, entities, turn_on_data}
 
-        for entity_id in resolved_entity_ids:
+        for entity_id in aqara_entity_ids:
             # Get the correct instance components for this entity
             entity_mqtt_client, entity_state_manager, entry_id = (
                 _get_instance_components_for_entity(hass, entity_id)
@@ -2300,38 +2394,77 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 (entity_mqtt_client, entity_id, z2m_name)
             )
 
+        # Route generic entities through any available CCT manager
+        # CCT sequences use HA service calls so any manager works
+        generic_manager_pair = None
+        if generic_entity_ids:
+            generic_manager_pair = _get_any_cct_manager(hass)
+            if not generic_manager_pair:
+                raise HomeAssistantError(
+                    "No integration instance available to manage generic lights. "
+                    "Please ensure at least one Aqara Advanced Lighting instance "
+                    "is configured."
+                )
+
         # Turn on all lights in parallel if requested
         if turn_on:
             turn_on_tasks = []
+            # Aqara lights
             for group_data in instance_groups.values():
                 for mqtt_client, entity_id, z2m_name in group_data["turn_on_data"]:
                     turn_on_tasks.append(
                         _ensure_light_on(hass, mqtt_client, entity_id, z2m_name, True)
                     )
+            # Generic lights - use HA service call directly
+            for entity_id in generic_entity_ids:
+                state = hass.states.get(entity_id)
+                if state and state.state != "on":
+                    turn_on_tasks.append(
+                        hass.services.async_call(
+                            "light", "turn_on",
+                            {"entity_id": entity_id},
+                            blocking=False,
+                        )
+                    )
             if turn_on_tasks:
                 await asyncio.gather(*turn_on_tasks, return_exceptions=True)
 
-        # Start synchronized sequences for each instance group
+        # Start synchronized sequences for each Aqara instance group
+        start_tasks = []
         for entry_id, group_data in instance_groups.items():
             cct_manager = group_data["manager"]
             entity_list = group_data["entities"]
-
-            try:
-                # Use synchronized group start for multiple entities
-                await cct_manager.start_synchronized_group(
+            start_tasks.append(
+                cct_manager.start_synchronized_group(
                     entity_list, sequence, z2m_base_topic, preset
                 )
-                _LOGGER.info(
-                    "Started synchronized CCT sequence for %d entities: loop_mode=%s",
-                    len(entity_list),
-                    loop_mode,
+            )
+
+        # Start sequences for generic entities
+        if generic_entity_ids and generic_manager_pair:
+            generic_cct_manager, _ = generic_manager_pair
+            start_tasks.append(
+                generic_cct_manager.start_synchronized_group(
+                    generic_entity_ids, sequence, None, preset
                 )
-            except Exception as ex:
-                raise HomeAssistantError(
-                    translation_domain=DOMAIN,
-                    translation_key="start_sequence_failed",
-                    translation_placeholders={"entity": ", ".join(entity_list)},
-                ) from ex
+            )
+
+        # Start all sequences in parallel
+        try:
+            await asyncio.gather(*start_tasks)
+            _LOGGER.info(
+                "Started CCT sequences for %d Aqara + %d generic entities: loop_mode=%s",
+                len(aqara_entity_ids),
+                len(generic_entity_ids),
+                loop_mode,
+            )
+        except Exception as ex:
+            all_entities = aqara_entity_ids + generic_entity_ids
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="start_sequence_failed",
+                translation_placeholders={"entity": ", ".join(all_entities)},
+            ) from ex
 
     async def handle_stop_cct_sequence(call: ServiceCall) -> None:
         """Handle stop_cct_sequence service call."""
@@ -2340,22 +2473,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
 
-        # Validate all entities are supported Aqara devices
-        _validate_supported_entities(hass, resolved_entity_ids)
-
-        # Stop sequence for each entity
+        # Stop sequence for each entity - search all managers for running sequences
         for entity_id in resolved_entity_ids:
-            # Get the correct instance components for this entity
-            _, _, entry_id = _get_instance_components_for_entity(hass, entity_id)
-
-            # Get CCT manager from the correct instance
-            instance_data = hass.data[DOMAIN]["entries"].get(entry_id, {})
-            cct_manager = instance_data.get(DATA_CCT_SEQUENCE_MANAGER)
+            cct_manager = _find_cct_manager_for_entity(hass, entity_id)
             if not cct_manager:
-                _LOGGER.warning(
-                    "CCT sequence manager not initialized for instance %s, skipping %s",
-                    entry_id, entity_id
-                )
+                _LOGGER.warning("No active CCT sequence for %s to stop", entity_id)
                 continue
 
             try:
@@ -2376,25 +2498,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
 
-        # Validate all entities are supported Aqara devices
-        _validate_supported_entities(hass, resolved_entity_ids)
-
-        # Pause sequence for each entity
+        # Pause sequence for each entity - search all managers
         for entity_id in resolved_entity_ids:
-            # Get the correct instance components for this entity
-            _, _, entry_id = _get_instance_components_for_entity(hass, entity_id)
-
-            # Get CCT manager from the correct instance
-            instance_data = hass.data[DOMAIN]["entries"].get(entry_id, {})
-            cct_manager = instance_data.get(DATA_CCT_SEQUENCE_MANAGER)
+            cct_manager = _find_cct_manager_for_entity(hass, entity_id)
             if not cct_manager:
-                _LOGGER.warning(
-                    "CCT sequence manager not initialized for instance %s, skipping %s",
-                    entry_id, entity_id
-                )
-                continue
-
-            if not cct_manager.is_sequence_running(entity_id):
                 _LOGGER.warning("No active CCT sequence for %s to pause", entity_id)
                 continue
 
@@ -2411,25 +2518,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
 
-        # Validate all entities are supported Aqara devices
-        _validate_supported_entities(hass, resolved_entity_ids)
-
-        # Resume sequence for each entity
+        # Resume sequence for each entity - search all managers
         for entity_id in resolved_entity_ids:
-            # Get the correct instance components for this entity
-            _, _, entry_id = _get_instance_components_for_entity(hass, entity_id)
-
-            # Get CCT manager from the correct instance
-            instance_data = hass.data[DOMAIN]["entries"].get(entry_id, {})
-            cct_manager = instance_data.get(DATA_CCT_SEQUENCE_MANAGER)
+            cct_manager = _find_cct_manager_for_entity(hass, entity_id)
             if not cct_manager:
-                _LOGGER.warning(
-                    "CCT sequence manager not initialized for instance %s, skipping %s",
-                    entry_id, entity_id
-                )
-                continue
-
-            if not cct_manager.is_sequence_running(entity_id):
                 _LOGGER.warning("No active CCT sequence for %s to resume", entity_id)
                 continue
 
@@ -2843,9 +2935,29 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 _LOGGER.warning("Failed to resume segment sequence for %s", entity_id)
 
     async def handle_start_dynamic_scene(call: ServiceCall) -> None:
-        """Handle start_dynamic_scene service call."""
+        """Handle start_dynamic_scene service call.
+
+        Dynamic scenes use HA service calls (light.turn_on with xy_color) and
+        work with both Aqara and generic RGB-capable lights.
+        """
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
         preset_name: str | None = call.data.get(ATTR_PRESET)
+
+        # Resolve groups to individual entities
+        entity_ids = _resolve_entity_ids(hass, entity_ids)
+
+        # Filter to valid light entities (Aqara or generic)
+        valid_entity_ids = [
+            eid for eid in entity_ids if _is_valid_light_entity(hass, eid)
+        ]
+        if not valid_entity_ids:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="unsupported_entities",
+                translation_placeholders={
+                    "entity_list": ", ".join(entity_ids)
+                },
+            )
 
         # Get dynamic scene manager from first available config entry
         # (scenes work across all Z2M instances so any manager will do)
@@ -2933,7 +3045,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 end_behavior=call.data.get(ATTR_END_BEHAVIOR, "maintain"),
             )
 
-        await manager.start_scene(entity_ids, scene, preset_name)
+        await manager.start_scene(valid_entity_ids, scene, preset_name)
 
     async def handle_stop_dynamic_scene(call: ServiceCall) -> None:
         """Handle stop_dynamic_scene service call."""

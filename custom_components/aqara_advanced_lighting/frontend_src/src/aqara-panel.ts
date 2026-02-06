@@ -57,6 +57,7 @@ export class AqaraPanel extends LitElement {
   @state() private _useCustomBrightness = false;
   @state() private _collapsed: Record<string, boolean> = {};
   @state() private _hasIncompatibleLights = false;
+  @state() private _includeAllLights = false;
   @state() private _favorites: Favorite[] = [];
   @state() private _activeFavoriteId: string | null = null;
   @state() private _showFavoriteInput = false;
@@ -305,6 +306,9 @@ export class AqaraPanel extends LitElement {
       if (prefs.collapsed_sections) {
         this._collapsed = prefs.collapsed_sections;
       }
+      if (prefs.include_all_lights !== undefined) {
+        this._includeAllLights = prefs.include_all_lights;
+      }
     } catch (err) {
       console.warn('Failed to load user preferences:', err);
       // Fall back to localStorage as read-only source if server unavailable
@@ -373,6 +377,7 @@ export class AqaraPanel extends LitElement {
           color_history: this._colorHistory,
           sort_preferences: this._sortPreferences,
           collapsed_sections: this._collapsed,
+          include_all_lights: this._includeAllLights,
         } as unknown as Record<string, unknown>
       ).catch(err => {
         console.warn('Failed to save user preferences:', err);
@@ -1155,6 +1160,23 @@ export class AqaraPanel extends LitElement {
         }
       }
 
+      // If the "include all lights" toggle is on, classify as generic light
+      if (this._includeAllLights) {
+        const colorModes = entity.attributes.supported_color_modes as string[] | undefined;
+        const hasRGBMode = colorModes && Array.isArray(colorModes) &&
+          colorModes.some(mode => ['xy', 'hs', 'rgb', 'rgbw', 'rgbww'].includes(mode));
+        const hasCCTMode = colorModes && Array.isArray(colorModes) &&
+          colorModes.includes('color_temp');
+
+        if (hasRGBMode) {
+          deviceTypes.add('generic_rgb');
+          continue;
+        } else if (hasCCTMode) {
+          deviceTypes.add('generic_cct');
+          continue;
+        }
+      }
+
       // Fallback: Try to detect device type from effect_list
       // (Zigbee2MQTT doesn't expose model in entity attributes)
       const effectList = entity.attributes.effect_list as string[] | undefined;
@@ -1184,7 +1206,10 @@ export class AqaraPanel extends LitElement {
       }
     }
 
-    this._hasIncompatibleLights = hasIncompatible;
+    // Generic lights are not incompatible - only mark as incompatible if there are
+    // truly unrecognized devices that aren't classified as generic
+    this._hasIncompatibleLights = hasIncompatible
+      && !deviceTypes.has('generic_rgb') && !deviceTypes.has('generic_cct');
     return Array.from(deviceTypes);
   }
 
@@ -1339,6 +1364,8 @@ export class AqaraPanel extends LitElement {
   private _isEffectsCompatible(): boolean {
     if (!this.hass || !this._selectedEntities.length) return false;
     return this._selectedEntities.some(entityId => {
+      // Only Aqara devices support MQTT-based effects
+      if (!this._supportedEntities.has(entityId)) return false;
       const entity = this.hass!.states[entityId];
       if (!entity) return false;
       const effectList = entity.attributes.effect_list as string[] | undefined;
@@ -1353,6 +1380,8 @@ export class AqaraPanel extends LitElement {
   private _isPatternsCompatible(): boolean {
     if (!this.hass || !this._selectedEntities.length) return false;
     return this._selectedEntities.some(entityId => {
+      // Only Aqara devices support MQTT-based segment patterns
+      if (!this._supportedEntities.has(entityId)) return false;
       const entity = this.hass!.states[entityId];
       if (!entity) return false;
       const effectList = entity.attributes.effect_list as string[] | undefined;
@@ -1388,6 +1417,8 @@ export class AqaraPanel extends LitElement {
   private _isSegmentsCompatible(): boolean {
     if (!this.hass || !this._selectedEntities.length) return false;
     return this._selectedEntities.some(entityId => {
+      // Only Aqara devices support MQTT-based segment sequences
+      if (!this._supportedEntities.has(entityId)) return false;
       const entity = this.hass!.states[entityId];
       if (!entity) return false;
       const effectList = entity.attributes.effect_list as string[] | undefined;
@@ -1407,6 +1438,7 @@ export class AqaraPanel extends LitElement {
   private _getEffectsCompatibleEntities(): string[] {
     if (!this.hass) return [];
     return this._selectedEntities.filter(entityId => {
+      if (!this._supportedEntities.has(entityId)) return false;
       const entity = this.hass!.states[entityId];
       if (!entity) return false;
       const effectList = entity.attributes.effect_list as string[] | undefined;
@@ -1420,6 +1452,7 @@ export class AqaraPanel extends LitElement {
   private _getPatternsCompatibleEntities(): string[] {
     if (!this.hass) return [];
     return this._selectedEntities.filter(entityId => {
+      if (!this._supportedEntities.has(entityId)) return false;
       const entity = this.hass!.states[entityId];
       if (!entity) return false;
       const effectList = entity.attributes.effect_list as string[] | undefined;
@@ -1449,6 +1482,7 @@ export class AqaraPanel extends LitElement {
   private _getSegmentsCompatibleEntities(): string[] {
     if (!this.hass) return [];
     return this._selectedEntities.filter(entityId => {
+      if (!this._supportedEntities.has(entityId)) return false;
       const entity = this.hass!.states[entityId];
       if (!entity) return false;
       const effectList = entity.attributes.effect_list as string[] | undefined;
@@ -1486,13 +1520,17 @@ export class AqaraPanel extends LitElement {
     const hasT1M = deviceTypes.includes('t1m');
     const hasT1MWhite = deviceTypes.includes('t1m_white');
     const hasT1Strip = deviceTypes.includes('t1_strip');
+    const hasGenericRGB = deviceTypes.includes('generic_rgb');
+    const hasGenericCCT = deviceTypes.includes('generic_cct');
 
+    // Effects, segment patterns, segment sequences: Aqara-only (require MQTT)
     const showDynamicEffects = hasSelection && (hasT2 || hasT1M || hasT1Strip);
     const showSegmentPatterns = hasSelection && (hasT1M || hasT1Strip);
-    const showCCTSequences = hasSelection && (hasT2 || hasT2CCT || hasT1MWhite || hasT1Strip);
     const showSegmentSequences = hasSelection && (hasT1M || hasT1Strip);
-    // Dynamic scenes work on any RGB-capable device
-    const showDynamicScenes = hasSelection && (hasT2 || hasT1M || hasT1Strip);
+    // CCT sequences: Aqara + generic lights with color_temp support
+    const showCCTSequences = hasSelection && (hasT2 || hasT2CCT || hasT1MWhite || hasT1Strip || hasGenericRGB || hasGenericCCT);
+    // Dynamic scenes: Aqara RGB + generic RGB lights
+    const showDynamicScenes = hasSelection && (hasT2 || hasT1M || hasT1Strip || hasGenericRGB);
 
     return {
       showDynamicEffects,
@@ -1533,6 +1571,20 @@ export class AqaraPanel extends LitElement {
 
     // Load zones for selected segment-capable devices
     this._loadZonesForSelectedDevices();
+  }
+
+  private _handleIncludeAllLightsToggle(e: Event): void {
+    this._includeAllLights = (e.target as HTMLInputElement).checked;
+    this._saveUserPreferences();
+
+    // When toggling off, filter out non-Aqara lights from current selection
+    if (!this._includeAllLights) {
+      const supportedEntityIds = new Set(this._supportedEntities.keys());
+      const filtered = this._selectedEntities.filter(id => supportedEntityIds.has(id));
+      if (filtered.length !== this._selectedEntities.length) {
+        this._selectedEntities = filtered;
+      }
+    }
   }
 
   private _handleBrightnessChange(e: CustomEvent): void {
@@ -2125,8 +2177,8 @@ export class AqaraPanel extends LitElement {
                       entity: {
                         multiple: true,
                         domain: 'light',
-                        // Filter to only show supported Aqara entities
-                        ...(this._supportedEntities.size > 0
+                        // Filter to only show supported Aqara entities unless toggle is on
+                        ...(!this._includeAllLights && this._supportedEntities.size > 0
                           ? { include_entities: Array.from(this._supportedEntities.keys()) }
                           : {}),
                       },
@@ -2134,6 +2186,16 @@ export class AqaraPanel extends LitElement {
                     .value=${this._selectedEntities}
                     @value-changed=${this._handleEntityChanged}
                   ></ha-selector>
+                  <div class="include-all-lights-toggle">
+                    <label class="toggle-label">
+                      <ha-switch
+                        .checked=${this._includeAllLights}
+                        @change=${this._handleIncludeAllLightsToggle}
+                        title="${this._localize('target.include_all_lights_hint')}"
+                      ></ha-switch>
+                      <span>${this._localize('target.include_all_lights_label')}</span>
+                    </label>
+                  </div>
                 </div>
                 ${hasSelection && !this._showFavoriteInput
                   ? html`

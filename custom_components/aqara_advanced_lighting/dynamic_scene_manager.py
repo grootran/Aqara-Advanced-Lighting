@@ -118,7 +118,7 @@ class DynamicSceneManager:
                 z2m_name = entity_id.split(".")[-1]
                 self.state_manager.capture_state(entity_id, z2m_name)
 
-        # Determine light order for ripple effect
+        # Determine light order (affects ripple offset and shuffle_rotate assignment)
         light_order = list(entity_ids)
         if scene.random_order:
             random.shuffle(light_order)

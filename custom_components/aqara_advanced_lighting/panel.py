@@ -792,6 +792,7 @@ class UserPreferencesView(HomeAssistantView):
         color_history = None
         sort_preferences = None
         collapsed_sections = None
+        include_all_lights = None
 
         if "color_history" in data:
             error = _validate_color_history(data["color_history"])
@@ -811,10 +812,18 @@ class UserPreferencesView(HomeAssistantView):
                 return web.Response(status=400, text=error)
             collapsed_sections = data["collapsed_sections"]
 
+        if "include_all_lights" in data:
+            if not isinstance(data["include_all_lights"], bool):
+                return web.Response(
+                    status=400, text="include_all_lights must be a boolean"
+                )
+            include_all_lights = data["include_all_lights"]
+
         if (
             color_history is None
             and sort_preferences is None
             and collapsed_sections is None
+            and include_all_lights is None
         ):
             # Nothing to update, return current preferences
             preferences = store.get_preferences(user.id)
@@ -825,6 +834,7 @@ class UserPreferencesView(HomeAssistantView):
             color_history=color_history,
             sort_preferences=sort_preferences,
             collapsed_sections=collapsed_sections,
+            include_all_lights=include_all_lights,
         )
         return web.json_response(preferences)
 

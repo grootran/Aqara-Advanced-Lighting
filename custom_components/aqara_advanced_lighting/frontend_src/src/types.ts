@@ -300,6 +300,7 @@ export interface UserPreferences {
   color_history: XYColor[];
   sort_preferences: PresetSortPreferences;
   collapsed_sections: Record<string, boolean>;
+  include_all_lights?: boolean;
 }
 
 // Draft state types for editor tab caching (in-memory only, not persisted)

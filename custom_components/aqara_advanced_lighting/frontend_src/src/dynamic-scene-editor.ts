@@ -112,6 +112,11 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
       gap: 8px;
     }
 
+    .boolean-left ha-selector {
+      display: flex;
+      justify-content: flex-start;
+    }
+
     .form-section {
       display: flex;
       flex-direction: column;
@@ -266,20 +271,6 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
       gap: 12px;
     }
 
-    /* Ripple effect section */
-    .ripple-section {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 16px;
-      align-items: start;
-    }
-
-    .ripple-field {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
     .toggle-field {
       display: flex;
       flex-direction: column;
@@ -331,10 +322,6 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
       }
 
       .timing-section {
-        grid-template-columns: 1fr;
-      }
-
-      .ripple-section {
         grid-template-columns: 1fr;
       }
 
@@ -847,70 +834,68 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
           </div>
         </div>
 
-        <!-- Distribution Mode -->
-        <div class="form-section">
-          <span class="form-label">${this._localize('dynamic_scene.distribution_mode_label') || 'Distribution mode'}</span>
-          <ha-selector
-            .hass=${this.hass}
-            .selector=${{
-              select: {
-                options: this._distributionModeOptions,
-                mode: 'dropdown',
-              },
-            }}
-            .value=${this._distributionMode}
-            @value-changed=${this._handleDistributionModeChange}
-          ></ha-selector>
-        </div>
-
-        <!-- Ripple Effect (Offset Delay + Random Order) -->
-        <div class="form-section">
-          <span class="form-label">${this._localize('dynamic_scene.ripple_effect_label') || 'Ripple effect'}</span>
-          <div class="ripple-section">
-            <div class="ripple-field">
-              <ha-selector
-                .hass=${this.hass}
-                .selector=${{
-                  number: {
-                    min: 0,
-                    max: 120,
-                    step: 1,
-                    mode: 'slider',
-                    unit_of_measurement: 's',
-                  },
-                }}
-                .value=${this._offsetDelay}
-                @value-changed=${this._handleOffsetDelayChange}
-              ></ha-selector>
-            </div>
-            <div class="toggle-field">
-              <span class="toggle-label">${this._localize('dynamic_scene.random_order_label') || 'Random order'}</span>
-              <ha-selector
-                .hass=${this.hass}
-                .selector=${{ boolean: {} }}
-                .value=${this._randomOrder}
-                @value-changed=${this._handleRandomOrderChange}
-              ></ha-selector>
-            </div>
+        <!-- Color Assignment + Randomize Light Order -->
+        <div class="form-row-pair">
+          <div class="form-section">
+            <span class="form-label">${this._localize('dynamic_scene.distribution_mode_label') || 'Color assignment'}</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{
+                select: {
+                  options: this._distributionModeOptions,
+                  mode: 'dropdown',
+                },
+              }}
+              .value=${this._distributionMode}
+              @value-changed=${this._handleDistributionModeChange}
+            ></ha-selector>
+          </div>
+          <div class="form-section boolean-left">
+            <span class="form-label">${this._localize('dynamic_scene.random_order_label') || 'Randomize light order'}</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{ boolean: {} }}
+              .value=${this._randomOrder}
+              @value-changed=${this._handleRandomOrderChange}
+            ></ha-selector>
           </div>
         </div>
 
-        <!-- Scene Brightness -->
-        <div class="form-section">
-          <span class="form-label">${this._localize('dynamic_scene.scene_brightness_label') || 'Scene brightness'}</span>
-          <ha-selector
-            .hass=${this.hass}
-            .selector=${{
-              number: {
-                min: 1,
-                max: 100,
-                mode: 'slider',
-                unit_of_measurement: '%',
-              },
-            }}
-            .value=${this._sceneBrightness}
+        <!-- Ripple Effect + Maximum Scene Brightness -->
+        <div class="form-row-pair">
+          <div class="form-section">
+            <span class="form-label">${this._localize('dynamic_scene.ripple_effect_label') || 'Ripple effect'}</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{
+                number: {
+                  min: 0,
+                  max: 120,
+                  step: 1,
+                  mode: 'slider',
+                  unit_of_measurement: 's',
+                },
+              }}
+              .value=${this._offsetDelay}
+              @value-changed=${this._handleOffsetDelayChange}
+            ></ha-selector>
+          </div>
+          <div class="form-section">
+            <span class="form-label">${this._localize('dynamic_scene.scene_brightness_label') || 'Maximum scene brightness'}</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{
+                number: {
+                  min: 1,
+                  max: 100,
+                  mode: 'slider',
+                  unit_of_measurement: '%',
+                },
+              }}
+              .value=${this._sceneBrightness}
             @value-changed=${this._handleSceneBrightnessChange}
           ></ha-selector>
+          </div>
         </div>
 
         <!-- Loop Behavior -->

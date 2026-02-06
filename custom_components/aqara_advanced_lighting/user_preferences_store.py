@@ -22,12 +22,14 @@ class UserPreferences(TypedDict):
     color_history: list[dict[str, float]]
     sort_preferences: dict[str, str]
     collapsed_sections: dict[str, bool]
+    include_all_lights: bool
 
 
 DEFAULT_PREFERENCES: UserPreferences = {
     "color_history": [],
     "sort_preferences": {},
     "collapsed_sections": {},
+    "include_all_lights": False,
 }
 
 
@@ -72,6 +74,7 @@ class UserPreferencesStore:
                 "color_history": prefs.get("color_history", []),
                 "sort_preferences": prefs.get("sort_preferences", {}),
                 "collapsed_sections": prefs.get("collapsed_sections", {}),
+                "include_all_lights": prefs.get("include_all_lights", False),
             }
         return {**DEFAULT_PREFERENCES}
 
@@ -131,6 +134,7 @@ class UserPreferencesStore:
         color_history: list[dict[str, float]] | None = None,
         sort_preferences: dict[str, str] | None = None,
         collapsed_sections: dict[str, bool] | None = None,
+        include_all_lights: bool | None = None,
     ) -> UserPreferences:
         """Partially update a user's preferences.
 
@@ -141,6 +145,7 @@ class UserPreferencesStore:
             color_history: New color history list, or None to leave unchanged.
             sort_preferences: New sort preferences, or None to leave unchanged.
             collapsed_sections: New collapsed section state, or None to leave unchanged.
+            include_all_lights: Whether to show all lights in selector, or None to leave unchanged.
 
         Returns:
             The full updated preferences.
@@ -158,6 +163,9 @@ class UserPreferencesStore:
 
         if collapsed_sections is not None:
             self._data[user_id]["collapsed_sections"] = collapsed_sections
+
+        if include_all_lights is not None:
+            self._data[user_id]["include_all_lights"] = include_all_lights
 
         await self.async_save()
 
