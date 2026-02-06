@@ -250,10 +250,10 @@ VALID_DISTRIBUTION_MODES: Final = [
 ]
 
 # Dynamic scene timing constraints (seconds)
-MIN_DYNAMIC_SCENE_TRANSITION_TIME: Final = 1.0
-MAX_DYNAMIC_SCENE_TRANSITION_TIME: Final = 600.0  # 10 minutes
+MIN_DYNAMIC_SCENE_TRANSITION_TIME: Final = 30.0
+MAX_DYNAMIC_SCENE_TRANSITION_TIME: Final = 3600.0  # 1 hour
 MIN_DYNAMIC_SCENE_HOLD_TIME: Final = 0.0
-MAX_DYNAMIC_SCENE_HOLD_TIME: Final = 600.0  # 10 minutes
+MAX_DYNAMIC_SCENE_HOLD_TIME: Final = 3600.0  # 1 hour
 DEFAULT_DYNAMIC_SCENE_TRANSITION_TIME: Final = 120.0  # 2 minutes
 DEFAULT_DYNAMIC_SCENE_HOLD_TIME: Final = 180.0  # 3 minutes
 
@@ -956,7 +956,7 @@ CCT_SEQUENCE_PRESETS: Final = {
         "end_behavior": END_BEHAVIOR_MAINTAIN,
     },
     PRESET_CCT_MINDFUL_BREATHING: {
-        "name": "Mindful breathing",
+        "name": "Mindful Breathing",
         "icon": "mdi:meditation",
         "steps": [
             {
@@ -976,7 +976,7 @@ CCT_SEQUENCE_PRESETS: Final = {
         "end_behavior": END_BEHAVIOR_MAINTAIN,
     },
     PRESET_CCT_CIRCADIAN: {
-        "name": "Circadian rhythm",
+        "name": "Circadian Rhythm",
         "icon": "mdi:sun-clock",
         "steps": [
             {
@@ -1025,7 +1025,7 @@ PRESET_SEGMENT_SEQ_COMET: Final = "comet"
 
 SEGMENT_SEQUENCE_PRESETS: Final = {
     PRESET_SEGMENT_SEQ_LOADING_BAR: {
-        "name": "Loading bar",
+        "name": "Loading Bar",
         "icon": "mdi:progress-download",
         "steps": [
             {
@@ -1081,7 +1081,7 @@ SEGMENT_SEQUENCE_PRESETS: Final = {
         "end_behavior": END_BEHAVIOR_TURN_OFF,
     },
     PRESET_SEGMENT_SEQ_THEATER_CHASE: {
-        "name": "Theater chase",
+        "name": "Theater Chase",
         "icon": "mdi:theater",
         "steps": [
             {
@@ -1097,7 +1097,7 @@ SEGMENT_SEQUENCE_PRESETS: Final = {
         "end_behavior": END_BEHAVIOR_MAINTAIN,
     },
     PRESET_SEGMENT_SEQ_RAINBOW_FILL: {
-        "name": "Rainbow fill",
+        "name": "Rainbow Fill",
         "icon": "mdi:format-color-fill",
         "steps": [
             {

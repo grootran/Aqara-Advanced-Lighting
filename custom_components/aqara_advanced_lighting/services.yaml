@@ -545,9 +545,9 @@ start_cct_sequence:
               value: "goodnight"
             - label: "Wakeup"
               value: "wakeup"
-            - label: "Mindful breathing"
+            - label: "Mindful Breathing"
               value: "mindful_breathing"
-            - label: "Circadian rhythm"
+            - label: "Circadian Rhythm"
               value: "circadian"
           mode: dropdown
           custom_value: true
@@ -1118,15 +1118,15 @@ start_segment_sequence:
       selector:
         select:
           options:
-            - label: "Loading bar"
+            - label: "Loading Bar"
               value: "loading_bar"
             - label: "Wave"
               value: "wave"
             - label: "Sparkle"
               value: "sparkle"
-            - label: "Theater chase"
+            - label: "Theater Chase"
               value: "theater_chase"
-            - label: "Rainbow fill"
+            - label: "Rainbow Fill"
               value: "rainbow_fill"
             - label: "Comet"
               value: "comet"
@@ -2352,25 +2352,25 @@ start_dynamic_scene:
         object:
     transition_time:
       name: Transition time
-      description: Time in seconds for color transitions (5-300 seconds).
+      description: Time in seconds for color transitions (30-3600 seconds).
       required: false
       default: 30.0
       selector:
         number:
-          min: 5
-          max: 300
+          min: 30
+          max: 3600
           step: 1
           unit_of_measurement: "s"
           mode: slider
     hold_time:
       name: Hold time
-      description: Time in seconds to hold each color before transitioning (0-300 seconds).
+      description: Time in seconds to hold each color before transitioning (0-3600 seconds).
       required: false
       default: 10.0
       selector:
         number:
           min: 0
-          max: 300
+          max: 3600
           step: 1
           unit_of_measurement: "s"
           mode: slider

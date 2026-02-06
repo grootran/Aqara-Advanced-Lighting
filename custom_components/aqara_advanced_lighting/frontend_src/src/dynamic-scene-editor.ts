@@ -34,7 +34,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   // Note: _steps is used by ReorderableStepsMixin, but we also expose as _colors for clarity
   @state() protected _steps: EditableColor[] = [];
   @state() private _transitionTime = 120;  // seconds (default 2 minutes)
-  @state() private _holdTime = 180;  // seconds (default 3 minutes)
+  @state() private _holdTime = 0;  // seconds
   @state() private _distributionMode = 'shuffle_rotate';
   @state() private _offsetDelay = 0;
   @state() private _randomOrder = false;
@@ -425,7 +425,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._name = '';
     this._icon = '';
     this._transitionTime = 120;
-    this._holdTime = 180;
+    this._holdTime = 0;
     this._distributionMode = 'shuffle_rotate';
     this._offsetDelay = 0;
     this._randomOrder = false;
@@ -800,8 +800,8 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
                 .hass=${this.hass}
                 .selector=${{
                   number: {
-                    min: 5,
-                    max: 600,
+                    min: 30,
+                    max: 3600,
                     step: 5,
                     mode: 'slider',
                     unit_of_measurement: 's',
@@ -821,7 +821,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
                 .selector=${{
                   number: {
                     min: 0,
-                    max: 600,
+                    max: 3600,
                     step: 5,
                     mode: 'slider',
                     unit_of_measurement: 's',
