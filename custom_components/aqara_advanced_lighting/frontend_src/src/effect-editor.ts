@@ -340,11 +340,11 @@ export class EffectEditor extends LitElement {
   }
 
   private _handleSpeedChange(e: CustomEvent): void {
-    this._speed = e.detail.value || 50;
+    this._speed = e.detail.value ?? 50;
   }
 
   private _handleBrightnessChange(e: CustomEvent): void {
-    this._brightness = e.detail.value || 100;
+    this._brightness = e.detail.value ?? 100;
   }
 
   private _handleSegmentsChange(e: CustomEvent): void {

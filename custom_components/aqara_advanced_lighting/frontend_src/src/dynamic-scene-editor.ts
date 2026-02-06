@@ -475,11 +475,11 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   }
 
   private _handleTransitionTimeChange(e: CustomEvent): void {
-    this._transitionTime = e.detail.value || 120;
+    this._transitionTime = e.detail.value ?? 120;
   }
 
   private _handleHoldTimeChange(e: CustomEvent): void {
-    this._holdTime = e.detail.value || 180;
+    this._holdTime = e.detail.value ?? 0;
   }
 
   private _handleDistributionModeChange(e: CustomEvent): void {
@@ -487,15 +487,15 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   }
 
   private _handleOffsetDelayChange(e: CustomEvent): void {
-    this._offsetDelay = e.detail.value || 0;
+    this._offsetDelay = e.detail.value ?? 0;
   }
 
   private _handleRandomOrderChange(e: CustomEvent): void {
-    this._randomOrder = e.detail.value || false;
+    this._randomOrder = e.detail.value ?? false;
   }
 
   private _handleSceneBrightnessChange(e: CustomEvent): void {
-    this._sceneBrightness = e.detail.value || 100;
+    this._sceneBrightness = e.detail.value ?? 100;
   }
 
   private _handleLoopModeChange(e: CustomEvent): void {
@@ -503,7 +503,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   }
 
   private _handleLoopCountChange(e: CustomEvent): void {
-    this._loopCount = e.detail.value || 3;
+    this._loopCount = e.detail.value ?? 3;
   }
 
   private _handleEndBehaviorChange(e: CustomEvent): void {
@@ -511,7 +511,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   }
 
   private _handleColorBrightnessChange(colorId: string, e: CustomEvent): void {
-    const brightness = e.detail.value || 100;
+    const brightness = e.detail.value ?? 100;
     this._colors = this._colors.map(c =>
       c.id === colorId ? { ...c, brightness_pct: brightness } : c
     );

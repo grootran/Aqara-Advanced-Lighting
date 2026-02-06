@@ -382,7 +382,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
   }
 
   private _handleLoopCountChange(e: CustomEvent): void {
-    this._loopCount = e.detail.value || 3;
+    this._loopCount = e.detail.value ?? 3;
   }
 
   private _handleEndBehaviorChange(e: CustomEvent): void {
