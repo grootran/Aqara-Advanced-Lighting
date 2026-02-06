@@ -55,7 +55,6 @@
     "subtitle_presets": "{count} presets",
     "subtitle_presets_custom": "{count} presets ({custom} custom)",
     "subtitle_user_presets": "{count} presets",
-    "subtitle_select_lights": "{count} presets - select lights in the Activate tab to enable activation",
     "t1_strip_settings": "T1 Strip settings"
   },
   "presets": {

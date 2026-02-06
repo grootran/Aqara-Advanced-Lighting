@@ -2930,18 +2930,13 @@ export class AqaraPanel extends LitElement {
       serviceData.loop_count = data.loop_count;
     }
 
-    // Add colors as individual color parameters (color_1, color_2, etc.)
-    // Colors are in XY format with brightness: {x, y, brightness_pct}
+    // Add colors array in XY format with brightness: {x, y, brightness_pct}
     if (data.colors && Array.isArray(data.colors)) {
-      data.colors.forEach((color: { x: number; y: number; brightness_pct: number }, index: number) => {
-        if (index < 20) {
-          serviceData[`color_${index + 1}`] = {
-            x: color.x,
-            y: color.y,
-            brightness_pct: color.brightness_pct,
-          };
-        }
-      });
+      serviceData.colors = data.colors.map((color: { x: number; y: number; brightness_pct: number }) => ({
+        x: color.x,
+        y: color.y,
+        brightness_pct: color.brightness_pct,
+      }));
     }
 
     await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
@@ -3075,7 +3070,6 @@ export class AqaraPanel extends LitElement {
     const segmentPresets = this._userPresets?.segment_sequence_presets || [];
     const scenePresets = this._userPresets?.dynamic_scene_presets || [];
     const totalCount = effectPresets.length + patternPresets.length + cctPresets.length + segmentPresets.length + scenePresets.length;
-    const hasSelection = this._selectedEntities.length > 0;
 
     const myPresetsSectionId = 'my_presets_overview';
     const myPresetsExpanded = !this._collapsed[myPresetsSectionId];
@@ -3090,7 +3084,7 @@ export class AqaraPanel extends LitElement {
           <div>
             <div class="section-title">${this._localize('tabs.presets')}</div>
             <div class="section-subtitle">
-              ${hasSelection ? this._localize('sections.subtitle_user_presets', {count: totalCount.toString()}) : this._localize('sections.subtitle_select_lights', {count: totalCount.toString()})}
+              ${this._localize('sections.subtitle_user_presets', {count: totalCount.toString()})}
             </div>
           </div>
         </div>
@@ -3132,8 +3126,7 @@ export class AqaraPanel extends LitElement {
         : html`
             ${this._renderPresetDeviceSections(
               this._localize('sections.dynamic_effects'), 'presets_effects',
-              effectPresets, hasSelection,
-              (p) => this._activateUserEffectPreset(p),
+              effectPresets,
               (p) => this._editEffectPreset(p),
               'effect',
               (p) => this._renderUserEffectIcon(p),
@@ -3143,8 +3136,7 @@ export class AqaraPanel extends LitElement {
 
             ${this._renderPresetDeviceSections(
               this._localize('sections.segment_patterns'), 'presets_patterns',
-              patternPresets, hasSelection,
-              (p) => this._activateUserPatternPreset(p),
+              patternPresets,
               (p) => this._editPatternPreset(p),
               'segment_pattern',
               (p) => this._renderUserPatternIcon(p),
@@ -3155,8 +3147,7 @@ export class AqaraPanel extends LitElement {
             ${cctPresets.length > 0
               ? this._renderPresetSection(
                   this._localize('sections.cct_sequences'), 'presets_cct',
-                  cctPresets, hasSelection,
-                  (p) => this._activateUserCCTSequencePreset(p),
+                  cctPresets,
                   (p) => this._editCCTSequencePreset(p),
                   'cct_sequence',
                   (p) => this._renderUserCCTIcon(p),
@@ -3167,8 +3158,7 @@ export class AqaraPanel extends LitElement {
 
             ${this._renderPresetDeviceSections(
               this._localize('sections.segment_sequences'), 'presets_segments',
-              segmentPresets, hasSelection,
-              (p) => this._activateUserSegmentSequencePreset(p),
+              segmentPresets,
               (p) => this._editSegmentSequencePreset(p),
               'segment_sequence',
               (p) => this._renderUserSegmentSequenceIcon(p),
@@ -3179,8 +3169,7 @@ export class AqaraPanel extends LitElement {
             ${scenePresets.length > 0
               ? this._renderPresetSection(
                   this._localize('sections.dynamic_scenes'), 'presets_scenes',
-                  scenePresets, hasSelection,
-                  (p) => this._activateUserDynamicScenePreset(p),
+                  scenePresets,
                   (p) => this._editDynamicScenePreset(p),
                   'dynamic_scene',
                   (p) => this._renderUserDynamicSceneIcon(p),
@@ -3201,8 +3190,6 @@ export class AqaraPanel extends LitElement {
     categoryTitle: string,
     sectionPrefix: string,
     presets: T[],
-    hasSelection: boolean,
-    onActivate: (preset: T) => void,
     onEdit: (preset: T) => void,
     deleteType: string,
     renderIcon: (preset: T) => unknown,
@@ -3217,7 +3204,7 @@ export class AqaraPanel extends LitElement {
       ${ungrouped.length > 0
         ? this._renderPresetSection(
             categoryTitle, sectionPrefix,
-            ungrouped, hasSelection, onActivate, onEdit, deleteType, renderIcon, sortFn, onDuplicate,
+            ungrouped, onEdit, deleteType, renderIcon, sortFn, onDuplicate,
           )
         : ''}
       ${AqaraPanel.PRESET_DEVICE_TYPES.map((deviceKey) => {
@@ -3226,7 +3213,7 @@ export class AqaraPanel extends LitElement {
         const deviceLabel = this._localize(`devices.${deviceKey}`);
         return this._renderPresetSection(
           `${categoryTitle}: ${deviceLabel}`, `${sectionPrefix}_${deviceKey}`,
-          devicePresets, hasSelection, onActivate, onEdit, deleteType, renderIcon, sortFn, onDuplicate,
+          devicePresets, onEdit, deleteType, renderIcon, sortFn, onDuplicate,
         );
       })}
     `;
@@ -3241,8 +3228,6 @@ export class AqaraPanel extends LitElement {
     title: string,
     sectionId: string,
     presets: T[],
-    hasSelection: boolean,
-    onActivate: (preset: T) => void,
     onEdit: (preset: T) => void,
     deleteType: string,
     renderIcon: (preset: T) => unknown,
@@ -3270,7 +3255,7 @@ export class AqaraPanel extends LitElement {
         </div>
         <div class="section-content preset-grid">
           ${sortedPresets.map((preset) => this._renderPresetCard(
-            preset, hasSelection, onActivate, onEdit, deleteType, renderIcon, onDuplicate,
+            preset, onEdit, deleteType, renderIcon, onDuplicate,
           ))}
         </div>
       </ha-expansion-panel>
@@ -3280,8 +3265,6 @@ export class AqaraPanel extends LitElement {
   /** Render a single user preset card with action buttons. */
   private _renderPresetCard<T extends { id: string; name: string }>(
     preset: T,
-    hasSelection: boolean,
-    onActivate: (preset: T) => void,
     onEdit: (preset: T) => void,
     deleteType: string,
     renderIcon: (preset: T) => unknown,
@@ -3289,8 +3272,7 @@ export class AqaraPanel extends LitElement {
   ) {
     return html`
       <div
-        class="user-preset-card ${hasSelection ? '' : 'disabled'}"
-        @click=${hasSelection ? () => onActivate(preset) : null}
+        class="user-preset-card"
         title="${preset.name}"
       >
         <div class="preset-card-actions">
