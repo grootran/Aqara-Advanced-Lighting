@@ -7,14 +7,16 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 
 from .const import (
-    CCT_SEQUENCE_PRESETS,
     DATA_PRESET_STORE,
     DOMAIN,
+)
+from .presets import (
+    CCT_SEQUENCE_PRESETS,
+    DYNAMIC_SCENE_PRESETS,
     EFFECT_PRESETS,
     SEGMENT_PATTERN_PRESETS,
     SEGMENT_SEQUENCE_PRESETS,
 )
-from .presets import DYNAMIC_SCENE_PRESETS
 
 
 def add_user_presets(
