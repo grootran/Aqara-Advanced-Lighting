@@ -19,6 +19,11 @@ export const panelStyles = css`
     -moz-osx-font-smoothing: grayscale;
   }
 
+  /* Fix ha-svg-icon vertical misalignment within ha-icon */
+  ha-svg-icon {
+    vertical-align: top;
+  }
+
   /* Fixed header - follows HA developer-tools pattern */
   .header {
     background-color: var(--app-header-background-color);

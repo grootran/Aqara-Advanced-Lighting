@@ -8,7 +8,7 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.const import ATTR_ENTITY_ID
+from homeassistant.const import ATTR_ENTITY_ID, STATE_OFF
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
@@ -1539,41 +1539,43 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
             # Stop the effect by restoring previous state using HA light service
             try:
-                if restore_state and entity_state_manager.has_stored_state(entity_id):
-                    # Get stored state
-                    device_state = entity_state_manager.get_device_state(entity_id)
-                    if device_state and device_state.previous_state:
-                        prev_state = device_state.previous_state
+                payload = (
+                    entity_state_manager.get_restoration_payload(entity_id)
+                    if restore_state
+                    else None
+                )
 
-                        # Build service call data for HA light.turn_on
-                        service_data = {"entity_id": entity_id}
+                if payload:
+                    service_data: dict[str, Any] = {"entity_id": entity_id}
 
-                        # Restore brightness if it was set
-                        if brightness := prev_state.get("brightness"):
-                            service_data["brightness"] = brightness
-
-                        # Restore color (RGB) if it was set
-                        if color := prev_state.get("color"):
-                            # Color should be in HA format: {"r": R, "g": G, "b": B}
-                            if isinstance(color, dict) and "r" in color:
-                                service_data["rgb_color"] = [color["r"], color["g"], color["b"]]
-
-                        # Restore color temp if it was set (and no RGB color)
-                        elif color_temp := prev_state.get("color_temp"):
-                            service_data["color_temp"] = color_temp
-
-                        # Call HA light service to restore state
-                        # This uses standard Zigbee commands
+                    if payload.get("state") == STATE_OFF:
                         await hass.services.async_call(
-                            "light",
-                            "turn_on",
-                            service_data,
-                            blocking=True,
+                            "light", "turn_off", service_data, blocking=True,
                         )
-                        _LOGGER.info("Stopped effect and restored previous state for %s", entity_id)
+                    else:
+                        if "brightness" in payload:
+                            service_data["brightness"] = payload["brightness"]
+
+                        # get_restoration_payload uses color_mode to pick the
+                        # correct format (xy_color for color mode, color_temp
+                        # for CCT mode) so dual-mode lights restore accurately
+                        if "xy_color" in payload:
+                            xy = payload["xy_color"]
+                            service_data["xy_color"] = [xy["x"], xy["y"]]
+                        elif "color" in payload:
+                            c = payload["color"]
+                            service_data["rgb_color"] = [c["r"], c["g"], c["b"]]
+
+                        if "color_temp" in payload:
+                            service_data["color_temp"] = payload["color_temp"]
+
+                        await hass.services.async_call(
+                            "light", "turn_on", service_data, blocking=True,
+                        )
+
+                    _LOGGER.info("Stopped effect and restored previous state for %s", entity_id)
                 else:
                     # No saved state - stop effect with a default warm white RGB color
-                    # Use HA light service to set a solid color
                     await hass.services.async_call(
                         "light",
                         "turn_on",

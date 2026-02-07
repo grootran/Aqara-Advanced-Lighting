@@ -41,7 +41,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   @state() private _sceneBrightness = 100;
   @state() private _loopMode = 'continuous';
   @state() private _loopCount = 3;
-  @state() private _endBehavior = 'maintain';
+  @state() private _endBehavior = 'restore';
   @state() private _saving = false;
   @state() private _previewing = false;
   @state() private _editingColorIndex: number | null = null;
@@ -432,7 +432,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._sceneBrightness = 100;
     this._loopMode = 'continuous';
     this._loopCount = 3;
-    this._endBehavior = 'maintain';
+    this._endBehavior = 'restore';
     this._addDefaultColors();
   }
 
@@ -507,7 +507,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   }
 
   private _handleEndBehaviorChange(e: CustomEvent): void {
-    this._endBehavior = e.detail.value || 'maintain';
+    this._endBehavior = e.detail.value || 'restore';
   }
 
   private _handleColorBrightnessChange(colorId: string, e: CustomEvent): void {

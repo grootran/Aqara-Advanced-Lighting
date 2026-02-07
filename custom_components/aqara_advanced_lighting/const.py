@@ -147,8 +147,9 @@ LOOP_MODE_ONCE: Final = "once"
 LOOP_MODE_COUNT: Final = "count"
 LOOP_MODE_CONTINUOUS: Final = "continuous"
 
-# CCT sequence end behaviors
+# Sequence end behaviors (used by CCT sequences, dynamic scenes, and segment sequences)
 END_BEHAVIOR_MAINTAIN: Final = "maintain"
+END_BEHAVIOR_RESTORE: Final = "restore"
 END_BEHAVIOR_TURN_OFF: Final = "turn_off"
 
 # Segment sequence modes

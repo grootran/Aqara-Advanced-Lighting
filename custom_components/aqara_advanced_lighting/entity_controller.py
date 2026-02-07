@@ -19,6 +19,7 @@ from .const import (
     DATA_CCT_SEQUENCE_MANAGER,
     DATA_DYNAMIC_SCENE_MANAGER,
     DATA_SEGMENT_SEQUENCE_MANAGER,
+    DATA_STATE_MANAGER,
     DOMAIN,
     EVENT_ATTR_ENTITY_ID,
     EVENT_ATTR_REASON,
@@ -31,6 +32,7 @@ if TYPE_CHECKING:
     from .cct_sequence_manager import CCTSequenceManager
     from .dynamic_scene_manager import DynamicSceneManager
     from .segment_sequence_manager import SegmentSequenceManager
+    from .state_manager import StateManager
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -110,10 +112,17 @@ class EntityController:
 
         For dynamic scenes: detaches entity (scene continues for others).
         For CCT/segment sequences: stops the sequence for that entity.
+        Also clears effect_active flag so the frontend stops showing
+        one-time actions (effects, patterns) as active.
         """
         self._externally_paused.discard(entity_id)
 
         for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():
+            # Clear effect/pattern active flag in state manager
+            state_mgr = instance_data.get(DATA_STATE_MANAGER)
+            if state_mgr and state_mgr.is_effect_active(entity_id):
+                state_mgr.mark_effect_inactive(entity_id)
+
             # Detach from dynamic scene (scene continues for other entities)
             dsm: DynamicSceneManager | None = instance_data.get(
                 DATA_DYNAMIC_SCENE_MANAGER
@@ -268,6 +277,11 @@ class EntityController:
         self._externally_paused.discard(entity_id)
 
         for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():
+            # Clear effect/pattern active flag
+            state_mgr = instance_data.get(DATA_STATE_MANAGER)
+            if state_mgr and state_mgr.is_effect_active(entity_id):
+                state_mgr.mark_effect_inactive(entity_id)
+
             dsm: DynamicSceneManager | None = instance_data.get(
                 DATA_DYNAMIC_SCENE_MANAGER
             )

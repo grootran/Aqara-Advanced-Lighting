@@ -9,7 +9,7 @@ from .const import (
     DISTRIBUTION_RANDOM,
     DISTRIBUTION_SHUFFLE_ROTATE,
     DISTRIBUTION_SYNCHRONIZED,
-    END_BEHAVIOR_MAINTAIN,
+    END_BEHAVIOR_RESTORE,
     LOOP_MODE_CONTINUOUS,
 )
 
@@ -31,7 +31,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 70,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "ocean_waves": {
         "name": "Ocean Waves",
@@ -49,7 +49,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 60,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "northern_lights": {
         "name": "Northern Lights",
@@ -68,7 +68,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 50,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "relax": {
         "name": "Relax",
@@ -84,7 +84,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 35,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "forest_canopy": {
         "name": "Forest Canopy",
@@ -102,7 +102,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 45,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "fireplace": {
         "name": "Fireplace",
@@ -119,7 +119,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 40,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "tropical_paradise": {
         "name": "Tropical Paradise",
@@ -137,7 +137,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 65,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "deep_space": {
         "name": "Deep Space",
@@ -155,7 +155,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 30,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     # Hue-inspired scenes (from Philips Hue scene gallery)
     "cozy_embrace": {
@@ -175,7 +175,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 40,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "savanna_dusk": {
         "name": "Savanna Dusk",
@@ -194,7 +194,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 58,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "miami_nights": {
         "name": "Miami Nights",
@@ -213,7 +213,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 79,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "rio_carnival": {
         "name": "Rio Carnival",
@@ -232,7 +232,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 79,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "ibiza_sunset": {
         "name": "Ibiza Sunset",
@@ -251,7 +251,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 49,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "cosmic_galaxy": {
         "name": "Cosmic Galaxy",
@@ -270,7 +270,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 25,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "starlit_night": {
         "name": "Starlit Night",
@@ -289,7 +289,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 24,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "arctic_glow": {
         "name": "Arctic Glow",
@@ -308,7 +308,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 26,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "tranquil_waters": {
         "name": "Tranquil Waters",
@@ -327,7 +327,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 68,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "evening_sundown": {
         "name": "Evening Sundown",
@@ -346,7 +346,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 50,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "azure_lagoon": {
         "name": "Azure Lagoon",
@@ -365,7 +365,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 50,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "alpine_breeze": {
         "name": "Alpine Breeze",
@@ -384,7 +384,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 60,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "dawn_ocean": {
         "name": "Dawn Ocean",
@@ -403,7 +403,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 84,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "blossom_spring": {
         "name": "Blossom Spring",
@@ -422,7 +422,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 60,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "morning_first_light": {
         "name": "Morning First Light",
@@ -441,7 +441,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 30,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "distant_horizon": {
         "name": "Distant Horizon",
@@ -460,7 +460,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 50,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "solar_flare": {
         "name": "Solar Flare",
@@ -479,7 +479,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 79,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "emerald_dream": {
         "name": "Emerald Dream",
@@ -498,7 +498,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 40,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "scarlet_luxury": {
         "name": "Scarlet Luxury",
@@ -517,7 +517,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 30,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "amber_blossom": {
         "name": "Amber Blossom",
@@ -536,7 +536,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 79,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "canvas_sky": {
         "name": "Canvas Sky",
@@ -555,7 +555,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 79,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "forest_journey": {
         "name": "Forest Journey",
@@ -574,7 +574,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 79,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "neon_wave": {
         "name": "Neon Wave",
@@ -593,7 +593,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 77,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "magnetic": {
         "name": "Magnetic",
@@ -612,7 +612,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 88,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "spring_awakening": {
         "name": "Spring Awakening",
@@ -631,7 +631,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 79,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "purple_bloom": {
         "name": "Purple Bloom",
@@ -650,7 +650,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 79,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "golden_narcissus": {
         "name": "Golden Narcissus",
@@ -669,7 +669,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 90,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "cancun_party": {
         "name": "Cancun Party",
@@ -688,7 +688,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 79,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "osaka_night": {
         "name": "Osaka Night",
@@ -707,7 +707,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 36,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "tokyo_neon": {
         "name": "Tokyo Neon",
@@ -726,7 +726,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 47,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "dusk_dreams": {
         "name": "Dusk Dreams",
@@ -745,7 +745,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 50,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "ruby_radiance": {
         "name": "Ruby Radiance",
@@ -764,7 +764,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 40,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "twilight_tropics": {
         "name": "Twilight Tropics",
@@ -783,7 +783,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 44,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "crimson_moon": {
         "name": "Crimson Moon",
@@ -802,7 +802,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 20,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "lunar_glow": {
         "name": "Lunar Glow",
@@ -821,7 +821,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 20,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "stellar_nebula": {
         "name": "Stellar Nebula",
@@ -840,7 +840,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 24,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "amethyst_vale": {
         "name": "Amethyst Vale",
@@ -859,7 +859,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 94,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "summer_solstice": {
         "name": "Summer Solstice",
@@ -878,7 +878,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 98,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "golden_autumn": {
         "name": "Golden Autumn",
@@ -897,7 +897,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 79,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "spring_reflection": {
         "name": "Spring Reflection",
@@ -916,7 +916,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 94,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "winter_peak": {
         "name": "Winter Peak",
@@ -935,7 +935,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 88,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "blue_planet": {
         "name": "Blue Planet",
@@ -954,7 +954,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 54,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "misty_mountain": {
         "name": "Misty Mountain",
@@ -973,7 +973,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 79,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "emerald_island": {
         "name": "Emerald Island",
@@ -992,7 +992,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 75,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "winter_wonderland": {
         "name": "Winter Wonderland",
@@ -1011,7 +1011,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 79,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "precious_gems": {
         "name": "Precious Gems",
@@ -1030,7 +1030,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 79,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "blue_lagoon": {
         "name": "Blue Lagoon",
@@ -1049,7 +1049,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 50,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "tyrell_vision": {
         "name": "Tyrell Vision",
@@ -1068,7 +1068,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 50,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "disturbia_lights": {
         "name": "Disturbia Lights",
@@ -1087,7 +1087,7 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 62,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     "palm_beach_sunset": {
         "name": "Palm Beach Sunset",
@@ -1106,6 +1106,6 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "scene_brightness_pct": 38,
         "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
 }
