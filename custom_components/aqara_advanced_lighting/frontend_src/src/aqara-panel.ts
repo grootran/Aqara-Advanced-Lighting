@@ -463,28 +463,31 @@ export class AqaraPanel extends LitElement {
 
   /**
    * Resolve favorite preset references to actual preset objects.
+   * Tracks source device type for device-specific presets (effects, patterns, sequences).
    * Filters out references to deleted presets and cleans up stale entries.
    */
   private _getResolvedFavoritePresets(): Array<{
     ref: FavoritePresetRef;
     preset: any;
     isUser: boolean;
+    deviceType?: string;
   }> {
-    const resolved: Array<{ ref: FavoritePresetRef; preset: any; isUser: boolean }> = [];
+    const resolved: Array<{ ref: FavoritePresetRef; preset: any; isUser: boolean; deviceType?: string }> = [];
 
     for (const ref of this._favoritePresets) {
       let preset: any = null;
       let isUser = false;
+      let deviceType: string | undefined;
 
       switch (ref.type) {
         case 'effect': {
           for (const key of ['t2_bulb', 't1m', 't1_strip'] as const) {
             const found = this._presets?.dynamic_effects?.[key]?.find(p => p.id === ref.id);
-            if (found) { preset = found; break; }
+            if (found) { preset = found; deviceType = key; break; }
           }
           if (!preset) {
             preset = this._userPresets?.effect_presets?.find(p => p.id === ref.id) || null;
-            if (preset) isUser = true;
+            if (preset) { isUser = true; deviceType = preset.device_type; }
           }
           break;
         }
@@ -492,7 +495,7 @@ export class AqaraPanel extends LitElement {
           preset = this._presets?.segment_patterns?.find(p => p.id === ref.id) || null;
           if (!preset) {
             preset = this._userPresets?.segment_pattern_presets?.find(p => p.id === ref.id) || null;
-            if (preset) isUser = true;
+            if (preset) { isUser = true; deviceType = preset.device_type; }
           }
           break;
         }
@@ -508,7 +511,7 @@ export class AqaraPanel extends LitElement {
           preset = this._presets?.segment_sequences?.find(p => p.id === ref.id) || null;
           if (!preset) {
             preset = this._userPresets?.segment_sequence_presets?.find(p => p.id === ref.id) || null;
-            if (preset) isUser = true;
+            if (preset) { isUser = true; deviceType = preset.device_type; }
           }
           break;
         }
@@ -523,7 +526,7 @@ export class AqaraPanel extends LitElement {
       }
 
       if (preset) {
-        resolved.push({ ref, preset, isUser });
+        resolved.push({ ref, preset, isUser, deviceType });
       }
     }
 
@@ -4074,13 +4077,25 @@ export class AqaraPanel extends LitElement {
   private _renderFavoritesSection(filtered: FilteredPresets) {
     const resolved = this._getResolvedFavoritePresets();
 
+    // Check if a preset's device type is compatible with the selected targets.
+    // Presets with no device type (builtin patterns/sequences, universal user presets) pass.
+    const isDeviceCompatible = (dt: string | undefined): boolean => {
+      if (!dt) return true;
+      switch (dt) {
+        case 't2_bulb': return filtered.hasT2;
+        case 't1m': case 't1': return filtered.hasT1M;
+        case 't1_strip': return filtered.hasT1Strip;
+        default: return true;
+      }
+    };
+
     // Filter favorites by current device capabilities (same rules as preset sections)
-    const compatible = resolved.filter(({ ref }) => {
+    const compatible = resolved.filter(({ ref, deviceType }) => {
       switch (ref.type) {
-        case 'effect': return filtered.showDynamicEffects;
-        case 'segment_pattern': return filtered.showSegmentPatterns;
+        case 'effect': return filtered.showDynamicEffects && isDeviceCompatible(deviceType);
+        case 'segment_pattern': return filtered.showSegmentPatterns && isDeviceCompatible(deviceType);
         case 'cct_sequence': return filtered.showCCTSequences;
-        case 'segment_sequence': return filtered.showSegmentSequences;
+        case 'segment_sequence': return filtered.showSegmentSequences && isDeviceCompatible(deviceType);
         case 'dynamic_scene': return filtered.showDynamicScenes;
         default: return false;
       }
