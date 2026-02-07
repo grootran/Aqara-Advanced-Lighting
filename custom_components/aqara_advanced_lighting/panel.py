@@ -39,7 +39,6 @@ from .const import (
     DATA_STATE_MANAGER,
     DATA_USER_PREFERENCES_STORE,
     DOMAIN,
-    DYNAMIC_SCENE_PRESETS,
     MAX_COLOR_HISTORY_SIZE,
     EFFECT_PRESETS,
     MODEL_T1M_20_SEGMENT,
@@ -65,6 +64,7 @@ from .const import (
     VALID_PRESET_TYPES,
     VALID_SORT_OPTIONS,
 )
+from .presets import DYNAMIC_SCENE_PRESETS
 
 _LOGGER = logging.getLogger(__name__)
 

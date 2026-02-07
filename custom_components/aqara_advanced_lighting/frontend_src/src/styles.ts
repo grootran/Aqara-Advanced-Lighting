@@ -699,8 +699,8 @@ export const panelStyles = css`
   }
 
   .preset-icon {
-    width: 32px;
-    height: 32px;
+    width: 48px;
+    height: 48px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -715,10 +715,14 @@ export const panelStyles = css`
     border-radius: 50%;
   }
 
+  .preset-icon svg.gradient-thumb {
+    border-radius: 4px;
+  }
+
   .preset-icon ha-icon {
     width: 100%;
     height: 100%;
-    --mdc-icon-size: 32px;
+    --mdc-icon-size: 48px;
   }
 
   /* Loading state - follows HA patterns */
@@ -1465,11 +1469,11 @@ export const panelStyles = css`
   }
 
   .user-preset-card .preset-icon {
-    font-size: 28px;
+    font-size: 40px;
     margin-bottom: 8px;
     line-height: 1;
     position: relative;
-    --mdc-icon-size: 28px;
+    --mdc-icon-size: 40px;
   }
 
   .user-preset-card .preset-name {
@@ -1635,9 +1639,9 @@ export const panelStyles = css`
     }
 
     .user-preset-card .preset-icon {
-      font-size: 24px;
+      font-size: 36px;
       margin-bottom: 4px;
-      --mdc-icon-size: 24px;
+      --mdc-icon-size: 36px;
     }
 
     .user-preset-card .preset-name {

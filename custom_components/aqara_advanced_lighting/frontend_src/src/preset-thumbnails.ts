@@ -9,7 +9,7 @@
 
 import { html, TemplateResult } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
-import { xyToRgb, rgbToHex } from './color-utils';
+import { xyToRgb, rgbToHex, rgbToHs } from './color-utils';
 import type {
   DynamicSceneColor,
   DynamicScenePreset,
@@ -237,6 +237,14 @@ function wrapSvg(innerContent: string): string {
   return `<svg viewBox="0 0 ${SIZE} ${SIZE}" xmlns="http://www.w3.org/2000/svg">${innerContent}</svg>`;
 }
 
+/**
+ * Wrap SVG content with a class for rectangular gradient thumbnails.
+ * The class allows CSS to override the default circular border-radius.
+ */
+function wrapGradientSvg(innerContent: string): string {
+  return `<svg class="gradient-thumb" viewBox="0 0 ${SIZE} ${SIZE}" xmlns="http://www.w3.org/2000/svg">${innerContent}</svg>`;
+}
+
 // ---------------------------------------------------------------------------
 // Public render functions
 // ---------------------------------------------------------------------------
@@ -342,11 +350,11 @@ export function renderCCTSequenceThumbnail(
     .filter((t): t is number => t !== undefined && t !== null);
   if (temps.length === 0) return null;
 
-  // Single temperature -- solid fill
+  // Single temperature -- solid fill rectangle
   if (temps.length === 1) {
     const hex = kelvinToHex(temps[0]!);
-    return html`${unsafeSvg(wrapSvg(
-      `<rect fill="${hex}" x="20" y="20" width="360" height="360" rx="4" />`,
+    return html`${unsafeSvg(wrapGradientSvg(
+      `<rect fill="${hex}" x="10" y="10" width="380" height="380" rx="8" />`,
     ))}`;
   }
 
@@ -358,42 +366,76 @@ export function renderCCTSequenceThumbnail(
     })
     .join('');
 
+  // Horizontal gradient from left to right
   const inner =
     `<defs><linearGradient id="${gradientId}" x1="0" y1="0" x2="1" y2="0">${stops}</linearGradient></defs>` +
-    `<rect fill="url(#${gradientId})" x="20" y="20" width="360" height="360" rx="4" />`;
+    `<rect fill="url(#${gradientId})" x="10" y="10" width="380" height="380" rx="8" />`;
 
-  return html`${unsafeSvg(wrapSvg(inner))}`;
+  return html`${unsafeSvg(wrapGradientSvg(inner))}`;
 }
 
 /**
- * Dynamic scene preset -- pie chart with brightness-adjusted colors.
+ * Get the hue angle from a DynamicSceneColor for sorting.
+ * Achromatic colors (zero saturation) are placed at the end of the sort
+ * order to keep chromatic colors grouped smoothly.
+ */
+function dynamicSceneColorHue(c: DynamicSceneColor): number {
+  const rgb = xyToRgb(c.x, c.y, 255);
+  const hs = rgbToHs(rgb.r, rgb.g, rgb.b);
+  return hs.s === 0 ? 360 : hs.h;
+}
+
+/**
+ * Dynamic scene preset -- diagonal gradient with hue-sorted colors.
  *
- * Shows 1-8 XY colors as equal pie slices, applying each color's brightness_pct
- * to accurately represent the visual appearance of the scene.
+ * Renders colors as a smooth gradient flowing from top-left to bottom-right
+ * in a rounded rectangle. Colors are sorted by hue angle for visual
+ * smoothness, with per-color brightness applied to the stops.
  *
  * Accepts a DynamicSceneColor array, UserDynamicScenePreset, or DynamicScenePreset.
  */
 export function renderDynamicSceneThumbnail(
   colorsOrPreset: DynamicSceneColor[] | UserDynamicScenePreset | DynamicScenePreset,
 ): TemplateResult | null {
-  // Extract colors array from preset if needed
-  const colors = Array.isArray(colorsOrPreset)
-    ? colorsOrPreset.slice(0, 8)
-    : (colorsOrPreset.colors ?? []).slice(0, 8);
+  let colors: DynamicSceneColor[];
+  let gradientId: string;
+
+  if (Array.isArray(colorsOrPreset)) {
+    colors = colorsOrPreset.slice(0, 8);
+    gradientId = `ds-${colors.map(c => `${c.x}${c.y}`).join('')}`;
+  } else {
+    colors = (colorsOrPreset.colors ?? []).slice(0, 8);
+    gradientId = `ds-${colorsOrPreset.id}`;
+  }
 
   if (colors.length === 0) return null;
 
+  // Single color -- solid fill rectangle
   if (colors.length === 1) {
     const hex = dynamicSceneColorToHex(colors[0]!);
-    return html`${unsafeSvg(wrapSvg(`<circle cx="${CX}" cy="${CY}" r="${R}" fill="${hex}" />`))}`;
+    return html`${unsafeSvg(wrapGradientSvg(
+      `<rect fill="${hex}" x="10" y="10" width="380" height="380" rx="8" />`,
+    ))}`;
   }
 
-  const degPer = 360 / colors.length;
-  const paths = colors
-    .map((c, i) => pieSlice(i * degPer, (i + 1) * degPer, dynamicSceneColorToHex(c)))
+  // Sort colors by hue for smooth visual transitions
+  const sorted = [...colors].sort(
+    (a, b) => dynamicSceneColorHue(a) - dynamicSceneColorHue(b),
+  );
+
+  const stops = sorted
+    .map((c, i) => {
+      const offset = Math.round((i / (sorted.length - 1)) * 100);
+      return `<stop offset="${offset}%" stop-color="${dynamicSceneColorToHex(c)}" />`;
+    })
     .join('');
 
-  return html`${unsafeSvg(wrapSvg(paths))}`;
+  // Diagonal gradient from top-left to bottom-right
+  const inner =
+    `<defs><linearGradient id="${gradientId}" x1="0" y1="0" x2="1" y2="1">${stops}</linearGradient></defs>` +
+    `<rect fill="url(#${gradientId})" x="10" y="10" width="380" height="380" rx="8" />`;
+
+  return html`${unsafeSvg(wrapGradientSvg(inner))}`;
 }
 
 // ---------------------------------------------------------------------------

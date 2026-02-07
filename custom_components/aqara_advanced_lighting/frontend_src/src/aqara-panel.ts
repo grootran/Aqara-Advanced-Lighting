@@ -4220,11 +4220,8 @@ export class AqaraPanel extends LitElement {
       ?? html`<ha-icon icon="mdi:lamps"></ha-icon>`;
   }
 
-  /** Render a builtin dynamic scene preset icon: generated thumbnail or MDI icon. */
+  /** Render a builtin dynamic scene preset icon: always use gradient thumbnail. */
   private _renderBuiltinDynamicSceneIcon(preset: DynamicScenePreset) {
-    if (preset.icon) {
-      return this._renderPresetIcon(preset.icon, 'mdi:lamps');
-    }
     return renderDynamicSceneThumbnail(preset)
       ?? html`<ha-icon icon="mdi:lamps"></ha-icon>`;
   }

@@ -10,11 +10,11 @@ from .const import (
     CCT_SEQUENCE_PRESETS,
     DATA_PRESET_STORE,
     DOMAIN,
-    DYNAMIC_SCENE_PRESETS,
     EFFECT_PRESETS,
     SEGMENT_PATTERN_PRESETS,
     SEGMENT_SEQUENCE_PRESETS,
 )
+from .presets import DYNAMIC_SCENE_PRESETS
 
 
 def add_user_presets(
