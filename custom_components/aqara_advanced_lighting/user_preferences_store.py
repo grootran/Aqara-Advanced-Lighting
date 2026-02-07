@@ -24,6 +24,7 @@ class UserPreferences(TypedDict):
     collapsed_sections: dict[str, bool]
     include_all_lights: bool
     favorite_presets: list[dict[str, str]]
+    static_scene_mode: bool
 
 
 DEFAULT_PREFERENCES: UserPreferences = {
@@ -32,6 +33,7 @@ DEFAULT_PREFERENCES: UserPreferences = {
     "collapsed_sections": {},
     "include_all_lights": False,
     "favorite_presets": [],
+    "static_scene_mode": False,
 }
 
 
@@ -78,6 +80,7 @@ class UserPreferencesStore:
                 "collapsed_sections": prefs.get("collapsed_sections", {}),
                 "include_all_lights": prefs.get("include_all_lights", False),
                 "favorite_presets": prefs.get("favorite_presets", []),
+                "static_scene_mode": prefs.get("static_scene_mode", False),
             }
         return {**DEFAULT_PREFERENCES}
 
@@ -139,6 +142,7 @@ class UserPreferencesStore:
         collapsed_sections: dict[str, bool] | None = None,
         include_all_lights: bool | None = None,
         favorite_presets: list[dict[str, str]] | None = None,
+        static_scene_mode: bool | None = None,
     ) -> UserPreferences:
         """Partially update a user's preferences.
 
@@ -151,6 +155,7 @@ class UserPreferencesStore:
             collapsed_sections: New collapsed section state, or None to leave unchanged.
             include_all_lights: Whether to show all lights in selector, or None to leave unchanged.
             favorite_presets: Favorite preset references, or None to leave unchanged.
+            static_scene_mode: Whether to apply scenes statically, or None to leave unchanged.
 
         Returns:
             The full updated preferences.
@@ -174,6 +179,9 @@ class UserPreferencesStore:
 
         if favorite_presets is not None:
             self._data[user_id]["favorite_presets"] = favorite_presets
+
+        if static_scene_mode is not None:
+            self._data[user_id]["static_scene_mode"] = static_scene_mode
 
         await self.async_save()
 

@@ -187,6 +187,93 @@ class DynamicSceneManager:
 
         return scene_id
 
+    async def apply_static_scene(
+        self,
+        entity_ids: list[str],
+        scene: DynamicScene,
+        preset_name: str | None = None,
+    ) -> None:
+        """Apply scene colors to lights once without starting a transition loop.
+
+        Uses the same distribution logic as dynamic scenes but applies colors
+        immediately and returns. No background task, no events, no state tracking.
+
+        Args:
+            entity_ids: List of light entity IDs to control.
+            scene: The dynamic scene configuration (colors + distribution).
+            preset_name: Optional preset name for logging.
+        """
+        if not entity_ids:
+            _LOGGER.warning("No entity IDs provided for static scene")
+            return
+
+        # Determine light order (shuffle if random_order enabled)
+        light_order = list(entity_ids)
+        if scene.random_order:
+            random.shuffle(light_order)
+
+        # Initialize color indices based on distribution mode
+        light_color_indices = self._initialize_color_indices(
+            light_order, len(scene.colors), scene.distribution_mode
+        )
+
+        # Pre-compute hue-sorted indices for shuffle_rotate mode
+        hue_sorted_indices: list[int] = []
+        if scene.distribution_mode == "shuffle_rotate":
+            hue_sorted_indices = self._get_hue_sorted_indices(scene.colors)
+
+        # Build context for service calls (identifies as integration-originated)
+        context = (
+            self._entity_controller.create_context()
+            if self._entity_controller
+            else None
+        )
+
+        # Apply colors to all lights with instant transition
+        for entity_id in light_order:
+            position = light_color_indices[entity_id]
+            if scene.distribution_mode == "shuffle_rotate" and hue_sorted_indices:
+                color_index = hue_sorted_indices[position]
+            else:
+                color_index = position
+            color = scene.colors[color_index]
+
+            # Calculate effective brightness (per-color * scene brightness)
+            effective_brightness_pct = (
+                color.brightness_pct * scene.scene_brightness_pct
+            ) // 100
+            effective_brightness = brightness_percent_to_device(
+                effective_brightness_pct
+            )
+
+            await self.hass.services.async_call(
+                "light",
+                "turn_on",
+                {
+                    ATTR_ENTITY_ID: entity_id,
+                    "xy_color": [color.x, color.y],
+                    "brightness": effective_brightness,
+                    "transition": 0,
+                },
+                blocking=False,
+                context=context,
+            )
+
+            _LOGGER.debug(
+                "Static scene: applied color %d to %s: XY(%.4f,%.4f) brightness=%d",
+                color_index,
+                entity_id,
+                color.x,
+                color.y,
+                effective_brightness,
+            )
+
+        _LOGGER.info(
+            "Applied static scene to %d lights (preset=%s)",
+            len(entity_ids),
+            preset_name,
+        )
+
     async def stop_scene(
         self,
         entity_ids: list[str] | None = None,

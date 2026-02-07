@@ -314,6 +314,7 @@ export interface UserPreferences {
   collapsed_sections: Record<string, boolean>;
   include_all_lights?: boolean;
   favorite_presets: FavoritePresetRef[];
+  static_scene_mode?: boolean;
 }
 
 // Draft state types for editor tab caching (in-memory only, not persisted)

@@ -515,6 +515,7 @@ SERVICE_START_DYNAMIC_SCENE_SCHEMA = vol.Schema(
             ["maintain", "restore"]
         ),
         vol.Optional("scene_name"): cv.string,
+        vol.Optional("static", default=False): cv.boolean,
     }
 )
 
@@ -3137,7 +3138,13 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             for entity_id in valid_entity_ids:
                 await entity_controller.stop_all_for_entity(entity_id)
 
-        await manager.start_scene(valid_entity_ids, scene, display_name)
+        static = call.data.get("static", False)
+        if static:
+            await manager.apply_static_scene(
+                valid_entity_ids, scene, display_name
+            )
+        else:
+            await manager.start_scene(valid_entity_ids, scene, display_name)
 
     async def handle_stop_dynamic_scene(call: ServiceCall) -> None:
         """Handle stop_dynamic_scene service call."""

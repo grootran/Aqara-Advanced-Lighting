@@ -2460,6 +2460,13 @@ start_dynamic_scene:
       advanced: true
       selector:
         text:
+    static:
+      name: Static mode
+      description: Apply the scene colors once without starting a transition loop. Colors are distributed according to the distribution mode and applied instantly.
+      required: false
+      default: false
+      selector:
+        boolean:
 
 stop_dynamic_scene:
   name: Stop dynamic scene

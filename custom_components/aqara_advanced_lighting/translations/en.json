@@ -697,6 +697,10 @@
         "end_behavior": {
           "name": "End behavior",
           "description": "What to do when the scene completes."
+        },
+        "static": {
+          "name": "Static mode",
+          "description": "Apply the scene colors once without starting a transition loop."
         }
       }
     },
