@@ -215,6 +215,7 @@ DATA_FAVORITES_STORE: Final = "favorites_store"
 DATA_PRESET_STORE: Final = "preset_store"
 DATA_USER_PREFERENCES_STORE: Final = "user_preferences_store"
 DATA_SEGMENT_ZONE_STORE: Final = "segment_zone_store"
+DATA_SERVICE_SCHEMA_MANAGER: Final = "service_schema_manager"
 
 # Valid sort options for user preferences (validated in backend)
 VALID_SORT_OPTIONS: Final = {"name-asc", "name-desc", "date-new", "date-old"}

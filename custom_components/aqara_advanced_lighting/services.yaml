@@ -14,50 +14,7 @@ set_dynamic_effect:
       required: false
       selector:
         select:
-          options:
-            # T2 Bulb presets
-            - label: "T2: Candlelight"
-              value: "t2_candlelight"
-            - label: "T2: Breath"
-              value: "t2_breath"
-            - label: "T2: Colorful"
-              value: "t2_colorful"
-            - label: "T2: Security"
-              value: "t2_security"
-            # T1M presets
-            - label: "T1M: Dinner"
-              value: "t1m_dinner"
-            - label: "T1M: Sunset"
-              value: "t1m_sunset"
-            - label: "T1M: Autumn"
-              value: "t1m_autumn"
-            - label: "T1M: Galaxy"
-              value: "t1m_galaxy"
-            - label: "T1M: Daydream"
-              value: "t1m_daydream"
-            - label: "T1M: Holiday"
-              value: "t1m_holiday"
-            - label: "T1M: Party"
-              value: "t1m_party"
-            - label: "T1M: Meteor"
-              value: "t1m_meteor"
-            - label: "T1M: Alert"
-              value: "t1m_alert"
-            # T1 Strip presets
-            - label: "T1 Strip: Rainbow"
-              value: "t1_strip_rainbow"
-            - label: "T1 Strip: Heartbeat"
-              value: "t1_strip_heartbeat"
-            - label: "T1 Strip: Gala"
-              value: "t1_strip_gala"
-            - label: "T1 Strip: Sea of Flowers"
-              value: "t1_strip_sea_of_flowers"
-            - label: "T1 Strip: Rhythmic"
-              value: "t1_strip_rhythmic"
-            - label: "T1 Strip: Exciting"
-              value: "t1_strip_exciting"
-            - label: "T1 Strip: Colorful"
-              value: "t1_strip_colorful"
+          options: []
           mode: dropdown
           custom_value: true
     effect:
@@ -241,31 +198,7 @@ set_segment_pattern:
       required: false
       selector:
         select:
-          options:
-            - label: "Preset 1"
-              value: "segment_1"
-            - label: "Preset 2"
-              value: "segment_2"
-            - label: "Preset 3"
-              value: "segment_3"
-            - label: "Preset 4"
-              value: "segment_4"
-            - label: "Preset 5"
-              value: "segment_5"
-            - label: "Preset 6"
-              value: "segment_6"
-            - label: "Preset 7"
-              value: "segment_7"
-            - label: "Preset 8"
-              value: "segment_8"
-            - label: "Preset 9"
-              value: "segment_9"
-            - label: "Preset 10"
-              value: "segment_10"
-            - label: "Preset 11"
-              value: "segment_11"
-            - label: "Preset 12"
-              value: "segment_12"
+          options: []
           mode: dropdown
           custom_value: true
     segment_colors:
@@ -540,15 +473,7 @@ start_cct_sequence:
       required: false
       selector:
         select:
-          options:
-            - label: "Goodnight"
-              value: "goodnight"
-            - label: "Wakeup"
-              value: "wakeup"
-            - label: "Mindful Breathing"
-              value: "mindful_breathing"
-            - label: "Circadian Rhythm"
-              value: "circadian"
+          options: []
           mode: dropdown
           custom_value: true
     turn_on:
@@ -1117,19 +1042,7 @@ start_segment_sequence:
       required: false
       selector:
         select:
-          options:
-            - label: "Loading Bar"
-              value: "loading_bar"
-            - label: "Wave"
-              value: "wave"
-            - label: "Sparkle"
-              value: "sparkle"
-            - label: "Theater Chase"
-              value: "theater_chase"
-            - label: "Rainbow Fill"
-              value: "rainbow_fill"
-            - label: "Comet"
-              value: "comet"
+          options: []
           mode: dropdown
           custom_value: true
     turn_on:
@@ -2279,23 +2192,7 @@ start_dynamic_scene:
       required: false
       selector:
         select:
-          options:
-            - label: "Northern Lights"
-              value: "northern_lights"
-            - label: "Sunset Glow"
-              value: "sunset_glow"
-            - label: "Ocean Waves"
-              value: "ocean_waves"
-            - label: "Forest Canopy"
-              value: "forest_canopy"
-            - label: "Fireplace"
-              value: "fireplace"
-            - label: "Tropical Paradise"
-              value: "tropical_paradise"
-            - label: "Relax"
-              value: "relax"
-            - label: "Deep Space"
-              value: "deep_space"
+          options: []
           mode: dropdown
           custom_value: true
     color_1:

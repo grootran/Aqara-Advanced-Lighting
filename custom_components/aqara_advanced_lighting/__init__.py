@@ -21,6 +21,7 @@ from .const import (
     DATA_PRESET_STORE,
     DATA_SEGMENT_SEQUENCE_MANAGER,
     DATA_SEGMENT_ZONE_STORE,
+    DATA_SERVICE_SCHEMA_MANAGER,
     DATA_USER_PREFERENCES_STORE,
     DEFAULT_Z2M_BASE_TOPIC,
     DOMAIN,
@@ -35,6 +36,7 @@ from .segment_sequence_manager import SegmentSequenceManager
 from .models import AqaraLightingConfigEntry, AqaraLightingRuntimeData
 from .mqtt_client import MQTTClient
 from .panel import async_register_panel
+from .service_schema_manager import ServiceSchemaManager
 from .services import async_setup_services, async_unload_services
 from .state_manager import StateManager
 
@@ -122,6 +124,14 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
     # Register services
     await async_setup_services(hass)
+
+    # Set up dynamic service schema updates for preset dropdowns
+    # Must run after services are registered so descriptions are cached
+    if DATA_SERVICE_SCHEMA_MANAGER not in hass.data[DOMAIN]:
+        schema_manager = ServiceSchemaManager(hass)
+        await schema_manager.async_setup()
+        hass.data[DOMAIN][DATA_SERVICE_SCHEMA_MANAGER] = schema_manager
+        _LOGGER.debug("Service schema manager initialized")
 
     # Register sidebar panel
     await async_register_panel(hass)
