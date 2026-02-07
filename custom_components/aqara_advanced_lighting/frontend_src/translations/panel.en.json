@@ -23,12 +23,12 @@
     "incompatible_light_message": "One or more selected lights are not supported Aqara models. Please select only T1M, T1 Strip, or T2 bulb lights."
   },
   "target": {
-    "section_title": "Target",
+    "section_title": "Targets",
     "select_lights": "Select lights to control",
     "lights_selected": "{count} light selected",
     "lights_selected_plural": "{count} lights selected",
     "lights_label": "Lights",
-    "favorites_label": "Favorites",
+    "favorites_label": "Favorite lights",
     "favorite_name_label": "Favorite Name",
     "light_control_label": "Light control",
     "quick_controls_label": "Quick controls",
@@ -53,7 +53,7 @@
     "group_label": "Group ({count} lights)",
     "lights_count": "{count} lights",
     "favorite_lights_count": "{count} lights",
-    "include_all_lights_label": "Include all lights",
+    "include_all_lights_label": "Include non-Aqara lights",
     "include_all_lights_hint": "Show all light entities, not just Aqara devices. CCT sequences and dynamic scenes work with any light."
   },
   "devices": {
@@ -246,9 +246,9 @@
     "color_picker_title": "Select color",
     "apply_button": "Apply",
     "color_temperature_label": "Color temperature ({value}K)",
-    "transition_time_label": "Transition time (seconds)",
-    "hold_time_label": "Hold time (seconds)",
-    "duration_label": "Duration (seconds)",
+    "transition_time_label": "Transition time",
+    "hold_time_label": "Hold time",
+    "duration_label": "Duration",
     "activation_pattern_label": "Activation pattern",
     "speed_label": "Speed",
     "effect_label": "Effect",

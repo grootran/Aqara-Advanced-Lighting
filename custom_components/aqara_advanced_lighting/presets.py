@@ -1,7 +1,6 @@
 """Dynamic scene presets for the Aqara Advanced Lighting integration.
 
-This module contains all bundled dynamic scene presets, including original designs
-and presets inspired by the Philips Hue scene gallery.
+This module contains all bundled dynamic scene presets.
 """
 
 from typing import Any, Final
@@ -194,25 +193,6 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "offset_delay": 30.0,
         "random_order": False,
         "scene_brightness_pct": 58,
-        "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
-    },
-    "golden_reflection": {
-        "name": "Golden Reflection",
-        "icon": "mdi:water-outline",
-        "colors": [
-            {"x": 0.5063, "y": 0.4474, "brightness_pct": 100},
-            {"x": 0.5584, "y": 0.4083, "brightness_pct": 87},
-            {"x": 0.5695, "y": 0.3999, "brightness_pct": 90},
-            {"x": 0.482, "y": 0.4489, "brightness_pct": 92},
-            {"x": 0.496, "y": 0.4424, "brightness_pct": 95},
-        ],
-        "transition_time": 300.0,
-        "hold_time": 360.0,
-        "distribution_mode": DISTRIBUTION_SHUFFLE_ROTATE,
-        "offset_delay": 40.0,
-        "random_order": False,
-        "scene_brightness_pct": 64,
         "loop_mode": LOOP_MODE_CONTINUOUS,
         "end_behavior": END_BEHAVIOR_MAINTAIN,
     },
@@ -919,9 +899,8 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "loop_mode": LOOP_MODE_CONTINUOUS,
         "end_behavior": END_BEHAVIOR_MAINTAIN,
     },
-    # Phase 1 & 2: Gap-filling presets (from Philips Hue scene gallery)
-    "spring_lake_reflection": {
-        "name": "Spring Lake Reflection",
+    "spring_reflection": {
+        "name": "Spring Reflection",
         "icon": "mdi:flower-tulip",
         "colors": [
             {"x": 0.3348, "y": 0.3611, "brightness_pct": 100},
@@ -958,8 +937,8 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "loop_mode": LOOP_MODE_CONTINUOUS,
         "end_behavior": END_BEHAVIOR_MAINTAIN,
     },
-    "blue_planet_dreams": {
-        "name": "Blue Planet Dreams",
+    "blue_planet": {
+        "name": "Blue Planet",
         "icon": "mdi:earth",
         "colors": [
             {"x": 0.1672, "y": 0.593, "brightness_pct": 100},
@@ -1053,27 +1032,8 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "loop_mode": LOOP_MODE_CONTINUOUS,
         "end_behavior": END_BEHAVIOR_MAINTAIN,
     },
-    "arctic_aurora_glow": {
-        "name": "Arctic Aurora Glow",
-        "icon": "mdi:snowflake-thermometer",
-        "colors": [
-            {"x": 0.1868, "y": 0.3328, "brightness_pct": 100},
-            {"x": 0.1581, "y": 0.1508, "brightness_pct": 87},
-            {"x": 0.1541, "y": 0.0844, "brightness_pct": 90},
-            {"x": 0.2072, "y": 0.4525, "brightness_pct": 92},
-            {"x": 0.2359, "y": 0.3855, "brightness_pct": 95},
-        ],
-        "transition_time": 180.0,
-        "hold_time": 240.0,
-        "distribution_mode": DISTRIBUTION_SHUFFLE_ROTATE,
-        "offset_delay": 25.0,
-        "random_order": False,
-        "scene_brightness_pct": 26,
-        "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
-    },
-    "blue_lagoon_paradise": {
-        "name": "Blue Lagoon Paradise",
+    "blue_lagoon": {
+        "name": "Blue Lagoon",
         "icon": "mdi:waves",
         "colors": [
             {"x": 0.1623, "y": 0.3254, "brightness_pct": 100},

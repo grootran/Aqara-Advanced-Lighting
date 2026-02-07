@@ -4516,6 +4516,7 @@ export class AqaraPanel extends LitElement {
     const deviceTypes = this._getSelectedDeviceTypes();
     const hasT2Device = deviceTypes.includes('t2_bulb') || deviceTypes.includes('t2_cct');
     const hasT1Strip = deviceTypes.includes('t1_strip');
+    const hasSegmentDevice = deviceTypes.includes('t1m') || deviceTypes.includes('t1_strip');
 
     // Find T2 config entities - first one for display, all for applying
     const transitionCurveEntity = this._findTransitionCurveEntity();
@@ -4924,7 +4925,7 @@ export class AqaraPanel extends LitElement {
           `
         : ''}
 
-      ${this._renderSegmentZonesSection()}
+      ${hasSegmentDevice ? this._renderSegmentZonesSection() : ''}
     `;
   }
 

@@ -606,13 +606,13 @@ start_cct_sequence:
               mode: box
         step_1_hold:
           name: "Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          description: Time to hold at this step after transition completes, before next step starts (0-43200).
           required: true
           default: 10.0
           selector:
             number:
               min: 0
-              max: 3600
+              max: 43200
               step: 0.1
               unit_of_measurement: "s"
               mode: box
@@ -654,12 +654,12 @@ start_cct_sequence:
               mode: box
         step_2_hold:
           name: "Step 2: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          description: Time to hold at this step after transition completes, before next step starts (0-43200).
           required: false
           selector:
             number:
               min: 0
-              max: 3600
+              max: 43200
               step: 0.1
               unit_of_measurement: "s"
               mode: box
@@ -697,12 +697,12 @@ start_cct_sequence:
               mode: box
         step_3_hold:
           name: "Step 3: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          description: Time to hold at this step after transition completes, before next step starts (0-43200).
           required: false
           selector:
             number:
               min: 0
-              max: 3600
+              max: 43200
               step: 0.1
               unit_of_measurement: "s"
               mode: box
@@ -740,12 +740,12 @@ start_cct_sequence:
               mode: box
         step_4_hold:
           name: "Step 4: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          description: Time to hold at this step after transition completes, before next step starts (0-43200).
           required: false
           selector:
             number:
               min: 0
-              max: 3600
+              max: 43200
               step: 0.1
               unit_of_measurement: "s"
               mode: box
@@ -783,12 +783,12 @@ start_cct_sequence:
               mode: box
         step_5_hold:
           name: "Step 5: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          description: Time to hold at this step after transition completes, before next step starts (0-43200).
           required: false
           selector:
             number:
               min: 0
-              max: 3600
+              max: 43200
               step: 0.1
               unit_of_measurement: "s"
               mode: box
@@ -830,12 +830,12 @@ start_cct_sequence:
               mode: box
         step_6_hold:
           name: "Step 6: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          description: Time to hold at this step after transition completes, before next step starts (0-43200).
           required: false
           selector:
             number:
               min: 0
-              max: 3600
+              max: 43200
               step: 0.1
               unit_of_measurement: "s"
               mode: box
@@ -873,12 +873,12 @@ start_cct_sequence:
               mode: box
         step_7_hold:
           name: "Step 7: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          description: Time to hold at this step after transition completes, before next step starts (0-43200).
           required: false
           selector:
             number:
               min: 0
-              max: 3600
+              max: 43200
               step: 0.1
               unit_of_measurement: "s"
               mode: box
@@ -916,12 +916,12 @@ start_cct_sequence:
               mode: box
         step_8_hold:
           name: "Step 8: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          description: Time to hold at this step after transition completes, before next step starts (0-43200).
           required: false
           selector:
             number:
               min: 0
-              max: 3600
+              max: 43200
               step: 0.1
               unit_of_measurement: "s"
               mode: box
@@ -959,12 +959,12 @@ start_cct_sequence:
               mode: box
         step_9_hold:
           name: "Step 9: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          description: Time to hold at this step after transition completes, before next step starts (0-43200).
           required: false
           selector:
             number:
               min: 0
-              max: 3600
+              max: 43200
               step: 0.1
               unit_of_measurement: "s"
               mode: box
@@ -1002,12 +1002,12 @@ start_cct_sequence:
               mode: box
         step_10_hold:
           name: "Step 10: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          description: Time to hold at this step after transition completes, before next step starts (0-43200).
           required: false
           selector:
             number:
               min: 0
-              max: 3600
+              max: 43200
               step: 0.1
               unit_of_measurement: "s"
               mode: box

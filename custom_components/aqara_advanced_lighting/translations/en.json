@@ -476,7 +476,7 @@
         },
         "loop_count": {
           "name": "Loop count",
-          "description": "Number of times to loop the sequence (required when loop mode is count)."
+          "description": "Number of times to loop the sequence (required when loop mode is 'Loop X times')."
         },
         "end_behavior": {
           "name": "End behavior",
@@ -556,7 +556,7 @@
         },
         "loop_count": {
           "name": "Loop count",
-          "description": "Number of times to loop the sequence (required when loop mode is count)."
+          "description": "Number of times to loop the sequence (required when loop mode is 'Loop X times')."
         },
         "end_behavior": {
           "name": "End behavior",
@@ -664,11 +664,11 @@
         },
         "transition_time": {
           "name": "Transition time",
-          "description": "Time in seconds for color transitions."
+          "description": "Time in seconds for color transitions (30-3600 seconds)."
         },
         "hold_time": {
           "name": "Hold time",
-          "description": "Time in seconds to hold each color before transitioning."
+          "description": "Time in seconds to hold each color before transitioning (0-3600 seconds)."
         },
         "distribution_mode": {
           "name": "Color assignment",
@@ -676,7 +676,7 @@
         },
         "offset_delay": {
           "name": "Transition stagger",
-          "description": "Delay in seconds between each light's color transition. Creates a staggered wave effect."
+          "description": "Delay in seconds between each light's color transition (0-10 seconds). Creates a staggered wave effect."
         },
         "random_order": {
           "name": "Randomize light order",
@@ -692,7 +692,7 @@
         },
         "loop_count": {
           "name": "Loop count",
-          "description": "Number of times to loop the scene."
+          "description": "Number of times to loop the scene (required when loop mode is 'Loop X times')."
         },
         "end_behavior": {
           "name": "End behavior",
