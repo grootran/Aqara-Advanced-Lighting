@@ -1011,7 +1011,7 @@ CCT_SEQUENCE_PRESETS: Final = {
                 "hold": 7200.0,  # Hold for 2 hours
             },
             {
-                "color_temp": 2200,  # Night warm dim
+                "color_temp": 2700,  # Night warm dim
                 "brightness": 50,
                 "transition": 5.0,
                 "hold": 3600.0,  # Hold for 1 hour
