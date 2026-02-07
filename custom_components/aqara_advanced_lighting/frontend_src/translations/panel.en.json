@@ -10,6 +10,9 @@
     "presets": "My Presets",
     "config": "Device Config"
   },
+  "status": {
+    "setting_up": "Setting up..."
+  },
   "errors": {
     "title": "Error",
     "loading_presets": "Failed to load presets. Please refresh the page.",
@@ -29,8 +32,10 @@
     "favorite_name_label": "Favorite Name",
     "light_control_label": "Light control",
     "quick_controls_label": "Quick controls",
-    "custom_brightness_label": "Brightness override",
-    "controls_card_title": "Controls",
+    "custom_brightness_label": "Brightness",
+    "static_scene_mode_label": "Static scene mode",
+    "controls_card_title": "Active presets",
+    "activation_overrides_title": "Activation overrides",
     "effect_button": "Effect",
     "cct_button": "CCT",
     "segment_button": "Segment",
@@ -194,7 +199,8 @@
     "preset_edit": "Edit preset",
     "preset_duplicate": "Duplicate preset",
     "preset_delete": "Delete preset",
-    "version_mismatch": "Version mismatch detected: Backend (v{backend}) and frontend (v{frontend}) versions differ. Please refresh the page or restart Home Assistant to resolve this issue."
+    "version_mismatch": "Version mismatch detected: Backend (v{backend}) and frontend (v{frontend}) versions differ. Please refresh the page or restart Home Assistant to resolve this issue.",
+    "setup_in_progress": "The integration is still initializing. Device discovery is in progress and some features may not work correctly until setup completes."
   },
   "options": {
     "loop_mode_once": "Run once",

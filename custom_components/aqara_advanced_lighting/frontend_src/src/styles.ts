@@ -409,8 +409,8 @@ export const panelStyles = css`
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 40px;
+    width: 48px;
+    height: 48px;
     background: rgba(var(--rgb-primary-color), 0.2);
     border-radius: var(--ha-card-border-radius, 10px);
     flex-shrink: 0;
@@ -420,7 +420,7 @@ export const panelStyles = css`
   }
 
   .favorite-button-icon ha-icon {
-    --mdc-icon-size: 24px;
+    --mdc-icon-size: 32px;
     color: var(--primary-color);
   }
 
@@ -1683,6 +1683,17 @@ export const panelStyles = css`
 
   .version-display.version-mismatch {
     color: var(--warning-color);
+  }
+
+  .setup-badge {
+    margin-right: 4px;
+    padding: 1px 6px;
+    background: var(--primary-color);
+    color: var(--text-primary-color);
+    border-radius: 8px;
+    font-size: var(--ha-font-size-xs, 10px);
+    font-weight: 500;
+    white-space: nowrap;
   }
 
   /* Transition settings responsive grid - mobile first */

@@ -197,8 +197,9 @@ class MQTTClient:
         dev_reg = dr.async_get(self.hass)
         runtime_data = self.entry.runtime_data
 
-        # Clear existing mapping
+        # Clear existing mappings
         runtime_data.entity_to_z2m_map.clear()
+        runtime_data.entity_mapping_methods.clear()
 
         # Build lookup tables for alternative matching strategies
         ieee_to_device = runtime_data.devices.copy()
@@ -351,6 +352,9 @@ class MQTTClient:
             "entity_to_z2m_map contents: %s",
             dict(runtime_data.entity_to_z2m_map),
         )
+
+        # Mark entity mapping as ready so the frontend can detect setup completion
+        runtime_data.entity_mapping_ready = True
 
     def get_z2m_friendly_name(self, entity_id: str) -> str | None:
         """Get Z2M friendly name for a Home Assistant entity ID."""

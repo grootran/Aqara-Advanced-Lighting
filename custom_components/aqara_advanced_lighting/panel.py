@@ -823,6 +823,7 @@ class UserPreferencesView(HomeAssistantView):
         collapsed_sections = None
         include_all_lights = None
         favorite_presets = None
+        static_scene_mode = None
 
         if "color_history" in data:
             error = _validate_color_history(data["color_history"])
@@ -855,12 +856,20 @@ class UserPreferencesView(HomeAssistantView):
                 return web.Response(status=400, text=error)
             favorite_presets = data["favorite_presets"]
 
+        if "static_scene_mode" in data:
+            if not isinstance(data["static_scene_mode"], bool):
+                return web.Response(
+                    status=400, text="static_scene_mode must be a boolean"
+                )
+            static_scene_mode = data["static_scene_mode"]
+
         if (
             color_history is None
             and sort_preferences is None
             and collapsed_sections is None
             and include_all_lights is None
             and favorite_presets is None
+            and static_scene_mode is None
         ):
             # Nothing to update, return current preferences
             preferences = store.get_preferences(user.id)
@@ -873,6 +882,7 @@ class UserPreferencesView(HomeAssistantView):
             collapsed_sections=collapsed_sections,
             include_all_lights=include_all_lights,
             favorite_presets=favorite_presets,
+            static_scene_mode=static_scene_mode,
         )
         return web.json_response(preferences)
 
@@ -885,7 +895,7 @@ class VersionView(HomeAssistantView):
     requires_auth = False
 
     async def get(self, request: web.Request) -> web.Response:
-        """Get the integration version from manifest.json."""
+        """Get the integration version and setup status from manifest.json."""
         hass = request.app["hass"]
 
         manifest_path = Path(
@@ -905,7 +915,30 @@ class VersionView(HomeAssistantView):
         try:
             manifest = await hass.async_add_executor_job(read_manifest)
             version = manifest.get("version", "unknown")
-            return web.json_response({"version": version})
+
+            # Check setup status across all config entries
+            setup_complete = True
+            entries_data = hass.data.get(DOMAIN, {}).get("entries", {})
+            if not entries_data:
+                # No entries loaded yet
+                setup_complete = False
+            else:
+                for entry_id, instance_data in entries_data.items():
+                    mqtt_client = instance_data.get("mqtt_client")
+                    if not mqtt_client:
+                        continue
+                    try:
+                        if not mqtt_client.entry.runtime_data.entity_mapping_ready:
+                            setup_complete = False
+                            break
+                    except AttributeError:
+                        setup_complete = False
+                        break
+
+            return web.json_response({
+                "version": version,
+                "setup_complete": setup_complete,
+            })
         except (OSError, ValueError) as ex:
             _LOGGER.error("Error reading manifest: %s", ex)
             return web.Response(status=500, text="Error reading manifest")

@@ -58,6 +58,7 @@ export class AqaraPanel extends LitElement {
   @state() private _selectedEntities: string[] = [];
   @state() private _brightness = 100;
   @state() private _useCustomBrightness = false;
+  @state() private _useStaticSceneMode = false;
   @state() private _collapsed: Record<string, boolean> = {};
   @state() private _hasIncompatibleLights = false;
   @state() private _includeAllLights = false;
@@ -93,6 +94,8 @@ export class AqaraPanel extends LitElement {
   @state() private _isImporting = false;
   @state() private _favoritePresets: FavoritePresetRef[] = [];
   @state() private _runningOperations: RunningOperation[] = [];
+  @state() private _setupComplete = true;
+  private _setupPollTimer?: ReturnType<typeof setTimeout>;
   private _translations: Record<string, any> = PANEL_TRANSLATIONS;
   private _fileInputRef: HTMLInputElement | null = null;
   private _eventUnsubscribers: Array<() => void> = [];
@@ -163,6 +166,7 @@ export class AqaraPanel extends LitElement {
       clearTimeout(this._preferencesSaveTimer);
       this._preferencesSaveTimer = undefined;
     }
+    this._stopSetupPolling();
     this._tileCards.clear();
     // Unsubscribe from HA events
     for (const unsub of this._eventUnsubscribers) {
@@ -323,6 +327,9 @@ export class AqaraPanel extends LitElement {
       if (prefs.include_all_lights !== undefined) {
         this._includeAllLights = prefs.include_all_lights;
       }
+      if (prefs.static_scene_mode !== undefined) {
+        this._useStaticSceneMode = prefs.static_scene_mode;
+      }
     } catch (err) {
       console.warn('Failed to load user preferences:', err);
       // Fall back to localStorage as read-only source if server unavailable
@@ -393,6 +400,7 @@ export class AqaraPanel extends LitElement {
           collapsed_sections: this._collapsed,
           include_all_lights: this._includeAllLights,
           favorite_presets: this._favoritePresets,
+          static_scene_mode: this._useStaticSceneMode,
         } as unknown as Record<string, unknown>
       ).catch(err => {
         console.warn('Failed to save user preferences:', err);
@@ -600,8 +608,40 @@ export class AqaraPanel extends LitElement {
       }
       const data = await response.json();
       this._backendVersion = data.version;
+      this._setupComplete = data.setup_complete ?? true;
+
+      if (!this._setupComplete && !this._setupPollTimer) {
+        this._startSetupPolling();
+      }
     } catch (err) {
       console.warn('Failed to load backend version:', err);
+    }
+  }
+
+  private _startSetupPolling(): void {
+    this._setupPollTimer = setInterval(() => this._checkSetupStatus(), 2500);
+  }
+
+  private async _checkSetupStatus(): Promise<void> {
+    try {
+      const response = await fetch('/api/aqara_advanced_lighting/version');
+      if (!response.ok) return;
+      const data = await response.json();
+      this._setupComplete = data.setup_complete ?? true;
+
+      if (this._setupComplete) {
+        this._stopSetupPolling();
+        this._loadSupportedEntities();
+      }
+    } catch (err) {
+      // Keep polling on transient errors
+    }
+  }
+
+  private _stopSetupPolling(): void {
+    if (this._setupPollTimer) {
+      clearInterval(this._setupPollTimer);
+      this._setupPollTimer = undefined;
     }
   }
 
@@ -1844,6 +1884,11 @@ export class AqaraPanel extends LitElement {
     this._useCustomBrightness = (e.target as HTMLInputElement).checked;
   }
 
+  private _handleStaticSceneModeToggle(e: Event): void {
+    this._useStaticSceneMode = (e.target as HTMLInputElement).checked;
+    this._saveUserPreferences();
+  }
+
   private _handleExpansionChange(sectionId: string, e: CustomEvent): void {
     const expanded = e.detail.expanded;
     this._collapsed = {
@@ -1947,6 +1992,11 @@ export class AqaraPanel extends LitElement {
       y: color.y,
       brightness_pct: color.brightness_pct,
     }));
+
+    // Static mode: apply colors once without starting a transition loop
+    if (this._useStaticSceneMode) {
+      serviceData.static = true;
+    }
 
     await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
   }
@@ -2463,6 +2513,11 @@ export class AqaraPanel extends LitElement {
       brightness_pct: color.brightness_pct,
     }));
 
+    // Static mode: apply colors once without starting a transition loop
+    if (this._useStaticSceneMode) {
+      serviceData.static = true;
+    }
+
     await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
   }
 
@@ -2525,6 +2580,9 @@ export class AqaraPanel extends LitElement {
               class="version-display ${versionMismatch ? 'version-mismatch' : ''}"
               title="${versionMismatch ? this._localize('tooltips.version_mismatch', { backend: this._backendVersion, frontend: this._frontendVersion }) : `v${this._backendVersion}`}"
             >
+              ${!this._setupComplete ? html`
+                <span class="setup-badge" title="${this._localize('tooltips.setup_in_progress')}">${this._localize('status.setting_up')}</span>
+              ` : ''}
               ${versionMismatch ? html`
                 <ha-icon icon="mdi:alert-circle-outline"></ha-icon>
                 <span class="version-text">v${this._backendVersion} / v${this._frontendVersion}</span>
@@ -2754,6 +2812,61 @@ export class AqaraPanel extends LitElement {
         </div>
       </ha-expansion-panel>
 
+      ${hasSelection
+        ? html`
+            <ha-expansion-panel
+              outlined
+              .expanded=${!this._collapsed['activation_overrides']}
+              @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange('activation_overrides', e)}
+            >
+              <div slot="header" class="section-header">
+                <div>
+                  <div class="section-title">${this._localize('target.activation_overrides_title')}</div>
+                </div>
+              </div>
+              <div class="section-content controls-content">
+                <div class="brightness-override-section">
+                  <div class="form-section">
+                    <span class="form-label">${this._localize('target.custom_brightness_label')}</span>
+                    <ha-switch
+                      .checked=${this._useCustomBrightness}
+                      @change=${this._handleCustomBrightnessToggle}
+                    ></ha-switch>
+                  </div>
+
+                  ${this._useCustomBrightness
+                    ? html`
+                        <div class="brightness-slider">
+                          <ha-selector
+                            .hass=${this.hass}
+                            .selector=${{
+                              number: {
+                                min: 1,
+                                max: 100,
+                                mode: 'slider',
+                                unit_of_measurement: '%',
+                              },
+                            }}
+                            .value=${this._brightness}
+                            @value-changed=${this._handleBrightnessChange}
+                          ></ha-selector>
+                        </div>
+                      `
+                    : ''}
+                </div>
+
+                <div class="form-section">
+                  <span class="form-label">${this._localize('target.static_scene_mode_label')}</span>
+                  <ha-switch
+                    .checked=${this._useStaticSceneMode}
+                    @change=${this._handleStaticSceneModeToggle}
+                  ></ha-switch>
+                </div>
+              </div>
+            </ha-expansion-panel>
+          `
+        : ''}
+
       ${hasSelection || this._runningOperations.length > 0
         ? html`
             <ha-expansion-panel
@@ -2768,40 +2881,6 @@ export class AqaraPanel extends LitElement {
               </div>
               <div class="section-content controls-content">
                 ${this._renderRunningOperations()}
-
-                ${hasSelection
-                  ? html`
-                      <div class="brightness-override-section">
-                        <div class="form-section">
-                          <span class="form-label">${this._localize('target.custom_brightness_label')}</span>
-                          <ha-switch
-                            .checked=${this._useCustomBrightness}
-                            @change=${this._handleCustomBrightnessToggle}
-                          ></ha-switch>
-                        </div>
-
-                        ${this._useCustomBrightness
-                          ? html`
-                              <div class="brightness-slider">
-                                <ha-selector
-                                  .hass=${this.hass}
-                                  .selector=${{
-                                    number: {
-                                      min: 1,
-                                      max: 100,
-                                      mode: 'slider',
-                                      unit_of_measurement: '%',
-                                    },
-                                  }}
-                                  .value=${this._brightness}
-                                  @value-changed=${this._handleBrightnessChange}
-                                ></ha-selector>
-                              </div>
-                            `
-                          : ''}
-                      </div>
-                    `
-                  : ''}
               </div>
             </ha-expansion-panel>
           `

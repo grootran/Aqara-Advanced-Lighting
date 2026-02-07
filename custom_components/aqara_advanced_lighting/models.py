@@ -566,6 +566,7 @@ class AqaraLightingRuntimeData:
     entity_to_z2m_map: dict[str, str] = field(default_factory=dict)
     entity_mapping_methods: dict[str, str] = field(default_factory=dict)
     device_states: dict[str, DeviceState] = field(default_factory=dict)
+    entity_mapping_ready: bool = False
 
 
 # Type alias for typed config entry (Python 3.11+ compatible)
