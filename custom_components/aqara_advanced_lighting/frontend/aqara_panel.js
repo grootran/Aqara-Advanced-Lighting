@@ -5246,7 +5246,7 @@
             </ha-alert>
           `:""}
 
-      ${t?this._renderFavoritesSection():""}
+      ${t&&!this._hasIncompatibleLights?this._renderFavoritesSection(e):""}
 
       ${e.showDynamicScenes&&((this._presets?.dynamic_scenes?.length??0)>0||this._getFilteredUserDynamicScenePresets().length>0)&&!this._hasIncompatibleLights?this._renderDynamicScenesSection():""}
 
@@ -5527,23 +5527,23 @@
         <option value="date-new">${this._localize("presets.sort_date_new")}</option>
         <option value="date-old">${this._localize("presets.sort_date_old")}</option>
       </select>
-    `}_renderFavoritesSection(){const e=this._getResolvedFavoritePresets();if(0===e.length)return"";const t="favorite_presets",i=!this._collapsed[t],s=this._getSortPreference(t),o=this._sortResolvedFavorites(e,s);return H`
+    `}_renderFavoritesSection(e){const t=this._getResolvedFavoritePresets().filter(({ref:t})=>{switch(t.type){case"effect":return e.showDynamicEffects;case"segment_pattern":return e.showSegmentPatterns;case"cct_sequence":return e.showCCTSequences;case"segment_sequence":return e.showSegmentSequences;case"dynamic_scene":return e.showDynamicScenes;default:return!1}});if(0===t.length)return"";const i="favorite_presets",s=!this._collapsed[i],o=this._getSortPreference(i),n=this._sortResolvedFavorites(t,o);return H`
       <ha-expansion-panel
         outlined
-        .expanded=${i}
-        @expanded-changed=${e=>this._handleExpansionChange(t,e)}
+        .expanded=${s}
+        @expanded-changed=${e=>this._handleExpansionChange(i,e)}
       >
         <div slot="header" class="section-header">
           <div>
             <div class="section-title">${this._localize("sections.favorite_presets")}</div>
-            <div class="section-subtitle">${this._localize("sections.subtitle_favorites",{count:e.length.toString()})}</div>
+            <div class="section-subtitle">${this._localize("sections.subtitle_favorites",{count:t.length.toString()})}</div>
           </div>
           <div class="section-header-controls" @click=${e=>e.stopPropagation()}>
-            ${this._renderSortDropdown(t)}
+            ${this._renderSortDropdown(i)}
           </div>
         </div>
         <div class="section-content">
-          ${o.map(({ref:e,preset:t,isUser:i})=>H`
+          ${n.map(({ref:e,preset:t,isUser:i})=>H`
             <div class="preset-button ${i?"user-preset":"builtin-preset"}" @click=${()=>this._activateFavoritePreset(e,t,i)}>
               <div class="preset-card-actions">
                 ${this._renderFavoriteStar(e.type,e.id)}

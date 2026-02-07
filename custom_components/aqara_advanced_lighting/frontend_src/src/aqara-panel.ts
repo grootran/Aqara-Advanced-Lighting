@@ -2819,7 +2819,7 @@ export class AqaraPanel extends LitElement {
           `
         : ''}
 
-      ${hasSelection ? this._renderFavoritesSection() : ''}
+      ${hasSelection && !this._hasIncompatibleLights ? this._renderFavoritesSection(filtered) : ''}
 
       ${filtered.showDynamicScenes && ((this._presets?.dynamic_scenes?.length ?? 0) > 0 || this._getFilteredUserDynamicScenePresets().length > 0) && !this._hasIncompatibleLights
         ? this._renderDynamicScenesSection()
@@ -3991,15 +3991,27 @@ export class AqaraPanel extends LitElement {
     `;
   }
 
-  /** Render the Favorite Presets section in the Activate tab. Hidden when empty. */
-  private _renderFavoritesSection() {
+  /** Render the Favorite Presets section in the Activate tab. Filtered by device capabilities. */
+  private _renderFavoritesSection(filtered: FilteredPresets) {
     const resolved = this._getResolvedFavoritePresets();
-    if (resolved.length === 0) return '';
+
+    // Filter favorites by current device capabilities (same rules as preset sections)
+    const compatible = resolved.filter(({ ref }) => {
+      switch (ref.type) {
+        case 'effect': return filtered.showDynamicEffects;
+        case 'segment_pattern': return filtered.showSegmentPatterns;
+        case 'cct_sequence': return filtered.showCCTSequences;
+        case 'segment_sequence': return filtered.showSegmentSequences;
+        case 'dynamic_scene': return filtered.showDynamicScenes;
+        default: return false;
+      }
+    });
+    if (compatible.length === 0) return '';
 
     const sectionId = 'favorite_presets';
     const isExpanded = !this._collapsed[sectionId];
     const sortOption = this._getSortPreference(sectionId);
-    const sortedFavorites = this._sortResolvedFavorites(resolved, sortOption);
+    const sortedFavorites = this._sortResolvedFavorites(compatible, sortOption);
 
     return html`
       <ha-expansion-panel
@@ -4010,7 +4022,7 @@ export class AqaraPanel extends LitElement {
         <div slot="header" class="section-header">
           <div>
             <div class="section-title">${this._localize('sections.favorite_presets')}</div>
-            <div class="section-subtitle">${this._localize('sections.subtitle_favorites', { count: resolved.length.toString() })}</div>
+            <div class="section-subtitle">${this._localize('sections.subtitle_favorites', { count: compatible.length.toString() })}</div>
           </div>
           <div class="section-header-controls" @click=${(e: Event) => e.stopPropagation()}>
             ${this._renderSortDropdown(sectionId)}
