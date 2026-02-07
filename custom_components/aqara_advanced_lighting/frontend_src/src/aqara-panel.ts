@@ -1962,10 +1962,8 @@ export class AqaraPanel extends LitElement {
   private async _activateDynamicScene(preset: DynamicScenePreset): Promise<void> {
     if (!this._selectedEntities.length) return;
 
-    // Use custom brightness override if enabled, otherwise use preset value
-    const sceneBrightness = this._useCustomBrightness
-      ? this._brightness
-      : preset.scene_brightness_pct;
+    // When brightness override is enabled, replace all per-color brightness
+    const overrideBrightness = this._useCustomBrightness ? this._brightness : null;
 
     const serviceData: Record<string, unknown> = {
       entity_id: this._selectedEntities,
@@ -1974,7 +1972,6 @@ export class AqaraPanel extends LitElement {
       hold_time: preset.hold_time,
       distribution_mode: preset.distribution_mode,
       random_order: preset.random_order,
-      scene_brightness_pct: sceneBrightness,
       loop_mode: preset.loop_mode,
       end_behavior: preset.end_behavior,
     };
@@ -1989,11 +1986,11 @@ export class AqaraPanel extends LitElement {
       serviceData.loop_count = preset.loop_count;
     }
 
-    // Add colors array (service expects colors: [{x, y, brightness_pct}, ...])
+    // Add colors array - override brightness if custom brightness is enabled
     serviceData.colors = preset.colors.map((color) => ({
       x: color.x,
       y: color.y,
-      brightness_pct: color.brightness_pct,
+      brightness_pct: overrideBrightness ?? color.brightness_pct,
     }));
 
     // Static mode: apply colors once without starting a transition loop
@@ -2482,10 +2479,8 @@ export class AqaraPanel extends LitElement {
   private async _activateUserDynamicScenePreset(preset: UserDynamicScenePreset): Promise<void> {
     if (!this._selectedEntities.length) return;
 
-    // Use custom brightness override if enabled, otherwise use preset value
-    const sceneBrightness = this._useCustomBrightness
-      ? this._brightness
-      : preset.scene_brightness_pct;
+    // When brightness override is enabled, replace all per-color brightness
+    const overrideBrightness = this._useCustomBrightness ? this._brightness : null;
 
     const serviceData: Record<string, unknown> = {
       entity_id: this._selectedEntities,
@@ -2494,7 +2489,6 @@ export class AqaraPanel extends LitElement {
       hold_time: preset.hold_time,
       distribution_mode: preset.distribution_mode,
       random_order: preset.random_order,
-      scene_brightness_pct: sceneBrightness,
       loop_mode: preset.loop_mode,
       end_behavior: preset.end_behavior,
     };
@@ -2509,11 +2503,11 @@ export class AqaraPanel extends LitElement {
       serviceData.loop_count = preset.loop_count;
     }
 
-    // Add colors array (service expects colors: [{x, y, brightness_pct}, ...])
+    // Add colors array - override brightness replaces per-color values
     serviceData.colors = preset.colors.map((color) => ({
       x: color.x,
       y: color.y,
-      brightness_pct: color.brightness_pct,
+      brightness_pct: overrideBrightness ?? color.brightness_pct,
     }));
 
     // Static mode: apply colors once without starting a transition loop
@@ -3455,7 +3449,6 @@ export class AqaraPanel extends LitElement {
       hold_time: data.hold_time,
       distribution_mode: data.distribution_mode,
       random_order: data.random_order,
-      scene_brightness_pct: data.scene_brightness_pct,
       loop_mode: data.loop_mode,
       end_behavior: data.end_behavior,
     };
@@ -4041,7 +4034,6 @@ export class AqaraPanel extends LitElement {
       distribution_mode: preset.distribution_mode,
       offset_delay: preset.offset_delay,
       random_order: preset.random_order,
-      scene_brightness_pct: preset.scene_brightness_pct,
       loop_mode: preset.loop_mode,
       loop_count: preset.loop_count,
       end_behavior: preset.end_behavior,

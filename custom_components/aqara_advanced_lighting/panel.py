@@ -336,7 +336,6 @@ def _build_presets_data() -> dict[str, Any]:
             "distribution_mode": preset_data["distribution_mode"],
             "offset_delay": preset_data.get("offset_delay", 0.0),
             "random_order": preset_data.get("random_order", False),
-            "scene_brightness_pct": preset_data["scene_brightness_pct"],
             "loop_mode": preset_data["loop_mode"],
             "loop_count": preset_data.get("loop_count"),
             "end_behavior": preset_data["end_behavior"],

@@ -55,7 +55,6 @@ from .const import (
     DATA_SEGMENT_ZONE_STORE,
     DEFAULT_DYNAMIC_SCENE_HOLD_TIME,
     DEFAULT_DYNAMIC_SCENE_TRANSITION_TIME,
-    DEFAULT_SCENE_BRIGHTNESS_PCT,
     DISTRIBUTION_SHUFFLE_ROTATE,
     DOMAIN,
     PRESET_TYPE_CCT_SEQUENCE,
@@ -504,9 +503,6 @@ SERVICE_START_DYNAMIC_SCENE_SCHEMA = vol.Schema(
         ): vol.In(VALID_DISTRIBUTION_MODES),
         vol.Optional("offset_delay", default=0.0): vol.Coerce(float),
         vol.Optional("random_order", default=False): cv.boolean,
-        vol.Optional(
-            "scene_brightness_pct", default=DEFAULT_SCENE_BRIGHTNESS_PCT
-        ): vol.All(vol.Coerce(int), vol.Range(min=1, max=100)),
         vol.Optional(ATTR_LOOP_MODE, default="continuous"): vol.In(
             ["once", "count", "continuous"]
         ),
@@ -3093,7 +3089,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 distribution_mode=preset["distribution_mode"],
                 offset_delay=preset.get("offset_delay", 0.0),
                 random_order=preset.get("random_order", False),
-                scene_brightness_pct=preset["scene_brightness_pct"],
                 loop_mode=preset["loop_mode"],
                 loop_count=preset.get("loop_count"),
                 end_behavior=preset["end_behavior"],
@@ -3128,9 +3123,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 ),
                 offset_delay=call.data.get("offset_delay", 0.0),
                 random_order=call.data.get("random_order", False),
-                scene_brightness_pct=call.data.get(
-                    "scene_brightness_pct", DEFAULT_SCENE_BRIGHTNESS_PCT
-                ),
                 loop_mode=call.data.get(ATTR_LOOP_MODE, "continuous"),
                 loop_count=call.data.get(ATTR_LOOP_COUNT),
                 end_behavior=call.data.get(ATTR_END_BEHAVIOR, "maintain"),

@@ -2197,7 +2197,7 @@ start_dynamic_scene:
           custom_value: true
     color_1:
       name: Color 1
-      description: First scene color in XY format (required if not using a preset).
+      description: "First scene color (required if not using a preset). Set x, y (CIE coordinates) and brightness_pct (1-100%)."
       required: false
       example:
         x: 0.68
@@ -2207,43 +2207,47 @@ start_dynamic_scene:
         object:
     color_2:
       name: Color 2
-      description: Second scene color in XY format.
+      description: "Second scene color. Set x, y (CIE coordinates) and brightness_pct (1-100%)."
       required: false
+      example:
+        x: 0.15
+        y: 0.06
+        brightness_pct: 60
       selector:
         object:
     color_3:
       name: Color 3
-      description: Third scene color in XY format.
+      description: "Third scene color. Set x, y (CIE coordinates) and brightness_pct (1-100%)."
       required: false
       selector:
         object:
     color_4:
       name: Color 4
-      description: Fourth scene color in XY format.
+      description: "Fourth scene color. Set x, y (CIE coordinates) and brightness_pct (1-100%)."
       required: false
       selector:
         object:
     color_5:
       name: Color 5
-      description: Fifth scene color in XY format.
+      description: "Fifth scene color. Set x, y (CIE coordinates) and brightness_pct (1-100%)."
       required: false
       selector:
         object:
     color_6:
       name: Color 6
-      description: Sixth scene color in XY format.
+      description: "Sixth scene color. Set x, y (CIE coordinates) and brightness_pct (1-100%)."
       required: false
       selector:
         object:
     color_7:
       name: Color 7
-      description: Seventh scene color in XY format.
+      description: "Seventh scene color. Set x, y (CIE coordinates) and brightness_pct (1-100%)."
       required: false
       selector:
         object:
     color_8:
       name: Color 8
-      description: Eighth scene color in XY format.
+      description: "Eighth scene color. Set x, y (CIE coordinates) and brightness_pct (1-100%)."
       required: false
       selector:
         object:
@@ -2304,17 +2308,6 @@ start_dynamic_scene:
       default: false
       selector:
         boolean:
-    scene_brightness_pct:
-      name: Maximum scene brightness
-      description: Maximum brightness for the scene (1-100%). Individual color brightness is relative to this.
-      required: false
-      default: 100
-      selector:
-        number:
-          min: 1
-          max: 100
-          unit_of_measurement: "%"
-          mode: slider
     loop_mode:
       name: Loop mode
       description: How the scene should loop.

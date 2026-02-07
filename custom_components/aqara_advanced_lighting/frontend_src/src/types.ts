@@ -112,7 +112,6 @@ export interface DynamicScenePreset {
   distribution_mode: string;
   offset_delay: number;
   random_order: boolean;
-  scene_brightness_pct: number;
   loop_mode: string;
   loop_count?: number;
   end_behavior: string;
@@ -270,7 +269,6 @@ export interface UserDynamicScenePreset {
   distribution_mode: string;
   offset_delay: number;
   random_order: boolean;
-  scene_brightness_pct: number;
   loop_mode: string;
   loop_count?: number;
   end_behavior: string;
@@ -396,7 +394,6 @@ export interface DynamicSceneEditorDraft {
   distributionMode: string;
   offsetDelay: number;
   randomOrder: boolean;
-  sceneBrightness: number;
   loopMode: string;
   loopCount: number;
   endBehavior: string;

@@ -191,7 +191,6 @@ class UserDynamicScenePreset(TypedDict):
     distribution_mode: str
     offset_delay: float
     random_order: bool
-    scene_brightness_pct: int
     loop_mode: str
     loop_count: int | None
     end_behavior: str
@@ -608,7 +607,6 @@ class PresetStore:
                 "transition_time",
                 "hold_time",
                 "distribution_mode",
-                "scene_brightness_pct",
                 "loop_mode",
                 "end_behavior",
             },
@@ -894,9 +892,6 @@ class PresetStore:
                         "distribution_mode": preset["distribution_mode"],
                         "offset_delay": preset.get("offset_delay", 0.0),
                         "random_order": preset.get("random_order", False),
-                        "scene_brightness_pct": (
-                            preset["scene_brightness_pct"]
-                        ),
                         "loop_mode": preset["loop_mode"],
                         "loop_count": preset.get("loop_count"),
                         "end_behavior": preset["end_behavior"],

@@ -267,11 +267,6 @@ MAX_DYNAMIC_SCENE_COLORS: Final = 8
 MIN_OFFSET_DELAY: Final = 0.0
 MAX_OFFSET_DELAY: Final = 120.0  # 2 minutes
 
-# Dynamic scene brightness constraints (percentage)
-MIN_SCENE_BRIGHTNESS_PCT: Final = 1
-MAX_SCENE_BRIGHTNESS_PCT: Final = 100
-DEFAULT_SCENE_BRIGHTNESS_PCT: Final = 100
-
 # Dynamic scene sequence type for events
 SEQUENCE_TYPE_DYNAMIC_SCENE: Final = "dynamic_scene"
 

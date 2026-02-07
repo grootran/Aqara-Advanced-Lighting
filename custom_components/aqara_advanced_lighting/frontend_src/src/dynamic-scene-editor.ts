@@ -38,7 +38,6 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   @state() private _distributionMode = 'shuffle_rotate';
   @state() private _offsetDelay = 0;
   @state() private _randomOrder = false;
-  @state() private _sceneBrightness = 100;
   @state() private _loopMode = 'continuous';
   @state() private _loopCount = 3;
   @state() private _endBehavior = 'restore';
@@ -390,7 +389,6 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._distributionMode = preset.distribution_mode;
     this._offsetDelay = preset.offset_delay;
     this._randomOrder = preset.random_order;
-    this._sceneBrightness = preset.scene_brightness_pct;
     this._loopMode = preset.loop_mode;
     this._loopCount = preset.loop_count || 3;
     this._endBehavior = preset.end_behavior;
@@ -414,7 +412,6 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
       distributionMode: this._distributionMode,
       offsetDelay: this._offsetDelay,
       randomOrder: this._randomOrder,
-      sceneBrightness: this._sceneBrightness,
       loopMode: this._loopMode,
       loopCount: this._loopCount,
       endBehavior: this._endBehavior,
@@ -429,7 +426,6 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._distributionMode = 'shuffle_rotate';
     this._offsetDelay = 0;
     this._randomOrder = false;
-    this._sceneBrightness = 100;
     this._loopMode = 'continuous';
     this._loopCount = 3;
     this._endBehavior = 'restore';
@@ -444,7 +440,6 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._distributionMode = draft.distributionMode;
     this._offsetDelay = draft.offsetDelay;
     this._randomOrder = draft.randomOrder;
-    this._sceneBrightness = draft.sceneBrightness;
     this._loopMode = draft.loopMode;
     this._loopCount = draft.loopCount;
     this._endBehavior = draft.endBehavior;
@@ -494,9 +489,6 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._randomOrder = e.detail.value ?? false;
   }
 
-  private _handleSceneBrightnessChange(e: CustomEvent): void {
-    this._sceneBrightness = e.detail.value ?? 100;
-  }
 
   private _handleLoopModeChange(e: CustomEvent): void {
     this._loopMode = e.detail.value || 'continuous';
@@ -572,7 +564,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
       id: this._generateColorId(),
       x: newColor.x,
       y: newColor.y,
-      brightness_pct: 100,
+      brightness_pct: lastColor?.brightness_pct ?? 100,
     }];
   }
 
@@ -595,7 +587,6 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
       distribution_mode: this._distributionMode,
       offset_delay: this._offsetDelay,
       random_order: this._randomOrder,
-      scene_brightness_pct: this._sceneBrightness,
       loop_mode: this._loopMode,
       end_behavior: this._endBehavior,
     };
@@ -768,7 +759,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
 
         <!-- Colors Section (1-8 reorderable) -->
         <div class="form-section">
-          <span class="form-label">${this._localize('editors.colors_label')}</span>
+          <span class="form-label">${this._localize('editors.colors_brightness_label') || 'Colors and brightness (1-8)'}</span>
           <div class="color-slots-container step-list">
             ${this._colors.map((color, index) => html`
               ${this._renderDropIndicator(index)}
@@ -879,22 +870,6 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
               .value=${this._offsetDelay}
               @value-changed=${this._handleOffsetDelayChange}
             ></ha-selector>
-          </div>
-          <div class="form-section">
-            <span class="form-label">${this._localize('dynamic_scene.scene_brightness_label') || 'Maximum scene brightness'}</span>
-            <ha-selector
-              .hass=${this.hass}
-              .selector=${{
-                number: {
-                  min: 1,
-                  max: 100,
-                  mode: 'slider',
-                  unit_of_measurement: '%',
-                },
-              }}
-              .value=${this._sceneBrightness}
-            @value-changed=${this._handleSceneBrightnessChange}
-          ></ha-selector>
           </div>
         </div>
 

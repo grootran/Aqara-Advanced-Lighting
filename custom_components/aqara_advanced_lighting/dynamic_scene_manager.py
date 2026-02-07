@@ -238,12 +238,9 @@ class DynamicSceneManager:
                 color_index = position
             color = scene.colors[color_index]
 
-            # Calculate effective brightness (per-color * scene brightness)
-            effective_brightness_pct = (
-                color.brightness_pct * scene.scene_brightness_pct
-            ) // 100
+            # Convert per-color brightness percentage to device value (1-255)
             effective_brightness = brightness_percent_to_device(
-                effective_brightness_pct
+                color.brightness_pct
             )
 
             await self.hass.services.async_call(
@@ -918,12 +915,9 @@ class DynamicSceneManager:
                 color_index = position
             color = scene.colors[color_index]
 
-            # Calculate effective brightness (per-color * scene brightness)
-            effective_brightness_pct = (
-                color.brightness_pct * scene.scene_brightness_pct
-            ) // 100
+            # Convert per-color brightness percentage to device value (1-255)
             effective_brightness = brightness_percent_to_device(
-                effective_brightness_pct
+                color.brightness_pct
             )
 
             # Send XY color directly for better precision (avoids RGB conversion loss)

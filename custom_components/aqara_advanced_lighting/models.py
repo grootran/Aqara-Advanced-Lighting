@@ -508,7 +508,6 @@ class DynamicScene:
     distribution_mode: str  # "shuffle_rotate", "synchronized", "random"
     offset_delay: float  # Seconds between lights for ripple effect (0 = no ripple)
     random_order: bool  # Randomize light order for offset
-    scene_brightness_pct: int  # Master brightness percentage (1-100)
     loop_mode: str  # "once", "count", "continuous"
     loop_count: int | None = None  # Number of loops if mode is "count"
     end_behavior: str = "maintain"  # "maintain" or "restore"
@@ -534,10 +533,6 @@ class DynamicScene:
 
         if self.offset_delay < 0:
             msg = "Offset delay cannot be negative"
-            raise ValueError(msg)
-
-        if not (1 <= self.scene_brightness_pct <= 100):
-            msg = f"Scene brightness must be 1-100%, got {self.scene_brightness_pct}"
             raise ValueError(msg)
 
         if self.loop_mode not in ("once", "count", "continuous"):
