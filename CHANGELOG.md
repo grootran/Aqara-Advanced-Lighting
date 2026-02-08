@@ -46,6 +46,7 @@ Aimed primarily at T2 bulbs, create color transitions that work with any RGB lig
   - `stop_dynamic_scene` - Stop running scene(s) with optional state restoration
   - `pause_dynamic_scene` - Pause a running scene
   - `resume_dynamic_scene` - Resume a paused scene
+  
 **Dynamic scene triggers** - 6 device triggers for scene lifecycle events
   - Scene started, stopped, paused, resumed
   - Loop completed, finished
