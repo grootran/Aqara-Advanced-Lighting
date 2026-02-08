@@ -7,6 +7,7 @@ DOMAIN: Final = "aqara_advanced_lighting"
 
 # Configuration constants
 CONF_Z2M_BASE_TOPIC: Final = "z2m_base_topic"
+CONF_PRESET_FILTER: Final = "preset"
 DEFAULT_Z2M_BASE_TOPIC: Final = "zigbee2mqtt"
 
 # Service names
@@ -146,8 +147,9 @@ LOOP_MODE_ONCE: Final = "once"
 LOOP_MODE_COUNT: Final = "count"
 LOOP_MODE_CONTINUOUS: Final = "continuous"
 
-# CCT sequence end behaviors
+# Sequence end behaviors (used by CCT sequences, dynamic scenes, and segment sequences)
 END_BEHAVIOR_MAINTAIN: Final = "maintain"
+END_BEHAVIOR_RESTORE: Final = "restore"
 END_BEHAVIOR_TURN_OFF: Final = "turn_off"
 
 # Segment sequence modes
@@ -213,6 +215,7 @@ DATA_FAVORITES_STORE: Final = "favorites_store"
 DATA_PRESET_STORE: Final = "preset_store"
 DATA_USER_PREFERENCES_STORE: Final = "user_preferences_store"
 DATA_SEGMENT_ZONE_STORE: Final = "segment_zone_store"
+DATA_SERVICE_SCHEMA_MANAGER: Final = "service_schema_manager"
 
 # Valid sort options for user preferences (validated in backend)
 VALID_SORT_OPTIONS: Final = {"name-asc", "name-desc", "date-new", "date-old"}
@@ -226,12 +229,70 @@ PRESET_TYPE_SEGMENT_PATTERN: Final = "segment_pattern"
 PRESET_TYPE_CCT_SEQUENCE: Final = "cct_sequence"
 PRESET_TYPE_SEGMENT_SEQUENCE: Final = "segment_sequence"
 
+# Dynamic scene preset type
+PRESET_TYPE_DYNAMIC_SCENE: Final = "dynamic_scene"
+
 VALID_PRESET_TYPES: Final = [
     PRESET_TYPE_EFFECT,
     PRESET_TYPE_SEGMENT_PATTERN,
     PRESET_TYPE_CCT_SEQUENCE,
     PRESET_TYPE_SEGMENT_SEQUENCE,
+    PRESET_TYPE_DYNAMIC_SCENE,
 ]
+
+# Dynamic scene distribution modes
+DISTRIBUTION_SHUFFLE_ROTATE: Final = "shuffle_rotate"
+DISTRIBUTION_SYNCHRONIZED: Final = "synchronized"
+DISTRIBUTION_RANDOM: Final = "random"
+
+VALID_DISTRIBUTION_MODES: Final = [
+    DISTRIBUTION_SHUFFLE_ROTATE,
+    DISTRIBUTION_SYNCHRONIZED,
+    DISTRIBUTION_RANDOM,
+]
+
+# Dynamic scene timing constraints (seconds)
+MIN_DYNAMIC_SCENE_TRANSITION_TIME: Final = 30.0
+MAX_DYNAMIC_SCENE_TRANSITION_TIME: Final = 3600.0  # 1 hour
+MIN_DYNAMIC_SCENE_HOLD_TIME: Final = 0.0
+MAX_DYNAMIC_SCENE_HOLD_TIME: Final = 3600.0  # 1 hour
+DEFAULT_DYNAMIC_SCENE_TRANSITION_TIME: Final = 120.0  # 2 minutes
+DEFAULT_DYNAMIC_SCENE_HOLD_TIME: Final = 180.0  # 3 minutes
+
+# Dynamic scene color constraints
+MIN_DYNAMIC_SCENE_COLORS: Final = 1
+MAX_DYNAMIC_SCENE_COLORS: Final = 8
+
+# Dynamic scene ripple offset constraints (seconds)
+MIN_OFFSET_DELAY: Final = 0.0
+MAX_OFFSET_DELAY: Final = 120.0  # 2 minutes
+
+# Dynamic scene sequence type for events
+SEQUENCE_TYPE_DYNAMIC_SCENE: Final = "dynamic_scene"
+
+# Dynamic scene service names
+SERVICE_START_DYNAMIC_SCENE: Final = "start_dynamic_scene"
+SERVICE_STOP_DYNAMIC_SCENE: Final = "stop_dynamic_scene"
+SERVICE_PAUSE_DYNAMIC_SCENE: Final = "pause_dynamic_scene"
+SERVICE_RESUME_DYNAMIC_SCENE: Final = "resume_dynamic_scene"
+
+# Dynamic scene event types
+EVENT_DYNAMIC_SCENE_STARTED: Final = f"{DOMAIN}_dynamic_scene_started"
+EVENT_DYNAMIC_SCENE_PAUSED: Final = f"{DOMAIN}_dynamic_scene_paused"
+EVENT_DYNAMIC_SCENE_RESUMED: Final = f"{DOMAIN}_dynamic_scene_resumed"
+EVENT_DYNAMIC_SCENE_STOPPED: Final = f"{DOMAIN}_dynamic_scene_stopped"
+EVENT_DYNAMIC_SCENE_LOOP_COMPLETED: Final = f"{DOMAIN}_dynamic_scene_loop_completed"
+EVENT_DYNAMIC_SCENE_FINISHED: Final = f"{DOMAIN}_dynamic_scene_finished"
+
+# Dynamic scene runtime data key
+DATA_DYNAMIC_SCENE_MANAGER: Final = "dynamic_scene_manager"
+
+# Entity controller constants
+INTEGRATION_CONTEXT_PARENT_ID: Final = "aal_entity_control"
+DATA_ENTITY_CONTROLLER: Final = "entity_controller"
+EVENT_ENTITY_EXTERNALLY_CONTROLLED: Final = f"{DOMAIN}_entity_externally_controlled"
+EVENT_ENTITY_CONTROL_RESUMED: Final = f"{DOMAIN}_entity_control_resumed"
+SERVICE_RESUME_ENTITY_CONTROL: Final = "resume_entity_control"
 
 # Event types for automation triggers
 EVENT_SEQUENCE_STARTED: Final = f"{DOMAIN}_sequence_started"
@@ -273,6 +334,12 @@ TRIGGER_TYPE_SEGMENT_SEQUENCE_PAUSED: Final = "segment_sequence_paused"
 TRIGGER_TYPE_SEGMENT_SEQUENCE_RESUMED: Final = "segment_sequence_resumed"
 TRIGGER_TYPE_EFFECT_ACTIVATED: Final = "effect_activated"
 TRIGGER_TYPE_EFFECT_STOPPED: Final = "effect_stopped"
+TRIGGER_TYPE_DYNAMIC_SCENE_STARTED: Final = "dynamic_scene_started"
+TRIGGER_TYPE_DYNAMIC_SCENE_PAUSED: Final = "dynamic_scene_paused"
+TRIGGER_TYPE_DYNAMIC_SCENE_RESUMED: Final = "dynamic_scene_resumed"
+TRIGGER_TYPE_DYNAMIC_SCENE_STOPPED: Final = "dynamic_scene_stopped"
+TRIGGER_TYPE_DYNAMIC_SCENE_LOOP_COMPLETED: Final = "dynamic_scene_loop_completed"
+TRIGGER_TYPE_DYNAMIC_SCENE_FINISHED: Final = "dynamic_scene_finished"
 
 # All device trigger types
 TRIGGER_TYPES: Final = {
@@ -290,6 +357,85 @@ TRIGGER_TYPES: Final = {
     TRIGGER_TYPE_SEGMENT_SEQUENCE_RESUMED,
     TRIGGER_TYPE_EFFECT_ACTIVATED,
     TRIGGER_TYPE_EFFECT_STOPPED,
+    TRIGGER_TYPE_DYNAMIC_SCENE_STARTED,
+    TRIGGER_TYPE_DYNAMIC_SCENE_PAUSED,
+    TRIGGER_TYPE_DYNAMIC_SCENE_RESUMED,
+    TRIGGER_TYPE_DYNAMIC_SCENE_STOPPED,
+    TRIGGER_TYPE_DYNAMIC_SCENE_LOOP_COMPLETED,
+    TRIGGER_TYPE_DYNAMIC_SCENE_FINISHED,
+}
+
+# Trigger type groupings for preset filtering
+CCT_TRIGGER_TYPES: Final = {
+    TRIGGER_TYPE_CCT_SEQUENCE_STARTED,
+    TRIGGER_TYPE_CCT_SEQUENCE_COMPLETED,
+    TRIGGER_TYPE_CCT_SEQUENCE_STOPPED,
+    TRIGGER_TYPE_CCT_SEQUENCE_STEP_CHANGED,
+    TRIGGER_TYPE_CCT_SEQUENCE_PAUSED,
+    TRIGGER_TYPE_CCT_SEQUENCE_RESUMED,
+}
+
+SEGMENT_TRIGGER_TYPES: Final = {
+    TRIGGER_TYPE_SEGMENT_SEQUENCE_STARTED,
+    TRIGGER_TYPE_SEGMENT_SEQUENCE_COMPLETED,
+    TRIGGER_TYPE_SEGMENT_SEQUENCE_STOPPED,
+    TRIGGER_TYPE_SEGMENT_SEQUENCE_STEP_CHANGED,
+    TRIGGER_TYPE_SEGMENT_SEQUENCE_PAUSED,
+    TRIGGER_TYPE_SEGMENT_SEQUENCE_RESUMED,
+}
+
+EFFECT_TRIGGER_TYPES: Final = {
+    TRIGGER_TYPE_EFFECT_ACTIVATED,
+    TRIGGER_TYPE_EFFECT_STOPPED,
+}
+
+DYNAMIC_SCENE_TRIGGER_TYPES: Final = {
+    TRIGGER_TYPE_DYNAMIC_SCENE_STARTED,
+    TRIGGER_TYPE_DYNAMIC_SCENE_PAUSED,
+    TRIGGER_TYPE_DYNAMIC_SCENE_RESUMED,
+    TRIGGER_TYPE_DYNAMIC_SCENE_STOPPED,
+    TRIGGER_TYPE_DYNAMIC_SCENE_LOOP_COMPLETED,
+    TRIGGER_TYPE_DYNAMIC_SCENE_FINISHED,
+}
+
+# Device condition types for HA automation UI
+CONDITION_TYPE_CCT_SEQUENCE_RUNNING: Final = "cct_sequence_running"
+CONDITION_TYPE_CCT_SEQUENCE_PAUSED: Final = "cct_sequence_paused"
+CONDITION_TYPE_SEGMENT_SEQUENCE_RUNNING: Final = "segment_sequence_running"
+CONDITION_TYPE_SEGMENT_SEQUENCE_PAUSED: Final = "segment_sequence_paused"
+CONDITION_TYPE_EFFECT_ACTIVE: Final = "effect_active"
+CONDITION_TYPE_DYNAMIC_SCENE_RUNNING: Final = "dynamic_scene_running"
+CONDITION_TYPE_DYNAMIC_SCENE_PAUSED: Final = "dynamic_scene_paused"
+
+# All device condition types
+CONDITION_TYPES: Final = {
+    CONDITION_TYPE_CCT_SEQUENCE_RUNNING,
+    CONDITION_TYPE_CCT_SEQUENCE_PAUSED,
+    CONDITION_TYPE_SEGMENT_SEQUENCE_RUNNING,
+    CONDITION_TYPE_SEGMENT_SEQUENCE_PAUSED,
+    CONDITION_TYPE_EFFECT_ACTIVE,
+    CONDITION_TYPE_DYNAMIC_SCENE_RUNNING,
+    CONDITION_TYPE_DYNAMIC_SCENE_PAUSED,
+}
+
+# Condition type groupings for preset filtering
+CCT_CONDITION_TYPES: Final = {
+    CONDITION_TYPE_CCT_SEQUENCE_RUNNING,
+    CONDITION_TYPE_CCT_SEQUENCE_PAUSED,
+}
+
+SEGMENT_CONDITION_TYPES: Final = {
+    CONDITION_TYPE_SEGMENT_SEQUENCE_RUNNING,
+    CONDITION_TYPE_SEGMENT_SEQUENCE_PAUSED,
+}
+
+EFFECT_CONDITION_TYPES: Final = {
+    CONDITION_TYPE_EFFECT_ACTIVE,
+}
+
+DYNAMIC_SCENE_CONDITION_TYPES: Final = {
+    CONDITION_TYPE_DYNAMIC_SCENE_RUNNING,
+    CONDITION_TYPE_DYNAMIC_SCENE_PAUSED,
 }
 
 # Friendly model names for device registry display
@@ -341,249 +487,15 @@ PRESET_CCT_MINDFUL_BREATHING: Final = "mindful_breathing"
 PRESET_CCT_CIRCADIAN: Final = "circadian"
 
 # Preset definitions
-EFFECT_PRESETS: Final = {
-    # T2 Bulb presets
-    PRESET_T2_CANDLELIGHT: {
-        "name": "Candlelight",
-        "icon": "mdi:candle",
-        "effect": EFFECT_T2_CANDLELIGHT,
-        "colors": [[255, 125, 18]],
-        "speed": 50,
-        "brightness": 255,
-        "device_types": [MODEL_T2_BULB_E26, MODEL_T2_BULB_E27, MODEL_T2_BULB_GU10_110V, MODEL_T2_BULB_GU10_230V],
-    },
-    PRESET_T2_BREATH: {
-        "name": "Breath",
-        "icon": "mdi:meditation",
-        "effect": EFFECT_T2_BREATHING,
-        "colors": [[255, 125, 18]],
-        "speed": 50,
-        "brightness": 255,
-        "device_types": [MODEL_T2_BULB_E26, MODEL_T2_BULB_E27, MODEL_T2_BULB_GU10_110V, MODEL_T2_BULB_GU10_230V],
-    },
-    PRESET_T2_COLORFUL: {
-        "name": "Colorful",
-        "icon": "mdi:palette",
-        "effect": EFFECT_T2_FADING,
-        "colors": [
-            [92, 87, 255],
-            [0, 187, 255],
-            [51, 255, 153],
-            [204, 255, 51],
-            [255, 102, 204],
-            [255, 51, 51],
-            [170, 0, 255],
-        ],
-        "speed": 50,
-        "brightness": 255,
-        "device_types": [MODEL_T2_BULB_E26, MODEL_T2_BULB_E27, MODEL_T2_BULB_GU10_110V, MODEL_T2_BULB_GU10_230V],
-    },
-    PRESET_T2_SECURITY: {
-        "name": "Security",
-        "icon": "mdi:shield-alert",
-        "effect": EFFECT_T2_FLASH,
-        "colors": [[255, 0, 0]],
-        "speed": 100,
-        "brightness": 255,
-        "device_types": [MODEL_T2_BULB_E26, MODEL_T2_BULB_E27, MODEL_T2_BULB_GU10_110V, MODEL_T2_BULB_GU10_230V],
-    },
-    # T1M presets
-    PRESET_T1M_DINNER: {
-        "name": "Dinner",
-        "icon": "mdi:silverware-fork-knife",
-        "effect": EFFECT_T1M_FLOW1,
-        "colors": [[214, 235, 255], [92, 86, 255], [93, 0, 255]],
-        "speed": 75,
-        "brightness": 255,
-        "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT],
-    },
-    PRESET_T1M_SUNSET: {
-        "name": "Sunset",
-        "icon": "mdi:weather-sunset",
-        "effect": EFFECT_T1M_FLOW2,
-        "colors": [[255, 0, 0], [255, 138, 138], [179, 191, 255], [0, 0, 255]],
-        "speed": 10,
-        "brightness": 255,
-        "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT],
-    },
-    PRESET_T1M_AUTUMN: {
-        "name": "Autumn",
-        "icon": "mdi:leaf-maple",
-        "effect": EFFECT_T1M_FLOW1,
-        "colors": [[255, 71, 0], [255, 119, 0], [255, 154, 0], [255, 225, 0]],
-        "speed": 60,
-        "brightness": 255,
-        "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT],
-    },
-    PRESET_T1M_GALAXY: {
-        "name": "Galaxy",
-        "icon": "mdi:star-circle",
-        "effect": EFFECT_T1M_FADING,
-        "colors": [[0, 137, 255], [198, 0, 255], [255, 0, 255], [0, 0, 255]],
-        "speed": 40,
-        "brightness": 255,
-        "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT],
-    },
-    PRESET_T1M_DAYDREAM: {
-        "name": "Daydream",
-        "icon": "mdi:cloud",
-        "effect": EFFECT_T1M_FADING,
-        "colors": [[255, 0, 0], [255, 155, 143], [255, 0, 255], [255, 163, 249]],
-        "speed": 70,
-        "brightness": 255,
-        "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT],
-    },
-    PRESET_T1M_HOLIDAY: {
-        "name": "Holiday",
-        "icon": "mdi:pine-tree",
-        "effect": EFFECT_T1M_BREATHING,
-        "colors": [[7, 255, 36], [255, 97, 0], [55, 184, 255], [0, 6, 255]],
-        "speed": 10,
-        "brightness": 255,
-        "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT],
-    },
-    PRESET_T1M_PARTY: {
-        "name": "Party",
-        "icon": "mdi:party-popper",
-        "effect": EFFECT_T1M_HOPPING,
-        "colors": [[255, 0, 0], [255, 94, 0], [255, 255, 0], [255, 0, 255], [0, 255, 255], [0, 0, 255], [255, 0, 255]],
-        "speed": 50,
-        "brightness": 255,
-        "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT],
-    },
-    PRESET_T1M_METEOR: {
-        "name": "Meteor",
-        "icon": "mdi:meteor",
-        "effect": EFFECT_T1M_ROLLING,
-        "colors": [[255, 148, 0], [89, 255, 0], [0, 255, 252], [175, 7, 255]],
-        "speed": 50,
-        "brightness": 255,
-        "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT],
-    },
-    PRESET_T1M_ALERT: {
-        "name": "Alert",
-        "icon": "mdi:alert",
-        "effect": EFFECT_T1M_HOPPING,
-        "colors": [[255, 0, 0]],
-        "speed": 100,
-        "brightness": 255,
-        "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT],
-    },
-    # T1 Strip presets (all use same decoded colors)
-    PRESET_T1_STRIP_RAINBOW: {
-        "name": "Rainbow",
-        "icon": "mdi:looks",
-        "effect": EFFECT_T1_RAINBOW1,
-        "colors": [
-            [255, 0, 0],      # Red
-            [255, 255, 0],    # Yellow
-            [255, 192, 203],  # Pink
-            [0, 255, 0],      # Green
-            [128, 0, 128],    # Purple
-            [255, 127, 0],    # Orange
-            [0, 0, 255],      # Blue
-        ],
-        "speed": 60,
-        "brightness": 255,
-        "device_types": [MODEL_T1_STRIP],
-    },
-    PRESET_T1_STRIP_HEARTBEAT: {
-        "name": "Heartbeat",
-        "icon": "mdi:heart-pulse",
-        "effect": EFFECT_T1_FLASH,
-        "colors": [
-            [139, 0, 0],      # Dark red
-            [220, 20, 60],    # Crimson
-            [255, 0, 0],      # Red
-            [255, 69, 0],     # Red-orange
-            [255, 99, 71],    # Tomato
-        ],
-        "speed": 60,
-        "brightness": 255,
-        "device_types": [MODEL_T1_STRIP],
-    },
-    PRESET_T1_STRIP_GALA: {
-        "name": "Gala",
-        "icon": "mdi:party-popper",
-        "effect": EFFECT_T1_BREATHING,
-        "colors": [
-            [163, 214, 84],
-            [122, 76, 204],
-            [153, 153, 38],
-            [102, 15, 92],
-            [104, 245, 127],
-            [255, 56, 81],
-            [81, 232, 81],
-        ],
-        "speed": 85,
-        "brightness": 255,
-        "device_types": [MODEL_T1_STRIP],
-    },
-    PRESET_T1_STRIP_SEA_OF_FLOWERS: {
-        "name": "Sea of flowers",
-        "icon": "mdi:flower",
-        "effect": EFFECT_T1_CHASING,
-        "colors": [
-            [135, 206, 235],  # Sky blue
-            [64, 224, 208],   # Turquoise
-            [255, 255, 0],    # Yellow
-            [144, 238, 144],  # Light green
-            [0, 100, 0],      # Dark green
-            [0, 0, 139],      # Dark blue
-            [173, 255, 47],   # Green-yellow
-        ],
-        "speed": 50,
-        "brightness": 255,
-        "device_types": [MODEL_T1_STRIP],
-    },
-    PRESET_T1_STRIP_RHYTHMIC: {
-        "name": "Rhythmic",
-        "icon": "mdi:sine-wave",
-        "effect": EFFECT_T1_HOPPING,
-        "colors": [
-            [255, 0, 0],      # Red
-            [255, 69, 0],     # Red-orange
-            [255, 140, 0],    # Dark orange
-            [255, 165, 0],    # Orange
-            [255, 215, 0],    # Gold
-            [255, 255, 0],    # Yellow
-            [255, 200, 0],    # Golden yellow
-        ],
-        "speed": 50,
-        "brightness": 255,
-        "device_types": [MODEL_T1_STRIP],
-    },
-    PRESET_T1_STRIP_EXCITING: {
-        "name": "Exciting",
-        "icon": "mdi:flash",
-        "effect": EFFECT_T1_FLICKER,
-        "colors": [
-            [255, 255, 255],  # White
-            [255, 0, 0],      # Red
-            [0, 0, 255],      # Blue
-        ],
-        "speed": 40,
-        "brightness": 255,
-        "device_types": [MODEL_T1_STRIP],
-    },
-    PRESET_T1_STRIP_COLORFUL: {
-        "name": "Colorful",
-        "icon": "mdi:palette",
-        "effect": EFFECT_T1_RAINBOW2,
-        "colors": [
-            [255, 0, 0],      # Red
-            [0, 255, 0],      # Green
-            [0, 0, 255],      # Blue
-            [255, 255, 0],    # Yellow
-            [0, 255, 255],    # Cyan
-            [255, 0, 255],    # Magenta
-            [255, 128, 0],    # Orange (secondary)
-        ],
-        "speed": 60,
-        "brightness": 255,
-        "device_types": [MODEL_T1_STRIP],
-    },
-}
+# Built-in preset dictionaries have been moved to presets.py
+# Import them from there:
+#   from .presets import (
+#       EFFECT_PRESETS,
+#       SEGMENT_PATTERN_PRESETS,
+#       CCT_SEQUENCE_PRESETS,
+#       SEGMENT_SEQUENCE_PRESETS,
+#       DYNAMIC_SCENE_PRESETS,
+#   )
 
 # Segment pattern presets (T1M and T1 Strip)
 PRESET_SEGMENT_1: Final = "segment_1"
@@ -599,280 +511,6 @@ PRESET_SEGMENT_10: Final = "segment_10"
 PRESET_SEGMENT_11: Final = "segment_11"
 PRESET_SEGMENT_12: Final = "segment_12"
 
-# Segment pattern preset definitions (T1M and T1 Strip)
-SEGMENT_PATTERN_PRESETS: Final = {
-    PRESET_SEGMENT_1: {
-        "name": "Preset 1",
-        "icon": "preset_01.svg",
-        "segments": [
-            [255, 205, 213], [255, 205, 213], [255, 205, 213], [255, 205, 213],
-            [255, 205, 213], [255, 205, 213], [255, 205, 213], [255, 176, 190],
-            [255, 176, 190], [255, 176, 190], [255, 176, 190], [255, 176, 190],
-            [255, 176, 190], [255, 88, 136], [255, 88, 136], [255, 88, 136],
-            [255, 88, 136], [255, 88, 136], [255, 88, 136], [255, 88, 136],
-            [227, 57, 72], [227, 57, 72], [227, 57, 72], [227, 57, 72],
-            [227, 57, 72], [227, 57, 72],
-        ],
-        "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
-    },
-    PRESET_SEGMENT_2: {
-        "name": "Preset 2",
-        "icon": "preset_02.svg",
-        "segments": [
-            [255, 235, 193], [255, 235, 193], [255, 235, 193], [255, 235, 193],
-            [255, 235, 193], [255, 235, 193], [255, 235, 193], [255, 200, 111],
-            [255, 200, 111], [255, 200, 111], [255, 200, 111], [255, 200, 111],
-            [255, 200, 111], [255, 153, 29], [255, 153, 29], [255, 153, 29],
-            [255, 153, 29], [255, 153, 29], [255, 153, 29], [255, 153, 29],
-            [251, 125, 28], [251, 125, 28], [251, 125, 28], [251, 125, 28],
-            [251, 125, 28], [251, 125, 28],
-        ],
-        "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
-    },
-    PRESET_SEGMENT_3: {
-        "name": "Preset 3",
-        "icon": "preset_03.svg",
-        "segments": [
-            [129, 235, 254], [129, 235, 254], [129, 235, 254], [129, 235, 254],
-            [129, 235, 254], [129, 235, 254], [129, 235, 254], [108, 198, 251],
-            [108, 198, 251], [108, 198, 251], [108, 198, 251], [108, 198, 251],
-            [108, 198, 251], [26, 152, 249], [26, 152, 249], [26, 152, 249],
-            [26, 152, 249], [26, 152, 249], [26, 152, 249], [26, 152, 249],
-            [40, 137, 243], [40, 137, 243], [40, 137, 243], [40, 137, 243],
-            [40, 137, 243], [40, 137, 243],
-        ],
-        "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
-    },
-    PRESET_SEGMENT_4: {
-        "name": "Preset 4",
-        "icon": "preset_04.svg",
-        "segments": [
-            [233, 202, 249], [233, 202, 249], [233, 202, 249], [233, 202, 249],
-            [233, 202, 249], [233, 202, 249], [233, 202, 249], [199, 142, 237],
-            [199, 142, 237], [199, 142, 237], [199, 142, 237], [199, 142, 237],
-            [199, 142, 237], [162, 88, 255], [162, 88, 255], [162, 88, 255],
-            [162, 88, 255], [162, 88, 255], [162, 88, 255], [162, 88, 255],
-            [149, 70, 226], [149, 70, 226], [149, 70, 226], [149, 70, 226],
-            [149, 70, 226], [149, 70, 226],
-        ],
-        "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
-    },
-    PRESET_SEGMENT_5: {
-        "name": "Preset 5",
-        "icon": "preset_05.svg",
-        "segments": [
-            [255, 83, 74], [255, 83, 74], [255, 83, 74], [255, 83, 74],
-            [255, 83, 74], [255, 83, 74], [255, 83, 74], [255, 236, 112],
-            [255, 236, 112], [255, 236, 112], [255, 236, 112], [255, 236, 112],
-            [255, 236, 112], [127, 222, 150], [127, 222, 150], [127, 222, 150],
-            [127, 222, 150], [127, 222, 150], [127, 222, 150], [127, 222, 150],
-            [255, 135, 29], [255, 135, 29], [255, 135, 29], [255, 135, 29],
-            [255, 135, 29], [255, 135, 29],
-        ],
-        "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
-    },
-    PRESET_SEGMENT_6: {
-        "name": "Preset 6",
-        "icon": "preset_06.svg",
-        "segments": [
-            [26, 152, 249], [26, 152, 249], [26, 152, 249], [26, 152, 249],
-            [26, 152, 249], [26, 152, 249], [255, 88, 136], [255, 88, 136],
-            [255, 88, 136], [255, 88, 136], [255, 88, 136], [255, 88, 136],
-            [255, 88, 136], [255, 210, 30], [255, 210, 30], [255, 210, 30],
-            [255, 210, 30], [255, 210, 30], [255, 210, 30], [180, 114, 232],
-            [180, 114, 232], [180, 114, 232], [180, 114, 232], [180, 114, 232],
-            [180, 114, 232], [180, 114, 232],
-        ],
-        "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
-    },
-    PRESET_SEGMENT_7: {
-        "name": "Preset 7",
-        "icon": "preset_07.svg",
-        "segments": [
-            [167, 188, 255], [167, 188, 255], [167, 188, 255], [167, 188, 255],
-            [167, 188, 255], [167, 188, 255], [198, 234, 94], [198, 234, 94],
-            [198, 234, 94], [198, 234, 94], [198, 234, 94], [255, 194, 95],
-            [255, 194, 95], [255, 194, 95], [255, 194, 95], [255, 194, 95],
-            [255, 134, 125], [255, 134, 125], [255, 134, 125], [255, 134, 125],
-            [255, 134, 125], [70, 96, 255], [70, 96, 255], [70, 96, 255],
-            [70, 96, 255], [70, 96, 255],
-        ],
-        "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
-    },
-    PRESET_SEGMENT_8: {
-        "name": "Preset 8",
-        "icon": "preset_08.svg",
-        "segments": [
-            [255, 221, 50], [255, 221, 50], [255, 221, 50], [255, 221, 50],
-            [255, 221, 50], [138, 214, 252], [138, 214, 252], [138, 214, 252],
-            [138, 214, 252], [138, 214, 252], [0, 140, 248], [0, 140, 248],
-            [0, 140, 248], [0, 140, 248], [0, 140, 248], [146, 104, 232],
-            [146, 104, 232], [146, 104, 232], [146, 104, 232], [146, 104, 232],
-            [213, 162, 242], [213, 162, 242], [213, 162, 242], [213, 162, 242],
-            [213, 162, 242], [213, 162, 242],
-        ],
-        "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
-    },
-    PRESET_SEGMENT_9: {
-        "name": "Preset 9",
-        "icon": "preset_09.svg",
-        "segments": [
-            [255, 134, 160], [255, 134, 160], [255, 134, 160], [255, 134, 160],
-            [255, 134, 160], [198, 234, 94], [198, 234, 94], [198, 234, 94],
-            [198, 234, 94], [198, 234, 94], [91, 192, 251], [91, 192, 251],
-            [91, 192, 251], [91, 192, 251], [91, 192, 251], [255, 194, 95],
-            [255, 194, 95], [255, 194, 95], [255, 194, 95], [255, 194, 95],
-            [193, 192, 235], [193, 192, 235], [193, 192, 235], [193, 192, 235],
-            [193, 192, 235], [193, 192, 235],
-        ],
-        "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
-    },
-    PRESET_SEGMENT_10: {
-        "name": "Preset 10",
-        "icon": "preset_10.svg",
-        "segments": [
-            [193, 129, 235], [193, 129, 235], [193, 129, 235], [193, 129, 235],
-            [193, 129, 235], [151, 69, 222], [151, 69, 222], [151, 69, 222],
-            [151, 69, 222], [151, 69, 222], [255, 69, 122], [255, 69, 122],
-            [255, 69, 122], [255, 69, 122], [255, 69, 122], [255, 169, 49],
-            [255, 169, 49], [255, 169, 49], [255, 169, 49], [255, 169, 49],
-            [255, 215, 140], [255, 215, 140], [255, 215, 140], [255, 215, 140],
-            [255, 215, 140], [255, 215, 140],
-        ],
-        "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
-    },
-    PRESET_SEGMENT_11: {
-        "name": "Preset 11",
-        "icon": "preset_11.svg",
-        "segments": [
-            [45, 168, 249], [45, 168, 249], [45, 168, 249], [45, 168, 249],
-            [0, 140, 248], [0, 140, 248], [0, 140, 248], [0, 140, 248],
-            [255, 244, 141], [255, 244, 141], [255, 244, 141], [255, 244, 141],
-            [255, 244, 141], [255, 205, 5], [255, 205, 5], [255, 205, 5],
-            [255, 205, 5], [255, 141, 3], [255, 141, 3], [255, 141, 3],
-            [255, 141, 3], [185, 233, 254], [185, 233, 254], [185, 233, 254],
-            [185, 233, 254], [185, 233, 254],
-        ],
-        "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
-    },
-    PRESET_SEGMENT_12: {
-        "name": "Preset 12",
-        "icon": "preset_12.svg",
-        "segments": [
-            [255, 170, 161], [255, 170, 161], [255, 170, 161], [255, 170, 161],
-            [255, 134, 160], [255, 134, 160], [255, 134, 160], [255, 134, 160],
-            [255, 103, 90], [255, 103, 90], [255, 103, 90], [255, 103, 90],
-            [255, 103, 90], [255, 69, 122], [255, 69, 122], [255, 69, 122],
-            [255, 69, 122], [224, 34, 51], [224, 34, 51], [224, 34, 51],
-            [224, 34, 51], [255, 199, 208], [255, 199, 208], [255, 199, 208],
-            [255, 199, 208], [255, 199, 208],
-        ],
-        "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT, MODEL_T1_STRIP],
-    },
-}
-
-# CCT sequence preset definitions
-CCT_SEQUENCE_PRESETS: Final = {
-    PRESET_CCT_GOODNIGHT: {
-        "name": "Goodnight",
-        "icon": "mdi:weather-night",
-        "steps": [
-            {
-                "color_temp": 4000,
-                "brightness": 126,  # 50%
-                "transition": 0.0,
-                "hold": 0.0,
-            },
-            {
-                "color_temp": 2700,
-                "brightness": 1,  # ~0% (minimum device value)
-                "transition": 1800.0,  # 30 minutes
-                "hold": 0.0,
-            },
-        ],
-        "loop_mode": LOOP_MODE_ONCE,
-        "end_behavior": END_BEHAVIOR_TURN_OFF,
-    },
-    PRESET_CCT_WAKEUP: {
-        "name": "Wakeup",
-        "icon": "mdi:weather-sunset-up",
-        "steps": [
-            {
-                "color_temp": 2700,
-                "brightness": 1,  # 1%
-                "transition": 0.0,
-                "hold": 0.0,
-            },
-            {
-                "color_temp": 6500,
-                "brightness": 255,  # 100%
-                "transition": 1800.0,  # 30 minutes
-                "hold": 0.0,
-            },
-        ],
-        "loop_mode": LOOP_MODE_ONCE,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
-    },
-    PRESET_CCT_MINDFUL_BREATHING: {
-        "name": "Mindful breathing",
-        "icon": "mdi:meditation",
-        "steps": [
-            {
-                "color_temp": 3500,
-                "brightness": 50,  # 20%
-                "transition": 1.5,
-                "hold": 0.5,
-            },
-            {
-                "color_temp": 4900,
-                "brightness": 204,  # 80%
-                "transition": 2.0,
-                "hold": 0.5,
-            },
-        ],
-        "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
-    },
-    PRESET_CCT_CIRCADIAN: {
-        "name": "Circadian rhythm",
-        "icon": "mdi:sun-clock",
-        "steps": [
-            {
-                "color_temp": 2700,  # Warm morning light
-                "brightness": 100,
-                "transition": 5.0,
-                "hold": 7200.0,  # Hold for 2 hours
-            },
-            {
-                "color_temp": 4000,  # Midday neutral
-                "brightness": 200,
-                "transition": 10.0,
-                "hold": 14400.0,  # Hold for 4 hours
-            },
-            {
-                "color_temp": 5500,  # Afternoon cool
-                "brightness": 255,
-                "transition": 10.0,
-                "hold": 10800.0,  # Hold for 3 hours
-            },
-            {
-                "color_temp": 3500,  # Evening warm
-                "brightness": 150,
-                "transition": 10.0,
-                "hold": 7200.0,  # Hold for 2 hours
-            },
-            {
-                "color_temp": 2200,  # Night warm dim
-                "brightness": 50,
-                "transition": 5.0,
-                "hold": 3600.0,  # Hold for 1 hour
-            },
-        ],
-        "loop_mode": LOOP_MODE_ONCE,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
-    },
-}
-
 # Segment sequence presets
 PRESET_SEGMENT_SEQ_LOADING_BAR: Final = "loading_bar"
 PRESET_SEGMENT_SEQ_WAVE: Final = "wave"
@@ -880,121 +518,7 @@ PRESET_SEGMENT_SEQ_SPARKLE: Final = "sparkle"
 PRESET_SEGMENT_SEQ_THEATER_CHASE: Final = "theater_chase"
 PRESET_SEGMENT_SEQ_RAINBOW_FILL: Final = "rainbow_fill"
 PRESET_SEGMENT_SEQ_COMET: Final = "comet"
-
-SEGMENT_SEQUENCE_PRESETS: Final = {
-    PRESET_SEGMENT_SEQ_LOADING_BAR: {
-        "name": "Loading bar",
-        "icon": "mdi:progress-download",
-        "steps": [
-            {
-                "segments": "all",
-                "colors": [[0, 200, 255]],
-                "mode": SEGMENT_MODE_BLOCKS_REPEAT,
-                "duration": 3.0,
-                "hold": 2.0,
-                "activation_pattern": ACTIVATION_SEQUENTIAL_FORWARD,
-            },
-        ],
-        "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
-    },
-    PRESET_SEGMENT_SEQ_WAVE: {
-        "name": "Wave",
-        "icon": "mdi:wave",
-        "steps": [
-            {
-                "segments": "all",
-                "colors": [[255, 0, 100], [100, 0, 255]],
-                "mode": SEGMENT_MODE_GRADIENT,
-                "duration": 5.0,
-                "hold": 1.0,
-                "activation_pattern": ACTIVATION_SEQUENTIAL_FORWARD,
-            },
-            {
-                "segments": "all",
-                "colors": [[100, 0, 255], [255, 0, 100]],
-                "mode": SEGMENT_MODE_GRADIENT,
-                "duration": 5.0,
-                "hold": 1.0,
-                "activation_pattern": ACTIVATION_SEQUENTIAL_REVERSE,
-            },
-        ],
-        "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
-    },
-    PRESET_SEGMENT_SEQ_SPARKLE: {
-        "name": "Sparkle",
-        "icon": "mdi:star-four-points",
-        "steps": [
-            {
-                "segments": "all",
-                "colors": [[255, 255, 255], [255, 200, 0], [0, 0, 0]],
-                "mode": SEGMENT_MODE_BLOCKS_REPEAT,
-                "duration": 2.0,
-                "hold": 1.0,
-                "activation_pattern": ACTIVATION_RANDOM,
-            },
-        ],
-        "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_TURN_OFF,
-    },
-    PRESET_SEGMENT_SEQ_THEATER_CHASE: {
-        "name": "Theater chase",
-        "icon": "mdi:theater",
-        "steps": [
-            {
-                "segments": "all",
-                "colors": [[255, 0, 0], [0, 0, 255], [0, 255, 0]],
-                "mode": SEGMENT_MODE_BLOCKS_REPEAT,
-                "duration": 3.0,
-                "hold": 0.5,
-                "activation_pattern": ACTIVATION_SEQUENTIAL_FORWARD,
-            },
-        ],
-        "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
-    },
-    PRESET_SEGMENT_SEQ_RAINBOW_FILL: {
-        "name": "Rainbow fill",
-        "icon": "mdi:format-color-fill",
-        "steps": [
-            {
-                "segments": "all",
-                "colors": [
-                    [255, 0, 0],
-                    [255, 127, 0],
-                    [255, 255, 0],
-                    [0, 255, 0],
-                    [0, 0, 255],
-                    [139, 0, 255],
-                ],
-                "mode": SEGMENT_MODE_GRADIENT,
-                "duration": 10.0,
-                "hold": 5.0,
-                "activation_pattern": ACTIVATION_ALL,
-            },
-        ],
-        "loop_mode": LOOP_MODE_ONCE,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
-    },
-    PRESET_SEGMENT_SEQ_COMET: {
-        "name": "Comet",
-        "icon": "mdi:meteor",
-        "steps": [
-            {
-                "segments": "all",
-                "colors": [[255, 255, 255], [100, 150, 255], [0, 50, 100], [0, 0, 0]],
-                "mode": SEGMENT_MODE_GRADIENT,
-                "duration": 4.0,
-                "hold": 0.5,
-                "activation_pattern": ACTIVATION_SEQUENTIAL_FORWARD,
-            },
-        ],
-        "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_TURN_OFF,
-    },
-}
-
+PRESET_SEGMENT_SEQ_STELLA_BLUE: Final = "stella_blue"
 
 # Utility functions
 def brightness_percent_to_device(percent: int) -> int:

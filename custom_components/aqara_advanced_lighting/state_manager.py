@@ -7,13 +7,12 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.const import (
-    ATTR_ENTITY_ID,
     STATE_OFF,
     STATE_ON,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
 )
-from homeassistant.core import HomeAssistant, State
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
@@ -137,7 +136,14 @@ class StateManager:
             if brightness := state.attributes.get("brightness"):
                 state_data["brightness"] = brightness
 
-            # Capture color if available (RGB)
+            # Capture XY color if available (preferred for precision)
+            if xy_color := state.attributes.get("xy_color"):
+                state_data["xy_color"] = {
+                    "x": xy_color[0],
+                    "y": xy_color[1],
+                }
+
+            # Capture RGB color if available (fallback)
             if rgb_color := state.attributes.get("rgb_color"):
                 state_data["color"] = {
                     "r": rgb_color[0],
@@ -148,6 +154,10 @@ class StateManager:
             # Capture color temperature if available
             if color_temp := state.attributes.get("color_temp"):
                 state_data["color_temp"] = color_temp
+
+            # Capture color mode to know whether light was in RGB or CCT mode
+            if color_mode := state.attributes.get("color_mode"):
+                state_data["color_mode"] = color_mode
 
         else:
             state_data["state"] = STATE_OFF
@@ -173,9 +183,15 @@ class StateManager:
         return device_state
 
     def mark_effect_active(
-        self, entity_id: str, effect: DynamicEffect
+        self, entity_id: str, effect: DynamicEffect | None, preset: str | None = None
     ) -> None:
-        """Mark an effect as active for an entity."""
+        """Mark an effect as active for an entity.
+
+        Args:
+            entity_id: The entity to mark active
+            effect: The DynamicEffect object (None for segment patterns)
+            preset: Optional preset name for event tracking
+        """
         if entity_id not in self._states:
             _LOGGER.warning(
                 "Cannot mark effect active: no state captured for %s", entity_id
@@ -184,17 +200,29 @@ class StateManager:
 
         self._states[entity_id].effect_active = True
         self._states[entity_id].current_effect = effect
+        self._states[entity_id].current_preset = preset
 
         _LOGGER.debug(
-            "Marked effect %s active for %s", effect.effect, entity_id
+            "Marked effect %s active for %s (preset=%s)",
+            effect.effect if effect else "segment_pattern",
+            entity_id,
+            preset,
         )
 
-    def mark_effect_inactive(self, entity_id: str) -> None:
-        """Mark effect as inactive for an entity."""
+    def mark_effect_inactive(self, entity_id: str) -> str | None:
+        """Mark effect as inactive for an entity.
+
+        Returns:
+            The preset name that was active, or None if no preset was set.
+        """
+        preset = None
         if entity_id in self._states:
+            preset = self._states[entity_id].current_preset
             self._states[entity_id].effect_active = False
             self._states[entity_id].current_effect = None
-            _LOGGER.debug("Marked effect inactive for %s", entity_id)
+            self._states[entity_id].current_preset = None
+            _LOGGER.debug("Marked effect inactive for %s (was preset=%s)", entity_id, preset)
+        return preset
 
     def get_device_state(self, entity_id: str) -> DeviceState | None:
         """Get stored device state."""
@@ -212,6 +240,9 @@ class StateManager:
 
     def get_restoration_payload(self, entity_id: str) -> dict[str, Any] | None:
         """Get MQTT payload to restore previous state.
+
+        Uses color_mode to determine whether to send RGB or color_temp values,
+        ensuring accurate restoration for lights that support both modes (e.g., T2 bulbs).
 
         Returns:
             Dict with MQTT payload for state restoration, or None if no state stored.
@@ -237,11 +268,27 @@ class StateManager:
         if brightness := previous_state.get("brightness"):
             payload["brightness"] = brightness
 
-        if color := previous_state.get("color"):
-            payload["color"] = color
+        # Use color_mode to determine what color values to restore
+        color_mode = previous_state.get("color_mode")
 
-        if color_temp := previous_state.get("color_temp"):
-            payload["color_temp"] = color_temp
+        if color_mode in ("color_temp", "ct"):
+            # Light was in CCT mode - only restore color_temp
+            if color_temp := previous_state.get("color_temp"):
+                payload["color_temp"] = color_temp
+        elif color_mode in ("xy", "rgb", "hs", "rgbw", "rgbww"):
+            # Light was in color mode - prefer xy_color for precision
+            if xy_color := previous_state.get("xy_color"):
+                payload["xy_color"] = xy_color
+            elif color := previous_state.get("color"):
+                payload["color"] = color
+        else:
+            # Unknown or no color_mode - restore best available
+            if xy_color := previous_state.get("xy_color"):
+                payload["xy_color"] = xy_color
+            elif color := previous_state.get("color"):
+                payload["color"] = color
+            if color_temp := previous_state.get("color_temp"):
+                payload["color_temp"] = color_temp
 
         return payload
 

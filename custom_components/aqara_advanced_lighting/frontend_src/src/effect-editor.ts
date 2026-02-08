@@ -296,6 +296,18 @@ export class EffectEditor extends LitElement {
     };
   }
 
+  public resetToDefaults(): void {
+    this._name = '';
+    this._icon = '';
+    this._deviceType = 't2_bulb';
+    this._effect = '';
+    this._speed = 50;
+    this._brightness = 100;
+    this._colors = [{ x: 0.6800, y: 0.3100 }];
+    this._segments = '';
+    this._hasUserInteraction = false;
+  }
+
   private _restoreDraft(draft: EffectEditorDraft): void {
     this._name = draft.name;
     this._icon = draft.icon;
@@ -328,11 +340,11 @@ export class EffectEditor extends LitElement {
   }
 
   private _handleSpeedChange(e: CustomEvent): void {
-    this._speed = e.detail.value || 50;
+    this._speed = e.detail.value ?? 50;
   }
 
   private _handleBrightnessChange(e: CustomEvent): void {
-    this._brightness = e.detail.value || 100;
+    this._brightness = e.detail.value ?? 100;
   }
 
   private _handleSegmentsChange(e: CustomEvent): void {

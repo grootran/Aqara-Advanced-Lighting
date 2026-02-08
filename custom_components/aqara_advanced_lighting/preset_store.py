@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 import logging
 import uuid
 from typing import Any, NotRequired, TypedDict
 
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.storage import Store
 
 from .const import (
     DOMAIN,
     PRESET_TYPE_CCT_SEQUENCE,
+    PRESET_TYPE_DYNAMIC_SCENE,
     PRESET_TYPE_EFFECT,
     PRESET_TYPE_SEGMENT_PATTERN,
     PRESET_TYPE_SEGMENT_SEQUENCE,
@@ -177,6 +179,25 @@ class UserSegmentSequencePreset(TypedDict):
     modified_at: str
 
 
+class UserDynamicScenePreset(TypedDict):
+    """User-defined dynamic scene preset."""
+
+    id: str
+    name: str
+    icon: str | None
+    colors: list[dict[str, float | int]]  # List of {x, y, brightness_pct}
+    transition_time: float
+    hold_time: float
+    distribution_mode: str
+    offset_delay: float
+    random_order: bool
+    loop_mode: str
+    loop_count: int | None
+    end_behavior: str
+    created_at: str
+    modified_at: str
+
+
 class PresetsData(TypedDict):
     """Storage data structure for all user presets."""
 
@@ -184,6 +205,7 @@ class PresetsData(TypedDict):
     segment_pattern_presets: list[UserSegmentPatternPreset]
     cct_sequence_presets: list[UserCCTSequencePreset]
     segment_sequence_presets: list[UserSegmentSequencePreset]
+    dynamic_scene_presets: list[UserDynamicScenePreset]
 
 
 class PresetStore:
@@ -200,7 +222,39 @@ class PresetStore:
             "segment_pattern_presets": [],
             "cct_sequence_presets": [],
             "segment_sequence_presets": [],
+            "dynamic_scene_presets": [],
         }
+        self._update_callbacks: list[Callable[[], Awaitable[None]]] = []
+        self._suppress_callbacks: bool = False
+
+    def register_update_callback(
+        self, callback: Callable[[], Awaitable[None]]
+    ) -> Callable[[], None]:
+        """Register a callback to be notified when presets change.
+
+        Args:
+            callback: Async function to call when presets are modified
+
+        Returns:
+            Function to call to unregister the callback
+        """
+        self._update_callbacks.append(callback)
+
+        def unregister() -> None:
+            if callback in self._update_callbacks:
+                self._update_callbacks.remove(callback)
+
+        return unregister
+
+    async def _notify_update_callbacks(self) -> None:
+        """Notify all registered callbacks that presets have changed."""
+        if self._suppress_callbacks:
+            return
+        for callback in self._update_callbacks:
+            try:
+                await callback()
+            except Exception:
+                _LOGGER.exception("Error in preset update callback")
 
     async def async_load(self) -> None:
         """Load presets from storage."""
@@ -212,6 +266,7 @@ class PresetStore:
                 "segment_pattern_presets": data.get("segment_pattern_presets", []),
                 "cct_sequence_presets": data.get("cct_sequence_presets", []),
                 "segment_sequence_presets": data.get("segment_sequence_presets", []),
+                "dynamic_scene_presets": data.get("dynamic_scene_presets", []),
             }
 
             # Migrate RGB colors to XY format
@@ -239,11 +294,12 @@ class PresetStore:
                 await self.async_save()
 
         _LOGGER.debug(
-            "Loaded user presets: %d effects, %d patterns, %d CCT sequences, %d segment sequences",
+            "Loaded user presets: %d effects, %d patterns, %d CCT sequences, %d segment sequences, %d dynamic scenes",
             len(self._data["effect_presets"]),
             len(self._data["segment_pattern_presets"]),
             len(self._data["cct_sequence_presets"]),
             len(self._data["segment_sequence_presets"]),
+            len(self._data["dynamic_scene_presets"]),
         )
 
     async def async_save(self) -> None:
@@ -342,6 +398,7 @@ class PresetStore:
 
         self._data[key].append(preset)
         await self.async_save()
+        await self._notify_update_callbacks()
 
         _LOGGER.debug(
             "Added %s preset '%s' with ID %s",
@@ -382,6 +439,7 @@ class PresetStore:
                 }
                 self._data[key][i] = updated_preset
                 await self.async_save()
+                await self._notify_update_callbacks()
 
                 _LOGGER.debug(
                     "Updated %s preset '%s' (ID: %s)",
@@ -413,6 +471,7 @@ class PresetStore:
 
         if len(self._data[key]) < original_length:
             await self.async_save()
+            await self._notify_update_callbacks()
             _LOGGER.debug("Deleted %s preset with ID %s", preset_type, preset_id)
             return True
 
@@ -471,6 +530,7 @@ class PresetStore:
             "segment_sequence_presets": len(
                 all_presets.get("segment_sequence_presets", [])
             ),
+            "dynamic_scene_presets": len(all_presets.get("dynamic_scene_presets", [])),
         }
 
         # Build export structure
@@ -482,12 +542,13 @@ class PresetStore:
         }
 
         _LOGGER.debug(
-            "Exported %d presets (%d effects, %d patterns, %d CCT sequences, %d segment sequences)",
+            "Exported %d presets (%d effects, %d patterns, %d CCT sequences, %d segment sequences, %d dynamic scenes)",
             sum(preset_counts.values()),
             preset_counts["effect_presets"],
             preset_counts["segment_pattern_presets"],
             preset_counts["cct_sequence_presets"],
             preset_counts["segment_sequence_presets"],
+            preset_counts["dynamic_scene_presets"],
         )
 
         return export_data
@@ -537,6 +598,15 @@ class PresetStore:
             PRESET_TYPE_SEGMENT_SEQUENCE: {
                 "name",
                 "steps",
+                "loop_mode",
+                "end_behavior",
+            },
+            PRESET_TYPE_DYNAMIC_SCENE: {
+                "name",
+                "colors",
+                "transition_time",
+                "hold_time",
+                "distribution_mode",
                 "loop_mode",
                 "end_behavior",
             },
@@ -603,6 +673,28 @@ class PresetStore:
                                 translation_key="invalid_color_format",
                             )
 
+        # Validate dynamic scene colors
+        if preset_type == PRESET_TYPE_DYNAMIC_SCENE:
+            if not isinstance(preset_data.get("colors"), list):
+                raise ServiceValidationError(
+                    "Colors must be a list",
+                    translation_domain=DOMAIN,
+                    translation_key="invalid_color_format",
+                )
+            if not (1 <= len(preset_data["colors"]) <= 8):
+                raise ServiceValidationError(
+                    "Dynamic scene must have 1-8 colors",
+                    translation_domain=DOMAIN,
+                    translation_key="invalid_color_count",
+                )
+            for color in preset_data["colors"]:
+                if not isinstance(color, dict) or "x" not in color or "y" not in color:
+                    raise ServiceValidationError(
+                        "Each color must have x and y coordinates",
+                        translation_domain=DOMAIN,
+                        translation_key="invalid_color_format",
+                    )
+
     async def import_presets(self, import_data: dict[str, Any]) -> dict[str, int]:
         """Import presets from backup data with conflict resolution.
 
@@ -635,6 +727,9 @@ class PresetStore:
 
         data = import_data["data"]
 
+        # Suppress per-preset callbacks during bulk import
+        self._suppress_callbacks = True
+
         # Get current presets to check for name conflicts
         current_presets = self.get_all_presets()
 
@@ -644,116 +739,185 @@ class PresetStore:
             "segment_pattern_presets": 0,
             "cct_sequence_presets": 0,
             "segment_sequence_presets": 0,
+            "dynamic_scene_presets": 0,
         }
 
-        # Import effect presets
-        if "effect_presets" in data:
-            existing_names = {p["name"] for p in current_presets["effect_presets"]}
-            for preset in data["effect_presets"]:
-                self._validate_preset_structure(preset, PRESET_TYPE_EFFECT)
+        try:
+            # Import effect presets
+            if "effect_presets" in data:
+                existing_names = {p["name"] for p in current_presets["effect_presets"]}
+                for preset in data["effect_presets"]:
+                    self._validate_preset_structure(preset, PRESET_TYPE_EFFECT)
 
-                # Generate unique name if conflict
-                original_name = preset["name"]
-                unique_name = self._generate_unique_name(original_name, existing_names)
+                    # Generate unique name if conflict
+                    original_name = preset["name"]
+                    unique_name = self._generate_unique_name(
+                        original_name, existing_names
+                    )
 
-                # Create new preset with unique ID and name
-                new_preset_data = {
-                    "name": unique_name,
-                    "icon": preset.get("icon"),
-                    "device_type": preset.get("device_type"),
-                    "effect": preset["effect"],
-                    "effect_speed": preset["effect_speed"],
-                    "effect_brightness": preset.get("effect_brightness"),
-                    "effect_colors": preset["effect_colors"],
-                    "effect_segments": preset.get("effect_segments"),
+                    # Create new preset with unique ID and name
+                    new_preset_data = {
+                        "name": unique_name,
+                        "icon": preset.get("icon"),
+                        "device_type": preset.get("device_type"),
+                        "effect": preset["effect"],
+                        "effect_speed": preset["effect_speed"],
+                        "effect_brightness": preset.get("effect_brightness"),
+                        "effect_colors": preset["effect_colors"],
+                        "effect_segments": preset.get("effect_segments"),
+                    }
+
+                    await self.add_preset(PRESET_TYPE_EFFECT, new_preset_data)
+                    existing_names.add(unique_name)
+                    imported_counts["effect_presets"] += 1
+
+            # Import segment pattern presets
+            if "segment_pattern_presets" in data:
+                existing_names = {
+                    p["name"] for p in current_presets["segment_pattern_presets"]
                 }
+                for preset in data["segment_pattern_presets"]:
+                    self._validate_preset_structure(
+                        preset, PRESET_TYPE_SEGMENT_PATTERN
+                    )
 
-                await self.add_preset(PRESET_TYPE_EFFECT, new_preset_data)
-                existing_names.add(unique_name)
-                imported_counts["effect_presets"] += 1
+                    original_name = preset["name"]
+                    unique_name = self._generate_unique_name(
+                        original_name, existing_names
+                    )
 
-        # Import segment pattern presets
-        if "segment_pattern_presets" in data:
-            existing_names = {
-                p["name"] for p in current_presets["segment_pattern_presets"]
-            }
-            for preset in data["segment_pattern_presets"]:
-                self._validate_preset_structure(preset, PRESET_TYPE_SEGMENT_PATTERN)
+                    new_preset_data = {
+                        "name": unique_name,
+                        "icon": preset.get("icon"),
+                        "device_type": preset.get("device_type"),
+                        "segments": preset["segments"],
+                    }
 
-                original_name = preset["name"]
-                unique_name = self._generate_unique_name(original_name, existing_names)
+                    await self.add_preset(
+                        PRESET_TYPE_SEGMENT_PATTERN, new_preset_data
+                    )
+                    existing_names.add(unique_name)
+                    imported_counts["segment_pattern_presets"] += 1
 
-                new_preset_data = {
-                    "name": unique_name,
-                    "icon": preset.get("icon"),
-                    "device_type": preset.get("device_type"),
-                    "segments": preset["segments"],
+            # Import CCT sequence presets
+            if "cct_sequence_presets" in data:
+                existing_names = {
+                    p["name"] for p in current_presets["cct_sequence_presets"]
                 }
+                for preset in data["cct_sequence_presets"]:
+                    self._validate_preset_structure(
+                        preset, PRESET_TYPE_CCT_SEQUENCE
+                    )
 
-                await self.add_preset(PRESET_TYPE_SEGMENT_PATTERN, new_preset_data)
-                existing_names.add(unique_name)
-                imported_counts["segment_pattern_presets"] += 1
+                    original_name = preset["name"]
+                    unique_name = self._generate_unique_name(
+                        original_name, existing_names
+                    )
 
-        # Import CCT sequence presets
-        if "cct_sequence_presets" in data:
-            existing_names = {
-                p["name"] for p in current_presets["cct_sequence_presets"]
-            }
-            for preset in data["cct_sequence_presets"]:
-                self._validate_preset_structure(preset, PRESET_TYPE_CCT_SEQUENCE)
+                    new_preset_data = {
+                        "name": unique_name,
+                        "icon": preset.get("icon"),
+                        "steps": preset["steps"],
+                        "loop_mode": preset["loop_mode"],
+                        "loop_count": preset.get("loop_count"),
+                        "end_behavior": preset["end_behavior"],
+                    }
 
-                original_name = preset["name"]
-                unique_name = self._generate_unique_name(original_name, existing_names)
+                    await self.add_preset(
+                        PRESET_TYPE_CCT_SEQUENCE, new_preset_data
+                    )
+                    existing_names.add(unique_name)
+                    imported_counts["cct_sequence_presets"] += 1
 
-                new_preset_data = {
-                    "name": unique_name,
-                    "icon": preset.get("icon"),
-                    "steps": preset["steps"],
-                    "loop_mode": preset["loop_mode"],
-                    "loop_count": preset.get("loop_count"),
-                    "end_behavior": preset["end_behavior"],
+            # Import segment sequence presets
+            if "segment_sequence_presets" in data:
+                existing_names = {
+                    p["name"]
+                    for p in current_presets["segment_sequence_presets"]
                 }
+                for preset in data["segment_sequence_presets"]:
+                    self._validate_preset_structure(
+                        preset, PRESET_TYPE_SEGMENT_SEQUENCE
+                    )
 
-                await self.add_preset(PRESET_TYPE_CCT_SEQUENCE, new_preset_data)
-                existing_names.add(unique_name)
-                imported_counts["cct_sequence_presets"] += 1
+                    original_name = preset["name"]
+                    unique_name = self._generate_unique_name(
+                        original_name, existing_names
+                    )
 
-        # Import segment sequence presets
-        if "segment_sequence_presets" in data:
-            existing_names = {
-                p["name"] for p in current_presets["segment_sequence_presets"]
-            }
-            for preset in data["segment_sequence_presets"]:
-                self._validate_preset_structure(preset, PRESET_TYPE_SEGMENT_SEQUENCE)
+                    new_preset_data = {
+                        "name": unique_name,
+                        "icon": preset.get("icon"),
+                        "device_type": preset.get("device_type"),
+                        "steps": preset["steps"],
+                        "loop_mode": preset["loop_mode"],
+                        "loop_count": preset.get("loop_count"),
+                        "end_behavior": preset["end_behavior"],
+                    }
 
-                original_name = preset["name"]
-                unique_name = self._generate_unique_name(original_name, existing_names)
+                    # Include clear_segments if present
+                    if "clear_segments" in preset:
+                        new_preset_data["clear_segments"] = (
+                            preset["clear_segments"]
+                        )
 
-                new_preset_data = {
-                    "name": unique_name,
-                    "icon": preset.get("icon"),
-                    "device_type": preset.get("device_type"),
-                    "steps": preset["steps"],
-                    "loop_mode": preset["loop_mode"],
-                    "loop_count": preset.get("loop_count"),
-                    "end_behavior": preset["end_behavior"],
+                    await self.add_preset(
+                        PRESET_TYPE_SEGMENT_SEQUENCE, new_preset_data
+                    )
+                    existing_names.add(unique_name)
+                    imported_counts["segment_sequence_presets"] += 1
+
+            # Import dynamic scene presets
+            if "dynamic_scene_presets" in data:
+                existing_names = {
+                    p["name"]
+                    for p in current_presets.get("dynamic_scene_presets", [])
                 }
+                for preset in data["dynamic_scene_presets"]:
+                    self._validate_preset_structure(
+                        preset, PRESET_TYPE_DYNAMIC_SCENE
+                    )
 
-                # Include clear_segments if present
-                if "clear_segments" in preset:
-                    new_preset_data["clear_segments"] = preset["clear_segments"]
+                    original_name = preset["name"]
+                    unique_name = self._generate_unique_name(
+                        original_name, existing_names
+                    )
 
-                await self.add_preset(PRESET_TYPE_SEGMENT_SEQUENCE, new_preset_data)
-                existing_names.add(unique_name)
-                imported_counts["segment_sequence_presets"] += 1
+                    new_preset_data = {
+                        "name": unique_name,
+                        "icon": preset.get("icon"),
+                        "colors": preset["colors"],
+                        "transition_time": preset["transition_time"],
+                        "hold_time": preset["hold_time"],
+                        "distribution_mode": preset["distribution_mode"],
+                        "offset_delay": preset.get("offset_delay", 0.0),
+                        "random_order": preset.get("random_order", False),
+                        "loop_mode": preset["loop_mode"],
+                        "loop_count": preset.get("loop_count"),
+                        "end_behavior": preset["end_behavior"],
+                    }
+
+                    await self.add_preset(
+                        PRESET_TYPE_DYNAMIC_SCENE, new_preset_data
+                    )
+                    existing_names.add(unique_name)
+                    imported_counts["dynamic_scene_presets"] += 1
+        finally:
+            # Always re-enable callbacks even if import fails partway
+            self._suppress_callbacks = False
+
+        # Notify once for the entire import batch
+        if sum(imported_counts.values()) > 0:
+            await self._notify_update_callbacks()
 
         _LOGGER.info(
-            "Imported %d presets (%d effects, %d patterns, %d CCT sequences, %d segment sequences)",
+            "Imported %d presets (%d effects, %d patterns, %d CCT sequences, %d segment sequences, %d dynamic scenes)",
             sum(imported_counts.values()),
             imported_counts["effect_presets"],
             imported_counts["segment_pattern_presets"],
             imported_counts["cct_sequence_presets"],
             imported_counts["segment_sequence_presets"],
+            imported_counts["dynamic_scene_presets"],
         )
 
         return imported_counts

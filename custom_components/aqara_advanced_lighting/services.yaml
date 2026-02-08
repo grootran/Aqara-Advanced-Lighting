@@ -14,50 +14,7 @@ set_dynamic_effect:
       required: false
       selector:
         select:
-          options:
-            # T2 Bulb presets
-            - label: "T2: Candlelight"
-              value: "t2_candlelight"
-            - label: "T2: Breath"
-              value: "t2_breath"
-            - label: "T2: Colorful"
-              value: "t2_colorful"
-            - label: "T2: Security"
-              value: "t2_security"
-            # T1M presets
-            - label: "T1M: Dinner"
-              value: "t1m_dinner"
-            - label: "T1M: Sunset"
-              value: "t1m_sunset"
-            - label: "T1M: Autumn"
-              value: "t1m_autumn"
-            - label: "T1M: Galaxy"
-              value: "t1m_galaxy"
-            - label: "T1M: Daydream"
-              value: "t1m_daydream"
-            - label: "T1M: Holiday"
-              value: "t1m_holiday"
-            - label: "T1M: Party"
-              value: "t1m_party"
-            - label: "T1M: Meteor"
-              value: "t1m_meteor"
-            - label: "T1M: Alert"
-              value: "t1m_alert"
-            # T1 Strip presets
-            - label: "T1 Strip: Rainbow"
-              value: "t1_strip_rainbow"
-            - label: "T1 Strip: Heartbeat"
-              value: "t1_strip_heartbeat"
-            - label: "T1 Strip: Gala"
-              value: "t1_strip_gala"
-            - label: "T1 Strip: Sea of Flowers"
-              value: "t1_strip_sea_of_flowers"
-            - label: "T1 Strip: Rhythmic"
-              value: "t1_strip_rhythmic"
-            - label: "T1 Strip: Exciting"
-              value: "t1_strip_exciting"
-            - label: "T1 Strip: Colorful"
-              value: "t1_strip_colorful"
+          options: []
           mode: dropdown
           custom_value: true
     effect:
@@ -241,31 +198,7 @@ set_segment_pattern:
       required: false
       selector:
         select:
-          options:
-            - label: "Preset 1"
-              value: "segment_1"
-            - label: "Preset 2"
-              value: "segment_2"
-            - label: "Preset 3"
-              value: "segment_3"
-            - label: "Preset 4"
-              value: "segment_4"
-            - label: "Preset 5"
-              value: "segment_5"
-            - label: "Preset 6"
-              value: "segment_6"
-            - label: "Preset 7"
-              value: "segment_7"
-            - label: "Preset 8"
-              value: "segment_8"
-            - label: "Preset 9"
-              value: "segment_9"
-            - label: "Preset 10"
-              value: "segment_10"
-            - label: "Preset 11"
-              value: "segment_11"
-            - label: "Preset 12"
-              value: "segment_12"
+          options: []
           mode: dropdown
           custom_value: true
     segment_colors:
@@ -540,15 +473,7 @@ start_cct_sequence:
       required: false
       selector:
         select:
-          options:
-            - label: "Goodnight"
-              value: "goodnight"
-            - label: "Wakeup"
-              value: "wakeup"
-            - label: "Mindful breathing"
-              value: "mindful_breathing"
-            - label: "Circadian rhythm"
-              value: "circadian"
+          options: []
           mode: dropdown
           custom_value: true
     turn_on:
@@ -606,13 +531,13 @@ start_cct_sequence:
               mode: box
         step_1_hold:
           name: "Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          description: Time to hold at this step after transition completes, before next step starts (0-43200).
           required: true
           default: 10.0
           selector:
             number:
               min: 0
-              max: 3600
+              max: 43200
               step: 0.1
               unit_of_measurement: "s"
               mode: box
@@ -654,12 +579,12 @@ start_cct_sequence:
               mode: box
         step_2_hold:
           name: "Step 2: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          description: Time to hold at this step after transition completes, before next step starts (0-43200).
           required: false
           selector:
             number:
               min: 0
-              max: 3600
+              max: 43200
               step: 0.1
               unit_of_measurement: "s"
               mode: box
@@ -697,12 +622,12 @@ start_cct_sequence:
               mode: box
         step_3_hold:
           name: "Step 3: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          description: Time to hold at this step after transition completes, before next step starts (0-43200).
           required: false
           selector:
             number:
               min: 0
-              max: 3600
+              max: 43200
               step: 0.1
               unit_of_measurement: "s"
               mode: box
@@ -740,12 +665,12 @@ start_cct_sequence:
               mode: box
         step_4_hold:
           name: "Step 4: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          description: Time to hold at this step after transition completes, before next step starts (0-43200).
           required: false
           selector:
             number:
               min: 0
-              max: 3600
+              max: 43200
               step: 0.1
               unit_of_measurement: "s"
               mode: box
@@ -783,12 +708,12 @@ start_cct_sequence:
               mode: box
         step_5_hold:
           name: "Step 5: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          description: Time to hold at this step after transition completes, before next step starts (0-43200).
           required: false
           selector:
             number:
               min: 0
-              max: 3600
+              max: 43200
               step: 0.1
               unit_of_measurement: "s"
               mode: box
@@ -830,12 +755,12 @@ start_cct_sequence:
               mode: box
         step_6_hold:
           name: "Step 6: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          description: Time to hold at this step after transition completes, before next step starts (0-43200).
           required: false
           selector:
             number:
               min: 0
-              max: 3600
+              max: 43200
               step: 0.1
               unit_of_measurement: "s"
               mode: box
@@ -873,12 +798,12 @@ start_cct_sequence:
               mode: box
         step_7_hold:
           name: "Step 7: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          description: Time to hold at this step after transition completes, before next step starts (0-43200).
           required: false
           selector:
             number:
               min: 0
-              max: 3600
+              max: 43200
               step: 0.1
               unit_of_measurement: "s"
               mode: box
@@ -916,12 +841,12 @@ start_cct_sequence:
               mode: box
         step_8_hold:
           name: "Step 8: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          description: Time to hold at this step after transition completes, before next step starts (0-43200).
           required: false
           selector:
             number:
               min: 0
-              max: 3600
+              max: 43200
               step: 0.1
               unit_of_measurement: "s"
               mode: box
@@ -959,12 +884,12 @@ start_cct_sequence:
               mode: box
         step_9_hold:
           name: "Step 9: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          description: Time to hold at this step after transition completes, before next step starts (0-43200).
           required: false
           selector:
             number:
               min: 0
-              max: 3600
+              max: 43200
               step: 0.1
               unit_of_measurement: "s"
               mode: box
@@ -1002,12 +927,12 @@ start_cct_sequence:
               mode: box
         step_10_hold:
           name: "Step 10: Hold time"
-          description: Time to hold at this step after transition completes, before next step starts (0-3600).
+          description: Time to hold at this step after transition completes, before next step starts (0-43200).
           required: false
           selector:
             number:
               min: 0
-              max: 3600
+              max: 43200
               step: 0.1
               unit_of_measurement: "s"
               mode: box
@@ -1117,19 +1042,7 @@ start_segment_sequence:
       required: false
       selector:
         select:
-          options:
-            - label: "Loading bar"
-              value: "loading_bar"
-            - label: "Wave"
-              value: "wave"
-            - label: "Sparkle"
-              value: "sparkle"
-            - label: "Theater chase"
-              value: "theater_chase"
-            - label: "Rainbow fill"
-              value: "rainbow_fill"
-            - label: "Comet"
-              value: "comet"
+          options: []
           mode: dropdown
           custom_value: true
     turn_on:
@@ -2264,3 +2177,234 @@ resume_segment_sequence:
       example: "zigbee2mqtt"
       selector:
         text:
+
+start_dynamic_scene:
+  name: Start dynamic scene
+  description: Start a dynamic scene on target lights with slow color transitions. Creates ambient lighting by cycling through colors with configurable timing and distribution across multiple lights.
+  target:
+    entity:
+      domain: light
+      integration: mqtt
+  fields:
+    preset:
+      name: Preset scene
+      description: Choose a preset dynamic scene or type your custom preset name. When selected, manual color parameters are ignored.
+      required: false
+      selector:
+        select:
+          options: []
+          mode: dropdown
+          custom_value: true
+    color_1:
+      name: Color 1
+      description: "First scene color (required if not using a preset). Set x, y (CIE coordinates) and brightness_pct (1-100%)."
+      required: false
+      example:
+        x: 0.68
+        y: 0.32
+        brightness_pct: 80
+      selector:
+        object:
+    color_2:
+      name: Color 2
+      description: "Second scene color. Set x, y (CIE coordinates) and brightness_pct (1-100%)."
+      required: false
+      example:
+        x: 0.15
+        y: 0.06
+        brightness_pct: 60
+      selector:
+        object:
+    color_3:
+      name: Color 3
+      description: "Third scene color. Set x, y (CIE coordinates) and brightness_pct (1-100%)."
+      required: false
+      selector:
+        object:
+    color_4:
+      name: Color 4
+      description: "Fourth scene color. Set x, y (CIE coordinates) and brightness_pct (1-100%)."
+      required: false
+      selector:
+        object:
+    color_5:
+      name: Color 5
+      description: "Fifth scene color. Set x, y (CIE coordinates) and brightness_pct (1-100%)."
+      required: false
+      selector:
+        object:
+    color_6:
+      name: Color 6
+      description: "Sixth scene color. Set x, y (CIE coordinates) and brightness_pct (1-100%)."
+      required: false
+      selector:
+        object:
+    color_7:
+      name: Color 7
+      description: "Seventh scene color. Set x, y (CIE coordinates) and brightness_pct (1-100%)."
+      required: false
+      selector:
+        object:
+    color_8:
+      name: Color 8
+      description: "Eighth scene color. Set x, y (CIE coordinates) and brightness_pct (1-100%)."
+      required: false
+      selector:
+        object:
+    transition_time:
+      name: Transition time
+      description: Time in seconds for color transitions (30-3600 seconds).
+      required: false
+      default: 30.0
+      selector:
+        number:
+          min: 30
+          max: 3600
+          step: 1
+          unit_of_measurement: "s"
+          mode: slider
+    hold_time:
+      name: Hold time
+      description: Time in seconds to hold each color before transitioning (0-3600 seconds).
+      required: false
+      default: 10.0
+      selector:
+        number:
+          min: 0
+          max: 3600
+          step: 1
+          unit_of_measurement: "s"
+          mode: slider
+    distribution_mode:
+      name: Color assignment
+      description: How colors are assigned and cycled across lights.
+      required: false
+      default: "shuffle_rotate"
+      selector:
+        select:
+          options:
+            - label: "Shuffle and rotate"
+              value: "shuffle_rotate"
+            - label: "Synchronized"
+              value: "synchronized"
+            - label: "Random"
+              value: "random"
+    offset_delay:
+      name: Transition stagger
+      description: Delay in seconds between each light's color transition (0-10 seconds). Creates a staggered wave effect.
+      required: false
+      default: 0.0
+      selector:
+        number:
+          min: 0
+          max: 10
+          step: 0.1
+          unit_of_measurement: "s"
+          mode: slider
+    random_order:
+      name: Randomize light order
+      description: Randomize the order in which lights transition.
+      required: false
+      default: false
+      selector:
+        boolean:
+    loop_mode:
+      name: Loop mode
+      description: How the scene should loop.
+      required: false
+      default: "continuous"
+      selector:
+        select:
+          options:
+            - label: "Run once"
+              value: "once"
+            - label: "Loop X times"
+              value: "count"
+            - label: "Continuous loop"
+              value: "continuous"
+    loop_count:
+      name: Loop count
+      description: Number of times to loop the scene (required when loop mode is 'Loop X times').
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 1000
+          mode: box
+    end_behavior:
+      name: End behavior
+      description: What to do when the scene completes.
+      required: false
+      default: "restore"
+      selector:
+        select:
+          options:
+            - label: "Restore previous state"
+              value: "restore"
+            - label: "Maintain last color"
+              value: "maintain"
+    scene_name:
+      name: Scene name
+      description: Display name for tracking the running scene. Used internally when activating scenes with manual color parameters instead of a preset.
+      required: false
+      advanced: true
+      selector:
+        text:
+    static:
+      name: Static mode
+      description: Apply the scene colors once without starting a transition loop. Colors are distributed according to the distribution mode and applied instantly.
+      required: false
+      default: false
+      selector:
+        boolean:
+
+stop_dynamic_scene:
+  name: Stop dynamic scene
+  description: Stop running dynamic scene(s) on the target lights.
+  target:
+    entity:
+      domain: light
+      integration: mqtt
+  fields:
+    restore_state:
+      name: Restore state
+      description: Restore lights to their pre-scene state. If disabled, lights maintain their current color.
+      required: false
+      default: true
+      selector:
+        boolean:
+
+pause_dynamic_scene:
+  name: Pause dynamic scene
+  description: Pause running dynamic scene(s) on the target lights. Lights hold their current color until resumed.
+  target:
+    entity:
+      domain: light
+      integration: mqtt
+
+resume_dynamic_scene:
+  name: Resume dynamic scene
+  description: Resume paused dynamic scene(s) on the target lights. The scene continues from where it was paused.
+  target:
+    entity:
+      domain: light
+      integration: mqtt
+
+resume_entity_control:
+  name: Resume entity control
+  description: >-
+    Resume control of light entities that were paused due to external changes.
+    When you manually change a light that is part of a running dynamic scene,
+    CCT sequence, or segment sequence, the integration pauses control of that
+    individual light. This service resumes control so the light rejoins the
+    running action.
+  fields:
+    entity_id:
+      name: Entity
+      description: The light entity or entities to resume control for
+      required: true
+      selector:
+        entity:
+          multiple: true
+          filter:
+            domain: light

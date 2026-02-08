@@ -8,7 +8,7 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.const import ATTR_ENTITY_ID
+from homeassistant.const import ATTR_ENTITY_ID, STATE_OFF
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
@@ -22,7 +22,6 @@ from .const import (
     ACTIVATION_RANDOM,
     ACTIVATION_SEQUENTIAL_FORWARD,
     ACTIVATION_SEQUENTIAL_REVERSE,
-    ATTR_ACTIVATION_PATTERN,
     ATTR_BRIGHTNESS,
     ATTR_CLEAR_SEGMENTS,
     ATTR_COLOR_1,
@@ -33,35 +32,33 @@ from .const import (
     ATTR_COLOR_6,
     ATTR_COLOR_7,
     ATTR_COLOR_8,
-    ATTR_COLOR_TEMP,
-    ATTR_DURATION,
     ATTR_EFFECT,
     ATTR_END_BEHAVIOR,
     ATTR_EXPAND,
-    ATTR_HOLD,
     ATTR_LOOP_COUNT,
     ATTR_LOOP_MODE,
-    ATTR_MODE,
     ATTR_PRESET,
     ATTR_RESTORE_STATE,
     ATTR_SEGMENT_COLORS,
     ATTR_SEGMENTS,
     ATTR_SKIP_FIRST_IN_LOOP,
     ATTR_SPEED,
-    ATTR_STEPS,
     ATTR_SYNC,
-    ATTR_TRANSITION,
     ATTR_TURN_OFF_UNSPECIFIED,
     ATTR_TURN_ON,
     ATTR_Z2M_BASE_TOPIC,
-    CCT_SEQUENCE_PRESETS,
     DATA_CCT_SEQUENCE_MANAGER,
+    DATA_DYNAMIC_SCENE_MANAGER,
+    DATA_ENTITY_CONTROLLER,
     DATA_PRESET_STORE,
     DATA_SEGMENT_SEQUENCE_MANAGER,
     DATA_SEGMENT_ZONE_STORE,
+    DEFAULT_DYNAMIC_SCENE_HOLD_TIME,
+    DEFAULT_DYNAMIC_SCENE_TRANSITION_TIME,
+    DISTRIBUTION_SHUFFLE_ROTATE,
     DOMAIN,
-    EFFECT_PRESETS,
     PRESET_TYPE_CCT_SEQUENCE,
+    PRESET_TYPE_DYNAMIC_SCENE,
     PRESET_TYPE_EFFECT,
     PRESET_TYPE_SEGMENT_PATTERN,
     PRESET_TYPE_SEGMENT_SEQUENCE,
@@ -78,38 +75,34 @@ from .const import (
     MAX_BRIGHTNESS_PERCENT,
     MAX_COLOR_TEMP_KELVIN,
     MAX_DURATION,
-    MAX_EFFECT_COLORS,
-    MAX_GRADIENT_COLORS,
     MAX_HOLD_TIME,
     MAX_LOOP_COUNT,
     MAX_RGB_VALUE,
-    MAX_SEGMENT_COLORS,
-    MAX_SEQUENCE_STEPS,
     MAX_SPEED,
     MAX_TRANSITION_TIME,
     MIN_BRIGHTNESS_PERCENT,
     MIN_COLOR_TEMP_KELVIN,
     MIN_DURATION,
-    MIN_EFFECT_COLORS,
-    MIN_GRADIENT_COLORS,
     MIN_HOLD_TIME,
     MIN_LOOP_COUNT,
     MIN_RGB_VALUE,
-    MIN_SEGMENT_COLORS,
-    MIN_SEQUENCE_STEPS,
     MIN_SPEED,
     MIN_TRANSITION_TIME,
+    SERVICE_PAUSE_DYNAMIC_SCENE,
+    SERVICE_RESUME_DYNAMIC_SCENE,
+    SERVICE_START_DYNAMIC_SCENE,
+    SERVICE_STOP_DYNAMIC_SCENE,
+    VALID_DISTRIBUTION_MODES,
     MODEL_T1_STRIP,
     SEGMENT_MODE_BLOCKS_EXPAND,
     SEGMENT_MODE_BLOCKS_REPEAT,
     SEGMENT_MODE_GRADIENT,
-    SEGMENT_PATTERN_PRESETS,
-    SEGMENT_SEQUENCE_PRESETS,
     SERVICE_CREATE_BLOCKS,
     SERVICE_CREATE_GRADIENT,
     SERVICE_PAUSE_CCT_SEQUENCE,
     SERVICE_PAUSE_SEGMENT_SEQUENCE,
     SERVICE_RESUME_CCT_SEQUENCE,
+    SERVICE_RESUME_ENTITY_CONTROL,
     SERVICE_RESUME_SEGMENT_SEQUENCE,
     SERVICE_SET_DYNAMIC_EFFECT,
     SERVICE_SET_SEGMENT_PATTERN,
@@ -119,6 +112,12 @@ from .const import (
     SERVICE_STOP_EFFECT,
     SERVICE_STOP_SEGMENT_SEQUENCE,
     brightness_percent_to_device,
+)
+from .presets import (
+    CCT_SEQUENCE_PRESETS,
+    EFFECT_PRESETS,
+    SEGMENT_PATTERN_PRESETS,
+    SEGMENT_SEQUENCE_PRESETS,
 )
 from .light_capabilities import (
     get_device_capabilities,
@@ -131,6 +130,8 @@ from .models import (
     CCTSequence,
     CCTSequenceStep,
     DynamicEffect,
+    DynamicScene,
+    DynamicSceneColor,
     EffectType,
     RGBColor,
     SegmentColor,
@@ -471,6 +472,69 @@ SERVICE_RESUME_SEGMENT_SEQUENCE_SCHEMA = vol.Schema(
     }
 )
 
+# Dynamic scene color schema with optional brightness percentage
+DYNAMIC_SCENE_COLOR_SCHEMA = vol.Schema(
+    {
+        vol.Required("x"): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1.0)),
+        vol.Required("y"): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1.0)),
+        vol.Optional("brightness_pct", default=100): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=100)
+        ),
+    }
+)
+
+# Dynamic scene service schemas
+SERVICE_START_DYNAMIC_SCENE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+        vol.Exclusive(ATTR_PRESET, "scene_source"): cv.string,
+        vol.Exclusive("colors", "scene_source"): vol.All(
+            cv.ensure_list,
+            [DYNAMIC_SCENE_COLOR_SCHEMA],
+        ),
+        vol.Optional(
+            "transition_time", default=DEFAULT_DYNAMIC_SCENE_TRANSITION_TIME
+        ): vol.Coerce(float),
+        vol.Optional(
+            "hold_time", default=DEFAULT_DYNAMIC_SCENE_HOLD_TIME
+        ): vol.Coerce(float),
+        vol.Optional(
+            "distribution_mode", default=DISTRIBUTION_SHUFFLE_ROTATE
+        ): vol.In(VALID_DISTRIBUTION_MODES),
+        vol.Optional("offset_delay", default=0.0): vol.Coerce(float),
+        vol.Optional("random_order", default=False): cv.boolean,
+        vol.Optional(ATTR_LOOP_MODE, default="continuous"): vol.In(
+            ["once", "count", "continuous"]
+        ),
+        vol.Optional(ATTR_LOOP_COUNT): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=100)
+        ),
+        vol.Optional(ATTR_END_BEHAVIOR, default="maintain"): vol.In(
+            ["maintain", "restore"]
+        ),
+        vol.Optional("scene_name"): cv.string,
+        vol.Optional("static", default=False): cv.boolean,
+    }
+)
+
+SERVICE_STOP_DYNAMIC_SCENE_SCHEMA = vol.Schema(
+    {
+        vol.Optional(ATTR_ENTITY_ID): cv.entity_ids,
+    }
+)
+
+SERVICE_PAUSE_DYNAMIC_SCENE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+    }
+)
+
+SERVICE_RESUME_DYNAMIC_SCENE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+    }
+)
+
 
 def _normalize_color_to_rgb(color_data: dict[str, Any] | list[int]) -> RGBColor:
     """Convert color input (XY, RGB dict, or RGB list) to RGBColor.
@@ -799,6 +863,104 @@ def _validate_supported_entities(
             translation_key="unsupported_entities",
             translation_placeholders={"entity_list": entity_list},
         )
+
+
+def _is_aqara_entity(hass: HomeAssistant, entity_id: str) -> bool:
+    """Check if an entity is a supported Aqara device.
+
+    Args:
+        hass: Home Assistant instance
+        entity_id: Entity ID to check
+
+    Returns:
+        True if entity is a supported Aqara device
+    """
+    mqtt_client = _get_mqtt_client_for_entity(hass, entity_id)
+    if not mqtt_client:
+        return False
+    is_supported, _ = mqtt_client.is_supported_entity(entity_id)
+    return is_supported
+
+
+def _is_valid_light_entity(hass: HomeAssistant, entity_id: str) -> bool:
+    """Check if an entity is a valid light entity in Home Assistant.
+
+    Args:
+        hass: Home Assistant instance
+        entity_id: Entity ID to check
+
+    Returns:
+        True if entity exists and is a light
+    """
+    state = hass.states.get(entity_id)
+    return state is not None and state.domain == "light"
+
+
+_RGB_COLOR_MODES = {"xy", "hs", "rgb", "rgbw", "rgbww"}
+
+
+def _has_rgb_color_mode(hass: HomeAssistant, entity_id: str) -> bool:
+    """Check if a light entity supports RGB color modes.
+
+    Args:
+        hass: Home Assistant instance
+        entity_id: Entity ID to check
+
+    Returns:
+        True if entity supports at least one RGB color mode
+    """
+    state = hass.states.get(entity_id)
+    if state is None:
+        return False
+    color_modes = state.attributes.get("supported_color_modes")
+    if not isinstance(color_modes, list):
+        return False
+    return bool(_RGB_COLOR_MODES.intersection(color_modes))
+
+
+def _get_any_cct_manager(
+    hass: HomeAssistant,
+) -> tuple[Any, StateManager] | None:
+    """Get any available CCT sequence manager and state manager.
+
+    Used for generic (non-Aqara) lights that don't belong to a specific
+    Z2M instance. CCT sequences use HA service calls so any manager works.
+
+    Returns:
+        Tuple of (cct_manager, state_manager) or None if unavailable
+    """
+    if DOMAIN not in hass.data:
+        return None
+    for instance_data in hass.data[DOMAIN].get("entries", {}).values():
+        cct_manager = instance_data.get(DATA_CCT_SEQUENCE_MANAGER)
+        state_manager = instance_data.get("state_manager")
+        if cct_manager and state_manager:
+            return cct_manager, state_manager
+    return None
+
+
+def _find_cct_manager_for_entity(
+    hass: HomeAssistant, entity_id: str
+) -> Any | None:
+    """Find the CCT manager that has an active sequence for an entity.
+
+    Searches all instances including generic routing. Used by stop/pause/resume
+    handlers where the entity may be running on any manager.
+
+    Args:
+        hass: Home Assistant instance
+        entity_id: Entity ID to find manager for
+
+    Returns:
+        CCT sequence manager or None
+    """
+    if DOMAIN not in hass.data:
+        return None
+    for instance_data in hass.data[DOMAIN].get("entries", {}).values():
+        cct_manager = instance_data.get(DATA_CCT_SEQUENCE_MANAGER)
+        if cct_manager and cct_manager.is_sequence_running(entity_id):
+            return cct_manager
+    return None
 
 
 def _get_actual_segment_count(
@@ -1235,6 +1397,12 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 segment_manager.pause_sequence(entity_id)
                 paused_segment = True
 
+            # Detach from dynamic scene if running (one-time effect overrides scene)
+            dsm = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+            if dsm and dsm.is_scene_running(entity_id):
+                _LOGGER.debug("Detaching %s from dynamic scene before applying effect", entity_id)
+                dsm.detach_entity(entity_id)
+
             # Capture current state before applying effect
             entity_state_manager.capture_state(entity_id, z2m_name)
 
@@ -1303,7 +1471,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
         # Mark effects as active and fire events
         for entity_id, z2m_name, dynamic_effect, entity_state_mgr in all_entities_published:
-            entity_state_mgr.mark_effect_active(entity_id, dynamic_effect)
+            entity_state_mgr.mark_effect_active(entity_id, dynamic_effect, preset)
             _LOGGER.info("Applied effect %s to %s", effect, entity_id)
 
             # Fire effect activated event
@@ -1369,41 +1537,43 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
             # Stop the effect by restoring previous state using HA light service
             try:
-                if restore_state and entity_state_manager.has_stored_state(entity_id):
-                    # Get stored state
-                    device_state = entity_state_manager.get_device_state(entity_id)
-                    if device_state and device_state.previous_state:
-                        prev_state = device_state.previous_state
+                payload = (
+                    entity_state_manager.get_restoration_payload(entity_id)
+                    if restore_state
+                    else None
+                )
 
-                        # Build service call data for HA light.turn_on
-                        service_data = {"entity_id": entity_id}
+                if payload:
+                    service_data: dict[str, Any] = {"entity_id": entity_id}
 
-                        # Restore brightness if it was set
-                        if brightness := prev_state.get("brightness"):
-                            service_data["brightness"] = brightness
-
-                        # Restore color (RGB) if it was set
-                        if color := prev_state.get("color"):
-                            # Color should be in HA format: {"r": R, "g": G, "b": B}
-                            if isinstance(color, dict) and "r" in color:
-                                service_data["rgb_color"] = [color["r"], color["g"], color["b"]]
-
-                        # Restore color temp if it was set (and no RGB color)
-                        elif color_temp := prev_state.get("color_temp"):
-                            service_data["color_temp"] = color_temp
-
-                        # Call HA light service to restore state
-                        # This uses standard Zigbee commands
+                    if payload.get("state") == STATE_OFF:
                         await hass.services.async_call(
-                            "light",
-                            "turn_on",
-                            service_data,
-                            blocking=True,
+                            "light", "turn_off", service_data, blocking=True,
                         )
-                        _LOGGER.info("Stopped effect and restored previous state for %s", entity_id)
+                    else:
+                        if "brightness" in payload:
+                            service_data["brightness"] = payload["brightness"]
+
+                        # get_restoration_payload uses color_mode to pick the
+                        # correct format (xy_color for color mode, color_temp
+                        # for CCT mode) so dual-mode lights restore accurately
+                        if "xy_color" in payload:
+                            xy = payload["xy_color"]
+                            service_data["xy_color"] = [xy["x"], xy["y"]]
+                        elif "color" in payload:
+                            c = payload["color"]
+                            service_data["rgb_color"] = [c["r"], c["g"], c["b"]]
+
+                        if "color_temp" in payload:
+                            service_data["color_temp"] = payload["color_temp"]
+
+                        await hass.services.async_call(
+                            "light", "turn_on", service_data, blocking=True,
+                        )
+
+                    _LOGGER.info("Stopped effect and restored previous state for %s", entity_id)
                 else:
                     # No saved state - stop effect with a default warm white RGB color
-                    # Use HA light service to set a solid color
                     await hass.services.async_call(
                         "light",
                         "turn_on",
@@ -1412,8 +1582,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     )
                     _LOGGER.info("Stopped effect for %s (set to default warm white)", entity_id)
 
-                # Mark effect as inactive
-                entity_state_manager.mark_effect_inactive(entity_id)
+                # Mark effect as inactive (returns the preset that was active)
+                stopped_preset = entity_state_manager.mark_effect_inactive(entity_id)
 
                 # Resume any sequences that were paused when effect started
                 device_state = entity_state_manager.get_device_state(entity_id)
@@ -1433,10 +1603,13 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         segment_manager.resume_sequence(entity_id)
                         device_state.paused_segment_sequence = False
 
-                # Fire effect stopped event
+                # Fire effect stopped event with preset info
                 hass.bus.async_fire(
                     EVENT_EFFECT_STOPPED,
-                    {EVENT_ATTR_ENTITY_ID: entity_id},
+                    {
+                        EVENT_ATTR_ENTITY_ID: entity_id,
+                        EVENT_ATTR_PRESET: stopped_preset,
+                    },
                 )
             except Exception as ex:
                 _LOGGER.warning("Failed to stop effect for %s: %s", entity_id, ex)
@@ -1640,6 +1813,12 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 segment_manager.pause_sequence(entity_id)
                 paused_segment = True
 
+            # Detach from dynamic scene if running (one-time pattern overrides scene)
+            dsm = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+            if dsm and dsm.is_scene_running(entity_id):
+                _LOGGER.debug("Detaching %s from dynamic scene before applying segment pattern", entity_id)
+                dsm.detach_entity(entity_id)
+
             # Capture state and publish pattern
             entity_state_manager.capture_state(entity_id, z2m_name)
 
@@ -1655,7 +1834,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 )
                 _LOGGER.info("Applied segment pattern to %s", entity_id)
 
-                # Fire effect activated event
+                # Mark effect active and fire event
+                entity_state_manager.mark_effect_active(entity_id, None, preset)
+
                 hass.bus.async_fire(
                     EVENT_EFFECT_ACTIVATED,
                     {
@@ -1754,6 +1935,13 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     translation_placeholders={"device": z2m_name},
                 )
 
+            # Detach from dynamic scene if running (one-time gradient overrides scene)
+            instance_data = hass.data[DOMAIN]["entries"].get(entry_id, {})
+            dsm = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+            if dsm and dsm.is_scene_running(entity_id):
+                _LOGGER.debug("Detaching %s from dynamic scene before applying gradient", entity_id)
+                dsm.detach_entity(entity_id)
+
             # Ensure light is on if requested
             await _ensure_light_on(hass, entity_mqtt_client, entity_id, z2m_name, turn_on)
 
@@ -1823,7 +2011,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 )
                 _LOGGER.info("Applied gradient to %s", entity_id)
 
-                # Fire effect activated event
+                # Mark effect active and fire event
+                entity_state_manager.mark_effect_active(entity_id, None, None)
+
                 hass.bus.async_fire(
                     EVENT_EFFECT_ACTIVATED,
                     {
@@ -1923,6 +2113,13 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     translation_placeholders={"device": z2m_name},
                 )
 
+            # Detach from dynamic scene if running (one-time blocks overrides scene)
+            instance_data = hass.data[DOMAIN]["entries"].get(entry_id, {})
+            dsm = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+            if dsm and dsm.is_scene_running(entity_id):
+                _LOGGER.debug("Detaching %s from dynamic scene before applying blocks", entity_id)
+                dsm.detach_entity(entity_id)
+
             # Ensure light is on if requested
             await _ensure_light_on(hass, entity_mqtt_client, entity_id, z2m_name, turn_on)
 
@@ -1992,7 +2189,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 )
                 _LOGGER.info("Applied block pattern to %s", entity_id)
 
-                # Fire effect activated event
+                # Mark effect active and fire event
+                entity_state_manager.mark_effect_active(entity_id, None, None)
+
                 hass.bus.async_fire(
                     EVENT_EFFECT_ACTIVATED,
                     {
@@ -2029,8 +2228,26 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
 
-        # Validate all entities are supported Aqara devices
-        _validate_supported_entities(hass, resolved_entity_ids)
+        # Separate Aqara and generic light entities
+        aqara_entity_ids = []
+        generic_entity_ids = []
+        invalid_entity_ids = []
+        for entity_id in resolved_entity_ids:
+            if _is_aqara_entity(hass, entity_id):
+                aqara_entity_ids.append(entity_id)
+            elif _is_valid_light_entity(hass, entity_id):
+                generic_entity_ids.append(entity_id)
+            else:
+                invalid_entity_ids.append(entity_id)
+
+        if invalid_entity_ids:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="unsupported_entities",
+                translation_placeholders={
+                    "entity_list": ", ".join(invalid_entity_ids)
+                },
+            )
 
         turn_on: bool = call.data.get(ATTR_TURN_ON, False)
         preset: str | None = call.data.get(ATTR_PRESET)
@@ -2189,10 +2406,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 translation_placeholders={"error": str(ex)},
             ) from ex
 
-        # Group entities by their CCT manager instance for synchronized starting
-        instance_groups: dict[str, dict] = {}  # entry_id -> {manager, entities, mqtt_clients}
+        # Group Aqara entities by their CCT manager instance for synchronized starting
+        instance_groups: dict[str, dict] = {}  # entry_id -> {manager, entities, turn_on_data}
 
-        for entity_id in resolved_entity_ids:
+        for entity_id in aqara_entity_ids:
             # Get the correct instance components for this entity
             entity_mqtt_client, entity_state_manager, entry_id = (
                 _get_instance_components_for_entity(hass, entity_id)
@@ -2229,38 +2446,83 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 (entity_mqtt_client, entity_id, z2m_name)
             )
 
+        # Route generic entities through any available CCT manager
+        # CCT sequences use HA service calls so any manager works
+        generic_manager_pair = None
+        if generic_entity_ids:
+            generic_manager_pair = _get_any_cct_manager(hass)
+            if not generic_manager_pair:
+                raise HomeAssistantError(
+                    "No integration instance available to manage generic lights. "
+                    "Please ensure at least one Aqara Advanced Lighting instance "
+                    "is configured."
+                )
+
         # Turn on all lights in parallel if requested
         if turn_on:
             turn_on_tasks = []
+            # Aqara lights
             for group_data in instance_groups.values():
                 for mqtt_client, entity_id, z2m_name in group_data["turn_on_data"]:
                     turn_on_tasks.append(
                         _ensure_light_on(hass, mqtt_client, entity_id, z2m_name, True)
                     )
+            # Generic lights - use HA service call directly
+            for entity_id in generic_entity_ids:
+                state = hass.states.get(entity_id)
+                if state and state.state != "on":
+                    turn_on_tasks.append(
+                        hass.services.async_call(
+                            "light", "turn_on",
+                            {"entity_id": entity_id},
+                            blocking=False,
+                        )
+                    )
             if turn_on_tasks:
                 await asyncio.gather(*turn_on_tasks, return_exceptions=True)
 
-        # Start synchronized sequences for each instance group
+        # Stop all conflicting continuous actions on these entities
+        entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+        if entity_controller:
+            for entity_id in aqara_entity_ids + generic_entity_ids:
+                await entity_controller.stop_all_for_entity(entity_id)
+
+        # Start synchronized sequences for each Aqara instance group
+        start_tasks = []
         for entry_id, group_data in instance_groups.items():
             cct_manager = group_data["manager"]
             entity_list = group_data["entities"]
+            start_tasks.append(
+                cct_manager.start_synchronized_group(
+                    entity_list, sequence, z2m_base_topic, preset
+                )
+            )
 
-            try:
-                # Use synchronized group start for multiple entities
-                await cct_manager.start_synchronized_group(
-                    entity_list, sequence, z2m_base_topic
+        # Start sequences for generic entities
+        if generic_entity_ids and generic_manager_pair:
+            generic_cct_manager, _ = generic_manager_pair
+            start_tasks.append(
+                generic_cct_manager.start_synchronized_group(
+                    generic_entity_ids, sequence, None, preset
                 )
-                _LOGGER.info(
-                    "Started synchronized CCT sequence for %d entities: loop_mode=%s",
-                    len(entity_list),
-                    loop_mode,
-                )
-            except Exception as ex:
-                raise HomeAssistantError(
-                    translation_domain=DOMAIN,
-                    translation_key="start_sequence_failed",
-                    translation_placeholders={"entity": ", ".join(entity_list)},
-                ) from ex
+            )
+
+        # Start all sequences in parallel
+        try:
+            await asyncio.gather(*start_tasks)
+            _LOGGER.info(
+                "Started CCT sequences for %d Aqara + %d generic entities: loop_mode=%s",
+                len(aqara_entity_ids),
+                len(generic_entity_ids),
+                loop_mode,
+            )
+        except Exception as ex:
+            all_entities = aqara_entity_ids + generic_entity_ids
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="start_sequence_failed",
+                translation_placeholders={"entity": ", ".join(all_entities)},
+            ) from ex
 
     async def handle_stop_cct_sequence(call: ServiceCall) -> None:
         """Handle stop_cct_sequence service call."""
@@ -2269,22 +2531,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
 
-        # Validate all entities are supported Aqara devices
-        _validate_supported_entities(hass, resolved_entity_ids)
-
-        # Stop sequence for each entity
+        # Stop sequence for each entity - search all managers for running sequences
         for entity_id in resolved_entity_ids:
-            # Get the correct instance components for this entity
-            _, _, entry_id = _get_instance_components_for_entity(hass, entity_id)
-
-            # Get CCT manager from the correct instance
-            instance_data = hass.data[DOMAIN]["entries"].get(entry_id, {})
-            cct_manager = instance_data.get(DATA_CCT_SEQUENCE_MANAGER)
+            cct_manager = _find_cct_manager_for_entity(hass, entity_id)
             if not cct_manager:
-                _LOGGER.warning(
-                    "CCT sequence manager not initialized for instance %s, skipping %s",
-                    entry_id, entity_id
-                )
+                _LOGGER.warning("No active CCT sequence for %s to stop", entity_id)
                 continue
 
             try:
@@ -2305,25 +2556,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
 
-        # Validate all entities are supported Aqara devices
-        _validate_supported_entities(hass, resolved_entity_ids)
-
-        # Pause sequence for each entity
+        # Pause sequence for each entity - search all managers
         for entity_id in resolved_entity_ids:
-            # Get the correct instance components for this entity
-            _, _, entry_id = _get_instance_components_for_entity(hass, entity_id)
-
-            # Get CCT manager from the correct instance
-            instance_data = hass.data[DOMAIN]["entries"].get(entry_id, {})
-            cct_manager = instance_data.get(DATA_CCT_SEQUENCE_MANAGER)
+            cct_manager = _find_cct_manager_for_entity(hass, entity_id)
             if not cct_manager:
-                _LOGGER.warning(
-                    "CCT sequence manager not initialized for instance %s, skipping %s",
-                    entry_id, entity_id
-                )
-                continue
-
-            if not cct_manager.is_sequence_running(entity_id):
                 _LOGGER.warning("No active CCT sequence for %s to pause", entity_id)
                 continue
 
@@ -2340,25 +2576,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
 
-        # Validate all entities are supported Aqara devices
-        _validate_supported_entities(hass, resolved_entity_ids)
-
-        # Resume sequence for each entity
+        # Resume sequence for each entity - search all managers
         for entity_id in resolved_entity_ids:
-            # Get the correct instance components for this entity
-            _, _, entry_id = _get_instance_components_for_entity(hass, entity_id)
-
-            # Get CCT manager from the correct instance
-            instance_data = hass.data[DOMAIN]["entries"].get(entry_id, {})
-            cct_manager = instance_data.get(DATA_CCT_SEQUENCE_MANAGER)
+            cct_manager = _find_cct_manager_for_entity(hass, entity_id)
             if not cct_manager:
-                _LOGGER.warning(
-                    "CCT sequence manager not initialized for instance %s, skipping %s",
-                    entry_id, entity_id
-                )
-                continue
-
-            if not cct_manager.is_sequence_running(entity_id):
                 _LOGGER.warning("No active CCT sequence for %s to resume", entity_id)
                 continue
 
@@ -2643,6 +2864,12 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             if turn_on_tasks:
                 await asyncio.gather(*turn_on_tasks, return_exceptions=True)
 
+        # Stop all conflicting continuous actions on these entities
+        entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+        if entity_controller:
+            for entity_id in resolved_entity_ids:
+                await entity_controller.stop_all_for_entity(entity_id)
+
         # Start synchronized sequences for each instance group
         for entry_id, group_data in instance_groups.items():
             segment_manager = group_data["manager"]
@@ -2651,7 +2878,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             try:
                 # Use synchronized group start for multiple entities
                 sequence_ids = await segment_manager.start_synchronized_group(
-                    entity_list, sequence, z2m_base_topic
+                    entity_list, sequence, z2m_base_topic, preset
                 )
                 _LOGGER.info(
                     "Started synchronized segment sequence for %d entities",
@@ -2771,6 +2998,214 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             else:
                 _LOGGER.warning("Failed to resume segment sequence for %s", entity_id)
 
+    async def handle_start_dynamic_scene(call: ServiceCall) -> None:
+        """Handle start_dynamic_scene service call.
+
+        Dynamic scenes use HA service calls (light.turn_on with xy_color) and
+        work with both Aqara and generic RGB-capable lights.
+        """
+        entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+        preset_name: str | None = call.data.get(ATTR_PRESET)
+        # scene_name is used for display tracking when colors are passed
+        # directly (not via preset lookup)
+        display_name: str | None = preset_name or call.data.get("scene_name")
+
+        # Resolve groups to individual entities
+        entity_ids = _resolve_entity_ids(hass, entity_ids)
+
+        # Filter to valid light entities (Aqara or generic)
+        valid_entity_ids = [
+            eid for eid in entity_ids if _is_valid_light_entity(hass, eid)
+        ]
+        if not valid_entity_ids:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="unsupported_entities",
+                translation_placeholders={
+                    "entity_list": ", ".join(entity_ids)
+                },
+            )
+
+        # Dynamic scenes require RGB color capability (xy_color commands)
+        rgb_entity_ids = [
+            eid for eid in valid_entity_ids if _has_rgb_color_mode(hass, eid)
+        ]
+        if not rgb_entity_ids:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="no_rgb_entities",
+                translation_placeholders={
+                    "entity_list": ", ".join(valid_entity_ids)
+                },
+            )
+        if len(rgb_entity_ids) < len(valid_entity_ids):
+            skipped = set(valid_entity_ids) - set(rgb_entity_ids)
+            _LOGGER.info(
+                "Skipping CCT-only entities for dynamic scene: %s",
+                ", ".join(skipped),
+            )
+        valid_entity_ids = rgb_entity_ids
+
+        # Get dynamic scene manager from first available config entry
+        # (scenes work across all Z2M instances so any manager will do)
+        manager = None
+        for instance_data in hass.data[DOMAIN].get("entries", {}).values():
+            manager = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+            if manager:
+                break
+        if not manager:
+            raise HomeAssistantError("Dynamic scene manager not initialized")
+
+        # Build scene from preset or manual parameters
+        if preset_name:
+            # Look up preset
+            preset_store = hass.data[DOMAIN].get(DATA_PRESET_STORE)
+            if not preset_store:
+                raise HomeAssistantError("Preset store not initialized")
+
+            preset = preset_store.get_preset_by_name(PRESET_TYPE_DYNAMIC_SCENE, preset_name)
+            if not preset:
+                preset = preset_store.get_preset(PRESET_TYPE_DYNAMIC_SCENE, preset_name)
+            if not preset:
+                raise ServiceValidationError(
+                    f"Dynamic scene preset '{preset_name}' not found",
+                    translation_domain=DOMAIN,
+                    translation_key="preset_not_found",
+                )
+
+            colors = [
+                DynamicSceneColor(
+                    x=c["x"],
+                    y=c["y"],
+                    brightness_pct=c.get("brightness_pct", 100),
+                )
+                for c in preset["colors"]
+            ]
+
+            scene = DynamicScene(
+                colors=colors,
+                transition_time=preset["transition_time"],
+                hold_time=preset["hold_time"],
+                distribution_mode=preset["distribution_mode"],
+                offset_delay=preset.get("offset_delay", 0.0),
+                random_order=preset.get("random_order", False),
+                loop_mode=preset["loop_mode"],
+                loop_count=preset.get("loop_count"),
+                end_behavior=preset["end_behavior"],
+            )
+        else:
+            # Build from manual parameters
+            colors_data = call.data.get("colors")
+            if not colors_data:
+                raise ServiceValidationError(
+                    "Either preset or colors must be provided",
+                    translation_domain=DOMAIN,
+                    translation_key="missing_scene_source",
+                )
+
+            colors = [
+                DynamicSceneColor(
+                    x=c["x"],
+                    y=c["y"],
+                    brightness_pct=c.get("brightness_pct", 100),
+                )
+                for c in colors_data
+            ]
+
+            scene = DynamicScene(
+                colors=colors,
+                transition_time=call.data.get(
+                    "transition_time", DEFAULT_DYNAMIC_SCENE_TRANSITION_TIME
+                ),
+                hold_time=call.data.get("hold_time", DEFAULT_DYNAMIC_SCENE_HOLD_TIME),
+                distribution_mode=call.data.get(
+                    "distribution_mode", DISTRIBUTION_SHUFFLE_ROTATE
+                ),
+                offset_delay=call.data.get("offset_delay", 0.0),
+                random_order=call.data.get("random_order", False),
+                loop_mode=call.data.get(ATTR_LOOP_MODE, "continuous"),
+                loop_count=call.data.get(ATTR_LOOP_COUNT),
+                end_behavior=call.data.get(ATTR_END_BEHAVIOR, "maintain"),
+            )
+
+        # Stop all conflicting continuous actions on these entities
+        entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+        if entity_controller:
+            for entity_id in valid_entity_ids:
+                await entity_controller.stop_all_for_entity(entity_id)
+
+        static = call.data.get("static", False)
+        if static:
+            await manager.apply_static_scene(
+                valid_entity_ids, scene, display_name
+            )
+        else:
+            await manager.start_scene(valid_entity_ids, scene, display_name)
+
+    async def handle_stop_dynamic_scene(call: ServiceCall) -> None:
+        """Handle stop_dynamic_scene service call."""
+        entity_ids: list[str] | None = call.data.get(ATTR_ENTITY_ID)
+
+        # Get dynamic scene manager from first available config entry
+        manager = None
+        for instance_data in hass.data[DOMAIN].get("entries", {}).values():
+            manager = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+            if manager:
+                break
+        if not manager:
+            raise HomeAssistantError("Dynamic scene manager not initialized")
+
+        await manager.stop_scene(entity_ids=entity_ids)
+
+    async def handle_pause_dynamic_scene(call: ServiceCall) -> None:
+        """Handle pause_dynamic_scene service call."""
+        entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+
+        # Get dynamic scene manager from first available config entry
+        manager = None
+        for instance_data in hass.data[DOMAIN].get("entries", {}).values():
+            manager = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+            if manager:
+                break
+        if not manager:
+            raise HomeAssistantError("Dynamic scene manager not initialized")
+
+        manager.pause_scene(entity_ids)
+
+    async def handle_resume_dynamic_scene(call: ServiceCall) -> None:
+        """Handle resume_dynamic_scene service call."""
+        entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+
+        # Get dynamic scene manager from first available config entry
+        manager = None
+        for instance_data in hass.data[DOMAIN].get("entries", {}).values():
+            manager = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+            if manager:
+                break
+        if not manager:
+            raise HomeAssistantError("Dynamic scene manager not initialized")
+
+        manager.resume_scene(entity_ids)
+
+    async def handle_resume_entity_control(call: ServiceCall) -> None:
+        """Handle resume_entity_control service call.
+
+        Resumes control of entities that were paused due to external changes.
+        """
+        entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+
+        entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+        if not entity_controller:
+            raise HomeAssistantError("Entity controller not initialized")
+
+        for entity_id in entity_ids:
+            resumed = await entity_controller.resume_entity(entity_id)
+            if not resumed:
+                _LOGGER.debug(
+                    "Entity %s was not externally paused, nothing to resume",
+                    entity_id,
+                )
+
     # Register services
     hass.services.async_register(
         DOMAIN,
@@ -2863,6 +3298,45 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         schema=SERVICE_RESUME_SEGMENT_SEQUENCE_SCHEMA,
     )
 
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_START_DYNAMIC_SCENE,
+        handle_start_dynamic_scene,
+        schema=SERVICE_START_DYNAMIC_SCENE_SCHEMA,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_STOP_DYNAMIC_SCENE,
+        handle_stop_dynamic_scene,
+        schema=SERVICE_STOP_DYNAMIC_SCENE_SCHEMA,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_PAUSE_DYNAMIC_SCENE,
+        handle_pause_dynamic_scene,
+        schema=SERVICE_PAUSE_DYNAMIC_SCENE_SCHEMA,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_RESUME_DYNAMIC_SCENE,
+        handle_resume_dynamic_scene,
+        schema=SERVICE_RESUME_DYNAMIC_SCENE_SCHEMA,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_RESUME_ENTITY_CONTROL,
+        handle_resume_entity_control,
+        schema=vol.Schema(
+            {
+                vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+            }
+        ),
+    )
+
     _LOGGER.info("Aqara Advanced Lighting services registered")
 
 
@@ -2881,6 +3355,11 @@ async def async_unload_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(DOMAIN, SERVICE_STOP_SEGMENT_SEQUENCE)
     hass.services.async_remove(DOMAIN, SERVICE_PAUSE_SEGMENT_SEQUENCE)
     hass.services.async_remove(DOMAIN, SERVICE_RESUME_SEGMENT_SEQUENCE)
+    hass.services.async_remove(DOMAIN, SERVICE_START_DYNAMIC_SCENE)
+    hass.services.async_remove(DOMAIN, SERVICE_STOP_DYNAMIC_SCENE)
+    hass.services.async_remove(DOMAIN, SERVICE_PAUSE_DYNAMIC_SCENE)
+    hass.services.async_remove(DOMAIN, SERVICE_RESUME_DYNAMIC_SCENE)
+    hass.services.async_remove(DOMAIN, SERVICE_RESUME_ENTITY_CONTROL)
 
     # Stop all running sequences across all instances
     entries = hass.data.get(DOMAIN, {}).get("entries", {})
@@ -2894,5 +3373,10 @@ async def async_unload_services(hass: HomeAssistant) -> None:
         segment_manager = instance_data.get(DATA_SEGMENT_SEQUENCE_MANAGER)
         if segment_manager:
             await segment_manager.stop_all_sequences()
+
+        # Stop all running dynamic scenes for this instance
+        dynamic_scene_manager = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+        if dynamic_scene_manager:
+            dynamic_scene_manager.cleanup()
 
     _LOGGER.info("Aqara Advanced Lighting services unloaded")

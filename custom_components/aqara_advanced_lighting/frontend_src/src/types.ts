@@ -23,6 +23,12 @@ export interface HomeAssistant {
       access_token: string;
     };
   };
+  connection: {
+    subscribeEvents: (
+      callback: (event: HassEvent) => void,
+      eventType: string,
+    ) => Promise<() => void>;
+  };
 }
 
 export interface HassEntity {
@@ -95,6 +101,22 @@ export interface SegmentSequencePreset {
   end_behavior: string;
 }
 
+// Bundled dynamic scene preset (from backend)
+export interface DynamicScenePreset {
+  id: string;
+  name: string;
+  icon?: string;
+  colors: DynamicSceneColor[];
+  transition_time: number;
+  hold_time: number;
+  distribution_mode: string;
+  offset_delay: number;
+  random_order: boolean;
+  loop_mode: string;
+  loop_count?: number;
+  end_behavior: string;
+}
+
 export interface PresetsData {
   dynamic_effects: {
     t2_bulb: DynamicEffectPreset[];
@@ -104,6 +126,7 @@ export interface PresetsData {
   segment_patterns: SegmentPatternPreset[];
   cct_sequences: CCTSequencePreset[];
   segment_sequences: SegmentSequencePreset[];
+  dynamic_scenes: DynamicScenePreset[];
 }
 
 export interface FilteredPresets {
@@ -111,6 +134,7 @@ export interface FilteredPresets {
   showSegmentPatterns: boolean;
   showCCTSequences: boolean;
   showSegmentSequences: boolean;
+  showDynamicScenes: boolean;
   hasT2: boolean;
   hasT1M: boolean;
   hasT1Strip: boolean;
@@ -142,6 +166,13 @@ export interface XYColor {
 export interface HSColor {
   h: number;  // Hue: 0-360 degrees
   s: number;  // Saturation: 0-100 percent
+}
+
+// Dynamic scene color with XY coordinates and brightness
+export interface DynamicSceneColor {
+  x: number;
+  y: number;
+  brightness_pct: number;
 }
 
 // Color gamut definition per device type
@@ -228,11 +259,29 @@ export interface UserSegmentSequencePreset {
   modified_at: string;
 }
 
+export interface UserDynamicScenePreset {
+  id: string;
+  name: string;
+  icon?: string;
+  colors: DynamicSceneColor[];
+  transition_time: number;
+  hold_time: number;
+  distribution_mode: string;
+  offset_delay: number;
+  random_order: boolean;
+  loop_mode: string;
+  loop_count?: number;
+  end_behavior: string;
+  created_at: string;
+  modified_at: string;
+}
+
 export interface UserPresetsData {
   effect_presets: UserEffectPreset[];
   segment_pattern_presets: UserSegmentPatternPreset[];
   cct_sequence_presets: UserCCTSequencePreset[];
   segment_sequence_presets: UserSegmentSequencePreset[];
+  dynamic_scene_presets: UserDynamicScenePreset[];
 }
 
 // Device context passed from Activate tab to editor tabs
@@ -243,18 +292,27 @@ export interface DeviceContext {
 }
 
 // Tab type for panel navigation
-export type PanelTab = 'activate' | 'effects' | 'patterns' | 'cct' | 'segments' | 'presets' | 'config';
+export type PanelTab = 'activate' | 'effects' | 'patterns' | 'cct' | 'segments' | 'scenes' | 'presets' | 'config';
 
 // Sort options for presets
 export type PresetSortOption = 'name-asc' | 'name-desc' | 'date-new' | 'date-old';
 
 export type PresetSortPreferences = Record<string, PresetSortOption>;
 
+// Reference to a favourited preset (type + id)
+export interface FavoritePresetRef {
+  type: string;
+  id: string;
+}
+
 // Per-user preferences (backed by server-side storage)
 export interface UserPreferences {
   color_history: XYColor[];
   sort_preferences: PresetSortPreferences;
   collapsed_sections: Record<string, boolean>;
+  include_all_lights?: boolean;
+  favorite_presets: FavoritePresetRef[];
+  static_scene_mode?: boolean;
 }
 
 // Draft state types for editor tab caching (in-memory only, not persisted)
@@ -327,11 +385,26 @@ export interface SegmentSequenceEditorDraft {
   skipFirstInLoop: boolean;
 }
 
+export interface DynamicSceneEditorDraft {
+  name: string;
+  icon: string;
+  colors: DynamicSceneColor[];
+  transitionTime: number;
+  holdTime: number;
+  distributionMode: string;
+  offsetDelay: number;
+  randomOrder: boolean;
+  loopMode: string;
+  loopCount: number;
+  endBehavior: string;
+}
+
 export interface EditorDraftCache {
   effects?: EffectEditorDraft;
   patterns?: PatternEditorDraft;
   cct?: CCTEditorDraft;
   segments?: SegmentSequenceEditorDraft;
+  scenes?: DynamicSceneEditorDraft;
 }
 
 export const SUPPORTED_MODELS = {
@@ -361,4 +434,41 @@ export interface SegmentZone {
 export interface SegmentZoneResolved {
   name: string;
   segmentIndices: number[];  // 0-based indices for segment selector
+}
+
+// HA event from websocket subscription
+export interface HassEvent {
+  event_type: string;
+  data: Record<string, unknown>;
+  origin: string;
+  time_fired: string;
+  context: {
+    id: string;
+    parent_id: string | null;
+    user_id: string | null;
+  };
+}
+
+// Running operation types for the active presets display
+export type RunningOperationType = 'effect' | 'cct_sequence' | 'segment_sequence' | 'dynamic_scene';
+
+export interface RunningOperation {
+  type: RunningOperationType;
+  // Per-entity operations (effect, cct_sequence, segment_sequence)
+  entity_id?: string;
+  // Per-scene operations (dynamic_scene)
+  scene_id?: string;
+  entity_ids?: string[];
+  externally_paused_entities?: string[];
+  // Common
+  preset_id: string | null;
+  paused: boolean;
+  externally_paused?: boolean;
+  // Sequence progress
+  current_step?: number;
+  total_steps?: number;
+}
+
+export interface RunningOperationsResponse {
+  operations: RunningOperation[];
 }

@@ -9,8 +9,8 @@ from homeassistant.const import CONF_API_KEY, CONF_PASSWORD, CONF_TOKEN, CONF_US
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 
-from .const import DATA_CCT_SEQUENCE_MANAGER, DOMAIN
-from .device_trigger import get_entity_ids_for_device
+from .const import DATA_CCT_SEQUENCE_MANAGER, DATA_DYNAMIC_SCENE_MANAGER, DOMAIN
+from .device_automation_helpers import get_entity_ids_for_device
 from .models import AqaraLightingConfigEntry
 
 # Fields to redact from diagnostics output
@@ -87,6 +87,20 @@ async def async_get_config_entry_diagnostics(
                 "running": True,
             })
 
+    # Get dynamic scene manager data for this specific entry
+    dynamic_scene_manager = entry_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+    active_dynamic_scenes = []
+    if dynamic_scene_manager:
+        active_scenes = dynamic_scene_manager.get_active_scenes()
+        for scene_id, scene_info in active_scenes.items():
+            active_dynamic_scenes.append({
+                "scene_id": scene_id,
+                "entity_ids": list(scene_info.entity_ids),
+                "preset_name": scene_info.preset_name,
+                "paused": scene_info.paused,
+                "loop_iteration": scene_info.loop_iteration,
+            })
+
     # Device trigger readiness - shows which devices can resolve entity IDs
     device_registry = dr.async_get(hass)
     device_trigger_info = []
@@ -117,5 +131,6 @@ async def async_get_config_entry_diagnostics(
         "entity_mappings": entity_mappings,
         "active_effects": active_effects,
         "active_cct_sequences": active_sequences,
+        "active_dynamic_scenes": active_dynamic_scenes,
         "device_triggers": device_trigger_info,
     }

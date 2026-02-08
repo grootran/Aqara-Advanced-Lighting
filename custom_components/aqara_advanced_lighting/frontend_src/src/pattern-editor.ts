@@ -481,6 +481,32 @@ export class PatternEditor extends LitElement {
     };
   }
 
+  public resetToDefaults(): void {
+    this._name = '';
+    this._icon = '';
+    this._deviceType = 't1m';
+    this._segments = new Map();
+    this._selectedSegments = new Set();
+    this._colorPalette = [...DEFAULT_PALETTE];
+    this._gradientColors = [
+      { x: 0.6800, y: 0.3100 },
+      { x: 0.1500, y: 0.0600 },
+    ];
+    this._blockColors = [
+      { x: 0.6800, y: 0.3100 },
+      { x: 0.1700, y: 0.7000 },
+    ];
+    this._expandBlocks = false;
+    this._gradientMirror = false;
+    this._gradientRepeat = 1;
+    this._gradientReverse = false;
+    this._gradientInterpolation = 'shortest';
+    this._gradientWave = false;
+    this._gradientWaveCycles = 1;
+    this._turnOffUnspecified = true;
+    this._hasUserInteraction = false;
+  }
+
   private _restoreDraft(draft: PatternEditorDraft): void {
     this._name = draft.name;
     this._icon = draft.icon;

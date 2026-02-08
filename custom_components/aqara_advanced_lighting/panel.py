@@ -28,14 +28,17 @@ from .const import (
     ATTR_PRESET,
     ATTR_RESTORE_STATE,
     ATTR_SEGMENTS,
-    CCT_SEQUENCE_PRESETS,
+    DATA_CCT_SEQUENCE_MANAGER,
+    DATA_DYNAMIC_SCENE_MANAGER,
+    DATA_ENTITY_CONTROLLER,
     DATA_FAVORITES_STORE,
     DATA_PRESET_STORE,
+    DATA_SEGMENT_SEQUENCE_MANAGER,
     DATA_SEGMENT_ZONE_STORE,
+    DATA_STATE_MANAGER,
     DATA_USER_PREFERENCES_STORE,
     DOMAIN,
     MAX_COLOR_HISTORY_SIZE,
-    EFFECT_PRESETS,
     MODEL_T1M_20_SEGMENT,
     MODEL_T1M_26_SEGMENT,
     MODEL_T1_STRIP,
@@ -47,17 +50,24 @@ from .const import (
     MODEL_T2_CCT_E27,
     MODEL_T2_CCT_GU10_110V,
     MODEL_T2_CCT_GU10_230V,
-    SEGMENT_PATTERN_PRESETS,
-    SEGMENT_SEQUENCE_PRESETS,
     SERVICE_SET_DYNAMIC_EFFECT,
     SERVICE_SET_SEGMENT_PATTERN,
     SERVICE_START_CCT_SEQUENCE,
+    SERVICE_START_DYNAMIC_SCENE,
     SERVICE_START_SEGMENT_SEQUENCE,
     SERVICE_STOP_CCT_SEQUENCE,
+    SERVICE_STOP_DYNAMIC_SCENE,
     SERVICE_STOP_EFFECT,
     SERVICE_STOP_SEGMENT_SEQUENCE,
     VALID_PRESET_TYPES,
     VALID_SORT_OPTIONS,
+)
+from .presets import (
+    CCT_SEQUENCE_PRESETS,
+    DYNAMIC_SCENE_PRESETS,
+    EFFECT_PRESETS,
+    SEGMENT_PATTERN_PRESETS,
+    SEGMENT_SEQUENCE_PRESETS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -125,6 +135,9 @@ async def async_register_panel(hass: HomeAssistant) -> None:
 
     # Register REST trigger endpoint for external systems
     hass.http.register_view(TriggerView)
+
+    # Register running operations endpoint for panel status display
+    hass.http.register_view(RunningOperationsView)
 
     _LOGGER.info("Aqara Advanced Lighting panel registered")
 
@@ -312,11 +325,30 @@ def _build_presets_data() -> dict[str, Any]:
             "end_behavior": preset_data["end_behavior"],
         })
 
+    # Build dynamic scenes
+    dynamic_scenes = []
+    for preset_id, preset_data in DYNAMIC_SCENE_PRESETS.items():
+        dynamic_scenes.append({
+            "id": preset_id,
+            "name": preset_data["name"],
+            "icon": preset_data.get("icon"),
+            "colors": preset_data["colors"],
+            "transition_time": preset_data["transition_time"],
+            "hold_time": preset_data["hold_time"],
+            "distribution_mode": preset_data["distribution_mode"],
+            "offset_delay": preset_data.get("offset_delay", 0.0),
+            "random_order": preset_data.get("random_order", False),
+            "loop_mode": preset_data["loop_mode"],
+            "loop_count": preset_data.get("loop_count"),
+            "end_behavior": preset_data["end_behavior"],
+        })
+
     return {
         "dynamic_effects": dynamic_effects,
         "segment_patterns": segment_patterns,
         "cct_sequences": cct_sequences,
         "segment_sequences": segment_sequences,
+        "dynamic_scenes": dynamic_scenes,
     }
 
 
@@ -717,6 +749,27 @@ def _validate_collapsed_sections(collapsed_sections: Any) -> str | None:
     return None
 
 
+def _validate_favorite_presets(favorite_presets: Any) -> str | None:
+    """Validate favorite presets references.
+
+    Returns an error message if invalid, or None if valid.
+    """
+    if not isinstance(favorite_presets, list):
+        return "favorite_presets must be a list"
+
+    for i, ref in enumerate(favorite_presets):
+        if not isinstance(ref, dict):
+            return f"favorite_presets[{i}] must be an object"
+        if "type" not in ref or "id" not in ref:
+            return f"favorite_presets[{i}] must have `type` and `id` keys"
+        if ref["type"] not in VALID_PRESET_TYPES:
+            return f"favorite_presets[{i}] has invalid type `{ref['type']}`"
+        if not isinstance(ref["id"], str):
+            return f"favorite_presets[{i}] `id` must be a string"
+
+    return None
+
+
 class UserPreferencesView(HomeAssistantView):
     """View to manage per-user preferences (color history, sort preferences)."""
 
@@ -771,6 +824,9 @@ class UserPreferencesView(HomeAssistantView):
         color_history = None
         sort_preferences = None
         collapsed_sections = None
+        include_all_lights = None
+        favorite_presets = None
+        static_scene_mode = None
 
         if "color_history" in data:
             error = _validate_color_history(data["color_history"])
@@ -790,10 +846,33 @@ class UserPreferencesView(HomeAssistantView):
                 return web.Response(status=400, text=error)
             collapsed_sections = data["collapsed_sections"]
 
+        if "include_all_lights" in data:
+            if not isinstance(data["include_all_lights"], bool):
+                return web.Response(
+                    status=400, text="include_all_lights must be a boolean"
+                )
+            include_all_lights = data["include_all_lights"]
+
+        if "favorite_presets" in data:
+            error = _validate_favorite_presets(data["favorite_presets"])
+            if error:
+                return web.Response(status=400, text=error)
+            favorite_presets = data["favorite_presets"]
+
+        if "static_scene_mode" in data:
+            if not isinstance(data["static_scene_mode"], bool):
+                return web.Response(
+                    status=400, text="static_scene_mode must be a boolean"
+                )
+            static_scene_mode = data["static_scene_mode"]
+
         if (
             color_history is None
             and sort_preferences is None
             and collapsed_sections is None
+            and include_all_lights is None
+            and favorite_presets is None
+            and static_scene_mode is None
         ):
             # Nothing to update, return current preferences
             preferences = store.get_preferences(user.id)
@@ -804,6 +883,9 @@ class UserPreferencesView(HomeAssistantView):
             color_history=color_history,
             sort_preferences=sort_preferences,
             collapsed_sections=collapsed_sections,
+            include_all_lights=include_all_lights,
+            favorite_presets=favorite_presets,
+            static_scene_mode=static_scene_mode,
         )
         return web.json_response(preferences)
 
@@ -816,7 +898,7 @@ class VersionView(HomeAssistantView):
     requires_auth = False
 
     async def get(self, request: web.Request) -> web.Response:
-        """Get the integration version from manifest.json."""
+        """Get the integration version and setup status from manifest.json."""
         hass = request.app["hass"]
 
         manifest_path = Path(
@@ -836,7 +918,30 @@ class VersionView(HomeAssistantView):
         try:
             manifest = await hass.async_add_executor_job(read_manifest)
             version = manifest.get("version", "unknown")
-            return web.json_response({"version": version})
+
+            # Check setup status across all config entries
+            setup_complete = True
+            entries_data = hass.data.get(DOMAIN, {}).get("entries", {})
+            if not entries_data:
+                # No entries loaded yet
+                setup_complete = False
+            else:
+                for entry_id, instance_data in entries_data.items():
+                    mqtt_client = instance_data.get("mqtt_client")
+                    if not mqtt_client:
+                        continue
+                    try:
+                        if not mqtt_client.entry.runtime_data.entity_mapping_ready:
+                            setup_complete = False
+                            break
+                    except AttributeError:
+                        setup_complete = False
+                        break
+
+            return web.json_response({
+                "version": version,
+                "setup_complete": setup_complete,
+            })
         except (OSError, ValueError) as ex:
             _LOGGER.error("Error reading manifest: %s", ex)
             return web.Response(status=500, text="Error reading manifest")
@@ -1239,6 +1344,7 @@ _ACTIVATE_SERVICE_MAP: dict[str, str] = {
     "effect": SERVICE_SET_DYNAMIC_EFFECT,
     "segment_pattern": SERVICE_SET_SEGMENT_PATTERN,
     "cct_sequence": SERVICE_START_CCT_SEQUENCE,
+    "dynamic_scene": SERVICE_START_DYNAMIC_SCENE,
     "segment_sequence": SERVICE_START_SEGMENT_SEQUENCE,
 }
 
@@ -1246,6 +1352,7 @@ _ACTIVATE_SERVICE_MAP: dict[str, str] = {
 _STOP_SERVICE_MAP: dict[str, str] = {
     "effect": SERVICE_STOP_EFFECT,
     "cct_sequence": SERVICE_STOP_CCT_SEQUENCE,
+    "dynamic_scene": SERVICE_STOP_DYNAMIC_SCENE,
     "segment_sequence": SERVICE_STOP_SEGMENT_SEQUENCE,
 }
 
@@ -1272,7 +1379,7 @@ class TriggerView(HomeAssistantView):
             entity_id: Target light entity ID (required)
             action: "activate" or "stop" (required)
             preset_type: One of "effect", "segment_pattern",
-                "cct_sequence", "segment_sequence" (required)
+                "cct_sequence", "dynamic_scene", "segment_sequence" (required)
             preset: Preset name (required for activate action)
             brightness: Optional brightness percentage override (1-100)
             segments: Optional segment range override (e.g. "1-10")
@@ -1397,3 +1504,100 @@ class TriggerView(HomeAssistantView):
         return web.json_response(
             {"success": True, "service": service_name, "entity_id": entity_id}
         )
+
+
+class RunningOperationsView(HomeAssistantView):
+    """View to get all currently running operations across all instances."""
+
+    url = f"/api/{DOMAIN}/running_operations"
+    name = f"api:{DOMAIN}:running_operations"
+    requires_auth = True
+
+    async def get(self, request: web.Request) -> web.Response:
+        """Get all running operations (effects, sequences, scenes)."""
+        hass: HomeAssistant = request.app["hass"]
+
+        operations: list[dict[str, Any]] = []
+
+        if DOMAIN not in hass.data:
+            return web.json_response({"operations": operations})
+
+        entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+        entries_data = hass.data[DOMAIN].get("entries", {})
+
+        for instance_data in entries_data.values():
+            # Effects (from state manager)
+            state_manager = instance_data.get(DATA_STATE_MANAGER)
+            if state_manager:
+                for entity_id, device_state in (
+                    state_manager.get_all_active_effects().items()
+                ):
+                    operations.append({
+                        "type": "effect",
+                        "entity_id": entity_id,
+                        "preset_id": device_state.current_preset,
+                        "paused": False,
+                        "externally_paused": False,
+                    })
+
+            # CCT sequences
+            cct_mgr = instance_data.get(DATA_CCT_SEQUENCE_MANAGER)
+            if cct_mgr:
+                for entity_id in cct_mgr.get_running_sequences():
+                    status = cct_mgr.get_sequence_status(entity_id) or {}
+                    ext_paused = (
+                        entity_controller.is_entity_externally_paused(entity_id)
+                        if entity_controller
+                        else False
+                    )
+                    operations.append({
+                        "type": "cct_sequence",
+                        "entity_id": entity_id,
+                        "preset_id": cct_mgr.get_sequence_preset(entity_id),
+                        "paused": status.get("paused", False),
+                        "externally_paused": ext_paused,
+                        "current_step": status.get("current_step", 0),
+                        "total_steps": status.get("total_steps", 0),
+                    })
+
+            # Segment sequences
+            seg_mgr = instance_data.get(DATA_SEGMENT_SEQUENCE_MANAGER)
+            if seg_mgr:
+                for entity_id in seg_mgr.get_running_sequences():
+                    status = seg_mgr.get_sequence_status(entity_id) or {}
+                    ext_paused = (
+                        entity_controller.is_entity_externally_paused(entity_id)
+                        if entity_controller
+                        else False
+                    )
+                    operations.append({
+                        "type": "segment_sequence",
+                        "entity_id": entity_id,
+                        "preset_id": seg_mgr.get_sequence_preset(entity_id),
+                        "paused": status.get("paused", False),
+                        "externally_paused": ext_paused,
+                        "current_step": status.get("current_step", 0),
+                        "total_steps": status.get("total_steps", 0),
+                    })
+
+            # Dynamic scenes (grouped by scene, not per-entity)
+            scene_mgr = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+            if scene_mgr:
+                for scene_id, scene_info in scene_mgr.get_active_scenes().items():
+                    ext_paused_entities = []
+                    if entity_controller:
+                        ext_paused_entities = [
+                            eid
+                            for eid in scene_info.entity_ids
+                            if entity_controller.is_entity_externally_paused(eid)
+                        ]
+                    operations.append({
+                        "type": "dynamic_scene",
+                        "scene_id": scene_id,
+                        "entity_ids": list(scene_info.entity_ids),
+                        "preset_id": scene_info.preset_name,
+                        "paused": scene_info.paused,
+                        "externally_paused_entities": ext_paused_entities,
+                    })
+
+        return web.json_response({"operations": operations})

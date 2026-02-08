@@ -332,6 +332,15 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
     };
   }
 
+  public resetToDefaults(): void {
+    this._name = '';
+    this._icon = '';
+    this._loopMode = 'once';
+    this._loopCount = 3;
+    this._endBehavior = 'maintain';
+    this._addDefaultStep();
+  }
+
   private _restoreDraft(draft: CCTEditorDraft): void {
     this._name = draft.name;
     this._icon = draft.icon;
@@ -373,7 +382,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
   }
 
   private _handleLoopCountChange(e: CustomEvent): void {
-    this._loopCount = e.detail.value || 3;
+    this._loopCount = e.detail.value ?? 3;
   }
 
   private _handleEndBehaviorChange(e: CustomEvent): void {

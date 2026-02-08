@@ -9,13 +9,11 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.components import mqtt
 from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
-from homeassistant.const import CONF_MODEL
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from .const import (
     DOMAIN,
-    MIN_TRANSITION_STEPS,
     MODEL_FRIENDLY_NAMES,
     MODEL_T1M_20_SEGMENT,
     MODEL_T1M_26_SEGMENT,
@@ -28,20 +26,15 @@ from .const import (
     MODEL_T2_CCT_E27,
     MODEL_T2_CCT_GU10_110V,
     MODEL_T2_CCT_GU10_230V,
-    PAYLOAD_EFFECT,
-    PAYLOAD_EFFECT_COLORS,
-    PAYLOAD_EFFECT_SEGMENTS,
-    PAYLOAD_EFFECT_SPEED,
     PAYLOAD_SEGMENT_COLORS,
     TOPIC_Z2M_BRIDGE_DEVICES,
-    TOPIC_Z2M_DEVICE_SET,
-    TRANSITION_STEP_INTERVAL,
 )
 from .models import DynamicEffect, SegmentColor, Z2MDevice
 
 if TYPE_CHECKING:
     from homeassistant.components.mqtt import ReceiveMessage
 
+    from .entity_controller import EntityController
     from .models import AqaraLightingConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
@@ -81,11 +74,15 @@ class MQTTClient:
     """MQTT client for communicating with Zigbee2MQTT."""
 
     def __init__(
-        self, hass: HomeAssistant, entry: AqaraLightingConfigEntry
+        self,
+        hass: HomeAssistant,
+        entry: AqaraLightingConfigEntry,
+        entity_controller: EntityController | None = None,
     ) -> None:
         """Initialize the MQTT client."""
         self.hass = hass
         self.entry = entry
+        self._entity_controller = entity_controller
         self._subscriptions: list[mqtt.SubscriptionState] = []
 
     async def async_setup(self) -> None:
@@ -200,8 +197,9 @@ class MQTTClient:
         dev_reg = dr.async_get(self.hass)
         runtime_data = self.entry.runtime_data
 
-        # Clear existing mapping
+        # Clear existing mappings
         runtime_data.entity_to_z2m_map.clear()
+        runtime_data.entity_mapping_methods.clear()
 
         # Build lookup tables for alternative matching strategies
         ieee_to_device = runtime_data.devices.copy()
@@ -354,6 +352,9 @@ class MQTTClient:
             "entity_to_z2m_map contents: %s",
             dict(runtime_data.entity_to_z2m_map),
         )
+
+        # Mark entity mapping as ready so the frontend can detect setup completion
+        runtime_data.entity_mapping_ready = True
 
     def get_z2m_friendly_name(self, entity_id: str) -> str | None:
         """Get Z2M friendly name for a Home Assistant entity ID."""
@@ -556,13 +557,13 @@ class MQTTClient:
         brightness: int,
         transition: float,
         stop_event: asyncio.Event | None = None,
-        z2m_base_topic: str | None = None,
+        z2m_base_topic: str | None = None,  # noqa: ARG002 - kept for API compatibility
     ) -> bool:
-        """Apply CCT step to light entity using Z2M's native hardware transitions.
+        """Apply CCT step to light entity using HA light service.
 
-        Uses Z2M MQTT commands with the transition parameter for smooth
-        hardware-accelerated transitions. The light's Zigbee firmware handles
-        the interpolation between values.
+        Uses Home Assistant's light.turn_on service which properly interfaces
+        with standard Zigbee clusters (genLevelCtrl, lightingColorCtrl). This
+        avoids "No converter available" errors from Z2M custom converters.
 
         Args:
             entity_id: The Home Assistant light entity ID
@@ -570,7 +571,7 @@ class MQTTClient:
             brightness: Target brightness level (1-255)
             transition: Transition time in seconds
             stop_event: Optional event to signal transition should be interrupted
-            z2m_base_topic: Optional custom Z2M base topic override
+            z2m_base_topic: Unused, kept for API compatibility
 
         Returns:
             True if transition completed, False if interrupted by stop_event
@@ -583,17 +584,11 @@ class MQTTClient:
             transition,
         )
 
-        # Get Z2M friendly name
-        z2m_friendly_name = self.get_z2m_friendly_name(entity_id)
-        if z2m_friendly_name is None:
-            _LOGGER.warning(
-                "No Z2M mapping for %s, cannot apply CCT transition", entity_id
-            )
-            return False
-
-        # Send command directly to Z2M with hardware transition
-        await self._apply_cct_values_via_z2m(
-            z2m_friendly_name, color_temp_kelvin, brightness, transition, z2m_base_topic
+        # Use HA light service for CCT control - this properly interfaces with
+        # standard Zigbee clusters (genLevelCtrl, lightingColorCtrl) and avoids
+        # "No converter available" errors from Z2M custom converters
+        await self._apply_cct_values_via_service(
+            entity_id, color_temp_kelvin, brightness, transition
         )
 
         # Wait for transition to complete (interruptible)
@@ -716,12 +711,19 @@ class MQTTClient:
         if transition is not None:
             service_data["transition"] = transition
 
+        context = (
+            self._entity_controller.create_context()
+            if self._entity_controller
+            else None
+        )
+
         _LOGGER.debug("Setting CCT values via HA service: %s", service_data)
         await self.hass.services.async_call(
             "light",
             "turn_on",
             service_data,
             blocking=True,
+            context=context,
         )
 
     async def async_turn_off_light(self, entity_id: str) -> None:
@@ -730,6 +732,12 @@ class MQTTClient:
         Args:
             entity_id: The Home Assistant light entity ID
         """
+        context = (
+            self._entity_controller.create_context()
+            if self._entity_controller
+            else None
+        )
+
         _LOGGER.debug("Turning off light %s via HA service", entity_id)
 
         await self.hass.services.async_call(
@@ -737,4 +745,5 @@ class MQTTClient:
             "turn_off",
             {"entity_id": entity_id},
             blocking=True,
+            context=context,
         )

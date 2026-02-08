@@ -16,6 +16,7 @@ from .const import (
     EVENT_STEP_CHANGED,
     EVENT_ATTR_ENTITY_ID,
     EVENT_ATTR_LOOP_ITERATION,
+    EVENT_ATTR_PRESET,
     EVENT_ATTR_REASON,
     EVENT_ATTR_SEQUENCE_ID,
     EVENT_ATTR_SEQUENCE_TYPE,
@@ -28,6 +29,7 @@ from .models import CCTSequence
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
+    from .entity_controller import EntityController
     from .mqtt_client import MQTTClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -36,61 +38,38 @@ _LOGGER = logging.getLogger(__name__)
 class CCTSequenceManager:
     """Manages CCT sequence execution as background tasks."""
 
-    def __init__(self, hass: HomeAssistant, mqtt_client: MQTTClient) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        mqtt_client: MQTTClient,
+        entity_controller: EntityController | None = None,
+    ) -> None:
         """Initialize the CCT sequence manager."""
         self.hass = hass
         self.mqtt_client = mqtt_client
+        self._entity_controller = entity_controller
         self._active_sequences: dict[str, asyncio.Task] = {}  # entity_id -> task
         self._stop_flags: dict[str, asyncio.Event] = {}  # entity_id -> stop event
         self._sequence_ids: dict[str, str] = {}  # entity_id -> sequence_id
         self._pause_flags: dict[str, asyncio.Event] = {}  # entity_id -> pause event
         self._sequence_state: dict[str, dict] = {}  # entity_id -> state info
-        self._state_listener_remove = None  # State change listener cleanup function
+        self._sequence_presets: dict[str, str | None] = {}  # entity_id -> preset name
         # Group synchronization support
         self._group_barriers: dict[str, asyncio.Barrier] = {}  # group_id -> barrier
         self._entity_to_group: dict[str, str] = {}  # entity_id -> group_id
 
-        # Setup state change listener to stop sequences when lights turn off
-        self._setup_state_listener()
-
-    def _setup_state_listener(self) -> None:
-        """Setup state change listener to monitor light entities."""
-        from homeassistant.core import callback
-        from homeassistant.const import STATE_OFF
-
-        @callback
-        def _async_state_changed_listener(event):
-            """Handle state changes for light entities."""
-            entity_id = event.data.get("entity_id")
-            new_state = event.data.get("new_state")
-
-            # Check if entity has a running sequence and is now off
-            if (
-                entity_id
-                and new_state
-                and new_state.state == STATE_OFF
-                and self.is_sequence_running(entity_id)
-            ):
-                _LOGGER.debug(
-                    "Light %s turned off, stopping CCT sequence", entity_id
-                )
-                # Stop sequence asynchronously
-                self.hass.async_create_task(self.stop_sequence(entity_id))
-
-        # Register the listener for state changes
-        self._state_listener_remove = self.hass.bus.async_listen(
-            "state_changed", _async_state_changed_listener
-        )
-
     def cleanup(self) -> None:
-        """Cleanup resources and remove listeners."""
-        # Remove state change listener
-        if self._state_listener_remove:
-            self._state_listener_remove()
-            self._state_listener_remove = None
+        """Cleanup resources.
+
+        State change listening is now managed by the centralized EntityController.
+        """
 
     async def start_sequence(
-        self, entity_id: str, sequence: CCTSequence, z2m_base_topic: str | None = None
+        self,
+        entity_id: str,
+        sequence: CCTSequence,
+        z2m_base_topic: str | None = None,
+        preset: str | None = None,
     ) -> str:
         """Start a CCT sequence for an entity.
 
@@ -98,6 +77,7 @@ class CCTSequenceManager:
             entity_id: The light entity ID to control
             sequence: The CCT sequence configuration
             z2m_base_topic: Optional custom Z2M base topic override
+            preset: Optional preset name for event tracking
 
         Returns:
             The unique sequence ID for this sequence run
@@ -108,9 +88,10 @@ class CCTSequenceManager:
         except Exception as ex:
             _LOGGER.debug("Error stopping existing sequence for %s: %s", entity_id, ex)
 
-        # Generate unique sequence ID
+        # Generate unique sequence ID and store preset
         sequence_id = str(uuid.uuid4())
         self._sequence_ids[entity_id] = sequence_id
+        self._sequence_presets[entity_id] = preset
 
         # Create stop and pause flags
         stop_event = asyncio.Event()
@@ -144,6 +125,7 @@ class CCTSequenceManager:
                 EVENT_ATTR_SEQUENCE_ID: sequence_id,
                 EVENT_ATTR_TOTAL_STEPS: len(sequence.steps),
                 EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_CCT,
+                EVENT_ATTR_PRESET: preset,
             },
         )
 
@@ -156,6 +138,7 @@ class CCTSequenceManager:
         entity_ids: list[str],
         sequence: CCTSequence,
         z2m_base_topic: str | None = None,
+        preset: str | None = None,
     ) -> dict[str, str]:
         """Start synchronized CCT sequences for multiple entities.
 
@@ -165,6 +148,7 @@ class CCTSequenceManager:
             entity_ids: List of light entity IDs to control
             sequence: The CCT sequence configuration (same for all)
             z2m_base_topic: Optional custom Z2M base topic override
+            preset: Optional preset name for event tracking
 
         Returns:
             Dict mapping entity_id to sequence_id for all started sequences
@@ -174,7 +158,9 @@ class CCTSequenceManager:
 
         # For single entity, use regular start_sequence
         if len(entity_ids) == 1:
-            seq_id = await self.start_sequence(entity_ids[0], sequence, z2m_base_topic)
+            seq_id = await self.start_sequence(
+                entity_ids[0], sequence, z2m_base_topic, preset
+            )
             return {entity_ids[0]: seq_id}
 
         # Generate a group ID for synchronization
@@ -194,9 +180,10 @@ class CCTSequenceManager:
         tasks: list[asyncio.Task] = []
 
         for entity_id in entity_ids:
-            # Generate unique sequence ID
+            # Generate unique sequence ID and store preset
             sequence_id = str(uuid.uuid4())
             self._sequence_ids[entity_id] = sequence_id
+            self._sequence_presets[entity_id] = preset
             sequence_ids[entity_id] = sequence_id
 
             # Track group membership
@@ -242,6 +229,7 @@ class CCTSequenceManager:
                     EVENT_ATTR_SEQUENCE_ID: sequence_id,
                     EVENT_ATTR_TOTAL_STEPS: len(sequence.steps),
                     EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_CCT,
+                    EVENT_ATTR_PRESET: preset,
                 },
             )
 
@@ -284,6 +272,7 @@ class CCTSequenceManager:
             return
 
         sequence_id = self._sequence_ids.get(entity_id)
+        preset = self._sequence_presets.get(entity_id)
 
         # Set stop flag
         if entity_id in self._stop_flags:
@@ -310,6 +299,8 @@ class CCTSequenceManager:
             del self._sequence_ids[entity_id]
         if entity_id in self._sequence_state:
             del self._sequence_state[entity_id]
+        if entity_id in self._sequence_presets:
+            del self._sequence_presets[entity_id]
 
         # Fire sequence stopped event
         self.hass.bus.async_fire(
@@ -319,6 +310,7 @@ class CCTSequenceManager:
                 EVENT_ATTR_SEQUENCE_ID: sequence_id,
                 EVENT_ATTR_REASON: "manual_stop",
                 EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_CCT,
+                EVENT_ATTR_PRESET: preset,
             },
         )
 
@@ -351,6 +343,17 @@ class CCTSequenceManager:
             The sequence ID if a sequence is running, None otherwise
         """
         return self._sequence_ids.get(entity_id)
+
+    def get_sequence_preset(self, entity_id: str) -> str | None:
+        """Get the preset name for a running sequence.
+
+        Args:
+            entity_id: The light entity ID
+
+        Returns:
+            The preset name if a sequence is running, None otherwise
+        """
+        return self._sequence_presets.get(entity_id)
 
     def get_running_sequences(self) -> dict[str, str]:
         """Get all running sequences.
@@ -393,12 +396,14 @@ class CCTSequenceManager:
 
             # Fire sequence paused event
             sequence_id = self._sequence_ids.get(entity_id, "")
+            preset = self._sequence_presets.get(entity_id)
             self.hass.bus.async_fire(
                 EVENT_SEQUENCE_PAUSED,
                 {
                     EVENT_ATTR_ENTITY_ID: entity_id,
                     EVENT_ATTR_SEQUENCE_ID: sequence_id,
                     EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_CCT,
+                    EVENT_ATTR_PRESET: preset,
                 },
             )
 
@@ -432,12 +437,14 @@ class CCTSequenceManager:
 
             # Fire sequence resumed event
             sequence_id = self._sequence_ids.get(entity_id, "")
+            preset = self._sequence_presets.get(entity_id)
             self.hass.bus.async_fire(
                 EVENT_SEQUENCE_RESUMED,
                 {
                     EVENT_ATTR_ENTITY_ID: entity_id,
                     EVENT_ATTR_SEQUENCE_ID: sequence_id,
                     EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_CCT,
+                    EVENT_ATTR_PRESET: preset,
                 },
             )
 
@@ -542,6 +549,7 @@ class CCTSequenceManager:
                             EVENT_ATTR_TOTAL_STEPS: len(sequence.steps),
                             EVENT_ATTR_LOOP_ITERATION: loops_executed + 1,
                             EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_CCT,
+                            EVENT_ATTR_PRESET: self._sequence_presets.get(entity_id),
                         },
                     )
 
@@ -621,6 +629,9 @@ class CCTSequenceManager:
             )
         finally:
             # Clean up
+            # Get preset before cleanup
+            preset = self._sequence_presets.get(entity_id)
+
             if entity_id in self._active_sequences:
                 del self._active_sequences[entity_id]
             if entity_id in self._stop_flags:
@@ -631,6 +642,12 @@ class CCTSequenceManager:
                 del self._sequence_ids[entity_id]
             if entity_id in self._sequence_state:
                 del self._sequence_state[entity_id]
+            if entity_id in self._sequence_presets:
+                del self._sequence_presets[entity_id]
+
+            # Clear entity controller tracking
+            if self._entity_controller:
+                self._entity_controller.clear_entity(entity_id)
 
             # Fire sequence completed event if it finished naturally
             if completed_naturally:
@@ -640,6 +657,7 @@ class CCTSequenceManager:
                         EVENT_ATTR_ENTITY_ID: entity_id,
                         EVENT_ATTR_SEQUENCE_ID: sequence_id,
                         EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_CCT,
+                        EVENT_ATTR_PRESET: preset,
                     },
                 )
 
@@ -731,6 +749,7 @@ class CCTSequenceManager:
                             EVENT_ATTR_TOTAL_STEPS: len(sequence.steps),
                             EVENT_ATTR_LOOP_ITERATION: loops_executed + 1,
                             EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_CCT,
+                            EVENT_ATTR_PRESET: self._sequence_presets.get(entity_id),
                         },
                     )
 
@@ -819,6 +838,9 @@ class CCTSequenceManager:
                 exc_info=True,
             )
         finally:
+            # Get preset before cleanup
+            preset = self._sequence_presets.get(entity_id)
+
             # Clean up entity resources
             if entity_id in self._active_sequences:
                 del self._active_sequences[entity_id]
@@ -830,8 +852,14 @@ class CCTSequenceManager:
                 del self._sequence_ids[entity_id]
             if entity_id in self._sequence_state:
                 del self._sequence_state[entity_id]
+            if entity_id in self._sequence_presets:
+                del self._sequence_presets[entity_id]
             if entity_id in self._entity_to_group:
                 del self._entity_to_group[entity_id]
+
+            # Clear entity controller tracking
+            if self._entity_controller:
+                self._entity_controller.clear_entity(entity_id)
 
             # Check if this was the last entity in the group and clean up
             if group_id and not any(
@@ -847,5 +875,6 @@ class CCTSequenceManager:
                         EVENT_ATTR_ENTITY_ID: entity_id,
                         EVENT_ATTR_SEQUENCE_ID: sequence_id,
                         EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_CCT,
+                        EVENT_ATTR_PRESET: preset,
                     },
                 )
