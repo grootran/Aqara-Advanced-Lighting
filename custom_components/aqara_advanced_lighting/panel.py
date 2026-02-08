@@ -53,8 +53,10 @@ from .const import (
     SERVICE_SET_DYNAMIC_EFFECT,
     SERVICE_SET_SEGMENT_PATTERN,
     SERVICE_START_CCT_SEQUENCE,
+    SERVICE_START_DYNAMIC_SCENE,
     SERVICE_START_SEGMENT_SEQUENCE,
     SERVICE_STOP_CCT_SEQUENCE,
+    SERVICE_STOP_DYNAMIC_SCENE,
     SERVICE_STOP_EFFECT,
     SERVICE_STOP_SEGMENT_SEQUENCE,
     VALID_PRESET_TYPES,
@@ -1342,6 +1344,7 @@ _ACTIVATE_SERVICE_MAP: dict[str, str] = {
     "effect": SERVICE_SET_DYNAMIC_EFFECT,
     "segment_pattern": SERVICE_SET_SEGMENT_PATTERN,
     "cct_sequence": SERVICE_START_CCT_SEQUENCE,
+    "dynamic_scene": SERVICE_START_DYNAMIC_SCENE,
     "segment_sequence": SERVICE_START_SEGMENT_SEQUENCE,
 }
 
@@ -1349,6 +1352,7 @@ _ACTIVATE_SERVICE_MAP: dict[str, str] = {
 _STOP_SERVICE_MAP: dict[str, str] = {
     "effect": SERVICE_STOP_EFFECT,
     "cct_sequence": SERVICE_STOP_CCT_SEQUENCE,
+    "dynamic_scene": SERVICE_STOP_DYNAMIC_SCENE,
     "segment_sequence": SERVICE_STOP_SEGMENT_SEQUENCE,
 }
 
@@ -1375,7 +1379,7 @@ class TriggerView(HomeAssistantView):
             entity_id: Target light entity ID (required)
             action: "activate" or "stop" (required)
             preset_type: One of "effect", "segment_pattern",
-                "cct_sequence", "segment_sequence" (required)
+                "cct_sequence", "dynamic_scene", "segment_sequence" (required)
             preset: Preset name (required for activate action)
             brightness: Optional brightness percentage override (1-100)
             segments: Optional segment range override (e.g. "1-10")

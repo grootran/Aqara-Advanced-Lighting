@@ -10,9 +10,9 @@
 
 ## Overview
 
-Easily control the more advanced features of the **Aqara T1M Ceiling Light**, **T1 LED Strip** and **T2 RGB+CCT bulbs** through **Home Assistant**, with support for dynamic RGB effects, per-segment colors and gradients, animated segment sequences, multi-step color temperature transitions and more. Save and reuse custom presets across all feature types.
+Easily control the more advanced features of the **Aqara T1M Ceiling Light**, **T1 LED Strip** and **T2 RGB+CCT bulbs** through **Home Assistant**, with support for dynamic RGB effects, per-segment colors and gradients, animated segment sequences, multi-step color temperature transitions, dynamic scenes, and more. Save and reuse custom presets across all feature types.
 
-Includes a sidebar panel with visual editors for building effects, patterns, and sequences, plus 13 service actions, and 14 device triggers for use in automations and scripts.
+Includes a sidebar panel with visual editors for building effects, patterns, and sequences, plus 13 service actions, and 20 device triggers and 7 device condition for use in automations and scripts.
 
 _Please :star: this integration if you find it useful_
 
@@ -23,13 +23,13 @@ _If you want to show your support please_
 ### Supported Devices
 
 
-| Device                          | Model        | Segments           | Dynamic Effects | Segment Control | CCT Sequences |
-| --------------------------------- | -------------- | -------------------- | ----------------- | ----------------- | --------------- |
-| T1 Ceiling Light (20 segments)  | ACN031       | 20                 | ✓ 6 effects    | ✓              | ✓            |
-| T1M Ceiling Light (26 segments) | ACN032       | 26                 | ✓ 6 effects    | ✓              | ✓            |
-| T1 LED Strip                    | ACN132       | Variable (5/meter) | ✓ 8 effects    | ✓              | ✓            |
-| T2 RGB Bulb (E26/E27/GU10)      | AGL001/3/5/7 | N/A                | ✓ 4 effects    | N/A             | ✓            |
-| T2 CCT Bulb (E26/E27/GU10)      | AGL002/4/6/8 | N/A                | N/A             | N/A             | ✓            |
+| Device                          | Model        | Dynamic Effects | Segment Control | CCT Sequences |
+| --------------------------------- | -------------- | ----------------- | ----------------- | --------------- |
+| T1 Ceiling Light (20 segments)  | ACN031       | ✓ 6 effects    | ✓              | ✓            |
+| T1M Ceiling Light (26 segments) | ACN032       | ✓ 6 effects    | ✓              | ✓            |
+| T1 LED Strip                    | ACN132       | ✓ 8 effects    | ✓              | ✓            |
+| T2 RGB Bulb (E26/E27/GU10)      | AGL001/3/5/7 | ✓ 4 effects    | N/A             | ✓            |
+| T2 CCT Bulb (E26/E27/GU10)      | AGL002/4/6/8 | N/A             | N/A             | ✓            |
 
 ### Features
 
@@ -39,14 +39,15 @@ _If you want to show your support please_
 - Individual segment colors, smooth gradients (2-6 colors), and color block patterns
 - RGB segment sequences with up to 20 steps and 8 activation patterns
 - CCT sequences with up to 20 steps for color temperature and brightness transitions
+- Dynamic scenes with slow color transitions across multiple lights
 - Pause, resume, and stop control for all running sequences
 - Flexible segment selection: ranges, individual, odd/even, first-half, last-third, etc.
 
 **Presets**
 
-- 42 built-in presets: 20 effects, 12 segment patterns, 4 CCT sequences, 6 segment sequences
+- 100 built-in presets: 20 effects, 12 segment patterns, 4 CCT sequences, 6 segment sequences, 58 dynamic scenes
 - Unlimited custom user presets with create, edit, duplicate, and delete
-- Auto-genertaion of preset icons based on colors of preset
+- Auto-generation of preset icons based on colors of preset
 - Option to use built-in HA icons or custom icons for presets
 - Preset backup and restore
 - Persistent storage across devices and restarts
@@ -54,15 +55,18 @@ _If you want to show your support please_
 **Frontend Panel**
 
 - Sidebar-accessible UI for controlling lights and managing presets
-- Visual editors for effects, segment patterns, CCT sequences, and segment sequences
+- Visual editors for effects, segment patterns, CCT sequences, segment sequences, and dynamic scenes
 - Favorite lights with control tiles for quick on/off and brightness adjustment
+- Active presets section for monitoring and controlling all running operations
+- Activation overrides: custom brightness and static scene mode
 - Device configuration: transition curves (T2), initial brightness (T2), dimming settings, strip length (T1 Strip), segment zone presets (T1M/T1 Strip)
 - Multi-device configuration for pushing settings to multiple devices at once
 
 **Automation**
 
-- 13 service actions for use in automations, scripts, and Developer Tools
-- 14 device triggers for sequence and effect lifecycle events (started, completed, stopped, paused, resumed, step changed)
+- 18 service actions for use in automations, scripts, and Developer Tools
+- 20 device triggers for sequence, effect, and scene lifecycle events (started, completed, stopped, paused, resumed, step changed)
+- 7 device conditions to check if sequences, effects, or scenes are running or paused
 - REST API trigger endpoint for external systems (Node-RED, phone shortcuts, voice assistants)
 - Light group support with automatic entity expansion and multi-instance routing
 - Auto turn-on option for all services
@@ -93,6 +97,7 @@ _If you want to show your support please_
   - [Device Configuration](#device-configuration)
   - [Backend Services](#backend-services)
   - [Device Triggers](#device-triggers)
+  - [Condition Triggers](#condition-triggers)
   - [Working with Light Groups](#working-with-light-groups)
   - [Custom Icons for Presets](#custom-icons-for-presets)
   - [REST API Trigger Endpoint](#rest-api-trigger-endpoint)
@@ -108,6 +113,14 @@ _If you want to show your support please_
 ## Installation
 
 ### HACS
+
+1. Open HACS in Home Assistant
+2. Search for Aqara Advacned Lighting
+3. Click the 3 dots
+4. Select Download
+5. Restart Home Assistant
+
+Alternatively click:
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=absent42&repository=Aqara-Advanced-Lighting&category=Integration)
 
@@ -370,11 +383,39 @@ Save your frequently used lights and light groups as favorites for quick access:
 - Toggle lights on/off directly from the panel
 - Adjust brightness with the slider
 
-#### Quick Actions
+#### Active Presets
 
-- **Stop Effects**: Stop any running effect and restore previous light state
-- **Pause/Resume/Stop**: Control CCT/Segment sequence playback mid-execution
-- **Light Control**: Direct on/off and brightness control from the panel
+Monitor and control all currently running effects, sequences, and scenes from a single view:
+
+- **Real-time tracking**: See all active operations across selected lights
+- **Operation cards**: Each running preset displays with its icon, name, and target entity
+- **Control buttons**: Stop, pause, or resume any running operation with one click
+- **Multi-entity support**: Track operations running on multiple lights simultaneously
+- **Auto-refresh**: Status updates automatically when operations start, stop, or change state
+
+**Operation Types Tracked:**
+
+- Dynamic RGB effects
+- CCT sequences
+- RGB segment sequences
+- Dynamic scenes
+
+The Active Presets section appears when you have lights selected or operations running, making it easy to manage all your lighting automation from one place.
+
+#### Activation Overrides
+
+Customize how presets are applied with optional overrides:
+
+- **Custom brightness**: Override the preset's default brightness (1-100%)
+  - Toggle on to enable brightness override
+  - Use the slider to set your preferred brightness level
+  - Applies to all preset types when activated
+- **Static scene mode**: For dynamic scenes only
+  - Apply scene colors once without starting transitions
+  - Colors are distributed according to the scene's distribution mode
+  - Lights remain at the assigned colors without cycling
+
+These overrides apply when activating presets from the panel and provide quick ways to adjust preset behavior without editing the preset itself.
 
 #### Preset Management
 
@@ -382,12 +423,13 @@ Save your frequently used lights and light groups as favorites for quick access:
 
 Create, organize, and use custom presets for all features:
 
-**Built-in Aqara Presets**
+**Built-in Presets**
 
-- 24 effect presets from the Aqara Home app
+- 20 effect presets from the Aqara Home app
 - 12 segment pattern presets
 - 4 CCT sequence presets (Goodnight, Wakeup, Mindful Breathing, Circadian)
 - 6 RGB segment sequence presets (Loading Bar, Wave, Sparkle, Theater Chase, Rainbow Fill, Comet)
+- 58 dynamic scene presets (Sunset Glow, Ocean Waves, Northern Lights, Fireplace, and many more)
 
 **User Presets**
 
@@ -408,6 +450,24 @@ Create, organize, and use custom presets for all features:
 ### Visual Editors
 
 Create custom effects and patterns with interactive builders:
+
+**Dynamic Scene Editor**
+
+- Create ambient lighting scenes that work across multiple lights
+- Add up to 8 colors using XY color pickers with per-color brightness (1-100%)
+- Configure transition time (30-3600 seconds) for smooth color changes
+- Set hold time (0-3600 seconds) to pause at each color
+- Choose color assignment mode:
+  - **Shuffle and rotate**: Each light gets a different color from the palette, then colors smoothly rotate through all lights along the color wheel
+  - **Synchronized**: All lights transition through the same colors together
+  - **Random**: Each light picks random colors from the palette
+- Add transition stagger (0-10 seconds) to create wave effects across lights
+- Randomize light order for varied patterns
+- Configure loop settings (once, count, or continuous)
+- End behavior: restore to previous state or maintain last color
+- Static mode option to apply colors once without transitions
+- Works with any RGB light entity (not limited to Aqara devices)
+- Save scenes as custom presets
 
 **Effect Editor**
 
@@ -451,6 +511,7 @@ Create custom effects and patterns with interactive builders:
 - Choose loop mode: once, count, or continuous
 - Set end behavior: maintain or turn off
 - Visual timeline shows sequence flow
+- Works with any CCT light entity (not limited to Aqara devices)
 - Save sequences as custom presets
 
 **RGB Segment Sequence Editor**
@@ -1061,7 +1122,7 @@ target:
 
 ![Aqara Advanced Lighting Device Triggers](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/trigger.png " Aqara Advanced Lighting Device Triggers")
 
-The integration provides device triggers that let you build automations that respond to sequence and effect events. These triggers appear in the Home Assistant automation UI when you select a device trigger for any supported Aqara light.
+The integration provides device triggers that let you build automations that respond to sequence, effect, and scene events. These triggers appear in the Home Assistant automation UI when you select a device trigger for any supported Aqara light.
 
 To use a device trigger in an automation:
 
@@ -1103,6 +1164,20 @@ To use a device trigger in an automation:
 | -------------------------- | ----------------------------------------------------------- |
 | Dynamic effect activated | Fires when a dynamic RGB effect is activated on the light |
 | Dynamic effect stopped   | Fires when a dynamic RGB effect is stopped                |
+
+**Dynamic Scene Triggers**
+
+
+| Trigger                      | Description                                                |
+| ------------------------------ | ------------------------------------------------------------ |
+| Dynamic scene started        | Fires when a dynamic scene begins playing                  |
+| Dynamic scene stopped        | Fires when a dynamic scene is manually stopped             |
+| Dynamic scene paused         | Fires when a dynamic scene is paused                       |
+| Dynamic scene resumed        | Fires when a paused dynamic scene is resumed               |
+| Dynamic scene loop completed | Fires each time a dynamic scene completes a full loop      |
+| Dynamic scene finished       | Fires when a dynamic scene finishes all loops and ends     |
+
+**Preset Filter**: All triggers support an optional preset filter. When specified, the trigger only activates if the specific preset name is started, paused, or stopped. This allows you to create automations that respond to specific effects or sequences.
 
 #### Example Automations Using Triggers
 
@@ -1182,6 +1257,142 @@ automation:
           entity_id: cover.living_room_blinds
         data:
           position: 50
+```
+
+</details>
+
+### Condition Triggers
+
+The integration provides device conditions that can be used in automation conditions to check the current state of lights. These conditions appear in the Home Assistant automation UI when you select a device condition for any supported Aqara light.
+
+To use a device condition in an automation:
+
+1. Create or edit an automation
+2. Add a condition
+3. Select **Device**
+4. Choose your Aqara light device
+5. Select from the available condition types
+6. Optionally filter by a specific preset name
+
+#### Available Conditions
+
+
+| Condition                  | Description                                                                       |
+| ---------------------------- | ----------------------------------------------------------------------------------- |
+| CCT sequence is running    | True when a CCT sequence is actively running on the device                        |
+| CCT sequence is paused     | True when a CCT sequence is paused on the device                                  |
+| Segment sequence is running | True when an RGB segment sequence is actively running on the device               |
+| Segment sequence is paused | True when an RGB segment sequence is paused on the device                         |
+| Dynamic effect is active   | True when a dynamic RGB effect is currently active on the device                  |
+| Dynamic scene is running   | True when a dynamic scene is actively running on the device                       |
+| Dynamic scene is paused    | True when a dynamic scene is paused on the device                                 |
+
+**Preset Filter**: All conditions support an optional preset filter. When specified, the condition only returns true if the specific preset name is running or paused. This allows you to create automations that respond to specific effects or sequences.
+
+#### Example Automations Using Conditions
+
+<details>
+<summary>Only turn on fan if specific CCT sequence is running</summary>
+
+```yaml
+automation:
+  - alias: "Turn on fan during sleep sequence"
+    trigger:
+      - platform: time
+        at: "22:00:00"
+    condition:
+      - condition: device
+        domain: aqara_advanced_lighting
+        device_id: <your_device_id>
+        type: cct_sequence_running
+        preset_filter: "goodnight"
+    action:
+      - service: fan.turn_on
+        target:
+          entity_id: fan.bedroom_fan
+```
+
+</details>
+
+<details>
+<summary>Send notification if any sequence is paused</summary>
+
+```yaml
+automation:
+  - alias: "Notify when sequence paused"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.motion_sensor
+        to: "on"
+    condition:
+      - condition: or
+        conditions:
+          - condition: device
+            domain: aqara_advanced_lighting
+            device_id: <your_device_id>
+            type: cct_sequence_paused
+          - condition: device
+            domain: aqara_advanced_lighting
+            device_id: <your_device_id>
+            type: segment_sequence_paused
+          - condition: device
+            domain: aqara_advanced_lighting
+            device_id: <your_device_id>
+            type: dynamic_scene_paused
+    action:
+      - service: notify.mobile_app
+        data:
+          message: "A lighting sequence was paused when motion was detected"
+```
+
+</details>
+
+<details>
+<summary>Resume scene only if it was running before</summary>
+
+```yaml
+automation:
+  - alias: "Resume dynamic scene after movie ends"
+    trigger:
+      - platform: state
+        entity_id: media_player.living_room_tv
+        from: "playing"
+        to: "off"
+    condition:
+      - condition: device
+        domain: aqara_advanced_lighting
+        device_id: <your_device_id>
+        type: dynamic_scene_running
+    action:
+      - service: aqara_advanced_lighting.resume_dynamic_scene
+        target:
+          entity_id: light.living_room_ceiling
+```
+
+</details>
+
+<details>
+<summary>Prevent turning off lights during active effect</summary>
+
+```yaml
+automation:
+  - alias: "Block light off command during party mode"
+    trigger:
+      - platform: event
+        event_type: call_service
+        event_data:
+          domain: light
+          service: turn_off
+    condition:
+      - condition: device
+        domain: aqara_advanced_lighting
+        device_id: <your_device_id>
+        type: effect_active
+        preset_filter: "party_effect"
+    action:
+      - service: persistent_notification.create
+        data:
+          message: "Cannot turn off lights during party mode effect"
 ```
 
 </details>
@@ -1273,7 +1484,7 @@ curl -X POST http://homeassistant.local:8123/api/aqara_advanced_lighting/trigger
 | --------------- | ---------------- | ---------------------------------------------------------------------------- |
 | `entity_id`   | Yes            | Target light entity ID                                                     |
 | `action`      | Yes            | `"activate"` or `"stop"`                                                   |
-| `preset_type` | Yes            | `"effect"`, `"segment_pattern"`, `"cct_sequence"`, or `"segment_sequence"` |
+| `preset_type` | Yes            | `"effect"`, `"segment_pattern"`, `"cct_sequence"`, `"dynamic_scene"`, or `"segment_sequence"` |
 | `preset`      | Yes (activate) | Preset name (built-in or user-created, case-insensitive)                   |
 | `brightness`  | No             | Brightness percentage override (1-100)                                     |
 | `segments`    | No             | Segment range override (e.g.`"1-10"`, `"odd"`)                             |
@@ -1286,6 +1497,7 @@ curl -X POST http://homeassistant.local:8123/api/aqara_advanced_lighting/trigger
 | `effect`           | Starts a dynamic effect   | Stops the running effect   |
 | `segment_pattern`  | Applies a segment pattern | N/A (patterns are static)  |
 | `cct_sequence`     | Starts a CCT sequence     | Stops the running sequence |
+| `dynamic_scene`    | Starts a dynamic scene    | Stops the running scene    |
 | `segment_sequence` | Starts a segment sequence | Stops the running sequence |
 
 #### Stopping an effect or sequence
