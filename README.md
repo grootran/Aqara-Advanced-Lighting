@@ -12,7 +12,7 @@
 
 Easily control the more advanced features of the **Aqara T1M Ceiling Light**, **T1 LED Strip** and **T2 RGB+CCT bulbs** through **Home Assistant**, with support for dynamic RGB effects, per-segment colors and gradients, animated segment sequences, multi-step color temperature transitions, dynamic scenes, and more. Save and reuse custom presets across all feature types.
 
-Includes a sidebar panel with visual editors for building effects, patterns, and sequences, plus 13 service actions, and 20 device triggers and 7 device condition for use in automations and scripts.
+Includes a sidebar panel with visual editors for building effects, patterns, scenes, and sequences, plus 18 service actions, 20 device triggers and 7 device condition for use in automations and scripts.
 
 _Please :star: this integration if you find it useful_
 
@@ -23,13 +23,14 @@ _If you want to show your support please_
 ### Supported Devices
 
 
-| Device                          | Model        | Dynamic Effects | Segment Control | CCT Sequences |
-| --------------------------------- | -------------- | ----------------- | ----------------- | --------------- |
-| T1 Ceiling Light (20 segments)  | ACN031       | ✓ 6 effects    | ✓              | ✓            |
-| T1M Ceiling Light (26 segments) | ACN032       | ✓ 6 effects    | ✓              | ✓            |
-| T1 LED Strip                    | ACN132       | ✓ 8 effects    | ✓              | ✓            |
-| T2 RGB Bulb (E26/E27/GU10)      | AGL001/3/5/7 | ✓ 4 effects    | N/A             | ✓            |
-| T2 CCT Bulb (E26/E27/GU10)      | AGL002/4/6/8 | N/A             | N/A             | ✓            |
+| Device                          | Model        | Dynamic Effects | Segment Control | Dynamic Scenes | CCT Sequences |
+| --------------------------------- | -------------- | ----------------- | ----------------- | ---------------- | --------------- |
+| T1 Ceiling Light (20 segments)  | ACN031       | ✓ 6 effects    | ✓              | ✓             | ✓            |
+| T1M Ceiling Light (26 segments) | ACN032       | ✓ 6 effects    | ✓              | ✓             | ✓            |
+| T1 LED Strip                    | ACN132       | ✓ 8 effects    | ✓              | ✓             | ✓            |
+| T2 RGB Bulb (E26/E27/GU10)      | AGL001/3/5/7 | ✓ 4 effects    | N/A             | ✓             | ✓            |
+| T2 CCT Bulb (E26/E27/GU10)      | AGL002/4/6/8 | N/A             | N/A             | N/A            | ✓            |
+| Non-Aqara lights                | N/A          | N/A             | N/A             | ✓             | ✓            |
 
 ### Features
 
@@ -1181,14 +1182,14 @@ To use a device trigger in an automation:
 **Dynamic Scene Triggers**
 
 
-| Trigger                      | Description                                                |
-| ------------------------------ | ------------------------------------------------------------ |
-| Dynamic scene started        | Fires when a dynamic scene begins playing                  |
-| Dynamic scene stopped        | Fires when a dynamic scene is manually stopped             |
-| Dynamic scene paused         | Fires when a dynamic scene is paused                       |
-| Dynamic scene resumed        | Fires when a paused dynamic scene is resumed               |
-| Dynamic scene loop completed | Fires each time a dynamic scene completes a full loop      |
-| Dynamic scene finished       | Fires when a dynamic scene finishes all loops and ends     |
+| Trigger                      | Description                                            |
+| ------------------------------ | -------------------------------------------------------- |
+| Dynamic scene started        | Fires when a dynamic scene begins playing              |
+| Dynamic scene stopped        | Fires when a dynamic scene is manually stopped         |
+| Dynamic scene paused         | Fires when a dynamic scene is paused                   |
+| Dynamic scene resumed        | Fires when a paused dynamic scene is resumed           |
+| Dynamic scene loop completed | Fires each time a dynamic scene completes a full loop  |
+| Dynamic scene finished       | Fires when a dynamic scene finishes all loops and ends |
 
 **Preset Filter**: All triggers support an optional preset filter. When specified, the trigger only activates if the specific preset name is started, paused, or stopped. This allows you to create automations that respond to specific effects or sequences.
 
@@ -1292,15 +1293,15 @@ To use a device condition in an automation:
 #### Available Conditions
 
 
-| Condition                  | Description                                                                       |
-| ---------------------------- | ----------------------------------------------------------------------------------- |
-| CCT sequence is running    | True when a CCT sequence is actively running on the device                        |
-| CCT sequence is paused     | True when a CCT sequence is paused on the device                                  |
-| Segment sequence is running | True when an RGB segment sequence is actively running on the device               |
-| Segment sequence is paused | True when an RGB segment sequence is paused on the device                         |
-| Dynamic effect is active   | True when a dynamic RGB effect is currently active on the device                  |
-| Dynamic scene is running   | True when a dynamic scene is actively running on the device                       |
-| Dynamic scene is paused    | True when a dynamic scene is paused on the device                                 |
+| Condition                   | Description                                                         |
+| ----------------------------- | --------------------------------------------------------------------- |
+| CCT sequence is running     | True when a CCT sequence is actively running on the device          |
+| CCT sequence is paused      | True when a CCT sequence is paused on the device                    |
+| Segment sequence is running | True when an RGB segment sequence is actively running on the device |
+| Segment sequence is paused  | True when an RGB segment sequence is paused on the device           |
+| Dynamic effect is active    | True when a dynamic RGB effect is currently active on the device    |
+| Dynamic scene is running    | True when a dynamic scene is actively running on the device         |
+| Dynamic scene is paused     | True when a dynamic scene is paused on the device                   |
 
 **Preset Filter**: All conditions support an optional preset filter. When specified, the condition only returns true if the specific preset name is running or paused. This allows you to create automations that respond to specific effects or sequences.
 
@@ -1495,14 +1496,14 @@ curl -X POST http://homeassistant.local:8123/api/aqara_advanced_lighting/trigger
 **Request fields:**
 
 
-| Field         | Required       | Description                                                                |
-| --------------- | ---------------- | ---------------------------------------------------------------------------- |
-| `entity_id`   | Yes            | Target light entity ID                                                     |
-| `action`      | Yes            | `"activate"` or `"stop"`                                                   |
+| Field         | Required       | Description                                                                                   |
+| --------------- | ---------------- | ----------------------------------------------------------------------------------------------- |
+| `entity_id`   | Yes            | Target light entity ID                                                                        |
+| `action`      | Yes            | `"activate"` or `"stop"`                                                                      |
 | `preset_type` | Yes            | `"effect"`, `"segment_pattern"`, `"cct_sequence"`, `"dynamic_scene"`, or `"segment_sequence"` |
-| `preset`      | Yes (activate) | Preset name (built-in or user-created, case-insensitive)                   |
-| `brightness`  | No             | Brightness percentage override (1-100)                                     |
-| `segments`    | No             | Segment range override (e.g.`"1-10"`, `"odd"`)                             |
+| `preset`      | Yes (activate) | Preset name (built-in or user-created, case-insensitive)                                      |
+| `brightness`  | No             | Brightness percentage override (1-100)                                                        |
+| `segments`    | No             | Segment range override (e.g.`"1-10"`, `"odd"`)                                                |
 
 **Supported preset types and their actions:**
 
