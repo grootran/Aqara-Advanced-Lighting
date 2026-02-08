@@ -17,9 +17,12 @@ Version 0.12.0 introduces Dynamic Scenes for ambient lighting across multiple li
 
 ### New Features
 
-#### Dynamic Scenes
+#### **Dynamic Scenes**
 
-**Ambient lighting scenes across multiple lights** - Create slow color transitions that work with any RGB light entity
+**Ambient lighting scenes across multiple lights**
+
+Aimed primarily at T2 bulbs, create color transitions that work with any RGB light entity including non-Aqara devices
+
   - Up to 8 colors with XY color pickers and per-color brightness control (1-100%)
   - Transition time (30-3600 seconds) for smooth color changes
   - Hold time (0-3600 seconds) to pause at each color
@@ -32,19 +35,17 @@ Version 0.12.0 introduces Dynamic Scenes for ambient lighting across multiple li
   - End behavior: restore to previous state or maintain last color
   - Static mode option to apply colors once without transitions
   - Works with any RGB light entity, not limited to Aqara devices
-**58 built-in dynamic scene presets**
-  - Nature themes: Sunset Glow, Ocean Waves, Northern Lights, Forest Canopy, Fireplace
-  - Relaxation: Relax, Cozy Embrace, Tranquil Waters, Evening Sundown
-  - Vibrant: Rio Carnival, Ibiza Sunset, Cancun Party, Miami Nights, Tokyo Neon
-  - Cosmic: Deep Space, Cosmic Galaxy, Starlit Night, Stellar Nebula
-  - Seasonal: Spring Awakening, Summer Solstice, Golden Autumn, Winter Wonderland
-  - And many more
+
+**58 built-in dynamic scene presets** - Nature themes, relaxation themes, vibrant & cosmic, seasonal, and many more
+
 **Dynamic scene editor** - Visual editor in the Scenes tab for creating custom dynamic scenes
+
   - XY color pickers with per-color brightness
-  - Preview gradient thumbnails
   - Loop and end behavior configuration
   - Save as custom presets
-**Dynamic scene services**
+  - Icon generation for gradient thumbnails
+
+**Dynamic scene services** - Backend actions, triggers and conditions for scene automations
   - `start_dynamic_scene` - Start a dynamic scene with preset or manual configuration
   - `stop_dynamic_scene` - Stop running scene(s) with optional state restoration
   - `pause_dynamic_scene` - Pause a running scene
@@ -52,59 +53,62 @@ Version 0.12.0 introduces Dynamic Scenes for ambient lighting across multiple li
 **Dynamic scene triggers** - 6 device triggers for scene lifecycle events
   - Scene started, stopped, paused, resumed
   - Loop completed, finished
-- **REST API support** - Trigger dynamic scene presets via REST API endpoint
 
-#### Device Conditions
+**REST API support** - Trigger dynamic scene presets via REST API endpoint
+
+#### **Device Conditions**
 
 **7 device conditions for automations** - Check current state of lights in automation conditions
+
   - CCT sequence is running / paused
   - Segment sequence is running / paused
   - Dynamic effect is active
   - Dynamic scene is running / paused
+
 **Preset filter support** - Optional filter to check for specific preset by name
+
   - Allows precise condition matching for specific effects, sequences, or scenes
   - Example: "Only turn on fan if goodnight sequence is running"
 
-#### Active Presets Monitoring
+#### **Active Presets Monitoring**
 
 **Running presets display** - Real-time monitoring of all active operations
+
   - Shows all running effects, sequences, and scenes
   - Operation cards display preset icon, name, and target entity
   - Control buttons: stop, pause, resume for each operation
   - Multi-entity support with auto-refresh when operations change
   - Replaces the previous Quick Actions section
 
-#### Activation Overrides
+#### **Activation Overrides**
 
 **Custom brightness override** - Override preset brightness when activating (1-100%)
+
   - Toggle to enable/disable
   - Slider for brightness adjustment
   - Applies to all preset types
+
 **Static scene mode** - For dynamic scenes only
+
   - Apply scene colors once without starting transitions
   - Colors distributed according to scene's distribution mode
   - Lights remain at assigned colors without cycling
 
-#### Favorite Presets
+#### **Favorite Presets**
 
 **Star your favorite presets** - Quick access to most-used presets
+
   - Mark any preset as favorite with star icon
   - Favorites appear in dedicated section for quick activation
   - Device-type-level filtering - only show presets compatible with selected lights
   - Sorting options: alphabetical or by date
-  - Consistent icon styling across all preset types
 
-#### Preset Management Improvements
+#### **Preset Management Improvements**
 
-**Consolidated preset storage** - All built-in presets now in single `presets.py` module
-  - Simplified maintenance and updates
-  - Better organization of 100+ built-in presets
 **Dynamic preset population** - Service action dropdowns now populated with current presets
+
   - Always shows up-to-date preset lists
   - Includes both built-in and user-created presets
-**Gradient thumbnails** - Visual preview thumbnails for CCT sequences and dynamic scenes
-  - Automatically generated gradient previews
-  - Helps identify presets at a glance
 
 ### Improvements
 
@@ -113,18 +117,20 @@ Version 0.12.0 introduces Dynamic Scenes for ambient lighting across multiple li
 **Setup status indicator** - Shows when integration is still initializing
   - Prevents confusion during initial setup
   - Clear feedback when backend is not ready
+
 **Include-all-lights toggle** - Light selection control
   - Option to include non-Aqara RGB/CCT lights for dynamic scenes and CCT sequences
   - Improved generic light compatibility
+
 **Entity conflict resolution** - Cross-type conflict detection and handling
   - Prevents conflicts between different operation types
   - External change detection pauses affected entities
   - Entities can rejoin operations after manual changes
+
 **Touch device improvements**
   - Removed click-to-activate from My Presets tab
   - Better touch target sizing
   - Improved gesture support
-**Config tab visibility** - Hide segment zone config when no compatible device selected
 
 ### Bug Fixes
 
@@ -134,6 +140,7 @@ Version 0.12.0 introduces Dynamic Scenes for ambient lighting across multiple li
 - **Fixed falsy value handling** - Editor change handlers now use nullish coalescing (??) instead of logical OR (||)
 - **Fixed device automation translation format** - Proper translation for extra fields in device triggers/conditions
 - **Fixed editor cancel button** - Reset editor to default state when cancel is clicked
+-  **Fixed segment zone panel** - Hide segment zone config when no compatible device selected
 
 ### Breaking Changes
 
