@@ -2118,9 +2118,6 @@ export class AqaraPanel extends LitElement {
     const typeLabel = isCCT
       ? this._localize('target.cct_button')
       : this._localize('target.segment_button');
-    const progressText = op.total_steps
-      ? `${(op.current_step || 0) + 1}/${op.total_steps}`
-      : '';
 
     return html`
       <div class="running-op-card ${op.externally_paused ? 'externally-paused' : ''}">
@@ -2130,7 +2127,6 @@ export class AqaraPanel extends LitElement {
             <span class="running-op-name">${preset.name || typeLabel}</span>
             <span class="running-op-entity">
               <span class="running-op-entity-name">${entityName}</span>
-              ${progressText ? html`<span class="running-op-progress">${progressText}</span>` : ''}
               ${op.paused ? html`<span class="running-op-status">${this._localize('target.paused')}</span>` : ''}
               ${op.externally_paused ? html`<span class="running-op-status externally-paused-text">${this._localize('target.externally_paused')}</span>` : ''}
             </span>

@@ -518,6 +518,7 @@ PRESET_SEGMENT_SEQ_SPARKLE: Final = "sparkle"
 PRESET_SEGMENT_SEQ_THEATER_CHASE: Final = "theater_chase"
 PRESET_SEGMENT_SEQ_RAINBOW_FILL: Final = "rainbow_fill"
 PRESET_SEGMENT_SEQ_COMET: Final = "comet"
+PRESET_SEGMENT_SEQ_STELLA_BLUE: Final = "stella_blue"
 
 # Utility functions
 def brightness_percent_to_device(percent: int) -> int:

@@ -383,6 +383,17 @@ Save your frequently used lights and light groups as favorites for quick access:
 - Toggle lights on/off directly from the panel
 - Adjust brightness with the slider
 
+#### Light Selection
+
+Control which lights appear in the entity selector:
+
+- **Include non-Aqara lights toggle** - Expand light selection beyond Aqara devices
+  - When enabled, shows all Home Assistant light entities
+  - Dynamic scenes work with any RGB light (LIFX, Philips Hue, generic RGB bulbs, etc.)
+  - CCT sequences work with any CCT-capable light
+  - Effects, segment patterns, and segment sequences remain Aqara-only
+  - Useful for creating ambient scenes across your entire home lighting setup
+
 #### Active Presets
 
 Monitor and control all currently running effects, sequences, and scenes from a single view:
@@ -452,6 +463,8 @@ Create, organize, and use custom presets for all features:
 Create custom effects and patterns with interactive builders:
 
 **Dynamic Scene Editor**
+
+![Aqara Advanced Lighting Dynamic Scenes](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/scenes.png " Aqara Advanced Lighting Dynamic Scenes")
 
 - Create ambient lighting scenes that work across multiple lights
 - Add up to 8 colors using XY color pickers with per-color brightness (1-100%)
@@ -1262,6 +1275,8 @@ automation:
 </details>
 
 ### Condition Triggers
+
+![Aqara Advanced Lighting Device Conditions](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/condition.png " Aqara Advanced Lighting Device Conditions")
 
 The integration provides device conditions that can be used in automation conditions to check the current state of lights. These conditions appear in the Home Assistant automation UI when you select a device condition for any supported Aqara light.
 

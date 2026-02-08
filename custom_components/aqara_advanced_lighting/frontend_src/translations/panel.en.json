@@ -243,6 +243,7 @@
     "no_steps_message": "No steps defined. Click \"Add step\" to create your first step.",
     "segments_label": "Segments",
     "colors_label": "Colors (1-8)",
+    "colors_brightness_label": "Colors and brightness (1-8)",
     "color_picker_title": "Select color",
     "apply_button": "Apply",
     "color_temperature_label": "Color temperature ({value}K)",

@@ -784,7 +784,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
           <div class="timing-section">
             <div class="timing-field">
               <div class="timing-label">
-                <span class="ha-color-text-secondary">${this._localize('editors.transition_time_label')}</span>
+                <span class="form-label">${this._localize('editors.transition_time_label')}</span>
                 <span class="timing-value">${this._formatTime(this._transitionTime)}</span>
               </div>
               <ha-selector
@@ -804,7 +804,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
             </div>
             <div class="timing-field">
               <div class="timing-label">
-                <span class="ha-color-text-secondary">${this._localize('editors.hold_time_label')}</span>
+                <span class="form-label">${this._localize('editors.hold_time_label')}</span>
                 <span class="timing-value">${this._formatTime(this._holdTime)}</span>
               </div>
               <ha-selector
