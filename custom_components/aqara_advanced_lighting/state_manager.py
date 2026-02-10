@@ -151,9 +151,9 @@ class StateManager:
                     "b": rgb_color[2],
                 }
 
-            # Capture color temperature if available
-            if color_temp := state.attributes.get("color_temp"):
-                state_data["color_temp"] = color_temp
+            # Capture color temperature in kelvin if available
+            if color_temp_kelvin := state.attributes.get("color_temp_kelvin"):
+                state_data["color_temp_kelvin"] = color_temp_kelvin
 
             # Capture color mode to know whether light was in RGB or CCT mode
             if color_mode := state.attributes.get("color_mode"):
@@ -239,9 +239,9 @@ class StateManager:
         return self._states[entity_id].effect_active
 
     def get_restoration_payload(self, entity_id: str) -> dict[str, Any] | None:
-        """Get MQTT payload to restore previous state.
+        """Get payload to restore previous state.
 
-        Uses color_mode to determine whether to send RGB or color_temp values,
+        Uses color_mode to determine whether to send RGB or color_temp_kelvin values,
         ensuring accurate restoration for lights that support both modes (e.g., T2 bulbs).
 
         Returns:
@@ -272,9 +272,9 @@ class StateManager:
         color_mode = previous_state.get("color_mode")
 
         if color_mode in ("color_temp", "ct"):
-            # Light was in CCT mode - only restore color_temp
-            if color_temp := previous_state.get("color_temp"):
-                payload["color_temp"] = color_temp
+            # Light was in CCT mode - only restore color temperature
+            if color_temp_kelvin := previous_state.get("color_temp_kelvin"):
+                payload["color_temp_kelvin"] = color_temp_kelvin
         elif color_mode in ("xy", "rgb", "hs", "rgbw", "rgbww"):
             # Light was in color mode - prefer xy_color for precision
             if xy_color := previous_state.get("xy_color"):
@@ -287,8 +287,8 @@ class StateManager:
                 payload["xy_color"] = xy_color
             elif color := previous_state.get("color"):
                 payload["color"] = color
-            if color_temp := previous_state.get("color_temp"):
-                payload["color_temp"] = color_temp
+            if color_temp_kelvin := previous_state.get("color_temp_kelvin"):
+                payload["color_temp_kelvin"] = color_temp_kelvin
 
         return payload
 

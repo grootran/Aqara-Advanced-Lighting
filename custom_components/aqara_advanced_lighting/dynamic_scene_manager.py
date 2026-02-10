@@ -1036,8 +1036,8 @@ class DynamicSceneManager:
                             color["b"],
                         ]
 
-                    if "color_temp" in payload:
-                        service_data["color_temp"] = payload["color_temp"]
+                    if "color_temp_kelvin" in payload:
+                        service_data["color_temp_kelvin"] = payload["color_temp_kelvin"]
 
                     await self.hass.services.async_call(
                         "light", "turn_on", service_data,

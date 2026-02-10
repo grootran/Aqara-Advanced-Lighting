@@ -734,8 +734,6 @@ class ZHABackend:
 
         if "brightness" in state_data:
             service_data["brightness"] = state_data["brightness"]
-        if "color_temp" in state_data:
-            service_data["color_temp"] = state_data["color_temp"]
         if "color_temp_kelvin" in state_data:
             service_data["color_temp_kelvin"] = state_data["color_temp_kelvin"]
         if "color" in state_data:
