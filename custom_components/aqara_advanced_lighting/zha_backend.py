@@ -49,12 +49,15 @@ AQARA_MANUFACTURER_CODE = 0x115F
 CLUSTER_MANU_SPECIFIC_LUMI = 0xFCC0
 
 # Attribute IDs for cluster 0xFCC0
+ATTR_DIMMING_RANGE_MIN = 0x0515
+ATTR_DIMMING_RANGE_MAX = 0x0516
 ATTR_EFFECT_TYPE = 0x051F
 ATTR_EFFECT_SPEED = 0x0520
 ATTR_T1M_SEGMENT = 0x0522
 ATTR_EFFECT_COLORS = 0x0523
 ATTR_STRIP_SEGMENT = 0x0527
 ATTR_TRANSITION_CURVE = 0x0528
+ATTR_INITIAL_BRIGHTNESS = 0x052C
 ATTR_EFFECT_SEGMENTS_MASK = 0x0530
 
 # Default endpoint for manufacturer-specific writes
@@ -153,12 +156,15 @@ def _ensure_aqara_attributes(cluster: Any) -> None:
 
     # Map attribute ID -> (name, zigpy type)
     aqara_attrs: dict[int, tuple[str, type]] = {
+        ATTR_DIMMING_RANGE_MIN: ("aqara_dimming_range_min", zigpy_t.uint8_t),
+        ATTR_DIMMING_RANGE_MAX: ("aqara_dimming_range_max", zigpy_t.uint8_t),
         ATTR_EFFECT_TYPE: ("aqara_effect_type", zigpy_t.uint32_t),
         ATTR_EFFECT_SPEED: ("aqara_effect_speed", zigpy_t.uint8_t),
         ATTR_T1M_SEGMENT: ("aqara_t1m_segment", zigpy_t.LVBytes),
         ATTR_EFFECT_COLORS: ("aqara_effect_colors", zigpy_t.LVBytes),
         ATTR_STRIP_SEGMENT: ("aqara_strip_segment", zigpy_t.LVBytes),
         ATTR_TRANSITION_CURVE: ("aqara_transition_curve", zigpy_t.Single),
+        ATTR_INITIAL_BRIGHTNESS: ("aqara_initial_brightness", zigpy_t.uint8_t),
         ATTR_EFFECT_SEGMENTS_MASK: ("aqara_effect_segments_mask", zigpy_t.LVBytes),
     }
 
