@@ -51,6 +51,10 @@ CLUSTER_MANU_SPECIFIC_LUMI = 0xFCC0
 # Attribute IDs for cluster 0xFCC0
 ATTR_DIMMING_RANGE_MIN = 0x0515
 ATTR_DIMMING_RANGE_MAX = 0x0516
+ATTR_STRIP_LENGTH = 0x051B
+ATTR_AUDIO_ENABLE = 0x051C
+ATTR_AUDIO_EFFECT = 0x051D
+ATTR_AUDIO_SENSITIVITY = 0x051E
 ATTR_EFFECT_TYPE = 0x051F
 ATTR_EFFECT_SPEED = 0x0520
 ATTR_T1M_SEGMENT = 0x0522
@@ -158,6 +162,10 @@ def _ensure_aqara_attributes(cluster: Any) -> None:
     aqara_attrs: dict[int, tuple[str, type]] = {
         ATTR_DIMMING_RANGE_MIN: ("aqara_dimming_range_min", zigpy_t.uint8_t),
         ATTR_DIMMING_RANGE_MAX: ("aqara_dimming_range_max", zigpy_t.uint8_t),
+        ATTR_STRIP_LENGTH: ("aqara_strip_length", zigpy_t.uint8_t),
+        ATTR_AUDIO_ENABLE: ("aqara_audio_enable", zigpy_t.uint8_t),
+        ATTR_AUDIO_EFFECT: ("aqara_audio_effect", zigpy_t.uint32_t),
+        ATTR_AUDIO_SENSITIVITY: ("aqara_audio_sensitivity", zigpy_t.uint8_t),
         ATTR_EFFECT_TYPE: ("aqara_effect_type", zigpy_t.uint32_t),
         ATTR_EFFECT_SPEED: ("aqara_effect_speed", zigpy_t.uint8_t),
         ATTR_T1M_SEGMENT: ("aqara_t1m_segment", zigpy_t.LVBytes),
