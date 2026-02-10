@@ -1,9 +1,9 @@
 {
   "domain": "aqara_advanced_lighting",
   "name": "Aqara Advanced Lighting",
+  "after_dependencies": ["mqtt", "zha"],
   "codeowners": ["@absent42"],
   "config_flow": true,
-  "after_dependencies": ["mqtt", "zha"],
   "dependencies": ["http"],
   "documentation": "https://github.com/absent42/Aqara-Advanced-Lighting",
   "integration_type": "service",
