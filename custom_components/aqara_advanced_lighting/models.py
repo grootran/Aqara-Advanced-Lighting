@@ -315,13 +315,14 @@ class DeviceState:
     """Device state for restoration after effects."""
 
     entity_id: str
-    z2m_friendly_name: str
+    z2m_friendly_name: str  # Kept for backwards compatibility with persisted state
     previous_state: dict[str, Any]  # Original state before effect
     effect_active: bool
     current_effect: DynamicEffect | None = None
     current_preset: str | None = None  # Preset name for event tracking
     paused_cct_sequence: bool = False
     paused_segment_sequence: bool = False
+    device_identifier: str = ""  # Backend-agnostic device identifier
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for storage."""
@@ -346,6 +347,28 @@ class DeviceState:
             "paused_cct_sequence": self.paused_cct_sequence,
             "paused_segment_sequence": self.paused_segment_sequence,
         }
+
+
+@dataclass
+class AqaraDevice:
+    """Backend-agnostic representation of a supported Aqara light.
+
+    Used by both Z2M and ZHA backends to provide a common device model
+    to services, sequence managers, and the frontend.
+    """
+
+    identifier: str  # IEEE address (common to both backends)
+    name: str  # Human-readable device name
+    model_id: str  # Zigbee model ID (e.g., "lumi.light.acn031")
+    manufacturer: str  # "LUMI" or "Aqara"
+    backend_type: str = "z2m"  # "z2m" or "zha"
+
+    @property
+    def capabilities(self) -> DeviceCapabilities | None:
+        """Get device capabilities based on model ID."""
+        from .light_capabilities import get_device_capabilities
+
+        return get_device_capabilities(self.model_id)
 
 
 @dataclass
@@ -555,13 +578,15 @@ class AqaraLightingRuntimeData:
     """Runtime data for the Aqara Advanced Lighting integration."""
 
     config_entry: ConfigEntry
-    z2m_base_topic: str
+    backend_type: str = "z2m"  # "z2m" or "zha"
+    z2m_base_topic: str = ""  # Z2M only: MQTT base topic
     devices: dict[str, Z2MDevice] = field(default_factory=dict)
     devices_by_name: dict[str, Z2MDevice] = field(default_factory=dict)
     entity_to_z2m_map: dict[str, str] = field(default_factory=dict)
     entity_mapping_methods: dict[str, str] = field(default_factory=dict)
     device_states: dict[str, DeviceState] = field(default_factory=dict)
     entity_mapping_ready: bool = False
+    aqara_devices: dict[str, AqaraDevice] = field(default_factory=dict)
 
 
 # Type alias for typed config entry (Python 3.11+ compatible)

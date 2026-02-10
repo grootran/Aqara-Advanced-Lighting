@@ -12,19 +12,36 @@ from homeassistant.components import mqtt
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.helpers import config_validation as cv
 
-from .const import CONF_Z2M_BASE_TOPIC, DEFAULT_Z2M_BASE_TOPIC, DOMAIN
+from .const import (
+    BACKEND_Z2M,
+    BACKEND_ZHA,
+    CONF_BACKEND_TYPE,
+    CONF_Z2M_BASE_TOPIC,
+    DEFAULT_Z2M_BASE_TOPIC,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 # Timeout for Z2M bridge validation (seconds)
 Z2M_VALIDATION_TIMEOUT = 5
 
+# Backend type labels for the config flow selector
+BACKEND_TYPE_OPTIONS = {
+    BACKEND_Z2M: "Zigbee2MQTT",
+    BACKEND_ZHA: "ZHA (Zigbee Home Automation)",
+}
+
 
 class AqaraAdvancedLightingConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Aqara Advanced Lighting."""
 
     VERSION = 1
-    MINOR_VERSION = 1
+    MINOR_VERSION = 2
+
+    def __init__(self) -> None:
+        """Initialize the config flow."""
+        self._backend_type: str = BACKEND_Z2M
 
     async def _validate_z2m_base_topic(self, base_topic: str) -> bool:
         """Validate that a Zigbee2MQTT instance exists at the given base topic.
@@ -77,7 +94,36 @@ class AqaraAdvancedLightingConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Handle the initial step."""
+        """Handle the initial step - backend type selection."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            self._backend_type = user_input.get(CONF_BACKEND_TYPE, BACKEND_Z2M)
+
+            if self._backend_type == BACKEND_Z2M:
+                return await self.async_step_z2m()
+            if self._backend_type == BACKEND_ZHA:
+                return await self.async_step_zha()
+
+        # Show backend type selection form
+        data_schema = vol.Schema(
+            {
+                vol.Required(CONF_BACKEND_TYPE, default=BACKEND_Z2M): vol.In(
+                    BACKEND_TYPE_OPTIONS
+                ),
+            }
+        )
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=data_schema,
+            errors=errors,
+        )
+
+    async def async_step_z2m(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle the Z2M configuration step."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -102,11 +148,12 @@ class AqaraAdvancedLightingConfigFlow(ConfigFlow, domain=DOMAIN):
                 return self.async_create_entry(
                     title=f"Aqara Lighting ({z2m_base_topic})",
                     data={
+                        CONF_BACKEND_TYPE: BACKEND_Z2M,
                         CONF_Z2M_BASE_TOPIC: z2m_base_topic,
                     },
                 )
 
-        # Show configuration form
+        # Show Z2M configuration form
         data_schema = vol.Schema(
             {
                 vol.Optional(
@@ -116,8 +163,56 @@ class AqaraAdvancedLightingConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
         return self.async_show_form(
-            step_id="user",
+            step_id="z2m",
             data_schema=data_schema,
+            errors=errors,
+        )
+
+    async def async_step_zha(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle the ZHA configuration step."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None or self._backend_type == BACKEND_ZHA:
+            # Validate ZHA integration is loaded
+            try:
+                from homeassistant.components.zha.helpers import get_zha_gateway
+
+                gateway = get_zha_gateway(self.hass)
+            except (ImportError, ValueError):
+                errors["base"] = "zha_not_loaded"
+                gateway = None
+
+            if not errors and gateway is not None:
+                # Check for supported Aqara devices
+                from .mqtt_backend import SUPPORTED_MODELS
+
+                supported_devices = [
+                    device
+                    for device in gateway.devices.values()
+                    if device.model in SUPPORTED_MODELS
+                ]
+
+                if not supported_devices:
+                    errors["base"] = "no_aqara_devices"
+
+            if not errors:
+                # Use "zha" as unique_id (only one ZHA instance possible)
+                await self.async_set_unique_id("zha")
+                self._abort_if_unique_id_configured()
+
+                return self.async_create_entry(
+                    title="Aqara Lighting (ZHA)",
+                    data={
+                        CONF_BACKEND_TYPE: BACKEND_ZHA,
+                    },
+                )
+
+        # Show ZHA confirmation form (or errors)
+        return self.async_show_form(
+            step_id="zha",
+            data_schema=vol.Schema({}),
             errors=errors,
         )
 
@@ -127,7 +222,13 @@ class AqaraAdvancedLightingConfigFlow(ConfigFlow, domain=DOMAIN):
         """Handle reconfiguration of the integration."""
         errors: dict[str, str] = {}
         entry = self._get_reconfigure_entry()
+        backend_type = entry.data.get(CONF_BACKEND_TYPE, BACKEND_Z2M)
 
+        # ZHA entries have no reconfigurable settings
+        if backend_type == BACKEND_ZHA:
+            return self.async_abort(reason="zha_no_reconfigure")
+
+        # Z2M reconfiguration
         if user_input is not None:
             z2m_base_topic = user_input.get(
                 CONF_Z2M_BASE_TOPIC, DEFAULT_Z2M_BASE_TOPIC
@@ -157,6 +258,7 @@ class AqaraAdvancedLightingConfigFlow(ConfigFlow, domain=DOMAIN):
                     title=f"Aqara Lighting ({z2m_base_topic})",
                     unique_id=z2m_base_topic,
                     data={
+                        CONF_BACKEND_TYPE: BACKEND_Z2M,
                         CONF_Z2M_BASE_TOPIC: z2m_base_topic,
                     },
                 )

@@ -926,12 +926,12 @@ class VersionView(HomeAssistantView):
                 # No entries loaded yet
                 setup_complete = False
             else:
-                for entry_id, instance_data in entries_data.items():
-                    mqtt_client = instance_data.get("mqtt_client")
-                    if not mqtt_client:
+                for instance_data in entries_data.values():
+                    backend = instance_data.get("backend")
+                    if not backend:
                         continue
                     try:
-                        if not mqtt_client.entry.runtime_data.entity_mapping_ready:
+                        if not backend.entity_mapping_ready:
                             setup_complete = False
                             break
                     except AttributeError:
@@ -1042,7 +1042,7 @@ class ImportPresetsView(HomeAssistantView):
 
 
 class SupportedEntitiesView(HomeAssistantView):
-    """View to get all supported entities across all Z2M instances."""
+    """View to get all supported entities across all backend instances."""
 
     url = f"/api/{DOMAIN}/supported_entities"
     name = f"api:{DOMAIN}:supported_entities"
@@ -1064,16 +1064,19 @@ class SupportedEntitiesView(HomeAssistantView):
 
         # Iterate over all config entries for this integration
         entries_data = hass.data[DOMAIN].get("entries", {})
+        entity_routing = hass.data[DOMAIN].get("entity_routing", {})
 
         for entry_id, instance_data in entries_data.items():
-            mqtt_client = instance_data.get("mqtt_client")
-            if not mqtt_client:
+            backend = instance_data.get("backend")
+            if not backend:
                 continue
 
-            # Get entry info
-            entry = mqtt_client.entry
-            z2m_base_topic = entry.runtime_data.z2m_base_topic
-            devices = entry.runtime_data.devices
+            # Get entry info from config entries (avoid direct backend.entry access)
+            entry = hass.config_entries.async_get_entry(entry_id)
+            if not entry:
+                continue
+            backend_type = entry.runtime_data.backend_type
+            all_devices = backend.get_all_devices()
 
             # Calculate device counts by type
             device_counts: dict[str, int] = {
@@ -1086,13 +1089,11 @@ class SupportedEntitiesView(HomeAssistantView):
             }
             device_names: list[str] = []
 
-            for device in devices.values():
-                if not device.supported:
-                    continue
+            for aqara_device in all_devices.values():
                 device_counts["total"] += 1
-                device_names.append(device.friendly_name)
+                device_names.append(aqara_device.name)
 
-                model_id = device.model_id
+                model_id = aqara_device.model_id
                 if model_id in [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT]:
                     device_counts["t1m"] += 1
                 elif model_id == MODEL_T1_STRIP:
@@ -1109,47 +1110,42 @@ class SupportedEntitiesView(HomeAssistantView):
             instances.append({
                 "entry_id": entry_id,
                 "title": entry.title,
-                "z2m_base_topic": z2m_base_topic,
+                "backend_type": backend_type,
+                "z2m_base_topic": (
+                    entry.runtime_data.z2m_base_topic
+                    if backend_type == "z2m"
+                    else None
+                ),
                 "device_counts": device_counts,
                 "devices": sorted(device_names),
             })
 
-            # Get entity mappings
-            entity_to_z2m_map = entry.runtime_data.entity_to_z2m_map
-            devices = entry.runtime_data.devices
-            devices_by_name = entry.runtime_data.devices_by_name
+            # Get entities routed to this entry
+            entry_entity_ids = [
+                eid for eid, e_entry_id in entity_routing.items()
+                if e_entry_id == entry_id
+            ]
 
-            # Log for debugging
             _LOGGER.debug(
-                "SupportedEntitiesView: Processing entry %s with %d mapped entities and %d devices",
+                "SupportedEntitiesView: Processing entry %s (%s) with %d mapped entities and %d devices",
                 entry_id,
-                len(entity_to_z2m_map),
-                len(devices),
-            )
-            _LOGGER.debug(
-                "SupportedEntitiesView: entity_to_z2m_map = %s",
-                dict(entity_to_z2m_map),
-            )
-            _LOGGER.debug(
-                "SupportedEntitiesView: devices friendly names = %s",
-                [d.friendly_name for d in devices.values()],
+                backend_type,
+                len(entry_entity_ids),
+                len(all_devices),
             )
 
-            for entity_id, z2m_friendly_name in entity_to_z2m_map.items():
-                # Find the device to get model info
-                device = devices_by_name.get(z2m_friendly_name)
-
-                if not device:
+            for entity_id in entry_entity_ids:
+                # Get device via backend protocol
+                aqara_device = backend.get_device_for_entity(entity_id)
+                if not aqara_device:
                     _LOGGER.warning(
-                        "SupportedEntitiesView: Could not find device for entity %s "
-                        "(z2m_friendly_name=%s) - device not in devices dict",
+                        "SupportedEntitiesView: Could not find device for entity %s",
                         entity_id,
-                        z2m_friendly_name,
                     )
                     continue
 
                 # Determine device type category for frontend
-                model_id = device.model_id
+                model_id = aqara_device.model_id
                 if model_id in [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT]:
                     device_type = "t1m"
                 elif model_id == MODEL_T1_STRIP:
@@ -1167,12 +1163,18 @@ class SupportedEntitiesView(HomeAssistantView):
 
                 supported_entities[entity_id] = {
                     "entity_id": entity_id,
-                    "z2m_friendly_name": z2m_friendly_name,
+                    "device_name": aqara_device.name,
+                    "z2m_friendly_name": aqara_device.name,  # backwards compat
                     "model_id": model_id,
                     "device_type": device_type,
                     "entry_id": entry_id,
-                    "z2m_base_topic": z2m_base_topic,
-                    "ieee_address": device.ieee_address,
+                    "backend_type": backend_type,
+                    "z2m_base_topic": (
+                        entry.runtime_data.z2m_base_topic
+                        if backend_type == "z2m"
+                        else None
+                    ),
+                    "ieee_address": aqara_device.identifier,
                     "segment_count": segment_count,
                 }
 

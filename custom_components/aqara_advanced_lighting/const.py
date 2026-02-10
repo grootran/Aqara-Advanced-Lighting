@@ -6,9 +6,14 @@ from typing import Final
 DOMAIN: Final = "aqara_advanced_lighting"
 
 # Configuration constants
+CONF_BACKEND_TYPE: Final = "backend_type"
 CONF_Z2M_BASE_TOPIC: Final = "z2m_base_topic"
 CONF_PRESET_FILTER: Final = "preset"
 DEFAULT_Z2M_BASE_TOPIC: Final = "zigbee2mqtt"
+
+# Backend types
+BACKEND_Z2M: Final = "z2m"
+BACKEND_ZHA: Final = "zha"
 
 # Service names
 SERVICE_SET_DYNAMIC_EFFECT: Final = "set_dynamic_effect"

@@ -39,13 +39,27 @@
     "step": {
       "user": {
         "title": "Set up Aqara Advanced Lighting",
-        "description": "Configure advanced lighting control for Aqara lights via Zigbee2MQTT.",
+        "description": "Choose how your Aqara lights connect to Home Assistant.",
+        "data": {
+          "backend_type": "Connection method"
+        },
+        "data_description": {
+          "backend_type": "Select how your Aqara lights are connected. Zigbee2MQTT uses MQTT, ZHA uses the built-in Zigbee integration."
+        }
+      },
+      "z2m": {
+        "title": "Configure Zigbee2MQTT",
+        "description": "Configure the Zigbee2MQTT connection for your Aqara lights.",
         "data": {
           "z2m_base_topic": "Zigbee2MQTT base topic"
         },
         "data_description": {
           "z2m_base_topic": "The MQTT base topic for your Zigbee2MQTT instance. Usually 'zigbee2mqtt' unless you changed it."
         }
+      },
+      "zha": {
+        "title": "Configure ZHA",
+        "description": "The ZHA integration will be used to communicate with your Aqara lights."
       },
       "reconfigure": {
         "title": "Reconfigure Aqara Advanced Lighting",
@@ -62,10 +76,12 @@
       "mqtt_not_loaded": "MQTT integration is not loaded. Please set up the MQTT integration first.",
       "duplicate_base_topic": "An instance with this Zigbee2MQTT base topic already exists.",
       "z2m_not_found": "No Zigbee2MQTT instance found at this base topic. Please verify the topic is correct and that Zigbee2MQTT is running.",
+      "zha_not_loaded": "The ZHA integration is not loaded. Please set up ZHA first.",
+      "no_aqara_devices": "No supported Aqara lights were found in your ZHA network.",
       "unknown": "An unexpected error occurred."
     },
     "abort": {
-      "already_configured": "An instance with this Zigbee2MQTT base topic is already configured."
+      "already_configured": "An instance with this configuration is already set up."
     }
   },
   "exceptions": {
@@ -269,8 +285,8 @@
           "description": "When targeting multiple lights, apply the effect to all lights simultaneously for synchronized group effects."
         },
         "z2m_base_topic": {
-          "name": "Z2M base topic",
-          "description": "Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup."
+          "name": "Z2M base topic (deprecated)",
+          "description": "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
         }
       }
     },
@@ -287,8 +303,8 @@
           "description": "Restore the light to its pre-effect state (brightness, color, temperature)."
         },
         "z2m_base_topic": {
-          "name": "Z2M base topic",
-          "description": "Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup."
+          "name": "Z2M base topic (deprecated)",
+          "description": "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
         }
       }
     },
@@ -325,8 +341,8 @@
           "description": "When targeting multiple lights, apply the pattern to all lights simultaneously for synchronized group effects."
         },
         "z2m_base_topic": {
-          "name": "Z2M base topic",
-          "description": "Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup."
+          "name": "Z2M base topic (deprecated)",
+          "description": "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
         }
       }
     },
@@ -383,8 +399,8 @@
           "description": "When targeting multiple lights, apply the gradient to all lights simultaneously for synchronized group effects."
         },
         "z2m_base_topic": {
-          "name": "Z2M base topic",
-          "description": "Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup."
+          "name": "Z2M base topic (deprecated)",
+          "description": "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
         }
       }
     },
@@ -445,8 +461,8 @@
           "description": "When targeting multiple lights, apply the blocks to all lights simultaneously for synchronized group effects."
         },
         "z2m_base_topic": {
-          "name": "Z2M base topic",
-          "description": "Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup."
+          "name": "Z2M base topic (deprecated)",
+          "description": "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
         }
       }
     },
@@ -483,8 +499,8 @@
           "description": "What to do when the sequence completes."
         },
         "z2m_base_topic": {
-          "name": "Z2M base topic",
-          "description": "Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup."
+          "name": "Z2M base topic (deprecated)",
+          "description": "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
         }
       }
     },
@@ -497,8 +513,8 @@
           "description": "The light entity or group to control."
         },
         "z2m_base_topic": {
-          "name": "Z2M base topic",
-          "description": "Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup."
+          "name": "Z2M base topic (deprecated)",
+          "description": "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
         }
       }
     },
@@ -511,8 +527,8 @@
           "description": "The light entity or group to control."
         },
         "z2m_base_topic": {
-          "name": "Z2M base topic",
-          "description": "Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup."
+          "name": "Z2M base topic (deprecated)",
+          "description": "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
         }
       }
     },
@@ -525,8 +541,8 @@
           "description": "The light entity or group to control."
         },
         "z2m_base_topic": {
-          "name": "Z2M base topic",
-          "description": "Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup."
+          "name": "Z2M base topic (deprecated)",
+          "description": "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
         }
       }
     },
@@ -571,8 +587,8 @@
           "description": "Skip the first step when looping. Useful for setting an initial pattern that should not repeat."
         },
         "z2m_base_topic": {
-          "name": "Z2M base topic",
-          "description": "Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup."
+          "name": "Z2M base topic (deprecated)",
+          "description": "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
         }
       }
     },
@@ -585,8 +601,8 @@
           "description": "The light entity or group to control."
         },
         "z2m_base_topic": {
-          "name": "Z2M base topic",
-          "description": "Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup."
+          "name": "Z2M base topic (deprecated)",
+          "description": "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
         }
       }
     },
@@ -599,8 +615,8 @@
           "description": "The light entity or group to control."
         },
         "z2m_base_topic": {
-          "name": "Z2M base topic",
-          "description": "Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup."
+          "name": "Z2M base topic (deprecated)",
+          "description": "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
         }
       }
     },
@@ -613,8 +629,8 @@
           "description": "The light entity or group to control."
         },
         "z2m_base_topic": {
-          "name": "Z2M base topic",
-          "description": "Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup."
+          "name": "Z2M base topic (deprecated)",
+          "description": "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
         }
       }
     },

@@ -36,29 +36,42 @@ async def async_get_config_entry_diagnostics(
     """
     runtime_data = entry.runtime_data
 
-    # Build discovered devices list with relevant info
-    discovered_devices = []
-    for ieee_address, device in runtime_data.devices.items():
-        discovered_devices.append({
-            "ieee_address": ieee_address,
-            "friendly_name": device.friendly_name,
-            "model_id": device.model_id,
-            "manufacturer": device.manufacturer,
-            "supported": device.supported,
-        })
-
-    # Build entity mappings with match method for debugging
-    entity_mappings = []
-    for entity_id, z2m_name in runtime_data.entity_to_z2m_map.items():
-        mapping_info = {
-            "entity_id": entity_id,
-            "z2m_friendly_name": z2m_name,
-            "match_method": runtime_data.entity_mapping_methods.get(entity_id, "unknown"),
-        }
-        entity_mappings.append(mapping_info)
-
-    # Get state manager data for this specific entry
+    # Get instance data for this entry
     entry_data = hass.data.get(DOMAIN, {}).get("entries", {}).get(entry.entry_id, {})
+    backend = entry_data.get("backend")
+
+    # Build discovered devices list using backend protocol
+    discovered_devices = []
+    if backend:
+        for identifier, aqara_device in backend.get_all_devices().items():
+            discovered_devices.append({
+                "identifier": identifier,
+                "name": aqara_device.name,
+                "model_id": aqara_device.model_id,
+                "manufacturer": aqara_device.manufacturer,
+                "backend_type": aqara_device.backend_type,
+            })
+
+    # Build entity mappings from entity routing
+    entity_mappings = []
+    entity_routing = hass.data.get(DOMAIN, {}).get("entity_routing", {})
+    entry_entity_ids = [
+        eid for eid, e_entry_id in entity_routing.items()
+        if e_entry_id == entry.entry_id
+    ]
+    for entity_id in entry_entity_ids:
+        mapping_info: dict[str, Any] = {"entity_id": entity_id}
+        if backend:
+            aqara_device = backend.get_device_for_entity(entity_id)
+            if aqara_device:
+                mapping_info["device_name"] = aqara_device.name
+                mapping_info["device_identifier"] = aqara_device.identifier
+        # Include Z2M-specific mapping method if available
+        if hasattr(runtime_data, "entity_mapping_methods"):
+            mapping_info["match_method"] = runtime_data.entity_mapping_methods.get(
+                entity_id, "unknown"
+            )
+        entity_mappings.append(mapping_info)
     state_manager = entry_data.get("state_manager")
     active_effects = []
     if state_manager:
@@ -115,18 +128,57 @@ async def async_get_config_entry_diagnostics(
             "trigger_ready": len(entity_ids) > 0,
         })
 
-    return {
+    # Build ZHA-specific Zigbee device details
+    zha_device_details: list[dict[str, Any]] = []
+    if runtime_data.backend_type == "zha" and backend:
+        try:
+            from homeassistant.components.zha.helpers import get_zha_gateway
+            from zigpy.types import EUI64
+
+            gateway = get_zha_gateway(hass)
+            for ieee_str, aqara_device in backend.get_all_devices().items():
+                ieee = EUI64.convert(ieee_str)
+                zha_device = gateway.devices.get(ieee)
+                if not zha_device:
+                    continue
+                zigpy_dev = zha_device.device
+                endpoints_info: dict[str, Any] = {}
+                for ep_id, ep in zigpy_dev.endpoints.items():
+                    if ep_id == 0:
+                        continue
+                    endpoints_info[str(ep_id)] = {
+                        "in_clusters": sorted(ep.in_clusters.keys()),
+                        "out_clusters": sorted(ep.out_clusters.keys()),
+                        "has_lumi_cluster": 0xFCC0 in ep.in_clusters,
+                    }
+                zha_device_details.append({
+                    "ieee": ieee_str,
+                    "name": aqara_device.name,
+                    "resolved_model": aqara_device.model_id,
+                    "zha_model": zha_device.model,
+                    "endpoints": endpoints_info,
+                })
+        except Exception:  # noqa: BLE001
+            zha_device_details = [{"error": "Failed to read ZHA device details"}]
+
+    # Build runtime info
+    runtime_info: dict[str, Any] = {
+        "backend_type": runtime_data.backend_type,
+        "device_count": len(backend.get_all_devices()) if backend else 0,
+        "mapped_entity_count": len(entry_entity_ids),
+        "entity_mapping_ready": backend.entity_mapping_ready if backend else False,
+    }
+    if runtime_data.backend_type == "z2m":
+        runtime_info["z2m_base_topic"] = runtime_data.z2m_base_topic
+
+    result: dict[str, Any] = {
         "config_entry": {
             "entry_id": entry.entry_id,
             "title": entry.title,
             "version": entry.version,
             "data": async_redact_data(dict(entry.data), TO_REDACT),
         },
-        "runtime": {
-            "z2m_base_topic": runtime_data.z2m_base_topic,
-            "device_count": len(runtime_data.devices),
-            "mapped_entity_count": len(runtime_data.entity_to_z2m_map),
-        },
+        "runtime": runtime_info,
         "discovered_devices": discovered_devices,
         "entity_mappings": entity_mappings,
         "active_effects": active_effects,
@@ -134,3 +186,8 @@ async def async_get_config_entry_diagnostics(
         "active_dynamic_scenes": active_dynamic_scenes,
         "device_triggers": device_trigger_info,
     }
+
+    if zha_device_details:
+        result["zha_devices"] = zha_device_details
+
+    return result

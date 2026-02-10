@@ -32,8 +32,8 @@ from .models import SegmentSequence, RGBColor, SegmentColor
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
+    from .backend_protocol import DeviceBackend
     from .entity_controller import EntityController
-    from .mqtt_client import MQTTClient
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -44,12 +44,12 @@ class SegmentSequenceManager:
     def __init__(
         self,
         hass: HomeAssistant,
-        mqtt_client: MQTTClient,
+        backend: DeviceBackend,
         entity_controller: EntityController | None = None,
     ) -> None:
         """Initialize the segment sequence manager."""
         self.hass = hass
-        self.mqtt_client = mqtt_client
+        self.backend = backend
         self._entity_controller = entity_controller
         self._active_sequences: dict[str, asyncio.Task] = {}  # entity_id -> task
         self._stop_flags: dict[str, asyncio.Event] = {}  # entity_id -> stop event
@@ -71,7 +71,6 @@ class SegmentSequenceManager:
         self,
         entity_id: str,
         sequence: SegmentSequence,
-        z2m_base_topic: str | None = None,
         preset: str | None = None,
     ) -> str:
         """Start a segment sequence for an entity.
@@ -79,7 +78,6 @@ class SegmentSequenceManager:
         Args:
             entity_id: The light entity ID to control
             sequence: The segment sequence configuration
-            z2m_base_topic: Optional custom Z2M base topic override
             preset: Optional preset name for event tracking
 
         Returns:
@@ -115,7 +113,7 @@ class SegmentSequenceManager:
         # Create and store task
         task = asyncio.create_task(
             self._execute_sequence(
-                entity_id, sequence, stop_event, pause_event, sequence_id, z2m_base_topic
+                entity_id, sequence, stop_event, pause_event, sequence_id
             )
         )
         self._active_sequences[entity_id] = task
@@ -140,7 +138,6 @@ class SegmentSequenceManager:
         self,
         entity_ids: list[str],
         sequence: SegmentSequence,
-        z2m_base_topic: str | None = None,
         preset: str | None = None,
     ) -> dict[str, str]:
         """Start synchronized segment sequences for multiple entities.
@@ -150,7 +147,6 @@ class SegmentSequenceManager:
         Args:
             entity_ids: List of light entity IDs to control
             sequence: The segment sequence configuration (same for all)
-            z2m_base_topic: Optional custom Z2M base topic override
             preset: Optional preset name for event tracking
 
         Returns:
@@ -162,7 +158,7 @@ class SegmentSequenceManager:
         # For single entity, use regular start_sequence
         if len(entity_ids) == 1:
             seq_id = await self.start_sequence(
-                entity_ids[0], sequence, z2m_base_topic, preset
+                entity_ids[0], sequence, preset
             )
             return {entity_ids[0]: seq_id}
 
@@ -217,7 +213,6 @@ class SegmentSequenceManager:
                     pause_event,
                     sequence_id,
                     group_id,
-                    z2m_base_topic,
                 )
             )
             self._active_sequences[entity_id] = task
@@ -498,15 +493,11 @@ class SegmentSequenceManager:
         if not zone_store:
             return None
 
-        z2m_name = self.mqtt_client.get_z2m_friendly_name(entity_id)
-        if not z2m_name:
+        aqara_device = self.backend.get_device_for_entity(entity_id)
+        if not aqara_device:
             return None
 
-        device = self.mqtt_client.entry.runtime_data.devices_by_name.get(z2m_name)
-        if not device:
-            return None
-
-        zones = zone_store.get_zones_for_resolution(device.ieee_address)
+        zones = zone_store.get_zones_for_resolution(aqara_device.identifier)
         return zones if zones else None
 
     def _parse_segment_range(
@@ -711,7 +702,6 @@ class SegmentSequenceManager:
         stop_event: asyncio.Event,
         pause_event: asyncio.Event,
         sequence_id: str,
-        z2m_base_topic: str | None = None,
     ) -> None:
         """Execute a segment sequence.
 
@@ -721,7 +711,6 @@ class SegmentSequenceManager:
             stop_event: Event to signal sequence should stop
             pause_event: Event to signal sequence should pause
             sequence_id: Unique identifier for this sequence run
-            z2m_base_topic: Optional custom Z2M base topic override
         """
         _LOGGER.debug("Starting segment sequence for %s (sequence_id=%s)", entity_id, sequence_id)
         completed_naturally = False
@@ -738,24 +727,22 @@ class SegmentSequenceManager:
             _LOGGER.info("Checking clear_segments flag: %s", sequence.clear_segments)
             if sequence.clear_segments:
                 _LOGGER.info("Clearing all segments for %s before starting sequence", entity_id)
-                z2m_name = self.mqtt_client.get_z2m_friendly_name(entity_id)
-                if z2m_name:
-                    # Create black color for all segments
-                    black_color = RGBColor(r=0, g=0, b=0)
-                    clear_segments = [
-                        SegmentColor(segment=seg, color=black_color)
-                        for seg in range(1, total_segments + 1)
-                    ]
-                    try:
-                        await self.mqtt_client.async_publish_segment_pattern(
-                            z2m_name, clear_segments, z2m_base_topic
-                        )
-                        # Small delay to ensure segments are cleared before sequence starts
-                        await asyncio.sleep(0.1)
-                    except Exception as ex:
-                        _LOGGER.warning(
-                            "Failed to clear segments for %s: %s", entity_id, ex
-                        )
+                # Create black color for all segments
+                black_color = RGBColor(r=0, g=0, b=0)
+                clear_segments = [
+                    SegmentColor(segment=seg, color=black_color)
+                    for seg in range(1, total_segments + 1)
+                ]
+                try:
+                    await self.backend.async_send_segment_pattern(
+                        entity_id, clear_segments
+                    )
+                    # Small delay to ensure segments are cleared before sequence starts
+                    await asyncio.sleep(0.1)
+                except Exception as ex:
+                    _LOGGER.warning(
+                        "Failed to clear segments for %s: %s", entity_id, ex
+                    )
 
             loops_executed = 0
             max_loops = (
@@ -817,11 +804,11 @@ class SegmentSequenceManager:
                         step.activation_pattern,
                     )
 
-                    # Get Z2M friendly name for publishing
-                    z2m_name = self.mqtt_client.get_z2m_friendly_name(entity_id)
-                    if not z2m_name:
+                    # Verify entity is supported by backend
+                    is_supported, _ = self.backend.is_entity_supported(entity_id)
+                    if not is_supported:
                         _LOGGER.warning(
-                            "Entity %s not mapped to Z2M device, skipping step", entity_id
+                            "Entity %s not supported by backend, skipping step", entity_id
                         )
                         continue
 
@@ -849,8 +836,8 @@ class SegmentSequenceManager:
                     if step.activation_pattern == "all":
                         # Activate all segments at once
                         try:
-                            await self.mqtt_client.async_publish_segment_pattern(
-                                z2m_name, segment_colors, z2m_base_topic
+                            await self.backend.async_send_segment_pattern(
+                                entity_id, segment_colors
                             )
                         except Exception as ex:
                             _LOGGER.warning(
@@ -896,8 +883,8 @@ class SegmentSequenceManager:
                                     segment=segment, color=color_map[segment]
                                 )
                                 try:
-                                    await self.mqtt_client.async_publish_segment_pattern(
-                                        z2m_name, [segment_color], z2m_base_topic
+                                    await self.backend.async_send_segment_pattern(
+                                        entity_id, [segment_color]
                                     )
                                 except Exception as ex:
                                     _LOGGER.warning(
@@ -942,7 +929,7 @@ class SegmentSequenceManager:
 
             if sequence.end_behavior == "turn_off":
                 try:
-                    await self.mqtt_client.async_turn_off_light(entity_id)
+                    await self.backend.async_turn_off_light(entity_id)
                     _LOGGER.info("Segment sequence completed, turned off %s", entity_id)
                 except Exception as ex:
                     _LOGGER.warning("Failed to turn off %s after sequence: %s", entity_id, ex)
@@ -997,7 +984,6 @@ class SegmentSequenceManager:
         pause_event: asyncio.Event,
         sequence_id: str,
         group_id: str,
-        z2m_base_topic: str | None = None,
     ) -> None:
         """Execute a synchronized segment sequence with barrier-based step coordination.
 
@@ -1008,7 +994,6 @@ class SegmentSequenceManager:
             pause_event: Event to signal sequence should pause
             sequence_id: Unique identifier for this sequence run
             group_id: Group ID for barrier synchronization
-            z2m_base_topic: Optional custom Z2M base topic override
         """
         _LOGGER.debug(
             "Starting synchronized segment sequence for %s (sequence_id=%s, group=%s)",
@@ -1033,22 +1018,20 @@ class SegmentSequenceManager:
                     "Clearing all segments for %s before starting synchronized sequence",
                     entity_id,
                 )
-                z2m_name = self.mqtt_client.get_z2m_friendly_name(entity_id)
-                if z2m_name:
-                    black_color = RGBColor(r=0, g=0, b=0)
-                    clear_segments = [
-                        SegmentColor(segment=seg, color=black_color)
-                        for seg in range(1, total_segments + 1)
-                    ]
-                    try:
-                        await self.mqtt_client.async_publish_segment_pattern(
-                            z2m_name, clear_segments, z2m_base_topic
-                        )
-                        await asyncio.sleep(0.1)
-                    except Exception as ex:
-                        _LOGGER.warning(
-                            "Failed to clear segments for %s: %s", entity_id, ex
-                        )
+                black_color = RGBColor(r=0, g=0, b=0)
+                clear_segments = [
+                    SegmentColor(segment=seg, color=black_color)
+                    for seg in range(1, total_segments + 1)
+                ]
+                try:
+                    await self.backend.async_send_segment_pattern(
+                        entity_id, clear_segments
+                    )
+                    await asyncio.sleep(0.1)
+                except Exception as ex:
+                    _LOGGER.warning(
+                        "Failed to clear segments for %s: %s", entity_id, ex
+                    )
 
             loops_executed = 0
             max_loops = (
@@ -1127,11 +1110,11 @@ class SegmentSequenceManager:
                         entity_id,
                     )
 
-                    # Get Z2M friendly name
-                    z2m_name = self.mqtt_client.get_z2m_friendly_name(entity_id)
-                    if not z2m_name:
+                    # Verify entity is supported by backend
+                    is_supported, _ = self.backend.is_entity_supported(entity_id)
+                    if not is_supported:
                         _LOGGER.warning(
-                            "Entity %s not mapped to Z2M device, skipping step",
+                            "Entity %s not supported by backend, skipping step",
                             entity_id,
                         )
                         continue
@@ -1152,8 +1135,8 @@ class SegmentSequenceManager:
                     # Apply activation pattern
                     if step.activation_pattern == "all":
                         try:
-                            await self.mqtt_client.async_publish_segment_pattern(
-                                z2m_name, segment_colors, z2m_base_topic
+                            await self.backend.async_send_segment_pattern(
+                                entity_id, segment_colors
                             )
                         except Exception as ex:
                             _LOGGER.warning(
@@ -1197,8 +1180,8 @@ class SegmentSequenceManager:
                                     segment=segment, color=color_map[segment]
                                 )
                                 try:
-                                    await self.mqtt_client.async_publish_segment_pattern(
-                                        z2m_name, [segment_color], z2m_base_topic
+                                    await self.backend.async_send_segment_pattern(
+                                        entity_id, [segment_color]
                                     )
                                 except Exception as ex:
                                     _LOGGER.warning(
@@ -1240,7 +1223,7 @@ class SegmentSequenceManager:
 
             if sequence.end_behavior == "turn_off":
                 try:
-                    await self.mqtt_client.async_turn_off_light(entity_id)
+                    await self.backend.async_turn_off_light(entity_id)
                     _LOGGER.info(
                         "Synchronized segment sequence completed, turned off %s",
                         entity_id,
@@ -1324,29 +1307,21 @@ class SegmentSequenceManager:
         from homeassistant.helpers import entity_registry as er
 
         try:
-            # Get Z2M friendly name from entity
-            z2m_name = self.mqtt_client.get_z2m_friendly_name(entity_id)
-            if not z2m_name:
-                _LOGGER.debug("Entity %s not mapped to Z2M device", entity_id)
-                return 0
-
-            # Get device from registry
-            device = self.mqtt_client.entry.runtime_data.devices_by_name.get(
-                z2m_name
-            )
-            if not device:
-                _LOGGER.debug("Z2M device %s not found in registry", z2m_name)
+            # Get device info from backend
+            aqara_device = self.backend.get_device_for_entity(entity_id)
+            if not aqara_device:
+                _LOGGER.debug("Entity %s not mapped to any backend device", entity_id)
                 return 0
 
             # Get base segment count from model_id
-            base_count = get_segment_count(device.model_id)
+            base_count = get_segment_count(aqara_device.model_id)
 
             # If not T1 Strip (base_count != 0), return the fixed count
             if base_count != 0:
                 return base_count
 
             # For T1 Strip, try to get actual length from entity attributes or separate length entity
-            if device.model_id == MODEL_T1_STRIP:
+            if aqara_device.model_id == MODEL_T1_STRIP:
                 state = self.hass.states.get(entity_id)
                 length_meters = None
 

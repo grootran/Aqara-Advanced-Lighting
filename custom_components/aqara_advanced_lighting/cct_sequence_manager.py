@@ -29,8 +29,8 @@ from .models import CCTSequence
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
+    from .backend_protocol import DeviceBackend
     from .entity_controller import EntityController
-    from .mqtt_client import MQTTClient
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -41,12 +41,12 @@ class CCTSequenceManager:
     def __init__(
         self,
         hass: HomeAssistant,
-        mqtt_client: MQTTClient,
+        backend: DeviceBackend,
         entity_controller: EntityController | None = None,
     ) -> None:
         """Initialize the CCT sequence manager."""
         self.hass = hass
-        self.mqtt_client = mqtt_client
+        self.backend = backend
         self._entity_controller = entity_controller
         self._active_sequences: dict[str, asyncio.Task] = {}  # entity_id -> task
         self._stop_flags: dict[str, asyncio.Event] = {}  # entity_id -> stop event
@@ -68,7 +68,6 @@ class CCTSequenceManager:
         self,
         entity_id: str,
         sequence: CCTSequence,
-        z2m_base_topic: str | None = None,
         preset: str | None = None,
     ) -> str:
         """Start a CCT sequence for an entity.
@@ -76,7 +75,6 @@ class CCTSequenceManager:
         Args:
             entity_id: The light entity ID to control
             sequence: The CCT sequence configuration
-            z2m_base_topic: Optional custom Z2M base topic override
             preset: Optional preset name for event tracking
 
         Returns:
@@ -112,7 +110,7 @@ class CCTSequenceManager:
         # Create and store task
         task = asyncio.create_task(
             self._execute_sequence(
-                entity_id, sequence, stop_event, pause_event, sequence_id, z2m_base_topic
+                entity_id, sequence, stop_event, pause_event, sequence_id
             )
         )
         self._active_sequences[entity_id] = task
@@ -137,7 +135,6 @@ class CCTSequenceManager:
         self,
         entity_ids: list[str],
         sequence: CCTSequence,
-        z2m_base_topic: str | None = None,
         preset: str | None = None,
     ) -> dict[str, str]:
         """Start synchronized CCT sequences for multiple entities.
@@ -147,7 +144,6 @@ class CCTSequenceManager:
         Args:
             entity_ids: List of light entity IDs to control
             sequence: The CCT sequence configuration (same for all)
-            z2m_base_topic: Optional custom Z2M base topic override
             preset: Optional preset name for event tracking
 
         Returns:
@@ -159,7 +155,7 @@ class CCTSequenceManager:
         # For single entity, use regular start_sequence
         if len(entity_ids) == 1:
             seq_id = await self.start_sequence(
-                entity_ids[0], sequence, z2m_base_topic, preset
+                entity_ids[0], sequence, preset
             )
             return {entity_ids[0]: seq_id}
 
@@ -215,7 +211,6 @@ class CCTSequenceManager:
                     pause_event,
                     sequence_id,
                     group_id,
-                    z2m_base_topic,
                 )
             )
             self._active_sequences[entity_id] = task
@@ -498,7 +493,6 @@ class CCTSequenceManager:
         stop_event: asyncio.Event,
         pause_event: asyncio.Event,
         sequence_id: str,
-        z2m_base_topic: str | None = None,
     ) -> None:
         """Execute a CCT sequence.
 
@@ -508,7 +502,6 @@ class CCTSequenceManager:
             stop_event: Event to signal sequence should stop
             pause_event: Event to signal sequence should pause
             sequence_id: Unique identifier for this sequence run
-            z2m_base_topic: Optional custom Z2M base topic override
         """
         _LOGGER.debug("Starting CCT sequence for %s (sequence_id=%s)", entity_id, sequence_id)
         completed_naturally = False
@@ -566,13 +559,12 @@ class CCTSequenceManager:
                     # Apply step with software-based transition
                     # The transition is now handled inside async_publish_cct_step()
                     try:
-                        transition_completed = await self.mqtt_client.async_publish_cct_step(
+                        transition_completed = await self.backend.async_publish_cct_step(
                             entity_id,
                             step.color_temp,
                             step.brightness,
                             step.transition,
                             stop_event,  # Pass stop_event for interruptible transitions
-                            z2m_base_topic,
                         )
                         if not transition_completed:
                             # Transition was interrupted by stop_event
@@ -614,7 +606,7 @@ class CCTSequenceManager:
 
             if sequence.end_behavior == "turn_off":
                 try:
-                    await self.mqtt_client.async_turn_off_light(entity_id)
+                    await self.backend.async_turn_off_light(entity_id)
                     _LOGGER.info("CCT sequence completed, turned off %s", entity_id)
                 except Exception as ex:
                     _LOGGER.warning("Failed to turn off %s after sequence: %s", entity_id, ex)
@@ -669,7 +661,6 @@ class CCTSequenceManager:
         pause_event: asyncio.Event,
         sequence_id: str,
         group_id: str,
-        z2m_base_topic: str | None = None,
     ) -> None:
         """Execute a synchronized CCT sequence with barrier-based step coordination.
 
@@ -680,7 +671,6 @@ class CCTSequenceManager:
             pause_event: Event to signal sequence should pause
             sequence_id: Unique identifier for this sequence run
             group_id: Group ID for barrier synchronization
-            z2m_base_topic: Optional custom Z2M base topic override
         """
         _LOGGER.debug(
             "Starting synchronized CCT sequence for %s (sequence_id=%s, group=%s)",
@@ -765,13 +755,12 @@ class CCTSequenceManager:
                     # Apply step with hardware transition
                     try:
                         transition_completed = (
-                            await self.mqtt_client.async_publish_cct_step(
+                            await self.backend.async_publish_cct_step(
                                 entity_id,
                                 step.color_temp,
                                 step.brightness,
                                 step.transition,
                                 stop_event,
-                                z2m_base_topic,
                             )
                         )
                         if not transition_completed:
@@ -814,7 +803,7 @@ class CCTSequenceManager:
 
             if sequence.end_behavior == "turn_off":
                 try:
-                    await self.mqtt_client.async_turn_off_light(entity_id)
+                    await self.backend.async_turn_off_light(entity_id)
                     _LOGGER.info(
                         "Synchronized CCT sequence completed, turned off %s", entity_id
                     )

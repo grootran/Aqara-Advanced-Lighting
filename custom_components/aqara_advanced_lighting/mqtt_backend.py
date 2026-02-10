@@ -1,4 +1,4 @@
-"""MQTT client for Zigbee2MQTT communication."""
+"""Zigbee2MQTT backend implementing the DeviceBackend protocol."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ from .const import (
     PAYLOAD_SEGMENT_COLORS,
     TOPIC_Z2M_BRIDGE_DEVICES,
 )
-from .models import DynamicEffect, SegmentColor, Z2MDevice
+from .models import AqaraDevice, DynamicEffect, SegmentColor, Z2MDevice
 
 if TYPE_CHECKING:
     from homeassistant.components.mqtt import ReceiveMessage
@@ -70,8 +70,8 @@ SUPPORTED_MODELS = {
 }
 
 
-class MQTTClient:
-    """MQTT client for communicating with Zigbee2MQTT."""
+class MQTTBackend:
+    """Zigbee2MQTT backend implementing the DeviceBackend protocol."""
 
     def __init__(
         self,
@@ -79,7 +79,7 @@ class MQTTClient:
         entry: AqaraLightingConfigEntry,
         entity_controller: EntityController | None = None,
     ) -> None:
-        """Initialize the MQTT client."""
+        """Initialize the Z2M MQTT backend."""
         self.hass = hass
         self.entry = entry
         self._entity_controller = entity_controller
@@ -158,6 +158,16 @@ class MQTTClient:
                 # Store in runtime data (keyed by IEEE and by friendly name)
                 self.entry.runtime_data.devices[ieee_address] = z2m_device
                 self.entry.runtime_data.devices_by_name[friendly_name] = z2m_device
+
+                # Also populate the backend-agnostic aqara_devices dict
+                self.entry.runtime_data.aqara_devices[ieee_address] = AqaraDevice(
+                    identifier=ieee_address,
+                    name=friendly_name,
+                    model_id=model_id,
+                    manufacturer=manufacturer or "Aqara",
+                    backend_type="z2m",
+                )
+
                 _LOGGER.debug(
                     "Stored supported Aqara device %s (model: %s)",
                     friendly_name,
@@ -360,7 +370,7 @@ class MQTTClient:
         """Get Z2M friendly name for a Home Assistant entity ID."""
         return self.entry.runtime_data.entity_to_z2m_map.get(entity_id)
 
-    def is_supported_entity(self, entity_id: str) -> tuple[bool, str]:
+    def is_entity_supported(self, entity_id: str) -> tuple[bool, str]:
         """Check if entity is a supported Aqara device.
 
         Args:
@@ -747,3 +757,162 @@ class MQTTClient:
             blocking=True,
             context=context,
         )
+
+    # --- DeviceBackend protocol methods ---
+    # These methods accept entity_id and resolve Z2M names internally,
+    # matching the DeviceBackend protocol interface.
+
+    async def async_shutdown(self) -> None:
+        """Shut down the backend and clean up resources."""
+        await self.async_teardown()
+
+    @property
+    def entity_mapping_ready(self) -> bool:
+        """Whether entity-to-device mapping has completed."""
+        return self.entry.runtime_data.entity_mapping_ready
+
+    def get_device_for_entity(self, entity_id: str) -> AqaraDevice | None:
+        """Get the Aqara device for a Home Assistant entity.
+
+        Args:
+            entity_id: The Home Assistant entity ID
+
+        Returns:
+            AqaraDevice if found, None otherwise
+        """
+        z2m_name = self.get_z2m_friendly_name(entity_id)
+        if not z2m_name:
+            return None
+
+        z2m_device = self.entry.runtime_data.devices_by_name.get(z2m_name)
+        if not z2m_device:
+            return None
+
+        return self.entry.runtime_data.aqara_devices.get(
+            z2m_device.ieee_address
+        )
+
+    def get_all_devices(self) -> dict[str, AqaraDevice]:
+        """Get all discovered Aqara devices.
+
+        Returns:
+            Dictionary of identifier -> AqaraDevice
+        """
+        return dict(self.entry.runtime_data.aqara_devices)
+
+    async def async_send_effect(
+        self,
+        entity_id: str,
+        effect: DynamicEffect,
+    ) -> None:
+        """Send a dynamic effect to a device via the protocol interface.
+
+        Resolves entity_id to Z2M friendly name internally.
+
+        Args:
+            entity_id: The Home Assistant entity ID
+            effect: The dynamic effect to apply
+        """
+        z2m_name = self.get_z2m_friendly_name(entity_id)
+        if not z2m_name:
+            _LOGGER.warning("Cannot send effect: entity %s not mapped", entity_id)
+            return
+        await self.async_publish_dynamic_effect(z2m_name, effect)
+
+    async def async_send_batch_effects(
+        self,
+        entity_effects: list[tuple[str, DynamicEffect]],
+    ) -> None:
+        """Send dynamic effects to multiple devices via the protocol interface.
+
+        Resolves entity_ids to Z2M friendly names internally.
+
+        Args:
+            entity_effects: List of (entity_id, effect) tuples
+        """
+        z2m_effects: list[tuple[str, DynamicEffect]] = []
+        for entity_id, effect in entity_effects:
+            z2m_name = self.get_z2m_friendly_name(entity_id)
+            if z2m_name:
+                z2m_effects.append((z2m_name, effect))
+            else:
+                _LOGGER.warning(
+                    "Skipping effect for unmapped entity %s", entity_id
+                )
+        if z2m_effects:
+            await self.async_publish_batch_effects(z2m_effects)
+
+    async def async_stop_effect(self, entity_id: str) -> None:
+        """Stop the active effect on a device via the protocol interface.
+
+        Args:
+            entity_id: The Home Assistant entity ID
+        """
+        z2m_name = self.get_z2m_friendly_name(entity_id)
+        if not z2m_name:
+            _LOGGER.warning("Cannot stop effect: entity %s not mapped", entity_id)
+            return
+        await self.async_turn_off_effect(z2m_name)
+
+    async def async_send_segment_pattern(
+        self,
+        entity_id: str,
+        segments: list[SegmentColor],
+    ) -> None:
+        """Send a segment color pattern via the protocol interface.
+
+        Resolves entity_id to Z2M friendly name internally.
+
+        Args:
+            entity_id: The Home Assistant entity ID
+            segments: List of segment color assignments
+        """
+        z2m_name = self.get_z2m_friendly_name(entity_id)
+        if not z2m_name:
+            _LOGGER.warning(
+                "Cannot send segments: entity %s not mapped", entity_id
+            )
+            return
+        await self.async_publish_segment_pattern(z2m_name, segments)
+
+    async def async_send_batch_segments(
+        self,
+        entity_segments: list[tuple[str, list[SegmentColor]]],
+    ) -> None:
+        """Send segment patterns to multiple devices via the protocol interface.
+
+        Resolves entity_ids to Z2M friendly names internally.
+
+        Args:
+            entity_segments: List of (entity_id, segment_colors) tuples
+        """
+        z2m_segments: list[tuple[str, list[SegmentColor]]] = []
+        for entity_id, segs in entity_segments:
+            z2m_name = self.get_z2m_friendly_name(entity_id)
+            if z2m_name:
+                z2m_segments.append((z2m_name, segs))
+            else:
+                _LOGGER.warning(
+                    "Skipping segments for unmapped entity %s", entity_id
+                )
+        if z2m_segments:
+            await self.async_publish_batch_segments(z2m_segments)
+
+    async def async_set_transition_curve(
+        self,
+        entity_id: str,
+        curvature: float,
+    ) -> None:
+        """Set transition curve curvature via the protocol interface.
+
+        Args:
+            entity_id: The Home Assistant entity ID
+            curvature: Transition curve curvature (0.2-6)
+        """
+        z2m_name = self.get_z2m_friendly_name(entity_id)
+        if not z2m_name:
+            _LOGGER.warning(
+                "Cannot set transition curve: entity %s not mapped", entity_id
+            )
+            return
+        await self.async_set_t2_transition_curve(z2m_name, curvature)
