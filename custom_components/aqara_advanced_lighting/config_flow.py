@@ -185,13 +185,14 @@ class AqaraAdvancedLightingConfigFlow(ConfigFlow, domain=DOMAIN):
                 gateway = None
 
             if not errors and gateway is not None:
-                # Check for supported Aqara devices
-                from .mqtt_backend import SUPPORTED_MODELS
+                # Check for supported Aqara devices, resolving ZHA v2
+                # quirks that override model IDs with friendly names
+                from .zha_backend import _resolve_zha_model
 
                 supported_devices = [
                     device
                     for device in gateway.devices.values()
-                    if device.model in SUPPORTED_MODELS
+                    if _resolve_zha_model(device) is not None
                 ]
 
                 if not supported_devices:
