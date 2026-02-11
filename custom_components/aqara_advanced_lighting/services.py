@@ -9,7 +9,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.const import ATTR_ENTITY_ID, STATE_OFF
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import Context, HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
@@ -151,6 +151,22 @@ from .segment_utils import (
 from .state_manager import StateManager
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _get_context_and_record(
+    hass: HomeAssistant, entity_id: str
+) -> Context | None:
+    """Get integration context and record command timestamp.
+
+    Call before any hass.services.async_call targeting a controlled entity
+    to ensure the entity controller recognizes it as an internal command.
+    """
+    ec = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+    if ec:
+        ec.record_command(entity_id)
+        return ec.create_context()
+    return None
+
 
 # RGB color schema (for dict format - backward compatibility)
 RGB_COLOR_SCHEMA = vol.Schema(
@@ -1108,6 +1124,7 @@ async def _ensure_light_on(
             "turn_on",
             {"entity_id": entity_id},
             blocking=True,
+            context=_get_context_and_record(hass, entity_id),
         )
 
         # Give the light a moment to turn on
@@ -1485,6 +1502,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         "turn_on",
                         {"entity_id": entity_id, "brightness": brightness},
                         blocking=True,
+                        context=_get_context_and_record(hass, entity_id),
                     )
                 )
 
@@ -1535,10 +1553,12 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
                 if payload:
                     service_data: dict[str, Any] = {"entity_id": entity_id}
+                    ctx = _get_context_and_record(hass, entity_id)
 
                     if payload.get("state") == STATE_OFF:
                         await hass.services.async_call(
                             "light", "turn_off", service_data, blocking=True,
+                            context=ctx,
                         )
                     else:
                         if "brightness" in payload:
@@ -1559,6 +1579,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
                         await hass.services.async_call(
                             "light", "turn_on", service_data, blocking=True,
+                            context=ctx,
                         )
 
                     _LOGGER.info("Stopped effect and restored previous state for %s", entity_id)
@@ -1569,6 +1590,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         "turn_on",
                         {"entity_id": entity_id, "rgb_color": [255, 200, 150]},
                         blocking=True,
+                        context=_get_context_and_record(hass, entity_id),
                     )
                     _LOGGER.info("Stopped effect for %s (set to default warm white)", entity_id)
 
@@ -1707,6 +1729,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         "turn_on",
                         {"entity_id": entity_id, "brightness": brightness},
                         blocking=True,
+                        context=_get_context_and_record(hass, entity_id),
                     )
                     _LOGGER.debug("Set brightness to %s for T1 Strip %s before segment pattern", brightness, entity_id)
                     # Small delay to ensure state is updated before segment command
@@ -1839,6 +1862,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         "turn_on",
                         {"entity_id": entity_id, "brightness": brightness},
                         blocking=True,
+                        context=_get_context_and_record(hass, entity_id),
                     )
                     _LOGGER.debug("Set brightness to %s for %s", brightness, entity_id)
                 except Exception as ex:
@@ -1922,6 +1946,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         "turn_on",
                         {"entity_id": entity_id, "brightness": brightness},
                         blocking=True,
+                        context=_get_context_and_record(hass, entity_id),
                     )
                     _LOGGER.debug("Set brightness to %s for T1 Strip %s before gradient", brightness, entity_id)
                     # Small delay to ensure state is updated before segment command
@@ -2005,6 +2030,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         "turn_on",
                         {"entity_id": entity_id, "brightness": brightness},
                         blocking=True,
+                        context=_get_context_and_record(hass, entity_id),
                     )
                     _LOGGER.debug("Set brightness to %s for %s", brightness, entity_id)
                 except Exception as ex:
@@ -2089,6 +2115,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         "turn_on",
                         {"entity_id": entity_id, "brightness": brightness},
                         blocking=True,
+                        context=_get_context_and_record(hass, entity_id),
                     )
                     _LOGGER.debug("Set brightness to %s for T1 Strip %s before blocks", brightness, entity_id)
                     # Small delay to ensure state is updated before segment command
@@ -2172,6 +2199,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         "turn_on",
                         {"entity_id": entity_id, "brightness": brightness},
                         blocking=True,
+                        context=_get_context_and_record(hass, entity_id),
                     )
                     _LOGGER.debug("Set brightness to %s for %s", brightness, entity_id)
                 except Exception as ex:
@@ -2430,6 +2458,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                             "light", "turn_on",
                             {"entity_id": entity_id},
                             blocking=False,
+                            context=_get_context_and_record(hass, entity_id),
                         )
                     )
             if turn_on_tasks:

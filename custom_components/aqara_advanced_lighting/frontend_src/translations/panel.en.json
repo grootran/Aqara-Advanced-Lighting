@@ -34,6 +34,7 @@
     "quick_controls_label": "Quick controls",
     "custom_brightness_label": "Brightness",
     "static_scene_mode_label": "Static scene mode",
+    "ignore_external_changes_label": "Ignore external changes",
     "controls_card_title": "Active presets",
     "activation_overrides_title": "Activation overrides",
     "effect_button": "Effect",

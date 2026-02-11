@@ -819,16 +819,28 @@ export const panelStyles = css`
     min-width: unset;
   }
 
-  /* Brightness override section - vertical stacking */
-  .brightness-override-section {
+  /* Activation overrides grid - 4 columns desktop, 2 columns mobile */
+  .overrides-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    padding: 16px 0;
+  }
+
+  .override-item {
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
     gap: 8px;
-    margin-top: 16px;
+  }
+
+  .override-item .form-label {
+    min-width: unset;
+    font-size: var(--ha-font-size-s, 12px);
   }
 
   .brightness-slider {
-    padding-left: 0;
+    padding: 0 16px 8px;
   }
 
   /* Two-column form row for Name/Icon on desktop */
@@ -1651,6 +1663,10 @@ export const panelStyles = css`
 
     .user-preset-card .preset-name {
       font-size: var(--ha-font-size-xs, 11px);
+    }
+
+    .overrides-grid {
+      grid-template-columns: repeat(2, 1fr);
     }
   }
 

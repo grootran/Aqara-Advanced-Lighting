@@ -10,17 +10,20 @@ service calls from external changes.
 from __future__ import annotations
 
 import logging
+import time
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.const import STATE_OFF
-from homeassistant.core import Context, Event, HomeAssistant, callback
+from homeassistant.core import Context, Event, HomeAssistant, State, callback
 
 from .const import (
     DATA_CCT_SEQUENCE_MANAGER,
     DATA_DYNAMIC_SCENE_MANAGER,
     DATA_SEGMENT_SEQUENCE_MANAGER,
     DATA_STATE_MANAGER,
+    DATA_USER_PREFERENCES_STORE,
     DOMAIN,
+    ENTITY_CONTROL_GRACE_SECONDS,
     EVENT_ATTR_ENTITY_ID,
     EVENT_ATTR_REASON,
     EVENT_ENTITY_CONTROL_RESUMED,
@@ -36,6 +39,16 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+_WATCHED_ATTRS = ("brightness", "color_temp_kelvin", "xy_color", "rgb_color", "hs_color")
+
+
+def _state_attributes_equal(old_state: State, new_state: State) -> bool:
+    """Check if light-relevant attributes are unchanged between two states."""
+    for attr in _WATCHED_ATTRS:
+        if old_state.attributes.get(attr) != new_state.attributes.get(attr):
+            return False
+    return True
+
 
 class EntityController:
     """Centralized controller for entity conflict resolution and external change detection.
@@ -48,6 +61,7 @@ class EntityController:
         """Initialize the entity controller."""
         self.hass = hass
         self._externally_paused: set[str] = set()
+        self._last_command_time: dict[str, float] = {}
         self._state_listener_remove: Any | None = None
 
     def setup(self) -> None:
@@ -73,9 +87,21 @@ class EntityController:
             if event.context.parent_id == INTEGRATION_CONTEXT_PARENT_ID:
                 return
 
-            # External change detected
+            # Suppress state echoes within the grace window after our commands
+            last_cmd = self._last_command_time.get(entity_id)
+            if last_cmd is not None:
+                elapsed = time.monotonic() - last_cmd
+                if elapsed < ENTITY_CONTROL_GRACE_SECONDS:
+                    _LOGGER.debug(
+                        "Ignoring state echo on %s (%.1fs after command)",
+                        entity_id,
+                        elapsed,
+                    )
+                    return
+
+            # External off always stops the controlling action,
+            # regardless of the ignore_external_changes toggle
             if new_state.state == STATE_OFF:
-                # Light turned off externally - stop the controlling action
                 _LOGGER.info(
                     "Light %s turned off externally, stopping controlling action",
                     entity_id,
@@ -83,18 +109,48 @@ class EntityController:
                 self.hass.async_create_task(
                     self._stop_entity_action(entity_id, reason="external_off")
                 )
-            else:
-                # Attribute change (brightness, color, etc.) - pause entity
-                _LOGGER.info(
-                    "External change detected on %s, pausing entity control",
+                return
+
+            # Skip no-op attribute changes (state unchanged)
+            old_state = event.data.get("old_state")
+            if old_state and _state_attributes_equal(old_state, new_state):
+                _LOGGER.debug(
+                    "Ignoring no-op state change on %s",
                     entity_id,
                 )
-                self._pause_entity(entity_id)
+                return
+
+            # Check if user has disabled external attribute change detection
+            store = self.hass.data.get(DOMAIN, {}).get(
+                DATA_USER_PREFERENCES_STORE
+            )
+            if store and store.get_global_preference("ignore_external_changes"):
+                _LOGGER.debug(
+                    "Ignoring external change on %s (user preference)",
+                    entity_id,
+                )
+                return
+
+            # Attribute change (brightness, color, etc.) - pause entity
+            _LOGGER.info(
+                "External change detected on %s, pausing entity control",
+                entity_id,
+            )
+            self._pause_entity(entity_id)
 
         self._state_listener_remove = self.hass.bus.async_listen(
             "state_changed", _async_state_changed
         )
         _LOGGER.debug("Entity controller state listener registered")
+
+    def record_command(self, entity_id: str) -> None:
+        """Record that this integration just sent a command to an entity.
+
+        Call this before any hass.services.async_call that targets a
+        controlled entity. The timestamp suppresses state echo events
+        within the grace window.
+        """
+        self._last_command_time[entity_id] = time.monotonic()
 
     def create_context(self) -> Context:
         """Create a Context tagged with the integration marker.
@@ -196,6 +252,7 @@ class EntityController:
         Called by managers during cleanup to remove stale tracking.
         """
         self._externally_paused.discard(entity_id)
+        self._last_command_time.pop(entity_id, None)
 
     def cleanup(self) -> None:
         """Remove listener and clear state.
@@ -206,6 +263,7 @@ class EntityController:
             self._state_listener_remove()
             self._state_listener_remove = None
         self._externally_paused.clear()
+        self._last_command_time.clear()
         _LOGGER.debug("Entity controller cleaned up")
 
     def _is_entity_controlled(self, entity_id: str) -> bool:

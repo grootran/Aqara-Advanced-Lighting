@@ -122,6 +122,7 @@ async def async_register_panel(hass: HomeAssistant) -> None:
 
     # Register user preferences endpoint
     hass.http.register_view(UserPreferencesView)
+    hass.http.register_view(GlobalPreferencesView)
 
     # Register version endpoint
     hass.http.register_view(VersionView)
@@ -886,6 +887,60 @@ class UserPreferencesView(HomeAssistantView):
             include_all_lights=include_all_lights,
             favorite_presets=favorite_presets,
             static_scene_mode=static_scene_mode,
+        )
+        return web.json_response(preferences)
+
+
+class GlobalPreferencesView(HomeAssistantView):
+    """View to get and update integration-wide global preferences."""
+
+    url = f"/api/{DOMAIN}/global_preferences"
+    name = f"api:{DOMAIN}:global_preferences"
+    requires_auth = True
+
+    async def get(self, request: web.Request) -> web.Response:
+        """Get current global preferences."""
+        hass = request.app["hass"]
+
+        store = _get_user_preferences_store(hass)
+        if not store:
+            return web.Response(
+                status=503, text="User preferences store not initialized"
+            )
+
+        return web.json_response(store.get_global_preferences())
+
+    async def put(self, request: web.Request) -> web.Response:
+        """Update global preferences."""
+        hass = request.app["hass"]
+
+        store = _get_user_preferences_store(hass)
+        if not store:
+            return web.Response(
+                status=503, text="User preferences store not initialized"
+            )
+
+        try:
+            data = await request.json()
+        except ValueError:
+            return web.Response(status=400, text="Invalid JSON")
+
+        if not isinstance(data, dict):
+            return web.Response(status=400, text="Request body must be a JSON object")
+
+        ignore_external_changes = None
+        if "ignore_external_changes" in data:
+            if not isinstance(data["ignore_external_changes"], bool):
+                return web.Response(
+                    status=400, text="ignore_external_changes must be a boolean"
+                )
+            ignore_external_changes = data["ignore_external_changes"]
+
+        if ignore_external_changes is None:
+            return web.json_response(store.get_global_preferences())
+
+        preferences = await store.update_global_preferences(
+            ignore_external_changes=ignore_external_changes,
         )
         return web.json_response(preferences)
 

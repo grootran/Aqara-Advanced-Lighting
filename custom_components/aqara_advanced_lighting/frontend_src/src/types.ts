@@ -315,6 +315,11 @@ export interface UserPreferences {
   static_scene_mode?: boolean;
 }
 
+// Integration-wide preferences (not per-user)
+export interface GlobalPreferences {
+  ignore_external_changes?: boolean;
+}
+
 // Draft state types for editor tab caching (in-memory only, not persisted)
 export interface EffectEditorDraft {
   name: string;

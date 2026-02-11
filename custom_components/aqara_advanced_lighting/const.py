@@ -298,6 +298,7 @@ DATA_ENTITY_CONTROLLER: Final = "entity_controller"
 EVENT_ENTITY_EXTERNALLY_CONTROLLED: Final = f"{DOMAIN}_entity_externally_controlled"
 EVENT_ENTITY_CONTROL_RESUMED: Final = f"{DOMAIN}_entity_control_resumed"
 SERVICE_RESUME_ENTITY_CONTROL: Final = "resume_entity_control"
+ENTITY_CONTROL_GRACE_SECONDS: Final = 8.0
 
 # Event types for automation triggers
 EVENT_SEQUENCE_STARTED: Final = f"{DOMAIN}_sequence_started"

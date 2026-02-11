@@ -36,6 +36,19 @@ DEFAULT_PREFERENCES: UserPreferences = {
     "static_scene_mode": False,
 }
 
+GLOBAL_PREFERENCES_KEY = "__global__"
+
+
+class GlobalPreferences(TypedDict):
+    """Integration-wide preferences (not per-user)."""
+
+    ignore_external_changes: bool
+
+
+DEFAULT_GLOBAL_PREFERENCES: GlobalPreferences = {
+    "ignore_external_changes": False,
+}
+
 
 class UserPreferencesStore:
     """Manages per-user preferences storage, keyed by HA user ID."""
@@ -47,19 +60,32 @@ class UserPreferencesStore:
             hass, STORAGE_VERSION, STORAGE_KEY
         )
         self._data: dict[str, UserPreferences] = {}
+        self._global_data: GlobalPreferences = {**DEFAULT_GLOBAL_PREFERENCES}
 
     async def async_load(self) -> None:
         """Load preferences from storage."""
         data = await self._store.async_load()
         if data is not None:
             self._data = data
+            # Load global preferences from reserved key
+            raw_global = self._data.pop(GLOBAL_PREFERENCES_KEY, None)
+            if raw_global and isinstance(raw_global, dict):
+                self._global_data = {
+                    "ignore_external_changes": raw_global.get(
+                        "ignore_external_changes", False
+                    ),
+                }
+            else:
+                self._global_data = {**DEFAULT_GLOBAL_PREFERENCES}
         else:
             self._data = {}
+            self._global_data = {**DEFAULT_GLOBAL_PREFERENCES}
         _LOGGER.debug("Loaded preferences for %d users", len(self._data))
 
     async def async_save(self) -> None:
         """Save preferences to storage."""
-        await self._store.async_save(self._data)
+        save_data = {**self._data, GLOBAL_PREFERENCES_KEY: self._global_data}
+        await self._store.async_save(save_data)
         _LOGGER.debug("Saved user preferences")
 
     def get_preferences(self, user_id: str) -> UserPreferences:
@@ -187,3 +213,26 @@ class UserPreferencesStore:
 
         _LOGGER.debug("Updated preferences for user %s", user_id)
         return self.get_preferences(user_id)
+
+    def get_global_preferences(self) -> GlobalPreferences:
+        """Get integration-wide global preferences."""
+        return {**self._global_data}
+
+    def get_global_preference(self, key: str) -> Any:
+        """Get a single global preference value."""
+        return self._global_data.get(key, DEFAULT_GLOBAL_PREFERENCES.get(key))
+
+    async def update_global_preferences(
+        self,
+        ignore_external_changes: bool | None = None,
+    ) -> GlobalPreferences:
+        """Update integration-wide global preferences.
+
+        Only provided fields are updated. Omitted fields remain unchanged.
+        """
+        if ignore_external_changes is not None:
+            self._global_data["ignore_external_changes"] = ignore_external_changes
+
+        await self.async_save()
+        _LOGGER.debug("Updated global preferences")
+        return self.get_global_preferences()
