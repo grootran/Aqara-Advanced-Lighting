@@ -188,3 +188,43 @@ class DeviceBackend(Protocol):
             curvature: Transition curve curvature (0.2-6)
         """
         ...
+
+    # --- Device config (cluster-level read/write) ---
+
+    async def async_read_device_config(
+        self,
+        entity_id: str,
+    ) -> dict[str, Any]:
+        """Read hardware config attributes for a device.
+
+        Returns a dict of setting names to current values. Only includes
+        settings relevant to the device type. Z2M backend returns empty
+        (config is read via number entities instead).
+
+        Args:
+            entity_id: The Home Assistant entity ID
+
+        Returns:
+            Dictionary of setting_name -> value
+        """
+        ...
+
+    async def async_write_device_config(
+        self,
+        entity_id: str,
+        setting: str,
+        value: Any,
+    ) -> bool:
+        """Write a hardware config attribute to a device.
+
+        Z2M backend returns False (config is written via number entities).
+
+        Args:
+            entity_id: The Home Assistant entity ID
+            setting: The config setting name
+            value: The value to write
+
+        Returns:
+            True on success, False on failure
+        """
+        ...

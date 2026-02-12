@@ -437,6 +437,63 @@ class ZHABackend:
         ieee = EUI64.convert(ieee_str)
         return gateway.devices.get(ieee)
 
+    async def _read_cluster_attribute(
+        self,
+        ieee_str: str,
+        attribute: int,
+        endpoint_id: int = DEFAULT_ENDPOINT,
+    ) -> Any | None:
+        """Read a single attribute from the Aqara manufacturer-specific cluster.
+
+        Returns the attribute value on success, None on failure.
+        """
+        zha_device = self._get_zha_device(ieee_str)
+        if not zha_device:
+            _LOGGER.error("ZHA device not found for read: %s", ieee_str)
+            return None
+
+        try:
+            zigpy_device = zha_device.device
+            endpoint = zigpy_device.endpoints.get(endpoint_id)
+            if not endpoint:
+                _LOGGER.error(
+                    "Endpoint %d not found on %s", endpoint_id, ieee_str
+                )
+                return None
+
+            cluster = endpoint.in_clusters.get(CLUSTER_MANU_SPECIFIC_LUMI)
+            if not cluster:
+                _LOGGER.error(
+                    "Cluster 0x%04X not found on %s endpoint %d",
+                    CLUSTER_MANU_SPECIFIC_LUMI,
+                    ieee_str,
+                    endpoint_id,
+                )
+                return None
+
+            _ensure_aqara_attributes(cluster)
+
+            # read_attributes returns (success_dict, failure_list)
+            result = await cluster.read_attributes(
+                [attribute], manufacturer=AQARA_MANUFACTURER_CODE
+            )
+            success = result[0] if result else {}
+            value = success.get(attribute)
+
+            _LOGGER.debug(
+                "Read attribute 0x%04X from %s: %s",
+                attribute,
+                ieee_str,
+                value,
+            )
+            return value
+
+        except Exception:
+            _LOGGER.exception(
+                "Failed to read attribute 0x%04X from %s", attribute, ieee_str
+            )
+            return None
+
     async def _write_cluster_attribute(
         self,
         ieee_str: str,
@@ -857,3 +914,133 @@ class ZHABackend:
         _LOGGER.debug(
             "Set transition curve curvature for %s: %.1f", entity_id, curvature
         )
+
+    # --- Device config (cluster-level read/write) ---
+
+    # Mapping of config setting names to (attribute_id, device_families)
+    # device_families=None means all families support this setting
+    _CONFIG_SETTINGS: dict[str, tuple[int, set[str] | None]] = {
+        "dimming_range_min": (ATTR_DIMMING_RANGE_MIN, None),
+        "dimming_range_max": (ATTR_DIMMING_RANGE_MAX, None),
+        "transition_curve": (ATTR_TRANSITION_CURVE, {"t2_bulb"}),
+        "initial_brightness": (ATTR_INITIAL_BRIGHTNESS, {"t2_bulb"}),
+        "strip_length": (ATTR_STRIP_LENGTH, {"strip"}),
+    }
+
+    # Validation ranges: setting_name -> (min, max, step)
+    _CONFIG_RANGES: dict[str, tuple[float, float, float]] = {
+        "dimming_range_min": (1, 100, 1),
+        "dimming_range_max": (1, 100, 1),
+        "transition_curve": (0.2, 6, 0.01),
+        "initial_brightness": (0, 50, 1),
+        "strip_length": (1, 50, 1),
+    }
+
+    async def async_read_device_config(
+        self,
+        entity_id: str,
+    ) -> dict[str, Any]:
+        """Read hardware config attributes for a device.
+
+        Reads all config attributes relevant to the device type from the
+        manufacturer-specific cluster.
+        """
+        ieee_str = self._entity_to_ieee.get(entity_id)
+        if not ieee_str:
+            _LOGGER.warning(
+                "Cannot read device config: entity %s not mapped", entity_id
+            )
+            return {}
+
+        device = self.entry.runtime_data.aqara_devices.get(ieee_str)
+        if not device:
+            return {}
+
+        device_family = _get_device_family(device.model_id)
+        if not device_family:
+            return {}
+
+        config: dict[str, Any] = {}
+
+        for setting_name, (attr_id, families) in self._CONFIG_SETTINGS.items():
+            # Skip settings not applicable to this device family
+            if families is not None and device_family not in families:
+                continue
+
+            value = await self._read_cluster_attribute(ieee_str, attr_id)
+            if value is not None:
+                config[setting_name] = value
+
+        _LOGGER.debug(
+            "Read device config for %s (%s): %s",
+            entity_id,
+            device_family,
+            config,
+        )
+        return config
+
+    async def async_write_device_config(
+        self,
+        entity_id: str,
+        setting: str,
+        value: Any,
+    ) -> bool:
+        """Write a hardware config attribute to a device.
+
+        Validates the setting name, device family compatibility, and value
+        range before writing to the cluster.
+        """
+        ieee_str = self._entity_to_ieee.get(entity_id)
+        if not ieee_str:
+            _LOGGER.warning(
+                "Cannot write device config: entity %s not mapped", entity_id
+            )
+            return False
+
+        device = self.entry.runtime_data.aqara_devices.get(ieee_str)
+        if not device:
+            return False
+
+        device_family = _get_device_family(device.model_id)
+        if not device_family:
+            return False
+
+        # Validate setting name
+        setting_info = self._CONFIG_SETTINGS.get(setting)
+        if not setting_info:
+            _LOGGER.warning("Unknown config setting: %s", setting)
+            return False
+
+        attr_id, families = setting_info
+
+        # Validate device family compatibility
+        if families is not None and device_family not in families:
+            _LOGGER.warning(
+                "Setting %s not supported for device family %s",
+                setting,
+                device_family,
+            )
+            return False
+
+        # Validate value range
+        if setting in self._CONFIG_RANGES:
+            min_val, max_val, _ = self._CONFIG_RANGES[setting]
+            numeric_value = float(value)
+            if numeric_value < min_val or numeric_value > max_val:
+                _LOGGER.warning(
+                    "Value %s out of range for %s (%.1f-%.1f)",
+                    value,
+                    setting,
+                    min_val,
+                    max_val,
+                )
+                return False
+
+        success = await self._write_cluster_attribute(ieee_str, attr_id, value)
+
+        if success:
+            _LOGGER.debug(
+                "Wrote device config %s=%s for %s", setting, value, entity_id
+            )
+
+        return success

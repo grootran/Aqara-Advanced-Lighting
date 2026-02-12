@@ -140,6 +140,9 @@ async def async_register_panel(hass: HomeAssistant) -> None:
     # Register running operations endpoint for panel status display
     hass.http.register_view(RunningOperationsView)
 
+    # Register device config endpoint for ZHA cluster read/write
+    hass.http.register_view(DeviceConfigView)
+
     _LOGGER.info("Aqara Advanced Lighting panel registered")
 
 
@@ -1658,3 +1661,83 @@ class RunningOperationsView(HomeAssistantView):
                     })
 
         return web.json_response({"operations": operations})
+
+
+class DeviceConfigView(HomeAssistantView):
+    """View to read/write hardware config attributes for ZHA devices.
+
+    GET returns current config values read from the device cluster.
+    POST writes a single config setting to the device cluster.
+    Z2M devices use number entities instead, so this returns empty/false.
+    """
+
+    url = f"/api/{DOMAIN}/device_config/{{entity_id}}"
+    name = f"api:{DOMAIN}:device_config"
+    requires_auth = True
+
+    async def get(self, request: web.Request, entity_id: str) -> web.Response:
+        """Read device config attributes."""
+        hass: HomeAssistant = request.app["hass"]
+        entity_id = unquote(entity_id)
+
+        backend = self._get_backend_for_entity(hass, entity_id)
+        if not backend:
+            return web.json_response(
+                {"error": f"No backend found for entity `{entity_id}`"},
+                status=404,
+            )
+
+        config = await backend.async_read_device_config(entity_id)
+        return web.json_response({"config": config})
+
+    async def post(self, request: web.Request, entity_id: str) -> web.Response:
+        """Write a device config attribute."""
+        hass: HomeAssistant = request.app["hass"]
+        entity_id = unquote(entity_id)
+
+        try:
+            data: dict[str, Any] = await request.json()
+        except (json.JSONDecodeError, ValueError):
+            return web.json_response(
+                {"error": "Invalid JSON"}, status=400
+            )
+
+        setting = data.get("setting")
+        value = data.get("value")
+
+        if not setting or value is None:
+            return web.json_response(
+                {"error": "Missing `setting` or `value`"}, status=400
+            )
+
+        backend = self._get_backend_for_entity(hass, entity_id)
+        if not backend:
+            return web.json_response(
+                {"error": f"No backend found for entity `{entity_id}`"},
+                status=404,
+            )
+
+        success = await backend.async_write_device_config(
+            entity_id, setting, value
+        )
+        return web.json_response({"success": success})
+
+    @staticmethod
+    def _get_backend_for_entity(
+        hass: HomeAssistant, entity_id: str
+    ) -> Any | None:
+        """Resolve entity_id to its backend instance."""
+        if DOMAIN not in hass.data:
+            return None
+
+        entity_routing = hass.data[DOMAIN].get("entity_routing", {})
+        entry_id = entity_routing.get(entity_id)
+        if not entry_id:
+            return None
+
+        entries_data = hass.data[DOMAIN].get("entries", {})
+        instance_data = entries_data.get(entry_id)
+        if not instance_data:
+            return None
+
+        return instance_data.get("backend")

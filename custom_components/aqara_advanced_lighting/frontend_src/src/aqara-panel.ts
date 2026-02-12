@@ -78,7 +78,7 @@ export class AqaraPanel extends LitElement {
   @state() private _colorHistory: XYColor[] = [];
   @state() private _backendVersion?: string;
   @state() private _frontendVersion = '__FRONTEND_VERSION__';
-  @state() private _supportedEntities: Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; ieee_address?: string; segment_count?: number; is_group?: boolean; member_count?: number }> = new Map();
+  @state() private _supportedEntities: Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; ieee_address?: string; segment_count?: number; backend_type?: string; is_group?: boolean; member_count?: number }> = new Map();
   @state() private _deviceZones: Map<string, Array<{ name: string; segments: string }>> = new Map();
   @state() private _zoneEditing: Map<string, Array<{ name: string; segments: string }>> = new Map();
   @state() private _zoneSaving = false;
@@ -91,6 +91,7 @@ export class AqaraPanel extends LitElement {
   }> = [];
   @state() private _localCurvature = 1.0;
   @state() private _applyingCurvature = false;
+  @state() private _zhaDeviceConfig: Map<string, Record<string, number>> = new Map();
   @state() private _isExporting = false;
   @state() private _isImporting = false;
   @state() private _favoritePresets: FavoritePresetRef[] = [];
@@ -672,7 +673,7 @@ export class AqaraPanel extends LitElement {
       }
       const data = await response.json();
       // Build a map for fast lookup
-      const entityMap = new Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; ieee_address?: string; segment_count?: number; is_group?: boolean; member_count?: number }>();
+      const entityMap = new Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; ieee_address?: string; segment_count?: number; backend_type?: string; is_group?: boolean; member_count?: number }>();
       for (const entity of data.entities || []) {
         entityMap.set(entity.entity_id, {
           device_type: entity.device_type,
@@ -680,6 +681,7 @@ export class AqaraPanel extends LitElement {
           z2m_friendly_name: entity.z2m_friendly_name,
           ieee_address: entity.ieee_address,
           segment_count: entity.segment_count,
+          backend_type: entity.backend_type,
         });
       }
 
@@ -1795,6 +1797,9 @@ export class AqaraPanel extends LitElement {
 
     // Load curvature from first T2 entity when selection changes
     this._loadCurvatureFromEntity();
+
+    // Load ZHA device configs for selected entities (async, non-blocking)
+    this._loadZhaDeviceConfigs();
 
     // Load zones for selected segment-capable devices
     this._loadZonesForSelectedDevices();
@@ -4472,6 +4477,88 @@ export class AqaraPanel extends LitElement {
     `;
   }
 
+  // --- ZHA device config helpers ---
+
+  private _hasZhaEntity(): boolean {
+    // Check if any selected entity is a ZHA backend entity
+    for (const entityId of this._selectedEntities) {
+      const info = this._supportedEntities.get(entityId);
+      if (info?.backend_type === 'zha') return true;
+    }
+    return false;
+  }
+
+  private _getZhaConfigValue(setting: string, fallback: number): number {
+    // Return config value from ZHA cache for the first selected entity that has it
+    for (const entityId of this._selectedEntities) {
+      const config = this._zhaDeviceConfig.get(entityId);
+      if (config && setting in config) {
+        const val = config[setting];
+        if (val !== undefined) return val;
+      }
+    }
+    return fallback;
+  }
+
+  private async _loadZhaDeviceConfig(entityId: string): Promise<void> {
+    try {
+      const response = await (this.hass as any).callApi(
+        'GET',
+        `aqara_advanced_lighting/device_config/${entityId}`
+      );
+      if (response?.config) {
+        const updated = new Map(this._zhaDeviceConfig);
+        updated.set(entityId, response.config);
+        this._zhaDeviceConfig = updated;
+      }
+    } catch (err) {
+      console.error(`Failed to load ZHA device config for ${entityId}:`, err);
+    }
+  }
+
+  private async _loadZhaDeviceConfigs(): Promise<void> {
+    if (!this._hasZhaEntity()) return;
+
+    const loads = this._selectedEntities
+      .filter(eid => this._supportedEntities.get(eid)?.backend_type === 'zha')
+      .map(eid => this._loadZhaDeviceConfig(eid));
+    await Promise.all(loads);
+
+    // Re-apply curvature from ZHA config after loading
+    this._loadCurvatureFromEntity();
+  }
+
+  private async _setZhaDeviceConfig(
+    setting: string,
+    value: number,
+  ): Promise<void> {
+    // Write to all selected ZHA entities
+    const zhaEntities = this._selectedEntities.filter(
+      eid => this._supportedEntities.get(eid)?.backend_type === 'zha'
+    );
+
+    try {
+      await Promise.all(
+        zhaEntities.map(async (entityId) => {
+          const response = await (this.hass as any).callApi(
+            'POST',
+            `aqara_advanced_lighting/device_config/${entityId}`,
+            { setting, value }
+          );
+          if (response?.success) {
+            // Update cache
+            const updated = new Map(this._zhaDeviceConfig);
+            const existing = updated.get(entityId) || {};
+            updated.set(entityId, { ...existing, [setting]: value });
+            this._zhaDeviceConfig = updated;
+          }
+        })
+      );
+    } catch (err) {
+      console.error(`Failed to set ZHA device config ${setting}=${value}:`, err);
+    }
+  }
+
   private _renderConfigTab() {
     const hasSelection = this._selectedEntities.length > 0;
     const deviceTypes = this._getSelectedDeviceTypes();
@@ -4492,14 +4579,17 @@ export class AqaraPanel extends LitElement {
     const dimmingRangeMinEntity = this._findDimmingRangeMinEntity();
     const dimmingRangeMaxEntity = this._findDimmingRangeMaxEntity();
 
-    // Get current values from entities
+    // ZHA dual-path: check if we have ZHA entities (for settings not exposed as number entities)
+    const isZha = this._hasZhaEntity();
+
+    // Get current values from entities, falling back to ZHA config cache
     const initialBrightnessValue = initialBrightnessEntity && this.hass?.states[initialBrightnessEntity]
       ? parseFloat(this.hass.states[initialBrightnessEntity].state) || 0
-      : 0;
+      : isZha ? this._getZhaConfigValue('initial_brightness', 0) : 0;
 
     const t1StripLengthValue = t1StripLengthEntity && this.hass?.states[t1StripLengthEntity]
       ? parseFloat(this.hass.states[t1StripLengthEntity].state) || 2
-      : 2;
+      : isZha ? this._getZhaConfigValue('strip_length', 2) : 2;
 
     const onOffDurationValue = onOffDurationEntity && this.hass?.states[onOffDurationEntity]
       ? parseFloat(this.hass.states[onOffDurationEntity].state) || 0
@@ -4511,14 +4601,14 @@ export class AqaraPanel extends LitElement {
 
     const dimmingRangeMinValue = dimmingRangeMinEntity && this.hass?.states[dimmingRangeMinEntity]
       ? parseFloat(this.hass.states[dimmingRangeMinEntity].state) || 1
-      : 1;
+      : isZha ? this._getZhaConfigValue('dimming_range_min', 1) : 1;
 
     const dimmingRangeMaxValue = dimmingRangeMaxEntity && this.hass?.states[dimmingRangeMaxEntity]
       ? parseFloat(this.hass.states[dimmingRangeMaxEntity].state) || 100
-      : 100;
+      : isZha ? this._getZhaConfigValue('dimming_range_max', 100) : 100;
 
-    // Check if any dimming entities are available
-    const hasDimmingEntities = onOffDurationEntity || offOnDurationEntity || dimmingRangeMinEntity || dimmingRangeMaxEntity;
+    // Check if any dimming controls are available (number entities OR ZHA config)
+    const hasDimmingEntities = onOffDurationEntity || offOnDurationEntity || dimmingRangeMinEntity || dimmingRangeMaxEntity || isZha;
 
     return html`
       <!-- Z2M Instances Info Section -->
@@ -4675,7 +4765,7 @@ export class AqaraPanel extends LitElement {
                             ></ha-selector>
                             <ha-button
                               @click=${this._applyCurvature}
-                              ?disabled=${!transitionCurveEntity || this._applyingCurvature}
+                              ?disabled=${(!transitionCurveEntity && !isZha) || this._applyingCurvature}
                             >
                               ${this._applyingCurvature ? this._localize('config.applying_button') : this._localize('config.apply_button')}
                             </ha-button>
@@ -4713,9 +4803,9 @@ export class AqaraPanel extends LitElement {
                           }}
                           .value=${initialBrightnessValue}
                           @value-changed=${(e: CustomEvent) => this._handleInitialBrightnessChange(e)}
-                          ?disabled=${!initialBrightnessEntity}
+                          ?disabled=${!initialBrightnessEntity && !isZha}
                         ></ha-selector>
-                        ${!initialBrightnessEntity ? html`
+                        ${!initialBrightnessEntity && !isZha ? html`
                           <div style="margin-top: 8px; font-size: var(--ha-font-size-s, 12px); color: var(--secondary-text-color);">
                             ${this._localize('config.initial_brightness_not_found')}
                           </div>
@@ -4757,7 +4847,7 @@ export class AqaraPanel extends LitElement {
                           },
                         }}
                         .value=${onOffDurationValue}
-                        @value-changed=${(e: CustomEvent) => this._handleDimmingSettingChange(e, 'on_off_duration')}
+                        @value-changed=${(e: CustomEvent) => this._handleDimmingSettingChange(e, 'on_off_duration', 'off_transition_time')}
                         ?disabled=${!onOffDurationEntity}
                       ></ha-selector>
                       ${!onOffDurationEntity ? html`
@@ -4780,7 +4870,7 @@ export class AqaraPanel extends LitElement {
                           },
                         }}
                         .value=${offOnDurationValue}
-                        @value-changed=${(e: CustomEvent) => this._handleDimmingSettingChange(e, 'off_on_duration')}
+                        @value-changed=${(e: CustomEvent) => this._handleDimmingSettingChange(e, 'off_on_duration', 'on_transition_time')}
                         ?disabled=${!offOnDurationEntity}
                       ></ha-selector>
                       ${!offOnDurationEntity ? html`
@@ -4804,9 +4894,9 @@ export class AqaraPanel extends LitElement {
                         }}
                         .value=${dimmingRangeMinValue}
                         @value-changed=${(e: CustomEvent) => this._handleDimmingRangeMinChange(e)}
-                        ?disabled=${!dimmingRangeMinEntity}
+                        ?disabled=${!dimmingRangeMinEntity && !isZha}
                       ></ha-selector>
-                      ${!dimmingRangeMinEntity ? html`
+                      ${!dimmingRangeMinEntity && !isZha ? html`
                         <div class="entity-not-found">${this._localize('config.entity_not_found')}</div>
                       ` : ''}
                     </div>
@@ -4827,9 +4917,9 @@ export class AqaraPanel extends LitElement {
                         }}
                         .value=${dimmingRangeMaxValue}
                         @value-changed=${(e: CustomEvent) => this._handleDimmingRangeMaxChange(e)}
-                        ?disabled=${!dimmingRangeMaxEntity}
+                        ?disabled=${!dimmingRangeMaxEntity && !isZha}
                       ></ha-selector>
-                      ${!dimmingRangeMaxEntity ? html`
+                      ${!dimmingRangeMaxEntity && !isZha ? html`
                         <div class="entity-not-found">${this._localize('config.entity_not_found')}</div>
                       ` : ''}
                     </div>
@@ -4873,10 +4963,10 @@ export class AqaraPanel extends LitElement {
                     }}
                     .value=${t1StripLengthValue}
                     @value-changed=${(e: CustomEvent) => this._handleT1StripLengthChange(e)}
-                    ?disabled=${!t1StripLengthEntity}
+                    ?disabled=${!t1StripLengthEntity && !isZha}
                   ></ha-selector>
                   <div style="margin-top: 8px; font-size: var(--ha-font-size-s, 12px); color: var(--secondary-text-color);">
-                    ${t1StripLengthEntity
+                    ${t1StripLengthEntity || isZha
                       ? this._localize('config.strip_length_info')
                       : this._localize('config.strip_length_not_found')}
                   </div>
@@ -5000,20 +5090,24 @@ export class AqaraPanel extends LitElement {
 
     // Find all initial brightness entities for all selected T2 devices
     const brightnessEntities = this._findAllInitialBrightnessEntities();
-    if (!brightnessEntities.length) return;
 
-    // Apply to all T2 devices
-    try {
-      await Promise.all(
-        brightnessEntities.map(entityId =>
-          this.hass!.callService('number', 'set_value', {
-            entity_id: entityId,
-            value: value,
-          })
-        )
-      );
-    } catch (err) {
-      console.error('Failed to set initial brightness:', err);
+    if (brightnessEntities.length) {
+      // Z2M path: write via number entities
+      try {
+        await Promise.all(
+          brightnessEntities.map(entityId =>
+            this.hass!.callService('number', 'set_value', {
+              entity_id: entityId,
+              value: value,
+            })
+          )
+        );
+      } catch (err) {
+        console.error('Failed to set initial brightness:', err);
+      }
+    } else if (this._hasZhaEntity()) {
+      // ZHA path: write via REST API
+      await this._setZhaDeviceConfig('initial_brightness', value);
     }
   }
 
@@ -5346,11 +5440,15 @@ export class AqaraPanel extends LitElement {
   }
 
   private _findOnOffDurationEntity(): string | undefined {
-    return this._findDimmingEntity('on_off_duration');
+    // Z2M: on_off_duration, ZHA: off_transition_time (both = on-to-off dimming)
+    return this._findDimmingEntity('on_off_duration')
+      ?? this._findDimmingEntity('off_transition_time');
   }
 
   private _findOffOnDurationEntity(): string | undefined {
-    return this._findDimmingEntity('off_on_duration');
+    // Z2M: off_on_duration, ZHA: on_transition_time (both = off-to-on dimming)
+    return this._findDimmingEntity('off_on_duration')
+      ?? this._findDimmingEntity('on_transition_time');
   }
 
   private _findDimmingRangeMinEntity(): string | undefined {
@@ -5363,15 +5461,20 @@ export class AqaraPanel extends LitElement {
 
   private async _handleDimmingSettingChange(
     e: CustomEvent,
-    suffix: string
+    ...suffixes: string[]
   ): Promise<void> {
     if (!this.hass) return;
 
     const value = e.detail.value;
     if (typeof value !== 'number') return;
 
-    // Find all entities with this suffix for all selected devices
-    const entities = this._findAllDimmingEntities(suffix);
+    // Find all entities across all suffixes (Z2M and ZHA use different names)
+    const entities: string[] = [];
+    for (const suffix of suffixes) {
+      for (const eid of this._findAllDimmingEntities(suffix)) {
+        if (!entities.includes(eid)) entities.push(eid);
+      }
+    }
     if (!entities.length) return;
 
     // Apply to all devices
@@ -5392,56 +5495,60 @@ export class AqaraPanel extends LitElement {
   private async _handleDimmingRangeMinChange(e: CustomEvent): Promise<void> {
     const minEntityId = this._findDimmingRangeMinEntity();
     const maxEntityId = this._findDimmingRangeMaxEntity();
-    if (!this.hass || !minEntityId) return;
+    const isZha = this._hasZhaEntity();
+    if (!this.hass || (!minEntityId && !isZha)) return;
 
     const newMin = e.detail.value;
     if (typeof newMin !== 'number') return;
 
-    // Get current max value
+    // Get current max value (from entity or ZHA cache)
     const maxValue = maxEntityId && this.hass.states[maxEntityId]
       ? parseFloat(this.hass.states[maxEntityId].state) || 100
-      : 100;
+      : isZha ? this._getZhaConfigValue('dimming_range_max', 100) : 100;
 
     // Validate: min cannot exceed max
     if (newMin >= maxValue) {
-      // Show error or just clamp
       return;
     }
 
-    await this._handleDimmingSettingChange(e, 'dimming_range_minimum');
+    if (minEntityId) {
+      await this._handleDimmingSettingChange(e, 'dimming_range_minimum');
+    } else if (isZha) {
+      await this._setZhaDeviceConfig('dimming_range_min', newMin);
+    }
   }
 
   private async _handleDimmingRangeMaxChange(e: CustomEvent): Promise<void> {
     const minEntityId = this._findDimmingRangeMinEntity();
     const maxEntityId = this._findDimmingRangeMaxEntity();
-    if (!this.hass || !maxEntityId) return;
+    const isZha = this._hasZhaEntity();
+    if (!this.hass || (!maxEntityId && !isZha)) return;
 
     const newMax = e.detail.value;
     if (typeof newMax !== 'number') return;
 
-    // Get current min value
+    // Get current min value (from entity or ZHA cache)
     const minValue = minEntityId && this.hass.states[minEntityId]
       ? parseFloat(this.hass.states[minEntityId].state) || 1
-      : 1;
+      : isZha ? this._getZhaConfigValue('dimming_range_min', 1) : 1;
 
     // Validate: max cannot be less than min
     if (newMax <= minValue) {
-      // Show error or just clamp
       return;
     }
 
-    await this._handleDimmingSettingChange(e, 'dimming_range_maximum');
+    if (maxEntityId) {
+      await this._handleDimmingSettingChange(e, 'dimming_range_maximum');
+    } else if (isZha) {
+      await this._setZhaDeviceConfig('dimming_range_max', newMax);
+    }
   }
 
   // T1 Strip specific methods
   private _getT1StripCompatibleEntities(): string[] {
     if (!this.hass) return [];
     return this._selectedEntities.filter(entityId => {
-      const entity = this.hass!.states[entityId];
-      if (!entity) return false;
-      const effectList = entity.attributes.effect_list as string[] | undefined;
-      // T1 Strip has 'dash' effect but not 'candlelight' (which is T2-only)
-      return effectList && effectList.includes('dash') && !effectList.includes('candlelight');
+      return this._getEntityDeviceType(entityId) === 't1_strip';
     });
   }
 
@@ -5550,19 +5657,24 @@ export class AqaraPanel extends LitElement {
     if (typeof value !== 'number') return;
 
     const entities = this._findAllT1StripLengthEntities();
-    if (!entities.length) return;
 
-    try {
-      await Promise.all(
-        entities.map(entityId =>
-          this.hass!.callService('number', 'set_value', {
-            entity_id: entityId,
-            value: value,
-          })
-        )
-      );
-    } catch (err) {
-      console.error('Failed to set T1 Strip length:', err);
+    if (entities.length) {
+      // Z2M path: write via number entities
+      try {
+        await Promise.all(
+          entities.map(entityId =>
+            this.hass!.callService('number', 'set_value', {
+              entity_id: entityId,
+              value: value,
+            })
+          )
+        );
+      } catch (err) {
+        console.error('Failed to set T1 Strip length:', err);
+      }
+    } else if (this._hasZhaEntity()) {
+      // ZHA path: write via REST API
+      await this._setZhaDeviceConfig('strip_length', value);
     }
   }
 
@@ -5596,20 +5708,25 @@ export class AqaraPanel extends LitElement {
   private async _applyCurvature(): Promise<void> {
     if (!this.hass) return;
 
-    const entities = this._findAllTransitionCurveEntities();
-    if (!entities.length) return;
-
     this._applyingCurvature = true;
 
     try {
-      await Promise.all(
-        entities.map(entityId =>
-          this.hass!.callService('number', 'set_value', {
-            entity_id: entityId,
-            value: this._localCurvature,
-          })
-        )
-      );
+      const entities = this._findAllTransitionCurveEntities();
+
+      if (entities.length) {
+        // Z2M path: write via number entities
+        await Promise.all(
+          entities.map(entityId =>
+            this.hass!.callService('number', 'set_value', {
+              entity_id: entityId,
+              value: this._localCurvature,
+            })
+          )
+        );
+      } else if (this._hasZhaEntity()) {
+        // ZHA path: write via REST API
+        await this._setZhaDeviceConfig('transition_curve', this._localCurvature);
+      }
     } catch (err) {
       console.error('Failed to set transition curve curvature:', err);
     } finally {
@@ -5619,14 +5736,23 @@ export class AqaraPanel extends LitElement {
 
   private _loadCurvatureFromEntity(): void {
     const entityId = this._findTransitionCurveEntity();
-    if (!this.hass || !entityId) return;
+    if (this.hass && entityId) {
+      const entity = this.hass.states[entityId];
+      if (entity) {
+        const curvature = parseFloat(entity.state);
+        if (!isNaN(curvature) && curvature >= 0.2 && curvature <= 6.0) {
+          this._localCurvature = Math.round(curvature * 100) / 100;
+          return;
+        }
+      }
+    }
 
-    const entity = this.hass.states[entityId];
-    if (!entity) return;
-
-    const curvature = parseFloat(entity.state);
-    if (!isNaN(curvature) && curvature >= 0.2 && curvature <= 6.0) {
-      this._localCurvature = Math.round(curvature * 100) / 100;
+    // ZHA fallback: load from config cache
+    if (this._hasZhaEntity()) {
+      const curvature = this._getZhaConfigValue('transition_curve', -1);
+      if (curvature >= 0.2 && curvature <= 6.0) {
+        this._localCurvature = Math.round(curvature * 100) / 100;
+      }
     }
   }
 

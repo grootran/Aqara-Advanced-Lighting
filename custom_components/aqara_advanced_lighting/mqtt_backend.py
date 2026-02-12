@@ -916,3 +916,27 @@ class MQTTBackend:
             )
             return
         await self.async_set_t2_transition_curve(z2m_name, curvature)
+
+    async def async_read_device_config(
+        self,
+        entity_id: str,  # noqa: ARG002
+    ) -> dict[str, Any]:
+        """Read hardware config attributes -- not used for Z2M.
+
+        Z2M exposes config via number entities; the frontend reads those
+        directly. Returns empty dict.
+        """
+        return {}
+
+    async def async_write_device_config(
+        self,
+        entity_id: str,  # noqa: ARG002
+        setting: str,  # noqa: ARG002
+        value: Any,  # noqa: ARG002
+    ) -> bool:
+        """Write a hardware config attribute -- not used for Z2M.
+
+        Z2M exposes config via number entities; the frontend writes those
+        directly. Returns False.
+        """
+        return False
