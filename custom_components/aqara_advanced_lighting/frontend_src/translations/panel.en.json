@@ -69,6 +69,7 @@
     "cct_sequences": "CCT Sequences",
     "segment_sequences": "Segment Sequences",
     "dynamic_scenes": "Dynamic Scenes",
+    "music_sync": "Music Sync",
     "subtitle_presets": "{count} presets",
     "subtitle_presets_custom": "{count} presets ({custom} custom)",
     "subtitle_user_presets": "{count} presets",
@@ -296,6 +297,20 @@
   "color_history": {
     "recent_colors": "Recent colors",
     "clear": "Clear"
+  },
+  "music_sync": {
+    "title": "Music Sync",
+    "subtitle": "T1 Strip audio-reactive mode",
+    "enabled_label": "Music sync",
+    "sensitivity_label": "Sensitivity",
+    "sensitivity_low": "Low",
+    "sensitivity_high": "High",
+    "effect_label": "Effect",
+    "effect_random": "Random",
+    "effect_blink": "Blink",
+    "effect_rainbow": "Rainbow",
+    "effect_wave": "Wave",
+    "active_label": "Music sync active"
   },
   "dynamic_scene": {
     "add_color_button": "Add color",

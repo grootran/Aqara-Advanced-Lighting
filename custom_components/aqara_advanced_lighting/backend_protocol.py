@@ -124,21 +124,6 @@ class DeviceBackend(Protocol):
         """
         ...
 
-    # --- State ---
-
-    async def async_restore_state(
-        self,
-        entity_id: str,
-        state_data: dict[str, Any],
-    ) -> None:
-        """Restore previous state to a device.
-
-        Args:
-            entity_id: The Home Assistant entity ID
-            state_data: The state data to restore
-        """
-        ...
-
     # --- CCT (uses HA light service, backend-agnostic) ---
 
     async def async_publish_cct_step(
@@ -171,6 +156,33 @@ class DeviceBackend(Protocol):
 
         Args:
             entity_id: The Home Assistant light entity ID
+        """
+        ...
+
+    # --- Music sync (T1 Strip only) ---
+
+    async def async_send_music_sync(
+        self,
+        entity_id: str,
+        enabled: bool,
+        sensitivity: str,
+        effect: str,
+    ) -> None:
+        """Send music sync configuration to a T1 Strip device.
+
+        Args:
+            entity_id: The Home Assistant entity ID
+            enabled: Whether to enable or disable audio-reactive mode
+            sensitivity: Audio sensitivity level ("low" or "high")
+            effect: Audio effect type ("random", "blink", "rainbow", "wave")
+        """
+        ...
+
+    async def async_stop_music_sync(self, entity_id: str) -> None:
+        """Stop music sync (disable audio mode) on a T1 Strip device.
+
+        Args:
+            entity_id: The Home Assistant entity ID
         """
         ...
 

@@ -1004,47 +1004,18 @@ class DynamicSceneManager:
         )
 
         for entity_id in entity_ids:
-            payload = self.state_manager.get_restoration_payload(entity_id)
-            if not payload:
-                _LOGGER.warning(
-                    "No stored state found for %s, skipping restoration", entity_id
-                )
-                continue
-
             try:
-                service_data: dict[str, Any] = {ATTR_ENTITY_ID: entity_id}
-
-                if payload.get("state") == "off":
-                    await self.hass.services.async_call(
-                        "light", "turn_off", service_data,
-                        blocking=False, context=context,
-                    )
-                    _LOGGER.debug("Restored state for %s: turned off", entity_id)
+                restored = await self.state_manager.async_restore_entity_state(
+                    entity_id, blocking=False, context=context,
+                )
+                if restored:
+                    _LOGGER.debug("Restored state for %s", entity_id)
                 else:
-                    if "brightness" in payload:
-                        service_data["brightness"] = payload["brightness"]
-
-                    # Prefer xy_color for precision, fall back to rgb_color
-                    if "xy_color" in payload:
-                        xy = payload["xy_color"]
-                        service_data["xy_color"] = [xy["x"], xy["y"]]
-                    elif "color" in payload:
-                        color = payload["color"]
-                        service_data["rgb_color"] = [
-                            color["r"],
-                            color["g"],
-                            color["b"],
-                        ]
-
-                    if "color_temp_kelvin" in payload:
-                        service_data["color_temp_kelvin"] = payload["color_temp_kelvin"]
-
-                    await self.hass.services.async_call(
-                        "light", "turn_on", service_data,
-                        blocking=False, context=context,
-                    )
-                    _LOGGER.debug(
-                        "Restored state for %s: %s", entity_id, service_data
+                    _LOGGER.warning(
+                        "No stored state found for %s, skipping restoration",
+                        entity_id,
                     )
             except Exception:
-                _LOGGER.warning("Failed to restore state for %s", entity_id, exc_info=True)
+                _LOGGER.warning(
+                    "Failed to restore state for %s", entity_id, exc_info=True
+                )

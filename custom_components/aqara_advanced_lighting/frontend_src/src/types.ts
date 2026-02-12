@@ -135,6 +135,7 @@ export interface FilteredPresets {
   showCCTSequences: boolean;
   showSegmentSequences: boolean;
   showDynamicScenes: boolean;
+  showMusicSync: boolean;
   hasT2: boolean;
   hasT1M: boolean;
   hasT1Strip: boolean;
@@ -455,7 +456,7 @@ export interface HassEvent {
 }
 
 // Running operation types for the active presets display
-export type RunningOperationType = 'effect' | 'cct_sequence' | 'segment_sequence' | 'dynamic_scene';
+export type RunningOperationType = 'effect' | 'cct_sequence' | 'segment_sequence' | 'dynamic_scene' | 'music_sync';
 
 export interface RunningOperation {
   type: RunningOperationType;
@@ -472,6 +473,9 @@ export interface RunningOperation {
   // Sequence progress
   current_step?: number;
   total_steps?: number;
+  // Music sync
+  sensitivity?: string;
+  audio_effect?: string;
 }
 
 export interface RunningOperationsResponse {

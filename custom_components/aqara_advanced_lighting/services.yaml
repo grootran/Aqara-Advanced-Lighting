@@ -2373,6 +2373,48 @@ resume_dynamic_scene:
     entity:
       domain: light
 
+set_music_sync:
+  name: Set music sync
+  description: Control audio-reactive lighting mode on T1 LED Strip. Enables the strip's built-in microphone to react to sound with visual effects.
+  target:
+    entity:
+      domain: light
+  fields:
+    enabled:
+      name: Enabled
+      description: Enable or disable music sync mode.
+      required: true
+      selector:
+        boolean:
+    sensitivity:
+      name: Sensitivity
+      description: Audio sensitivity level.
+      required: false
+      default: "low"
+      selector:
+        select:
+          options:
+            - label: "Low"
+              value: "low"
+            - label: "High"
+              value: "high"
+    audio_effect:
+      name: Effect
+      description: Audio-reactive effect type.
+      required: false
+      default: "random"
+      selector:
+        select:
+          options:
+            - label: "Random"
+              value: "random"
+            - label: "Blink"
+              value: "blink"
+            - label: "Rainbow"
+              value: "rainbow"
+            - label: "Wave"
+              value: "wave"
+
 resume_entity_control:
   name: Resume entity control
   description: >-

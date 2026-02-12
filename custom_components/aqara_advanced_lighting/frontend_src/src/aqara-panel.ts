@@ -96,6 +96,9 @@ export class AqaraPanel extends LitElement {
   @state() private _isImporting = false;
   @state() private _favoritePresets: FavoritePresetRef[] = [];
   @state() private _runningOperations: RunningOperation[] = [];
+  @state() private _musicSyncEnabled = false;
+  @state() private _musicSyncSensitivity = 'low';
+  @state() private _musicSyncEffect = 'random';
   @state() private _setupComplete = true;
   private _setupPollTimer?: ReturnType<typeof setTimeout>;
   private _translations: Record<string, any> = PANEL_TRANSLATIONS;
@@ -714,8 +717,25 @@ export class AqaraPanel extends LitElement {
       if (!response.ok) return;
       const data: RunningOperationsResponse = await response.json();
       this._runningOperations = data.operations || [];
+
+      // Sync music sync state from running operations
+      this._syncMusicSyncState();
     } catch (err) {
       console.warn('Failed to load running operations:', err);
+    }
+  }
+
+  private _syncMusicSyncState(): void {
+    const activeMusicSync = this._runningOperations.find(
+      op => op.type === 'music_sync' && op.entity_id && this._selectedEntities.includes(op.entity_id)
+    );
+
+    if (activeMusicSync) {
+      this._musicSyncEnabled = true;
+      if (activeMusicSync.sensitivity) this._musicSyncSensitivity = activeMusicSync.sensitivity;
+      if (activeMusicSync.audio_effect) this._musicSyncEffect = activeMusicSync.audio_effect;
+    } else {
+      this._musicSyncEnabled = false;
     }
   }
 
@@ -1760,6 +1780,8 @@ export class AqaraPanel extends LitElement {
     const showCCTSequences = hasSelection && (hasT2 || hasT2CCT || hasT1MWhite || hasT1Strip || hasGenericRGB || hasGenericCCT);
     // Dynamic scenes: Aqara RGB + generic RGB lights
     const showDynamicScenes = hasSelection && (hasT2 || hasT1M || hasT1Strip || hasGenericRGB);
+    // Music sync: T1 Strip only
+    const showMusicSync = hasSelection && hasT1Strip;
 
     return {
       showDynamicEffects,
@@ -1767,6 +1789,7 @@ export class AqaraPanel extends LitElement {
       showCCTSequences,
       showSegmentSequences,
       showDynamicScenes,
+      showMusicSync,
       hasT2,
       hasT1M,
       hasT1Strip,
@@ -2036,6 +2059,8 @@ export class AqaraPanel extends LitElement {
         return this._renderSequenceOp(op);
       case 'dynamic_scene':
         return this._renderSceneOp(op);
+      case 'music_sync':
+        return this._renderMusicSyncOp(op);
       default:
         return '';
     }
@@ -2872,6 +2897,10 @@ export class AqaraPanel extends LitElement {
               ? this._renderDynamicEffectsSection(this._localize('devices.t1_strip'), filtered.t1StripPresets, 't1_strip')
               : ''}
           `
+        : ''}
+
+      ${filtered.showMusicSync && !this._hasIncompatibleLights
+        ? this._renderMusicSyncSection()
         : ''}
 
       ${filtered.showSegmentPatterns && !this._hasIncompatibleLights
@@ -4152,6 +4181,170 @@ export class AqaraPanel extends LitElement {
         </div>
       </ha-expansion-panel>
     `;
+  }
+
+  private _renderMusicSyncSection() {
+    const sectionId = 'music_sync';
+    const isExpanded = !this._collapsed[sectionId];
+
+    const effects = [
+      { id: 'random', icon: 'random.svg' },
+      { id: 'blink', icon: 'blink.svg' },
+      { id: 'rainbow', icon: 'rainbow.svg' },
+      { id: 'wave', icon: 'wave.svg' },
+    ];
+
+    return html`
+      <ha-expansion-panel
+        outlined
+        .expanded=${isExpanded}
+        @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange(sectionId, e)}
+      >
+        <div slot="header" class="section-header">
+          <div>
+            <div class="section-title">${this._localize('sections.music_sync')}</div>
+            <div class="section-subtitle">${this._localize('music_sync.subtitle')}</div>
+          </div>
+        </div>
+        <div class="section-content music-sync-content">
+          <div class="music-sync-left">
+            <div class="music-sync-toggle">
+              <label class="toggle-label">
+                <ha-switch
+                  .checked=${this._musicSyncEnabled}
+                  @change=${this._handleMusicSyncToggle}
+                ></ha-switch>
+                <span class="control-label">${this._localize('music_sync.enabled_label')}</span>
+              </label>
+            </div>
+
+            <div class="music-sync-sensitivity-group ${!this._musicSyncEnabled ? 'disabled' : ''}">
+              <span class="control-label">${this._localize('music_sync.sensitivity_label')}</span>
+              <div class="music-sync-sensitivity">
+                <button
+                  class="sensitivity-btn ${this._musicSyncSensitivity === 'low' ? 'active' : ''}"
+                  ?disabled=${!this._musicSyncEnabled}
+                  @click=${() => this._handleMusicSyncSensitivity('low')}
+                >${this._localize('music_sync.sensitivity_low')}</button>
+                <button
+                  class="sensitivity-btn ${this._musicSyncSensitivity === 'high' ? 'active' : ''}"
+                  ?disabled=${!this._musicSyncEnabled}
+                  @click=${() => this._handleMusicSyncSensitivity('high')}
+                >${this._localize('music_sync.sensitivity_high')}</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="music-sync-right ${!this._musicSyncEnabled ? 'disabled' : ''}">
+            <span class="control-label">${this._localize('music_sync.effect_label')}</span>
+            <div class="music-sync-effects">
+              ${effects.map(effect => html`
+                <div
+                  class="preset-button ${this._musicSyncEffect === effect.id ? 'music-sync-active' : ''} ${!this._musicSyncEnabled ? 'disabled' : ''}"
+                  @click=${() => this._musicSyncEnabled ? this._handleMusicSyncEffectSelect(effect.id) : null}
+                >
+                  <div class="preset-icon">
+                    <div
+                      class="effect-icon"
+                      style="
+                        -webkit-mask-image: url('/api/aqara_advanced_lighting/icons/${effect.icon}');
+                        mask-image: url('/api/aqara_advanced_lighting/icons/${effect.icon}');
+                      "
+                    ></div>
+                  </div>
+                  <div class="preset-name">${this._localize(`music_sync.effect_${effect.id}`)}</div>
+                </div>
+              `)}
+            </div>
+          </div>
+        </div>
+      </ha-expansion-panel>
+    `;
+  }
+
+  private async _handleMusicSyncToggle(e: Event): Promise<void> {
+    const enabled = (e.target as HTMLInputElement).checked;
+    this._musicSyncEnabled = enabled;
+
+    // Get T1 Strip entities from selection
+    const stripEntities = this._selectedEntities.filter(entityId => {
+      const dt = this._getEntityDeviceType(entityId);
+      return dt === 't1_strip';
+    });
+    if (stripEntities.length === 0) return;
+
+    await this.hass.callService('aqara_advanced_lighting', 'set_music_sync', {
+      entity_id: stripEntities,
+      enabled,
+      sensitivity: this._musicSyncSensitivity,
+      audio_effect: this._musicSyncEffect,
+    });
+  }
+
+  private async _handleMusicSyncSensitivity(sensitivity: string): Promise<void> {
+    this._musicSyncSensitivity = sensitivity;
+    if (!this._musicSyncEnabled) return;
+
+    const stripEntities = this._selectedEntities.filter(entityId => {
+      const dt = this._getEntityDeviceType(entityId);
+      return dt === 't1_strip';
+    });
+    if (stripEntities.length === 0) return;
+
+    await this.hass.callService('aqara_advanced_lighting', 'set_music_sync', {
+      entity_id: stripEntities,
+      enabled: true,
+      sensitivity,
+      audio_effect: this._musicSyncEffect,
+    });
+  }
+
+  private async _handleMusicSyncEffectSelect(effect: string): Promise<void> {
+    this._musicSyncEffect = effect;
+    if (!this._musicSyncEnabled) return;
+
+    const stripEntities = this._selectedEntities.filter(entityId => {
+      const dt = this._getEntityDeviceType(entityId);
+      return dt === 't1_strip';
+    });
+    if (stripEntities.length === 0) return;
+
+    await this.hass.callService('aqara_advanced_lighting', 'set_music_sync', {
+      entity_id: stripEntities,
+      enabled: true,
+      sensitivity: this._musicSyncSensitivity,
+      audio_effect: effect,
+    });
+  }
+
+  private _renderMusicSyncOp(op: RunningOperation) {
+    const entityName = this._getEntityName(op.entity_id!);
+    return html`
+      <div class="running-op-card">
+        <div class="running-op-info">
+          <ha-icon class="running-op-icon" icon="mdi:music-note"></ha-icon>
+          <div class="running-op-details">
+            <span class="running-op-name">${this._localize('music_sync.active_label')}</span>
+            <span class="running-op-entity"><span class="running-op-entity-name">${entityName}</span></span>
+          </div>
+        </div>
+        <div class="running-op-actions">
+          <ha-icon-button
+            .label=${this._localize('target.stop')}
+            @click=${() => this._stopMusicSync(op.entity_id!)}
+          >
+            <ha-icon icon="mdi:stop"></ha-icon>
+          </ha-icon-button>
+        </div>
+      </div>
+    `;
+  }
+
+  private async _stopMusicSync(entityId: string): Promise<void> {
+    await this.hass.callService('aqara_advanced_lighting', 'set_music_sync', {
+      entity_id: [entityId],
+      enabled: false,
+    });
   }
 
   private _renderSegmentPatternsSection(title: string, builtinPresets: SegmentPatternPreset[], deviceType: string) {

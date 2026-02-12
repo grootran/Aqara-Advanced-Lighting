@@ -8,7 +8,7 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.const import ATTR_ENTITY_ID, STATE_OFF
+from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import Context, HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
@@ -92,7 +92,15 @@ from .const import (
     SERVICE_RESUME_DYNAMIC_SCENE,
     SERVICE_START_DYNAMIC_SCENE,
     SERVICE_STOP_DYNAMIC_SCENE,
+    ATTR_AUDIO_EFFECT,
+    ATTR_ENABLED,
+    ATTR_SENSITIVITY,
+    DATA_ACTIVE_MUSIC_SYNC,
+    MUSIC_SYNC_SENSITIVITY_LOW,
+    MUSIC_SYNC_EFFECT_RANDOM,
     VALID_DISTRIBUTION_MODES,
+    VALID_MUSIC_SYNC_EFFECTS,
+    VALID_MUSIC_SYNC_SENSITIVITIES,
     MODEL_T1_STRIP,
     SEGMENT_MODE_BLOCKS_EXPAND,
     SEGMENT_MODE_BLOCKS_REPEAT,
@@ -105,6 +113,7 @@ from .const import (
     SERVICE_RESUME_ENTITY_CONTROL,
     SERVICE_RESUME_SEGMENT_SEQUENCE,
     SERVICE_SET_DYNAMIC_EFFECT,
+    SERVICE_SET_MUSIC_SYNC,
     SERVICE_SET_SEGMENT_PATTERN,
     SERVICE_START_CCT_SEQUENCE,
     SERVICE_START_SEGMENT_SEQUENCE,
@@ -549,6 +558,19 @@ SERVICE_PAUSE_DYNAMIC_SCENE_SCHEMA = vol.Schema(
 SERVICE_RESUME_DYNAMIC_SCENE_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+    }
+)
+
+SERVICE_SET_MUSIC_SYNC_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+        vol.Required(ATTR_ENABLED): cv.boolean,
+        vol.Optional(ATTR_SENSITIVITY, default=MUSIC_SYNC_SENSITIVITY_LOW): vol.In(
+            VALID_MUSIC_SYNC_SENSITIVITIES
+        ),
+        vol.Optional(ATTR_AUDIO_EFFECT, default=MUSIC_SYNC_EFFECT_RANDOM): vol.In(
+            VALID_MUSIC_SYNC_EFFECTS
+        ),
     }
 )
 
@@ -1396,6 +1418,21 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             paused_cct = False
             paused_segment = False
 
+            # Stop music sync if active on this entity
+            active_music_sync = instance_data.get(DATA_ACTIVE_MUSIC_SYNC, {})
+            if entity_id in active_music_sync:
+                _LOGGER.debug(
+                    "Stopping music sync on %s before applying effect",
+                    entity_id,
+                )
+                try:
+                    await entity_backend.async_stop_music_sync(entity_id)
+                except Exception:
+                    _LOGGER.exception(
+                        "Failed to stop music sync on %s", entity_id
+                    )
+                active_music_sync.pop(entity_id, None)
+
             # Pause CCT sequence if running
             if cct_manager and cct_manager.is_sequence_running(entity_id):
                 _LOGGER.debug("Pausing CCT sequence on %s before applying effect", entity_id)
@@ -1545,43 +1582,15 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
             # Stop the effect by restoring previous state using HA light service
             try:
-                payload = (
-                    entity_state_manager.get_restoration_payload(entity_id)
-                    if restore_state
-                    else None
-                )
+                ctx = _get_context_and_record(hass, entity_id)
+                restored = False
 
-                if payload:
-                    service_data: dict[str, Any] = {"entity_id": entity_id}
-                    ctx = _get_context_and_record(hass, entity_id)
+                if restore_state:
+                    restored = await entity_state_manager.async_restore_entity_state(
+                        entity_id, blocking=True, context=ctx,
+                    )
 
-                    if payload.get("state") == STATE_OFF:
-                        await hass.services.async_call(
-                            "light", "turn_off", service_data, blocking=True,
-                            context=ctx,
-                        )
-                    else:
-                        if "brightness" in payload:
-                            service_data["brightness"] = payload["brightness"]
-
-                        # get_restoration_payload uses color_mode to pick the
-                        # correct format (xy_color for color mode, color_temp_kelvin
-                        # for CCT mode) so dual-mode lights restore accurately
-                        if "xy_color" in payload:
-                            xy = payload["xy_color"]
-                            service_data["xy_color"] = [xy["x"], xy["y"]]
-                        elif "color" in payload:
-                            c = payload["color"]
-                            service_data["rgb_color"] = [c["r"], c["g"], c["b"]]
-
-                        if "color_temp_kelvin" in payload:
-                            service_data["color_temp_kelvin"] = payload["color_temp_kelvin"]
-
-                        await hass.services.async_call(
-                            "light", "turn_on", service_data, blocking=True,
-                            context=ctx,
-                        )
-
+                if restored:
                     _LOGGER.info("Stopped effect and restored previous state for %s", entity_id)
                 else:
                     # No saved state - stop effect with a default warm white RGB color
@@ -1590,7 +1599,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         "turn_on",
                         {"entity_id": entity_id, "rgb_color": [255, 200, 150]},
                         blocking=True,
-                        context=_get_context_and_record(hass, entity_id),
+                        context=ctx,
                     )
                     _LOGGER.info("Stopped effect for %s (set to default warm white)", entity_id)
 
@@ -3157,6 +3166,108 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
         manager.resume_scene(entity_ids)
 
+    async def handle_set_music_sync(call: ServiceCall) -> None:
+        """Handle set_music_sync service call.
+
+        Controls audio-reactive mode on T1 Strip devices. When enabling,
+        saves current state for later restoration. When disabling, restores
+        the previously saved state.
+        """
+        entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+        enabled: bool = call.data[ATTR_ENABLED]
+        sensitivity: str = call.data.get(ATTR_SENSITIVITY, MUSIC_SYNC_SENSITIVITY_LOW)
+        effect: str = call.data.get(ATTR_AUDIO_EFFECT, MUSIC_SYNC_EFFECT_RANDOM)
+
+        # Resolve groups to individual entities
+        resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
+
+        # Validate all entities are supported Aqara devices
+        _validate_supported_entities(hass, resolved_entity_ids)
+
+        for entity_id in resolved_entity_ids:
+            # Get the correct instance components for this entity
+            entity_backend, entity_state_manager, entry_id = (
+                _get_instance_components_for_entity(hass, entity_id)
+            )
+
+            # Validate this is a T1 Strip device
+            aqara_device = entity_backend.get_device_for_entity(entity_id)
+            if not aqara_device:
+                _LOGGER.warning(
+                    "Entity %s not mapped to any Aqara device, skipping",
+                    entity_id,
+                )
+                continue
+
+            if aqara_device.model_id != MODEL_T1_STRIP:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="music_sync_t1_strip_only",
+                    translation_placeholders={
+                        "device": aqara_device.name,
+                        "model": aqara_device.model_id,
+                    },
+                )
+
+            instance_data = hass.data[DOMAIN]["entries"].get(entry_id, {})
+
+            if enabled:
+                # Stop any active effect on this entity first
+                device_state = entity_state_manager.get_device_state(entity_id)
+                if device_state and device_state.effect_active:
+                    _LOGGER.debug(
+                        "Stopping active effect on %s before enabling music sync",
+                        entity_id,
+                    )
+                    try:
+                        await entity_backend.async_stop_effect(entity_id)
+                    except Exception:
+                        _LOGGER.exception(
+                            "Failed to stop effect on %s", entity_id
+                        )
+                    entity_state_manager.mark_effect_inactive(entity_id)
+
+                # Save current state before enabling music sync
+                entity_state_manager.capture_state(entity_id, aqara_device.name)
+
+                # Send music sync command to device
+                await entity_backend.async_send_music_sync(
+                    entity_id, True, sensitivity, effect
+                )
+
+                # Track active music sync
+                active_music_sync = instance_data.setdefault(
+                    DATA_ACTIVE_MUSIC_SYNC, {}
+                )
+                active_music_sync[entity_id] = {
+                    "sensitivity": sensitivity,
+                    "effect": effect,
+                }
+
+                _LOGGER.info(
+                    "Enabled music sync on %s: effect=%s, sensitivity=%s",
+                    entity_id,
+                    effect,
+                    sensitivity,
+                )
+            else:
+                # Disable music sync
+                await entity_backend.async_stop_music_sync(entity_id)
+
+                # Remove from active tracking
+                active_music_sync = instance_data.get(DATA_ACTIVE_MUSIC_SYNC, {})
+                active_music_sync.pop(entity_id, None)
+
+                # Restore previous state
+                await entity_state_manager.async_restore_entity_state(
+                    entity_id,
+                    blocking=True,
+                    context=_get_context_and_record(hass, entity_id),
+                )
+                entity_state_manager.clear_state(entity_id)
+
+                _LOGGER.info("Disabled music sync on %s", entity_id)
+
     async def handle_resume_entity_control(call: ServiceCall) -> None:
         """Handle resume_entity_control service call.
 
@@ -3307,6 +3418,13 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         ),
     )
 
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_MUSIC_SYNC,
+        handle_set_music_sync,
+        schema=SERVICE_SET_MUSIC_SYNC_SCHEMA,
+    )
+
     _LOGGER.info("Aqara Advanced Lighting services registered")
 
 
@@ -3329,6 +3447,7 @@ async def async_unload_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(DOMAIN, SERVICE_STOP_DYNAMIC_SCENE)
     hass.services.async_remove(DOMAIN, SERVICE_PAUSE_DYNAMIC_SCENE)
     hass.services.async_remove(DOMAIN, SERVICE_RESUME_DYNAMIC_SCENE)
+    hass.services.async_remove(DOMAIN, SERVICE_SET_MUSIC_SYNC)
     hass.services.async_remove(DOMAIN, SERVICE_RESUME_ENTITY_CONTROL)
 
     # Stop all running sequences across all instances

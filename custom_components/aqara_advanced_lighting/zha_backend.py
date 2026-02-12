@@ -28,6 +28,8 @@ from .const import (
     MODEL_T2_CCT_E27,
     MODEL_T2_CCT_GU10_110V,
     MODEL_T2_CCT_GU10_230V,
+    MUSIC_SYNC_EFFECT_ENUM,
+    MUSIC_SYNC_SENSITIVITY_ENUM,
 )
 from .models import AqaraDevice, DynamicEffect, RGBColor, SegmentColor
 from .mqtt_backend import SUPPORTED_MODELS
@@ -63,6 +65,24 @@ ATTR_STRIP_SEGMENT = 0x0527
 ATTR_TRANSITION_CURVE = 0x0528
 ATTR_INITIAL_BRIGHTNESS = 0x052C
 ATTR_EFFECT_SEGMENTS_MASK = 0x0530
+
+# ZCL data type IDs for raw attribute writes (bypasses find_attribute lookup)
+AQARA_ATTR_ZCL_TYPES: dict[int, int] = {
+    ATTR_DIMMING_RANGE_MIN: 0x20,       # uint8
+    ATTR_DIMMING_RANGE_MAX: 0x20,       # uint8
+    ATTR_STRIP_LENGTH: 0x20,            # uint8
+    ATTR_AUDIO_ENABLE: 0x20,            # uint8
+    ATTR_AUDIO_EFFECT: 0x23,            # uint32
+    ATTR_AUDIO_SENSITIVITY: 0x20,       # uint8
+    ATTR_EFFECT_TYPE: 0x23,             # uint32
+    ATTR_EFFECT_SPEED: 0x20,            # uint8
+    ATTR_T1M_SEGMENT: 0x41,             # octet string (LVBytes)
+    ATTR_EFFECT_COLORS: 0x41,           # octet string (LVBytes)
+    ATTR_STRIP_SEGMENT: 0x41,           # octet string (LVBytes)
+    ATTR_TRANSITION_CURVE: 0x39,        # float32 (Single)
+    ATTR_INITIAL_BRIGHTNESS: 0x20,      # uint8
+    ATTR_EFFECT_SEGMENTS_MASK: 0x41,    # octet string (LVBytes)
+}
 
 # Default endpoint for manufacturer-specific writes
 DEFAULT_ENDPOINT = 1
@@ -151,9 +171,13 @@ def _resolve_zha_model(device: Any) -> str | None:
 def _ensure_aqara_attributes(cluster: Any) -> None:
     """Register Aqara manufacturer-specific attributes on a zigpy cluster.
 
-    zigpy's write_attributes() skips attribute IDs not present in the
-    cluster's definition. This function adds our custom attribute definitions
-    so the writes proceed correctly.
+    Used by _read_cluster_attribute so zigpy can deserialize response values.
+    Writes use _write_attributes() raw (bypassing find_attribute), so they
+    do not depend on this registration.
+
+    Registers on both the instance attributes dict and the class-level
+    _attributes_by_id cache to support all zigpy versions. The class cache
+    structure is: _attributes_by_id[attr_id][is_mfr_specific][mfr_code].
     """
     import zigpy.types as zigpy_t
     from zigpy.zcl.foundation import ZCLAttributeDef
@@ -176,14 +200,31 @@ def _ensure_aqara_attributes(cluster: Any) -> None:
         ATTR_EFFECT_SEGMENTS_MASK: ("aqara_effect_segments_mask", zigpy_t.LVBytes),
     }
 
+    cluster_cls = type(cluster)
+    class_cache = getattr(cluster_cls, "_attributes_by_id", None)
+
     for attr_id, (name, attr_type) in aqara_attrs.items():
         if attr_id not in cluster.attributes:
-            cluster.attributes[attr_id] = ZCLAttributeDef(
+            attr_def = ZCLAttributeDef(
                 id=attr_id,
                 name=name,
                 type=attr_type,
                 is_manufacturer_specific=True,
             )
+            cluster.attributes[attr_id] = attr_def
+
+            # Also update the class-level cache used by find_attribute()
+            # in newer zigpy versions. Structure:
+            # _attributes_by_id[attr_id][is_manufacturer_specific][manufacturer_code]
+            if class_cache is not None and attr_id not in class_cache:
+                try:
+                    class_cache[attr_id] = {
+                        True: {attr_def.manufacturer_code: attr_def},
+                        False: {},
+                        None: {},
+                    }
+                except Exception:  # noqa: BLE001
+                    pass  # Best-effort; writes use raw path anyway
 
 
 def _get_device_family(model_id: str) -> str | None:
@@ -503,12 +544,15 @@ class ZHABackend:
     ) -> bool:
         """Write a single attribute to the Aqara manufacturer-specific cluster.
 
-        Accesses the zigpy cluster directly for full control over attribute
-        type serialization. Registers custom Aqara attribute definitions on
-        the cluster if needed, since zigpy rejects writes to unknown attributes.
+        Uses cluster._write_attributes() with raw foundation.Attribute objects
+        to bypass zigpy's find_attribute() lookup. Newer zigpy versions use a
+        class-level _attributes_by_id cache that instance-level attribute
+        registration cannot update, causing KeyError for custom attributes.
 
         Returns True on success, False on failure.
         """
+        from zigpy.zcl import foundation
+
         zha_device = self._get_zha_device(ieee_str)
         if not zha_device:
             _LOGGER.error("ZHA device not found: %s", ieee_str)
@@ -533,15 +577,21 @@ class ZHABackend:
                 )
                 return False
 
-            # Register attribute on cluster if not already defined.
-            # zigpy's write_attributes() skips unknown attribute IDs,
-            # so we must add our custom Aqara attributes to the cluster's
-            # definition before writing.
-            _ensure_aqara_attributes(cluster)
+            zcl_type = AQARA_ATTR_ZCL_TYPES.get(attribute)
+            if zcl_type is None:
+                _LOGGER.error(
+                    "No ZCL type mapping for attribute 0x%04X", attribute
+                )
+                return False
 
-            result = await cluster.write_attributes(
-                {attribute: value},
-                manufacturer=AQARA_MANUFACTURER_CODE,
+            # Build raw Attribute object to bypass find_attribute() lookup
+            attr = foundation.Attribute(
+                attrid=attribute,
+                value=foundation.TypeValue(type=zcl_type, value=value),
+            )
+
+            result = await cluster._write_attributes(
+                [attr], manufacturer=AQARA_MANUFACTURER_CODE
             )
 
             _LOGGER.debug(
@@ -770,46 +820,6 @@ class ZHABackend:
         ]
         await asyncio.gather(*tasks, return_exceptions=True)
 
-    # --- State ---
-
-    async def async_restore_state(
-        self,
-        entity_id: str,
-        state_data: dict[str, Any],
-    ) -> None:
-        """Restore previous state to a device using HA service calls.
-
-        Translates state_data fields into light.turn_on parameters.
-        """
-        context = (
-            self._entity_controller.create_context()
-            if self._entity_controller
-            else None
-        )
-
-        service_data: dict[str, Any] = {"entity_id": entity_id}
-
-        if "brightness" in state_data:
-            service_data["brightness"] = state_data["brightness"]
-        if "color_temp_kelvin" in state_data:
-            service_data["color_temp_kelvin"] = state_data["color_temp_kelvin"]
-        if "color" in state_data:
-            color = state_data["color"]
-            if isinstance(color, dict) and "r" in color:
-                service_data["rgb_color"] = [color["r"], color["g"], color["b"]]
-        if "xy_color" in state_data:
-            service_data["xy_color"] = state_data["xy_color"]
-
-        _LOGGER.debug("Restoring state for %s: %s", entity_id, service_data)
-
-        await self.hass.services.async_call(
-            "light",
-            "turn_on",
-            service_data,
-            blocking=True,
-            context=context,
-        )
-
     # --- CCT (uses HA light service, backend-agnostic) ---
 
     async def async_publish_cct_step(
@@ -887,6 +897,82 @@ class ZHABackend:
             blocking=True,
             context=context,
         )
+
+    # --- Music sync (T1 Strip only) ---
+
+    async def async_send_music_sync(
+        self,
+        entity_id: str,
+        enabled: bool,
+        sensitivity: str,
+        effect: str,
+    ) -> None:
+        """Send music sync configuration to a T1 Strip device.
+
+        Writes audio enable, effect, and sensitivity attributes to the
+        manufacturer-specific cluster. Enable is written first, then
+        effect and sensitivity when enabling.
+
+        Args:
+            entity_id: The Home Assistant entity ID
+            enabled: Whether to enable or disable audio-reactive mode
+            sensitivity: Audio sensitivity level ("low" or "high")
+            effect: Audio effect type ("random", "blink", "rainbow", "wave")
+        """
+        import zigpy.types as zigpy_t
+
+        ieee_str = self._entity_to_ieee.get(entity_id)
+        if not ieee_str:
+            _LOGGER.warning(
+                "Cannot send music sync: entity %s not mapped", entity_id
+            )
+            return
+
+        await self._write_cluster_attribute(
+            ieee_str, ATTR_AUDIO_ENABLE, zigpy_t.uint8_t(1 if enabled else 0)
+        )
+
+        if enabled:
+            effect_value = MUSIC_SYNC_EFFECT_ENUM.get(effect, 0)
+            sensitivity_value = MUSIC_SYNC_SENSITIVITY_ENUM.get(sensitivity, 0)
+
+            await self._write_cluster_attribute(
+                ieee_str, ATTR_AUDIO_EFFECT, zigpy_t.uint32_t(effect_value)
+            )
+            await self._write_cluster_attribute(
+                ieee_str,
+                ATTR_AUDIO_SENSITIVITY,
+                zigpy_t.uint8_t(sensitivity_value),
+            )
+
+        _LOGGER.debug(
+            "Sent music sync to %s: enabled=%s, effect=%s, sensitivity=%s",
+            entity_id,
+            enabled,
+            effect,
+            sensitivity,
+        )
+
+    async def async_stop_music_sync(self, entity_id: str) -> None:
+        """Stop music sync on a T1 Strip device.
+
+        Args:
+            entity_id: The Home Assistant entity ID
+        """
+        import zigpy.types as zigpy_t
+
+        ieee_str = self._entity_to_ieee.get(entity_id)
+        if not ieee_str:
+            _LOGGER.warning(
+                "Cannot stop music sync: entity %s not mapped", entity_id
+            )
+            return
+
+        await self._write_cluster_attribute(
+            ieee_str, ATTR_AUDIO_ENABLE, zigpy_t.uint8_t(0)
+        )
+
+        _LOGGER.debug("Stopped music sync on %s", entity_id)
 
     # --- Device-specific ---
 

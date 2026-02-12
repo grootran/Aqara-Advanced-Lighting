@@ -213,6 +213,9 @@
     },
     "start_segment_sequence_failed": {
       "message": "Failed to start segment sequence for {entity_id}: {error}. Please check that the device is available and try again."
+    },
+    "music_sync_t1_strip_only": {
+      "message": "Music sync is only supported on T1 LED Strip devices. Device {device} (model: {model}) does not support this feature."
     }
   },
   "services": {
@@ -747,6 +750,28 @@
         "entity_id": {
           "name": "Light entity",
           "description": "The light entity or group to control."
+        }
+      }
+    },
+    "set_music_sync": {
+      "name": "Set music sync",
+      "description": "Enable or disable audio-reactive music sync mode on T1 LED Strip devices. The strip reacts to ambient sound with the selected effect and sensitivity.",
+      "fields": {
+        "entity_id": {
+          "name": "Light entity",
+          "description": "The T1 LED Strip entity to control."
+        },
+        "enabled": {
+          "name": "Enabled",
+          "description": "Turn music sync on or off."
+        },
+        "sensitivity": {
+          "name": "Sensitivity",
+          "description": "Audio sensitivity level (low or high)."
+        },
+        "audio_effect": {
+          "name": "Audio effect",
+          "description": "The audio-reactive effect pattern to use."
         }
       }
     }

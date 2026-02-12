@@ -30,6 +30,7 @@ from .const import (
     ATTR_SEGMENTS,
     DATA_CCT_SEQUENCE_MANAGER,
     DATA_DYNAMIC_SCENE_MANAGER,
+    DATA_ACTIVE_MUSIC_SYNC,
     DATA_ENTITY_CONTROLLER,
     DATA_FAVORITES_STORE,
     DATA_PRESET_STORE,
@@ -1659,6 +1660,18 @@ class RunningOperationsView(HomeAssistantView):
                         "paused": scene_info.paused,
                         "externally_paused_entities": ext_paused_entities,
                     })
+
+            # Music sync (per-entity, firmware-managed)
+            active_music_sync = instance_data.get(DATA_ACTIVE_MUSIC_SYNC, {})
+            for entity_id, sync_info in active_music_sync.items():
+                operations.append({
+                    "type": "music_sync",
+                    "entity_id": entity_id,
+                    "preset_id": None,
+                    "paused": False,
+                    "sensitivity": sync_info.get("sensitivity", "low"),
+                    "audio_effect": sync_info.get("audio_effect", "random"),
+                })
 
         return web.json_response({"operations": operations})
 

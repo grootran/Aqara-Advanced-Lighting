@@ -26,6 +26,9 @@ from .const import (
     MODEL_T2_CCT_E27,
     MODEL_T2_CCT_GU10_110V,
     MODEL_T2_CCT_GU10_230V,
+    PAYLOAD_AUDIO,
+    PAYLOAD_AUDIO_EFFECT,
+    PAYLOAD_AUDIO_SENSITIVITY,
     PAYLOAD_SEGMENT_COLORS,
     TOPIC_Z2M_BRIDGE_DEVICES,
 )
@@ -493,28 +496,6 @@ class MQTTBackend:
 
         await mqtt.async_publish(self.hass, topic, json.dumps(payload))
 
-    async def async_restore_state(
-        self,
-        z2m_friendly_name: str,
-        state_data: dict[str, Any],
-        z2m_base_topic: str | None = None,
-    ) -> None:
-        """Restore previous state to Z2M device.
-
-        Args:
-            z2m_friendly_name: The Z2M device friendly name
-            state_data: The state data to restore
-            z2m_base_topic: Optional custom Z2M base topic override
-        """
-        base_topic = self._get_base_topic(z2m_base_topic)
-        topic = f"{base_topic}/{z2m_friendly_name}/set"
-
-        _LOGGER.debug(
-            "Restoring state for %s: %s", z2m_friendly_name, state_data
-        )
-
-        await mqtt.async_publish(self.hass, topic, json.dumps(state_data))
-
     async def async_publish_batch_effects(
         self,
         entities_effects: list[tuple[str, DynamicEffect]],
@@ -916,6 +897,76 @@ class MQTTBackend:
             )
             return
         await self.async_set_t2_transition_curve(z2m_name, curvature)
+
+    async def async_publish_music_sync(
+        self,
+        z2m_friendly_name: str,
+        enabled: bool,
+        sensitivity: str,
+        effect: str,
+        z2m_base_topic: str | None = None,
+    ) -> None:
+        """Publish music sync configuration to Z2M device.
+
+        Args:
+            z2m_friendly_name: The Z2M device friendly name
+            enabled: Whether to enable or disable audio mode
+            sensitivity: Audio sensitivity ("low" or "high")
+            effect: Audio effect ("random", "blink", "rainbow", "wave")
+            z2m_base_topic: Optional custom Z2M base topic override
+        """
+        base_topic = self._get_base_topic(z2m_base_topic)
+        topic = f"{base_topic}/{z2m_friendly_name}/set"
+
+        payload: dict[str, str] = {
+            PAYLOAD_AUDIO: "ON" if enabled else "OFF",
+        }
+        if enabled:
+            payload[PAYLOAD_AUDIO_SENSITIVITY] = sensitivity
+            payload[PAYLOAD_AUDIO_EFFECT] = effect
+
+        _LOGGER.debug(
+            "Publishing music sync to %s: %s", z2m_friendly_name, payload
+        )
+
+        await mqtt.async_publish(self.hass, topic, json.dumps(payload))
+
+    async def async_send_music_sync(
+        self,
+        entity_id: str,
+        enabled: bool,
+        sensitivity: str,
+        effect: str,
+    ) -> None:
+        """Send music sync configuration via the protocol interface.
+
+        Args:
+            entity_id: The Home Assistant entity ID
+            enabled: Whether to enable or disable audio mode
+            sensitivity: Audio sensitivity ("low" or "high")
+            effect: Audio effect ("random", "blink", "rainbow", "wave")
+        """
+        z2m_name = self.get_z2m_friendly_name(entity_id)
+        if not z2m_name:
+            _LOGGER.warning(
+                "Cannot send music sync: entity %s not mapped", entity_id
+            )
+            return
+        await self.async_publish_music_sync(z2m_name, enabled, sensitivity, effect)
+
+    async def async_stop_music_sync(self, entity_id: str) -> None:
+        """Stop music sync on a device via the protocol interface.
+
+        Args:
+            entity_id: The Home Assistant entity ID
+        """
+        z2m_name = self.get_z2m_friendly_name(entity_id)
+        if not z2m_name:
+            _LOGGER.warning(
+                "Cannot stop music sync: entity %s not mapped", entity_id
+            )
+            return
+        await self.async_publish_music_sync(z2m_name, enabled=False, sensitivity="low", effect="random")
 
     async def async_read_device_config(
         self,

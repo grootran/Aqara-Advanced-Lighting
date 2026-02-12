@@ -66,6 +66,9 @@ ATTR_RESTORE_STATE: Final = "restore_state"
 ATTR_MODE: Final = "mode"
 ATTR_DURATION: Final = "duration"
 ATTR_ACTIVATION_PATTERN: Final = "activation_pattern"
+ATTR_ENABLED: Final = "enabled"
+ATTR_SENSITIVITY: Final = "sensitivity"
+ATTR_AUDIO_EFFECT: Final = "audio_effect"
 
 # MQTT topics
 TOPIC_Z2M_BRIDGE_DEVICES: Final = "bridge/devices"
@@ -171,6 +174,47 @@ ACTIVATION_PING_PONG: Final = "ping_pong"
 ACTIVATION_CENTER_OUT: Final = "center_out"
 ACTIVATION_EDGES_IN: Final = "edges_in"
 ACTIVATION_PAIRED: Final = "paired"
+
+# Music sync constants (T1 Strip audio-reactive mode)
+MUSIC_SYNC_SENSITIVITY_LOW: Final = "low"
+MUSIC_SYNC_SENSITIVITY_HIGH: Final = "high"
+MUSIC_SYNC_EFFECT_RANDOM: Final = "random"
+MUSIC_SYNC_EFFECT_BLINK: Final = "blink"
+MUSIC_SYNC_EFFECT_RAINBOW: Final = "rainbow"
+MUSIC_SYNC_EFFECT_WAVE: Final = "wave"
+
+VALID_MUSIC_SYNC_SENSITIVITIES: Final = {
+    MUSIC_SYNC_SENSITIVITY_LOW,
+    MUSIC_SYNC_SENSITIVITY_HIGH,
+}
+
+VALID_MUSIC_SYNC_EFFECTS: Final = {
+    MUSIC_SYNC_EFFECT_RANDOM,
+    MUSIC_SYNC_EFFECT_BLINK,
+    MUSIC_SYNC_EFFECT_RAINBOW,
+    MUSIC_SYNC_EFFECT_WAVE,
+}
+
+# Music sync Z2M MQTT payload keys
+PAYLOAD_AUDIO: Final = "audio"
+PAYLOAD_AUDIO_SENSITIVITY: Final = "audio_sensitivity"
+PAYLOAD_AUDIO_EFFECT: Final = "audio_effect"
+
+# Music sync ZHA enum mappings
+MUSIC_SYNC_EFFECT_ENUM: Final = {
+    MUSIC_SYNC_EFFECT_RANDOM: 0,
+    MUSIC_SYNC_EFFECT_BLINK: 1,
+    MUSIC_SYNC_EFFECT_RAINBOW: 2,
+    MUSIC_SYNC_EFFECT_WAVE: 3,
+}
+
+MUSIC_SYNC_SENSITIVITY_ENUM: Final = {
+    MUSIC_SYNC_SENSITIVITY_LOW: 0,
+    MUSIC_SYNC_SENSITIVITY_HIGH: 2,
+}
+
+# Runtime data key for active music sync tracking
+DATA_ACTIVE_MUSIC_SYNC: Final = "active_music_sync"
 
 # Segment sequence constraints
 MIN_SEGMENT_COLORS: Final = 1
@@ -297,6 +341,7 @@ INTEGRATION_CONTEXT_PARENT_ID: Final = "aal_entity_control"
 DATA_ENTITY_CONTROLLER: Final = "entity_controller"
 EVENT_ENTITY_EXTERNALLY_CONTROLLED: Final = f"{DOMAIN}_entity_externally_controlled"
 EVENT_ENTITY_CONTROL_RESUMED: Final = f"{DOMAIN}_entity_control_resumed"
+SERVICE_SET_MUSIC_SYNC: Final = "set_music_sync"
 SERVICE_RESUME_ENTITY_CONTROL: Final = "resume_entity_control"
 ENTITY_CONTROL_GRACE_SECONDS: Final = 8.0
 

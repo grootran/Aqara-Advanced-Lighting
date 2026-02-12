@@ -12,7 +12,7 @@ from homeassistant.const import (
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Context, HomeAssistant
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
@@ -291,6 +291,59 @@ class StateManager:
                 payload["color_temp_kelvin"] = color_temp_kelvin
 
         return payload
+
+    async def async_restore_entity_state(
+        self,
+        entity_id: str,
+        *,
+        blocking: bool = True,
+        context: Context | None = None,
+    ) -> bool:
+        """Restore a light entity to its previously captured state.
+
+        Reads the stored restoration payload and applies it via HA light
+        service calls. Handles on/off, brightness, color, and color
+        temperature based on the original color_mode.
+
+        Args:
+            entity_id: The Home Assistant light entity ID
+            blocking: Whether to wait for the service call to complete
+            context: Optional HA context for the service call
+
+        Returns:
+            True if state was restored, False if no stored state found.
+        """
+        payload = self.get_restoration_payload(entity_id)
+        if not payload:
+            return False
+
+        service_data: dict[str, Any] = {"entity_id": entity_id}
+
+        if payload.get("state") == STATE_OFF:
+            await self.hass.services.async_call(
+                "light", "turn_off", service_data,
+                blocking=blocking, context=context,
+            )
+            return True
+
+        if "brightness" in payload:
+            service_data["brightness"] = payload["brightness"]
+
+        if "xy_color" in payload:
+            xy = payload["xy_color"]
+            service_data["xy_color"] = [xy["x"], xy["y"]]
+        elif "color" in payload:
+            color = payload["color"]
+            service_data["rgb_color"] = [color["r"], color["g"], color["b"]]
+
+        if "color_temp_kelvin" in payload:
+            service_data["color_temp_kelvin"] = payload["color_temp_kelvin"]
+
+        await self.hass.services.async_call(
+            "light", "turn_on", service_data,
+            blocking=blocking, context=context,
+        )
+        return True
 
     def clear_state(self, entity_id: str) -> None:
         """Clear stored state for an entity."""
