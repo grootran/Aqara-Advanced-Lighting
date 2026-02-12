@@ -4786,11 +4786,11 @@ export class AqaraPanel extends LitElement {
 
     const onOffDurationValue = onOffDurationEntity && this.hass?.states[onOffDurationEntity]
       ? parseFloat(this.hass.states[onOffDurationEntity].state) || 0
-      : 0;
+      : isZha ? this._getZhaConfigValue('on_off_duration', 0) : 0;
 
     const offOnDurationValue = offOnDurationEntity && this.hass?.states[offOnDurationEntity]
       ? parseFloat(this.hass.states[offOnDurationEntity].state) || 0
-      : 0;
+      : isZha ? this._getZhaConfigValue('off_on_duration', 0) : 0;
 
     const dimmingRangeMinValue = dimmingRangeMinEntity && this.hass?.states[dimmingRangeMinEntity]
       ? parseFloat(this.hass.states[dimmingRangeMinEntity].state) || 1
@@ -5040,10 +5040,10 @@ export class AqaraPanel extends LitElement {
                           },
                         }}
                         .value=${onOffDurationValue}
-                        @value-changed=${(e: CustomEvent) => this._handleDimmingSettingChange(e, 'on_off_duration', 'off_transition_time')}
-                        ?disabled=${!onOffDurationEntity}
+                        @value-changed=${(e: CustomEvent) => this._handleOnOffDurationChange(e)}
+                        ?disabled=${!onOffDurationEntity && !isZha}
                       ></ha-selector>
-                      ${!onOffDurationEntity ? html`
+                      ${!onOffDurationEntity && !isZha ? html`
                         <div class="entity-not-found">${this._localize('config.entity_not_found')}</div>
                       ` : ''}
                     </div>
@@ -5063,10 +5063,10 @@ export class AqaraPanel extends LitElement {
                           },
                         }}
                         .value=${offOnDurationValue}
-                        @value-changed=${(e: CustomEvent) => this._handleDimmingSettingChange(e, 'off_on_duration', 'on_transition_time')}
-                        ?disabled=${!offOnDurationEntity}
+                        @value-changed=${(e: CustomEvent) => this._handleOffOnDurationChange(e)}
+                        ?disabled=${!offOnDurationEntity && !isZha}
                       ></ha-selector>
-                      ${!offOnDurationEntity ? html`
+                      ${!offOnDurationEntity && !isZha ? html`
                         <div class="entity-not-found">${this._localize('config.entity_not_found')}</div>
                       ` : ''}
                     </div>
@@ -5633,15 +5633,14 @@ export class AqaraPanel extends LitElement {
   }
 
   private _findOnOffDurationEntity(): string | undefined {
-    // Z2M: on_off_duration, ZHA: off_transition_time (both = on-to-off dimming)
-    return this._findDimmingEntity('on_off_duration')
-      ?? this._findDimmingEntity('off_transition_time');
+    // Z2M only -- ZHA transition times are handled via REST API
+    // (ZHA's auto-created number entities have endpoint/scaling issues)
+    return this._findDimmingEntity('on_off_duration');
   }
 
   private _findOffOnDurationEntity(): string | undefined {
-    // Z2M: off_on_duration, ZHA: on_transition_time (both = off-to-on dimming)
-    return this._findDimmingEntity('off_on_duration')
-      ?? this._findDimmingEntity('on_transition_time');
+    // Z2M only -- ZHA transition times are handled via REST API
+    return this._findDimmingEntity('off_on_duration');
   }
 
   private _findDimmingRangeMinEntity(): string | undefined {
@@ -5734,6 +5733,40 @@ export class AqaraPanel extends LitElement {
       await this._handleDimmingSettingChange(e, 'dimming_range_maximum');
     } else if (isZha) {
       await this._setZhaDeviceConfig('dimming_range_max', newMax);
+    }
+  }
+
+  private async _handleOnOffDurationChange(e: CustomEvent): Promise<void> {
+    const entity = this._findOnOffDurationEntity();
+    const isZha = this._hasZhaEntity();
+    if (!this.hass || (!entity && !isZha)) return;
+
+    const value = e.detail.value;
+    if (typeof value !== 'number') return;
+
+    if (entity) {
+      // Z2M path: write via number entity
+      await this._handleDimmingSettingChange(e, 'on_off_duration');
+    } else if (isZha) {
+      // ZHA path: write to genLevelCtrl via REST API (with x10 scaling on backend)
+      await this._setZhaDeviceConfig('on_off_duration', value);
+    }
+  }
+
+  private async _handleOffOnDurationChange(e: CustomEvent): Promise<void> {
+    const entity = this._findOffOnDurationEntity();
+    const isZha = this._hasZhaEntity();
+    if (!this.hass || (!entity && !isZha)) return;
+
+    const value = e.detail.value;
+    if (typeof value !== 'number') return;
+
+    if (entity) {
+      // Z2M path: write via number entity
+      await this._handleDimmingSettingChange(e, 'off_on_duration');
+    } else if (isZha) {
+      // ZHA path: write to genLevelCtrl via REST API (with x10 scaling on backend)
+      await this._setZhaDeviceConfig('off_on_duration', value);
     }
   }
 

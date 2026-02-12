@@ -50,6 +50,11 @@ _LOGGER = logging.getLogger(__name__)
 AQARA_MANUFACTURER_CODE = 0x115F
 CLUSTER_MANU_SPECIFIC_LUMI = 0xFCC0
 
+# Standard ZCL cluster for transition time attributes
+CLUSTER_GEN_LEVEL_CTRL = 0x0008
+ATTR_ON_TRANSITION_TIME = 0x0012    # Off-to-on transition (Z2M: off_on_duration)
+ATTR_OFF_TRANSITION_TIME = 0x0013   # On-to-off transition (Z2M: on_off_duration)
+
 # Attribute IDs for cluster 0xFCC0
 ATTR_DIMMING_RANGE_MIN = 0x0515
 ATTR_DIMMING_RANGE_MAX = 0x0516
@@ -225,6 +230,31 @@ def _ensure_aqara_attributes(cluster: Any) -> None:
                     }
                 except Exception:  # noqa: BLE001
                     pass  # Best-effort; writes use raw path anyway
+
+
+def _to_zigpy_type(zcl_type: int, value: Any) -> Any:
+    """Convert a plain Python value to the appropriate zigpy typed value.
+
+    TypeValue.serialize() calls value.serialize(), so values must be zigpy
+    type instances (uint8_t, uint32_t, Single, LVBytes) not plain int/float.
+    If the value already has a serialize() method, it is returned as-is.
+    """
+    if hasattr(value, "serialize"):
+        return value
+
+    import zigpy.types as zigpy_t
+
+    match zcl_type:
+        case 0x20:  # uint8
+            return zigpy_t.uint8_t(value)
+        case 0x23:  # uint32
+            return zigpy_t.uint32_t(value)
+        case 0x39:  # float32 (Single)
+            return zigpy_t.Single(value)
+        case 0x41:  # octet string (LVBytes)
+            return zigpy_t.LVBytes(value)
+        case _:
+            return value
 
 
 def _get_device_family(model_id: str) -> str | None:
@@ -584,10 +614,15 @@ class ZHABackend:
                 )
                 return False
 
+            # Ensure value is a zigpy typed object with serialize() method.
+            # Callers may pass plain Python int/float (e.g. from REST API);
+            # TypeValue.serialize() requires value.serialize().
+            typed_value = _to_zigpy_type(zcl_type, value)
+
             # Build raw Attribute object to bypass find_attribute() lookup
             attr = foundation.Attribute(
                 attrid=attribute,
-                value=foundation.TypeValue(type=zcl_type, value=value),
+                value=foundation.TypeValue(type=zcl_type, value=typed_value),
             )
 
             result = await cluster._write_attributes(
@@ -606,6 +641,135 @@ class ZHABackend:
         except Exception:
             _LOGGER.exception(
                 "Failed to write attribute 0x%04X to %s", attribute, ieee_str
+            )
+            return False
+
+    async def _read_transition_times(
+        self,
+        ieee_str: str,
+    ) -> dict[str, float]:
+        """Read transition time attributes from genLevelCtrl on endpoint 1.
+
+        These are standard ZCL attributes (not manufacturer-specific), stored
+        in 1/10th-second units. Returned values are converted to seconds to
+        match the frontend slider (0-10s, step 0.1).
+
+        Returns:
+            Dict with "on_off_duration" and/or "off_on_duration" in seconds.
+        """
+        zha_device = self._get_zha_device(ieee_str)
+        if not zha_device:
+            return {}
+
+        try:
+            zigpy_device = zha_device.device
+            endpoint = zigpy_device.endpoints.get(DEFAULT_ENDPOINT)
+            if not endpoint:
+                return {}
+
+            cluster = endpoint.in_clusters.get(CLUSTER_GEN_LEVEL_CTRL)
+            if not cluster:
+                return {}
+
+            # read_attributes returns (success_dict, failure_list)
+            result = await cluster.read_attributes(
+                [ATTR_ON_TRANSITION_TIME, ATTR_OFF_TRANSITION_TIME]
+            )
+            success = result[0] if result else {}
+
+            config: dict[str, float] = {}
+            if ATTR_ON_TRANSITION_TIME in success:
+                raw = success[ATTR_ON_TRANSITION_TIME]
+                if raw is not None:
+                    config["off_on_duration"] = int(raw) / 10.0
+            if ATTR_OFF_TRANSITION_TIME in success:
+                raw = success[ATTR_OFF_TRANSITION_TIME]
+                if raw is not None:
+                    config["on_off_duration"] = int(raw) / 10.0
+
+            _LOGGER.debug(
+                "Read transition times from %s: %s", ieee_str, config
+            )
+            return config
+
+        except Exception:
+            _LOGGER.exception(
+                "Failed to read transition times from %s", ieee_str
+            )
+            return {}
+
+    async def _write_transition_time(
+        self,
+        ieee_str: str,
+        setting: str,
+        value: float,
+    ) -> bool:
+        """Write a transition time attribute to genLevelCtrl on endpoint 1.
+
+        Uses standard ZCL write_attributes (not the raw _write_attributes
+        bypass used for manufacturer-specific attributes). The frontend sends
+        values in seconds; this method converts to 1/10th-second units with
+        the same x10 scale factor used by the Z2M converter.
+
+        Args:
+            ieee_str: Device IEEE address string.
+            setting: "on_off_duration" or "off_on_duration".
+            value: Transition time in seconds (0-10).
+
+        Returns:
+            True on success, False on failure.
+        """
+        attr_id = {
+            "on_off_duration": ATTR_OFF_TRANSITION_TIME,   # 0x0013
+            "off_on_duration": ATTR_ON_TRANSITION_TIME,    # 0x0012
+        }.get(setting)
+
+        if attr_id is None:
+            _LOGGER.warning("Unknown transition time setting: %s", setting)
+            return False
+
+        zha_device = self._get_zha_device(ieee_str)
+        if not zha_device:
+            _LOGGER.error("ZHA device not found: %s", ieee_str)
+            return False
+
+        try:
+            zigpy_device = zha_device.device
+            endpoint = zigpy_device.endpoints.get(DEFAULT_ENDPOINT)
+            if not endpoint:
+                _LOGGER.error(
+                    "Endpoint %d not found on %s", DEFAULT_ENDPOINT, ieee_str
+                )
+                return False
+
+            cluster = endpoint.in_clusters.get(CLUSTER_GEN_LEVEL_CTRL)
+            if not cluster:
+                _LOGGER.error(
+                    "Cluster 0x%04X not found on %s endpoint %d",
+                    CLUSTER_GEN_LEVEL_CTRL,
+                    ieee_str,
+                    DEFAULT_ENDPOINT,
+                )
+                return False
+
+            # Convert seconds to 1/10s units (matching Z2M scale: 10)
+            raw_value = round(value * 10)
+
+            # Standard ZCL attribute -- use normal write_attributes API
+            await cluster.write_attributes({attr_id: raw_value})
+
+            _LOGGER.debug(
+                "Wrote transition time %s to %s: %.1fs (raw: %d)",
+                setting,
+                ieee_str,
+                value,
+                raw_value,
+            )
+            return True
+
+        except Exception:
+            _LOGGER.exception(
+                "Failed to write transition time %s to %s", setting, ieee_str
             )
             return False
 
@@ -1008,8 +1172,8 @@ class ZHABackend:
     _CONFIG_SETTINGS: dict[str, tuple[int, set[str] | None]] = {
         "dimming_range_min": (ATTR_DIMMING_RANGE_MIN, None),
         "dimming_range_max": (ATTR_DIMMING_RANGE_MAX, None),
-        "transition_curve": (ATTR_TRANSITION_CURVE, {"t2_bulb"}),
-        "initial_brightness": (ATTR_INITIAL_BRIGHTNESS, {"t2_bulb"}),
+        "transition_curve": (ATTR_TRANSITION_CURVE, {"t2_bulb", "t2_cct"}),
+        "initial_brightness": (ATTR_INITIAL_BRIGHTNESS, {"t2_bulb", "t2_cct"}),
         "strip_length": (ATTR_STRIP_LENGTH, {"strip"}),
     }
 
@@ -1057,6 +1221,9 @@ class ZHABackend:
             if value is not None:
                 config[setting_name] = value
 
+        # Read transition times from genLevelCtrl (standard ZCL, not mfr-specific)
+        config.update(await self._read_transition_times(ieee_str))
+
         _LOGGER.debug(
             "Read device config for %s (%s): %s",
             entity_id,
@@ -1090,6 +1257,18 @@ class ZHABackend:
         device_family = _get_device_family(device.model_id)
         if not device_family:
             return False
+
+        # Handle transition time settings (genLevelCtrl, not mfr-specific)
+        if setting in ("on_off_duration", "off_on_duration"):
+            numeric_value = float(value)
+            if numeric_value < 0 or numeric_value > 10:
+                _LOGGER.warning(
+                    "Value %s out of range for %s (0-10)", value, setting
+                )
+                return False
+            return await self._write_transition_time(
+                ieee_str, setting, numeric_value
+            )
 
         # Validate setting name
         setting_info = self._CONFIG_SETTINGS.get(setting)
