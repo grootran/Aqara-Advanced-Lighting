@@ -86,6 +86,19 @@ body:
       required: false
 
   - type: dropdown
+    id: zigbee_backend
+    attributes:
+      label: Zigbee Backend
+      description: Which Zigbee backend(s) should this feature support?
+      multiple: true
+      options:
+        - Zigbee2MQTT
+        - ZHA (Zigbee Home Automation)
+        - Both / Not backend-specific
+    validations:
+      required: true
+
+  - type: dropdown
     id: device_models
     attributes:
       label: Applicable Device Models
@@ -95,6 +108,7 @@ body:
         - T1M (20/26 segment ring light)
         - T1 Strip (RGB LED strip)
         - T2 RGB/CCT bulb
+        - T2 CCT bulb
         - All devices
         - Not device-specific
     validations:
@@ -106,8 +120,9 @@ body:
       label: Technical Details
       description: |
         If you have technical knowledge, provide details about how this might be implemented:
-        - MQTT messages or commands
-        - Zigbee2MQTT capabilities
+        - MQTT messages or commands (Zigbee2MQTT)
+        - Zigbee cluster attributes or commands (ZHA/zigpy)
+        - Zigbee2MQTT or ZHA capabilities
         - Home Assistant patterns
         - API considerations
       placeholder: Any technical details or implementation ideas

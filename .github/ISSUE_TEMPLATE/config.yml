@@ -12,3 +12,6 @@ contact_links:
   - name: Zigbee2MQTT Documentation
     url: https://www.zigbee2mqtt.io/
     about: Zigbee2MQTT setup and device-specific information
+  - name: ZHA Documentation
+    url: https://www.home-assistant.io/integrations/zha/
+    about: ZHA (Zigbee Home Automation) setup and device information
