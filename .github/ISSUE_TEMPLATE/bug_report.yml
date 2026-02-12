@@ -39,14 +39,45 @@ body:
     validations:
       required: true
 
+  - type: dropdown
+    id: zigbee_backend
+    attributes:
+      label: Zigbee Backend
+      description: Which Zigbee backend are you using?
+      options:
+        - Zigbee2MQTT
+        - ZHA (Zigbee Home Automation)
+    validations:
+      required: true
+
   - type: input
     id: z2m_version
     attributes:
       label: Zigbee2MQTT Version
-      description: What version of Zigbee2MQTT are you using?
+      description: If using Zigbee2MQTT, what version are you running?
       placeholder: "e.g., 2.7.2"
     validations:
-      required: true
+      required: false
+
+  - type: input
+    id: zha_versions
+    attributes:
+      label: ZHA / zigpy Versions
+      description: |
+        If using ZHA, provide your ZHA and zigpy versions. You can find these in
+        Settings > Devices & Services > ZHA > Configure > Network settings.
+      placeholder: "e.g., zha 0.0.80, zigpy 0.87.0"
+    validations:
+      required: false
+
+  - type: input
+    id: zigbee_coordinator
+    attributes:
+      label: Zigbee Coordinator
+      description: What Zigbee coordinator hardware are you using?
+      placeholder: "e.g., Sonoff ZBDongle-E, ConBee II, SkyConnect"
+    validations:
+      required: false
 
   - type: dropdown
     id: device_model
@@ -59,6 +90,10 @@ body:
         - T1 Strip (RGB LED strip)
         - T2 RGB/CCT bulb (E26)
         - T2 RGB/CCT bulb (E27)
+        - T2 RGB/CCT bulb (GU10)
+        - T2 CCT bulb (E26)
+        - T2 CCT bulb (E27)
+        - T2 CCT bulb (GU10)
         - Multiple devices
         - Not device-specific
     validations:
@@ -115,6 +150,14 @@ body:
           logs:
             custom_components.aqara_advanced_lighting: debug
         ```
+        For ZHA users, also enable ZHA and zigpy debug logging if the issue involves Zigbee communication:
+        ```yaml
+        logger:
+          logs:
+            custom_components.aqara_advanced_lighting: debug
+            homeassistant.components.zha: debug
+            zigpy: debug
+        ```
         Then restart Home Assistant and reproduce the issue.
       placeholder: Paste your logs here
       render: shell
@@ -127,7 +170,9 @@ body:
       label: Configuration
       description: |
         If relevant, provide your integration configuration (redact any sensitive information).
-        Include Z2M base topic, device names, and any relevant automation/script configurations.
+        - **Zigbee2MQTT users**: Include Z2M base topic and device names
+        - **ZHA users**: Include the device model ID shown in ZHA device info and any ZHA quirks applied
+        - Include any relevant automation/script configurations
       placeholder: Paste your configuration here
       render: yaml
     validations:
@@ -140,10 +185,11 @@ body:
       description: |
         Add any other context about the problem here:
         - Screenshots or videos
-        - Device-specific settings in Zigbee2MQTT
+        - Device-specific settings (in Zigbee2MQTT or ZHA device page)
         - Browser console errors (for panel issues)
         - Network configuration
         - Other integrations that might be related
+        - For ZHA: whether the device has any custom quirks applied
       placeholder: Any additional information that might help
     validations:
       required: false

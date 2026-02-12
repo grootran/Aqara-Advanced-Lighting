@@ -58,6 +58,19 @@ body:
         - T1 Strip (RGB LED strip)
         - T2 RGB/CCT bulb (E26)
         - T2 RGB/CCT bulb (E27)
+        - T2 RGB/CCT bulb (GU10)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: zigbee_backend
+    attributes:
+      label: Zigbee Backend Tested
+      description: Which Zigbee backend did you test this preset with?
+      multiple: true
+      options:
+        - Zigbee2MQTT
+        - ZHA (Zigbee Home Automation)
     validations:
       required: true
 
