@@ -282,12 +282,13 @@ class StateManager:
             elif color := previous_state.get("color"):
                 payload["color"] = color
         else:
-            # Unknown or no color_mode - restore best available
+            # Unknown or no color_mode - prefer color over color_temp to avoid
+            # sending conflicting color instructions in the same service call
             if xy_color := previous_state.get("xy_color"):
                 payload["xy_color"] = xy_color
             elif color := previous_state.get("color"):
                 payload["color"] = color
-            if color_temp_kelvin := previous_state.get("color_temp_kelvin"):
+            elif color_temp_kelvin := previous_state.get("color_temp_kelvin"):
                 payload["color_temp_kelvin"] = color_temp_kelvin
 
         return payload

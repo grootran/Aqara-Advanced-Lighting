@@ -920,6 +920,10 @@ class DynamicSceneManager:
                 color.brightness_pct
             )
 
+            # Record command timestamp to suppress state echo detection
+            if self._entity_controller:
+                self._entity_controller.record_command(entity_id)
+
             # Send XY color directly for better precision (avoids RGB conversion loss)
             await self.hass.services.async_call(
                 "light",

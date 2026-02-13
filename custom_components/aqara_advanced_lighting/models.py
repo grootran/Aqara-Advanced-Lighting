@@ -320,8 +320,6 @@ class DeviceState:
     effect_active: bool
     current_effect: DynamicEffect | None = None
     current_preset: str | None = None  # Preset name for event tracking
-    paused_cct_sequence: bool = False
-    paused_segment_sequence: bool = False
     device_identifier: str = ""  # Backend-agnostic device identifier
 
     def to_dict(self) -> dict[str, Any]:
@@ -344,8 +342,6 @@ class DeviceState:
                 else None
             ),
             "current_preset": self.current_preset,
-            "paused_cct_sequence": self.paused_cct_sequence,
-            "paused_segment_sequence": self.paused_segment_sequence,
         }
 
 

@@ -702,11 +702,10 @@ class MQTTBackend:
         if transition is not None:
             service_data["transition"] = transition
 
-        context = (
-            self._entity_controller.create_context()
-            if self._entity_controller
-            else None
-        )
+        context = None
+        if self._entity_controller:
+            self._entity_controller.record_command(entity_id)
+            context = self._entity_controller.create_context()
 
         _LOGGER.debug("Setting CCT values via HA service: %s", service_data)
         await self.hass.services.async_call(
@@ -968,26 +967,3 @@ class MQTTBackend:
             return
         await self.async_publish_music_sync(z2m_name, enabled=False, sensitivity="low", effect="random")
 
-    async def async_read_device_config(
-        self,
-        entity_id: str,  # noqa: ARG002
-    ) -> dict[str, Any]:
-        """Read hardware config attributes -- not used for Z2M.
-
-        Z2M exposes config via number entities; the frontend reads those
-        directly. Returns empty dict.
-        """
-        return {}
-
-    async def async_write_device_config(
-        self,
-        entity_id: str,  # noqa: ARG002
-        setting: str,  # noqa: ARG002
-        value: Any,  # noqa: ARG002
-    ) -> bool:
-        """Write a hardware config attribute -- not used for Z2M.
-
-        Z2M exposes config via number entities; the frontend writes those
-        directly. Returns False.
-        """
-        return False

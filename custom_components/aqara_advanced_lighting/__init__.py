@@ -100,11 +100,27 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the Aqara Advanced Lighting integration."""
+    # Register ZHA quirks with zigpy so Aqara devices get our custom cluster
+    # (0xFCC0) with proper attribute types. Because "zha" is in
+    # after_dependencies, ZHA has already discovered devices by this point.
+    # async_setup_entry() will trigger a one-time ZHA reload so devices
+    # pick up the newly registered quirk definitions.
+    from .quirks import register_quirks
+
+    register_quirks()
+
     # Initialize domain data storage with multi-instance support
     hass.data.setdefault(DOMAIN, {
         "entries": {},  # entry_id -> instance components (backend, managers, etc.)
         "entity_routing": {},  # entity_id -> entry_id (for service routing)
     })
+
+    # Flag ZHA for reload if it already loaded before our quirks were
+    # registered. The reload happens in async_setup_entry() so it only
+    # triggers when a ZHA backend config entry actually exists.
+    zha_entries = hass.config_entries.async_entries("zha")
+    if any(entry.state.value == "loaded" for entry in zha_entries):
+        hass.data[DOMAIN]["_zha_needs_quirk_reload"] = True
 
     # Initialize favorites store (per-user favorites for the panel)
     # Only initialize if not already present (handles config entry removal/re-add)
@@ -180,6 +196,21 @@ async def async_setup_entry(
 
     # Verify ZHA integration is loaded (required for ZHA backend)
     if backend_type == BACKEND_ZHA:
+        # One-time ZHA reload: our quirks were registered after ZHA discovered
+        # devices (after_dependencies guarantees ZHA loads first). Reload ZHA
+        # config entries so devices get re-discovered with our quirk definitions.
+        # Uses pop() so the reload only triggers once per HA startup.
+        if hass.data[DOMAIN].pop("_zha_needs_quirk_reload", False):
+            _LOGGER.info("Reloading ZHA to apply Aqara device quirks")
+            for zha_entry in hass.config_entries.async_entries("zha"):
+                if zha_entry.state.value == "loaded":
+                    hass.async_create_task(
+                        hass.config_entries.async_reload(zha_entry.entry_id)
+                    )
+            raise ConfigEntryNotReady(
+                "ZHA reloading to apply Aqara quirk definitions"
+            )
+
         try:
             from homeassistant.components.zha.helpers import get_zha_gateway
 

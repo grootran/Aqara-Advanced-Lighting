@@ -1398,25 +1398,15 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 (entity_id, entity_backend, aqara_device, entry_id, entity_state_manager, entity_segments)
             )
 
-        # Turn on all lights in parallel if requested
-        if turn_on and validated_entities:
-            turn_on_tasks = [
-                _ensure_light_on(hass, entity_id, True)
-                for entity_id, *_ in validated_entities
-            ]
-            await asyncio.gather(*turn_on_tasks, return_exceptions=True)
-
         # Second pass: process each validated entity
         for entity_id, entity_backend, aqara_device, entry_id, entity_state_manager, entity_segments in validated_entities:
             segments = entity_segments  # Use per-entity segments value
 
-            # Get sequence managers from the correct instance
+            # Stop all conflicting continuous actions (sequences, scenes)
             instance_data = hass.data[DOMAIN]["entries"].get(entry_id, {})
-            cct_manager = instance_data.get(DATA_CCT_SEQUENCE_MANAGER)
-            segment_manager = instance_data.get(DATA_SEGMENT_SEQUENCE_MANAGER)
-
-            paused_cct = False
-            paused_segment = False
+            entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+            if entity_controller:
+                await entity_controller.stop_all_for_entity(entity_id)
 
             # Stop music sync if active on this entity
             active_music_sync = instance_data.get(DATA_ACTIVE_MUSIC_SYNC, {})
@@ -1433,32 +1423,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     )
                 active_music_sync.pop(entity_id, None)
 
-            # Pause CCT sequence if running
-            if cct_manager and cct_manager.is_sequence_running(entity_id):
-                _LOGGER.debug("Pausing CCT sequence on %s before applying effect", entity_id)
-                cct_manager.pause_sequence(entity_id)
-                paused_cct = True
-
-            # Pause segment sequence if running
-            if segment_manager and segment_manager.is_sequence_running(entity_id):
-                _LOGGER.debug("Pausing segment sequence on %s before applying effect", entity_id)
-                segment_manager.pause_sequence(entity_id)
-                paused_segment = True
-
-            # Detach from dynamic scene if running (one-time effect overrides scene)
-            dsm = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
-            if dsm and dsm.is_scene_running(entity_id):
-                _LOGGER.debug("Detaching %s from dynamic scene before applying effect", entity_id)
-                dsm.detach_entity(entity_id)
-
             # Capture current state before applying effect
             entity_state_manager.capture_state(entity_id, aqara_device.name)
-
-            # Mark which sequences were paused so we can resume them later
-            device_state = entity_state_manager.get_device_state(entity_id)
-            if device_state:
-                device_state.paused_cct_sequence = paused_cct
-                device_state.paused_segment_sequence = paused_segment
 
             # Create dynamic effect
             dynamic_effect = DynamicEffect(
@@ -1481,6 +1447,14 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
         # Send effects to all devices, grouped by instance
         all_entities_published: list[tuple[str, DynamicEffect, StateManager]] = []
+
+        # Record command timestamps before sending effects so device state
+        # reports from the writes are suppressed by the grace window
+        ec = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+        if ec:
+            for group_data in instance_groups.values():
+                for eid, _ in group_data["entities"]:
+                    ec.record_command(eid)
 
         for entry_id, group_data in instance_groups.items():
             group_backend = group_data["backend"]
@@ -1513,6 +1487,16 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 all_entities_published.append(
                     (*entity_data, group_state_manager)
                 )
+
+        # Turn on lights after effect writes so the device has colors
+        # configured before powering on, avoiding a brief flash of wrong colors
+        if turn_on and validated_entities:
+            turn_on_tasks = [
+                _ensure_light_on(hass, entity_id, True)
+                for entity_id, _, _, _, _, _ in validated_entities
+            ]
+            if turn_on_tasks:
+                await asyncio.gather(*turn_on_tasks, return_exceptions=True)
 
         # Mark effects as active and fire events
         for entity_id, dynamic_effect, entity_state_mgr in all_entities_published:
@@ -1605,24 +1589,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
                 # Mark effect as inactive (returns the preset that was active)
                 stopped_preset = entity_state_manager.mark_effect_inactive(entity_id)
-
-                # Resume any sequences that were paused when effect started
-                device_state = entity_state_manager.get_device_state(entity_id)
-                if device_state:
-                    # Get sequence managers from the correct instance
-                    instance_data = hass.data[DOMAIN]["entries"].get(entry_id, {})
-                    cct_manager = instance_data.get(DATA_CCT_SEQUENCE_MANAGER)
-                    segment_manager = instance_data.get(DATA_SEGMENT_SEQUENCE_MANAGER)
-
-                    if device_state.paused_cct_sequence and cct_manager:
-                        _LOGGER.debug("Resuming paused CCT sequence on %s", entity_id)
-                        cct_manager.resume_sequence(entity_id)
-                        device_state.paused_cct_sequence = False
-
-                    if device_state.paused_segment_sequence and segment_manager:
-                        _LOGGER.debug("Resuming paused segment sequence on %s", entity_id)
-                        segment_manager.resume_sequence(entity_id)
-                        device_state.paused_segment_sequence = False
 
                 # Fire effect stopped event with preset info
                 hass.bus.async_fire(
@@ -1803,41 +1769,14 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 for sc in expanded_data
             ]
 
-            # Check and pause any running sequences before applying segment pattern
-            # Get sequence managers from the correct instance
+            # Stop all conflicting continuous actions (sequences, scenes)
             instance_data = hass.data[DOMAIN]["entries"].get(entry_id, {})
-            cct_manager = instance_data.get(DATA_CCT_SEQUENCE_MANAGER)
-            segment_manager = instance_data.get(DATA_SEGMENT_SEQUENCE_MANAGER)
+            entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+            if entity_controller:
+                await entity_controller.stop_all_for_entity(entity_id)
 
-            paused_cct = False
-            paused_segment = False
-
-            # Pause CCT sequence if running
-            if cct_manager and cct_manager.is_sequence_running(entity_id):
-                _LOGGER.debug("Pausing CCT sequence on %s before applying segment pattern", entity_id)
-                cct_manager.pause_sequence(entity_id)
-                paused_cct = True
-
-            # Pause segment sequence if running
-            if segment_manager and segment_manager.is_sequence_running(entity_id):
-                _LOGGER.debug("Pausing segment sequence on %s before applying segment pattern", entity_id)
-                segment_manager.pause_sequence(entity_id)
-                paused_segment = True
-
-            # Detach from dynamic scene if running (one-time pattern overrides scene)
-            dsm = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
-            if dsm and dsm.is_scene_running(entity_id):
-                _LOGGER.debug("Detaching %s from dynamic scene before applying segment pattern", entity_id)
-                dsm.detach_entity(entity_id)
-
-            # Capture state and publish pattern
+            # Capture state before applying pattern
             entity_state_manager.capture_state(entity_id, aqara_device.name)
-
-            # Mark which sequences were paused so we can resume them later
-            device_state = entity_state_manager.get_device_state(entity_id)
-            if device_state:
-                device_state.paused_cct_sequence = paused_cct
-                device_state.paused_segment_sequence = paused_segment
 
             try:
                 await entity_backend.async_send_segment_pattern(
@@ -3212,9 +3151,18 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             instance_data = hass.data[DOMAIN]["entries"].get(entry_id, {})
 
             if enabled:
-                # Stop any active effect on this entity first
+                # Capture state before any changes, but preserve the existing
+                # stored state if an effect is active (it was captured when the
+                # effect started and is more accurate than the current effect state)
+                has_existing_state = entity_state_manager.has_stored_state(entity_id)
                 device_state = entity_state_manager.get_device_state(entity_id)
-                if device_state and device_state.effect_active:
+                effect_was_active = device_state and device_state.effect_active
+
+                if not has_existing_state:
+                    entity_state_manager.capture_state(entity_id, aqara_device.name)
+
+                # Stop any active effect on this entity
+                if effect_was_active:
                     _LOGGER.debug(
                         "Stopping active effect on %s before enabling music sync",
                         entity_id,
@@ -3226,9 +3174,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                             "Failed to stop effect on %s", entity_id
                         )
                     entity_state_manager.mark_effect_inactive(entity_id)
-
-                # Save current state before enabling music sync
-                entity_state_manager.capture_state(entity_id, aqara_device.name)
 
                 # Send music sync command to device
                 await entity_backend.async_send_music_sync(

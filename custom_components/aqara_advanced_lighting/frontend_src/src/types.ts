@@ -29,6 +29,7 @@ export interface HomeAssistant {
       eventType: string,
     ) => Promise<() => void>;
   };
+  entities?: Record<string, { entity_id: string; device_id?: string; platform?: string }>;
 }
 
 export interface HassEntity {

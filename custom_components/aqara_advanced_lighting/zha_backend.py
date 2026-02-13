@@ -1,7 +1,10 @@
 """ZHA backend implementing the DeviceBackend protocol.
 
 Uses the ZHA integration's gateway to communicate directly with Aqara
-lights via Zigbee cluster writes, bypassing MQTT entirely.
+lights via Zigbee cluster writes, bypassing MQTT entirely. The
+AqaraLumiCluster quirk (registered in quirks.py) defines all
+manufacturer-specific attributes with proper types and handles the
+Aqara manufacturer code automatically.
 """
 
 from __future__ import annotations
@@ -46,19 +49,10 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-# Aqara manufacturer-specific Zigbee constants
-AQARA_MANUFACTURER_CODE = 0x115F
+# Aqara manufacturer-specific Zigbee cluster ID
 CLUSTER_MANU_SPECIFIC_LUMI = 0xFCC0
 
-# Standard ZCL cluster for transition time attributes
-CLUSTER_GEN_LEVEL_CTRL = 0x0008
-ATTR_ON_TRANSITION_TIME = 0x0012    # Off-to-on transition (Z2M: off_on_duration)
-ATTR_OFF_TRANSITION_TIME = 0x0013   # On-to-off transition (Z2M: on_off_duration)
-
 # Attribute IDs for cluster 0xFCC0
-ATTR_DIMMING_RANGE_MIN = 0x0515
-ATTR_DIMMING_RANGE_MAX = 0x0516
-ATTR_STRIP_LENGTH = 0x051B
 ATTR_AUDIO_ENABLE = 0x051C
 ATTR_AUDIO_EFFECT = 0x051D
 ATTR_AUDIO_SENSITIVITY = 0x051E
@@ -68,26 +62,7 @@ ATTR_T1M_SEGMENT = 0x0522
 ATTR_EFFECT_COLORS = 0x0523
 ATTR_STRIP_SEGMENT = 0x0527
 ATTR_TRANSITION_CURVE = 0x0528
-ATTR_INITIAL_BRIGHTNESS = 0x052C
 ATTR_EFFECT_SEGMENTS_MASK = 0x0530
-
-# ZCL data type IDs for raw attribute writes (bypasses find_attribute lookup)
-AQARA_ATTR_ZCL_TYPES: dict[int, int] = {
-    ATTR_DIMMING_RANGE_MIN: 0x20,       # uint8
-    ATTR_DIMMING_RANGE_MAX: 0x20,       # uint8
-    ATTR_STRIP_LENGTH: 0x20,            # uint8
-    ATTR_AUDIO_ENABLE: 0x20,            # uint8
-    ATTR_AUDIO_EFFECT: 0x23,            # uint32
-    ATTR_AUDIO_SENSITIVITY: 0x20,       # uint8
-    ATTR_EFFECT_TYPE: 0x23,             # uint32
-    ATTR_EFFECT_SPEED: 0x20,            # uint8
-    ATTR_T1M_SEGMENT: 0x41,             # octet string (LVBytes)
-    ATTR_EFFECT_COLORS: 0x41,           # octet string (LVBytes)
-    ATTR_STRIP_SEGMENT: 0x41,           # octet string (LVBytes)
-    ATTR_TRANSITION_CURVE: 0x39,        # float32 (Single)
-    ATTR_INITIAL_BRIGHTNESS: 0x20,      # uint8
-    ATTR_EFFECT_SEGMENTS_MASK: 0x41,    # octet string (LVBytes)
-}
 
 # Default endpoint for manufacturer-specific writes
 DEFAULT_ENDPOINT = 1
@@ -173,90 +148,6 @@ def _resolve_zha_model(device: Any) -> str | None:
     return None
 
 
-def _ensure_aqara_attributes(cluster: Any) -> None:
-    """Register Aqara manufacturer-specific attributes on a zigpy cluster.
-
-    Used by _read_cluster_attribute so zigpy can deserialize response values.
-    Writes use _write_attributes() raw (bypassing find_attribute), so they
-    do not depend on this registration.
-
-    Registers on both the instance attributes dict and the class-level
-    _attributes_by_id cache to support all zigpy versions. The class cache
-    structure is: _attributes_by_id[attr_id][is_mfr_specific][mfr_code].
-    """
-    import zigpy.types as zigpy_t
-    from zigpy.zcl.foundation import ZCLAttributeDef
-
-    # Map attribute ID -> (name, zigpy type)
-    aqara_attrs: dict[int, tuple[str, type]] = {
-        ATTR_DIMMING_RANGE_MIN: ("aqara_dimming_range_min", zigpy_t.uint8_t),
-        ATTR_DIMMING_RANGE_MAX: ("aqara_dimming_range_max", zigpy_t.uint8_t),
-        ATTR_STRIP_LENGTH: ("aqara_strip_length", zigpy_t.uint8_t),
-        ATTR_AUDIO_ENABLE: ("aqara_audio_enable", zigpy_t.uint8_t),
-        ATTR_AUDIO_EFFECT: ("aqara_audio_effect", zigpy_t.uint32_t),
-        ATTR_AUDIO_SENSITIVITY: ("aqara_audio_sensitivity", zigpy_t.uint8_t),
-        ATTR_EFFECT_TYPE: ("aqara_effect_type", zigpy_t.uint32_t),
-        ATTR_EFFECT_SPEED: ("aqara_effect_speed", zigpy_t.uint8_t),
-        ATTR_T1M_SEGMENT: ("aqara_t1m_segment", zigpy_t.LVBytes),
-        ATTR_EFFECT_COLORS: ("aqara_effect_colors", zigpy_t.LVBytes),
-        ATTR_STRIP_SEGMENT: ("aqara_strip_segment", zigpy_t.LVBytes),
-        ATTR_TRANSITION_CURVE: ("aqara_transition_curve", zigpy_t.Single),
-        ATTR_INITIAL_BRIGHTNESS: ("aqara_initial_brightness", zigpy_t.uint8_t),
-        ATTR_EFFECT_SEGMENTS_MASK: ("aqara_effect_segments_mask", zigpy_t.LVBytes),
-    }
-
-    cluster_cls = type(cluster)
-    class_cache = getattr(cluster_cls, "_attributes_by_id", None)
-
-    for attr_id, (name, attr_type) in aqara_attrs.items():
-        if attr_id not in cluster.attributes:
-            attr_def = ZCLAttributeDef(
-                id=attr_id,
-                name=name,
-                type=attr_type,
-                is_manufacturer_specific=True,
-            )
-            cluster.attributes[attr_id] = attr_def
-
-            # Also update the class-level cache used by find_attribute()
-            # in newer zigpy versions. Structure:
-            # _attributes_by_id[attr_id][is_manufacturer_specific][manufacturer_code]
-            if class_cache is not None and attr_id not in class_cache:
-                try:
-                    class_cache[attr_id] = {
-                        True: {attr_def.manufacturer_code: attr_def},
-                        False: {},
-                        None: {},
-                    }
-                except Exception:  # noqa: BLE001
-                    pass  # Best-effort; writes use raw path anyway
-
-
-def _to_zigpy_type(zcl_type: int, value: Any) -> Any:
-    """Convert a plain Python value to the appropriate zigpy typed value.
-
-    TypeValue.serialize() calls value.serialize(), so values must be zigpy
-    type instances (uint8_t, uint32_t, Single, LVBytes) not plain int/float.
-    If the value already has a serialize() method, it is returned as-is.
-    """
-    if hasattr(value, "serialize"):
-        return value
-
-    import zigpy.types as zigpy_t
-
-    match zcl_type:
-        case 0x20:  # uint8
-            return zigpy_t.uint8_t(value)
-        case 0x23:  # uint32
-            return zigpy_t.uint32_t(value)
-        case 0x39:  # float32 (Single)
-            return zigpy_t.Single(value)
-        case 0x41:  # octet string (LVBytes)
-            return zigpy_t.LVBytes(value)
-        case _:
-            return value
-
-
 def _get_device_family(model_id: str) -> str | None:
     """Classify model ID into device family.
 
@@ -333,6 +224,8 @@ class ZHABackend:
 
     Communicates with Aqara lights by writing directly to the
     manufacturer-specific Zigbee cluster (0xFCC0) via the ZHA gateway.
+    The AqaraLumiCluster quirk handles attribute types and manufacturer
+    code, so callers pass plain Python values (int, float, bytes).
     """
 
     def __init__(
@@ -409,6 +302,17 @@ class ZHABackend:
 
         self._update_entity_mapping()
 
+        # After a ZHA reload, the gateway has devices but ZHA's entity
+        # platform may take several seconds to create light entities.
+        # Schedule a background retry if the initial mapping found nothing.
+        if not self.entry.runtime_data.entity_mapping_ready:
+            _LOGGER.info(
+                "Found %d Aqara devices but no light entities yet, "
+                "scheduling entity mapping retry",
+                len(self.entry.runtime_data.aqara_devices),
+            )
+            self.hass.async_create_task(self._async_retry_entity_mapping())
+
     def _update_entity_mapping(self) -> None:
         """Map HA light entities to ZHA Aqara devices via the device registry."""
         ent_reg = er.async_get(self.hass)
@@ -457,6 +361,39 @@ class ZHABackend:
             len(self.entry.runtime_data.aqara_devices),
         )
 
+        # Only mark as ready when entities are actually mapped (or no devices found).
+        # After a ZHA reload, the gateway has devices but ZHA's entity platform
+        # may not have finished creating light entities yet.
+        if mapped_count > 0 or not self.entry.runtime_data.aqara_devices:
+            self.entry.runtime_data.entity_mapping_ready = True
+        else:
+            self.entry.runtime_data.entity_mapping_ready = False
+
+    async def _async_retry_entity_mapping(self) -> None:
+        """Retry entity mapping after ZHA finishes creating entities.
+
+        After a ZHA reload, the gateway has devices immediately but ZHA's
+        light platform may take several seconds to create entities. Retries
+        every 5 seconds for up to 30 seconds.
+        """
+        max_retries = 6
+        for attempt in range(1, max_retries + 1):
+            await asyncio.sleep(5)
+            self._update_entity_mapping()
+            if self.entry.runtime_data.entity_mapping_ready:
+                _LOGGER.info(
+                    "Entity mapping succeeded on retry %d", attempt
+                )
+                return
+
+        _LOGGER.warning(
+            "Entity mapping found no light entities after %d retries "
+            "(%d devices discovered). ZHA entities may not have been "
+            "created yet -- try reloading the integration",
+            max_retries,
+            len(self.entry.runtime_data.aqara_devices),
+        )
+        # Mark ready to prevent infinite loading state in the frontend
         self.entry.runtime_data.entity_mapping_ready = True
 
     async def async_shutdown(self) -> None:
@@ -499,71 +436,59 @@ class ZHABackend:
 
     # --- Zigbee cluster write helpers ---
 
-    def _get_zha_device(self, ieee_str: str) -> Any | None:
-        """Get ZHA device object by IEEE address string."""
+    def _get_aqara_cluster(
+        self,
+        ieee_str: str,
+        endpoint_id: int = DEFAULT_ENDPOINT,
+    ) -> Any | None:
+        """Get the Aqara manufacturer-specific cluster for a device.
+
+        Returns the quirk-defined 0xFCC0 cluster instance which handles
+        attribute types and manufacturer code automatically.
+        """
         from homeassistant.components.zha.helpers import get_zha_gateway
         from zigpy.types import EUI64
 
         gateway = get_zha_gateway(self.hass)
         ieee = EUI64.convert(ieee_str)
-        return gateway.devices.get(ieee)
-
-    async def _read_cluster_attribute(
-        self,
-        ieee_str: str,
-        attribute: int,
-        endpoint_id: int = DEFAULT_ENDPOINT,
-    ) -> Any | None:
-        """Read a single attribute from the Aqara manufacturer-specific cluster.
-
-        Returns the attribute value on success, None on failure.
-        """
-        zha_device = self._get_zha_device(ieee_str)
+        zha_device = gateway.devices.get(ieee)
         if not zha_device:
-            _LOGGER.error("ZHA device not found for read: %s", ieee_str)
             return None
 
-        try:
-            zigpy_device = zha_device.device
-            endpoint = zigpy_device.endpoints.get(endpoint_id)
-            if not endpoint:
-                _LOGGER.error(
-                    "Endpoint %d not found on %s", endpoint_id, ieee_str
-                )
-                return None
-
-            cluster = endpoint.in_clusters.get(CLUSTER_MANU_SPECIFIC_LUMI)
-            if not cluster:
-                _LOGGER.error(
-                    "Cluster 0x%04X not found on %s endpoint %d",
-                    CLUSTER_MANU_SPECIFIC_LUMI,
-                    ieee_str,
-                    endpoint_id,
-                )
-                return None
-
-            _ensure_aqara_attributes(cluster)
-
-            # read_attributes returns (success_dict, failure_list)
-            result = await cluster.read_attributes(
-                [attribute], manufacturer=AQARA_MANUFACTURER_CODE
-            )
-            success = result[0] if result else {}
-            value = success.get(attribute)
-
-            _LOGGER.debug(
-                "Read attribute 0x%04X from %s: %s",
-                attribute,
-                ieee_str,
-                value,
-            )
-            return value
-
-        except Exception:
-            _LOGGER.exception(
-                "Failed to read attribute 0x%04X from %s", attribute, ieee_str
-            )
+        endpoint = zha_device.device.endpoints.get(endpoint_id)
+        if not endpoint:
             return None
+
+        return endpoint.in_clusters.get(CLUSTER_MANU_SPECIFIC_LUMI)
+
+    def _get_strip_segment_count(self, ieee_str: str) -> int:
+        """Get T1 Strip segment count from the cluster attribute cache.
+
+        The raw length attribute (0x051B) stores segment count as uint8
+        (5 segments per meter). This matches the Z2M converter which uses
+        scale: 5 to convert between raw segments and user-facing meters.
+
+        Falls back to 10 (2 meters) if the attribute has not been read yet.
+        """
+        cluster = self._get_aqara_cluster(ieee_str)
+        if cluster:
+            try:
+                raw_length = cluster.get(0x051B)
+                if raw_length is not None and int(raw_length) > 0:
+                    count = int(raw_length)
+                    _LOGGER.debug(
+                        "T1 Strip %s segment count from cluster: %d",
+                        ieee_str, count,
+                    )
+                    return count
+            except (ValueError, TypeError, KeyError):
+                pass
+        _LOGGER.debug(
+            "T1 Strip %s: length not in cluster cache, "
+            "defaulting to 10 segments (2 meters)",
+            ieee_str,
+        )
+        return 10
 
     async def _write_cluster_attribute(
         self,
@@ -574,202 +499,32 @@ class ZHABackend:
     ) -> bool:
         """Write a single attribute to the Aqara manufacturer-specific cluster.
 
-        Uses cluster._write_attributes() with raw foundation.Attribute objects
-        to bypass zigpy's find_attribute() lookup. Newer zigpy versions use a
-        class-level _attributes_by_id cache that instance-level attribute
-        registration cannot update, causing KeyError for custom attributes.
+        Uses the quirk-defined cluster which handles manufacturer code
+        and type serialization automatically via write_attributes().
 
         Returns True on success, False on failure.
         """
-        from zigpy.zcl import foundation
-
-        zha_device = self._get_zha_device(ieee_str)
-        if not zha_device:
-            _LOGGER.error("ZHA device not found: %s", ieee_str)
+        cluster = self._get_aqara_cluster(ieee_str, endpoint_id)
+        if not cluster:
+            _LOGGER.error(
+                "Aqara cluster not found for write: %s endpoint %d",
+                ieee_str,
+                endpoint_id,
+            )
             return False
 
         try:
-            zigpy_device = zha_device.device
-            endpoint = zigpy_device.endpoints.get(endpoint_id)
-            if not endpoint:
-                _LOGGER.error(
-                    "Endpoint %d not found on %s", endpoint_id, ieee_str
-                )
-                return False
-
-            cluster = endpoint.in_clusters.get(CLUSTER_MANU_SPECIFIC_LUMI)
-            if not cluster:
-                _LOGGER.error(
-                    "Cluster 0x%04X not found on %s endpoint %d",
-                    CLUSTER_MANU_SPECIFIC_LUMI,
-                    ieee_str,
-                    endpoint_id,
-                )
-                return False
-
-            zcl_type = AQARA_ATTR_ZCL_TYPES.get(attribute)
-            if zcl_type is None:
-                _LOGGER.error(
-                    "No ZCL type mapping for attribute 0x%04X", attribute
-                )
-                return False
-
-            # Ensure value is a zigpy typed object with serialize() method.
-            # Callers may pass plain Python int/float (e.g. from REST API);
-            # TypeValue.serialize() requires value.serialize().
-            typed_value = _to_zigpy_type(zcl_type, value)
-
-            # Build raw Attribute object to bypass find_attribute() lookup
-            attr = foundation.Attribute(
-                attrid=attribute,
-                value=foundation.TypeValue(type=zcl_type, value=typed_value),
-            )
-
-            result = await cluster._write_attributes(
-                [attr], manufacturer=AQARA_MANUFACTURER_CODE
-            )
-
+            await cluster.write_attributes({attribute: value})
             _LOGGER.debug(
-                "Wrote attribute 0x%04X to %s: %s (result: %s)",
+                "Wrote attribute 0x%04X to %s: %s",
                 attribute,
                 ieee_str,
                 value if not isinstance(value, (bytes, bytearray)) else f"<{len(value)} bytes>",
-                result,
             )
             return True
-
         except Exception:
             _LOGGER.exception(
                 "Failed to write attribute 0x%04X to %s", attribute, ieee_str
-            )
-            return False
-
-    async def _read_transition_times(
-        self,
-        ieee_str: str,
-    ) -> dict[str, float]:
-        """Read transition time attributes from genLevelCtrl on endpoint 1.
-
-        These are standard ZCL attributes (not manufacturer-specific), stored
-        in 1/10th-second units. Returned values are converted to seconds to
-        match the frontend slider (0-10s, step 0.1).
-
-        Returns:
-            Dict with "on_off_duration" and/or "off_on_duration" in seconds.
-        """
-        zha_device = self._get_zha_device(ieee_str)
-        if not zha_device:
-            return {}
-
-        try:
-            zigpy_device = zha_device.device
-            endpoint = zigpy_device.endpoints.get(DEFAULT_ENDPOINT)
-            if not endpoint:
-                return {}
-
-            cluster = endpoint.in_clusters.get(CLUSTER_GEN_LEVEL_CTRL)
-            if not cluster:
-                return {}
-
-            # read_attributes returns (success_dict, failure_list)
-            result = await cluster.read_attributes(
-                [ATTR_ON_TRANSITION_TIME, ATTR_OFF_TRANSITION_TIME]
-            )
-            success = result[0] if result else {}
-
-            config: dict[str, float] = {}
-            if ATTR_ON_TRANSITION_TIME in success:
-                raw = success[ATTR_ON_TRANSITION_TIME]
-                if raw is not None:
-                    config["off_on_duration"] = int(raw) / 10.0
-            if ATTR_OFF_TRANSITION_TIME in success:
-                raw = success[ATTR_OFF_TRANSITION_TIME]
-                if raw is not None:
-                    config["on_off_duration"] = int(raw) / 10.0
-
-            _LOGGER.debug(
-                "Read transition times from %s: %s", ieee_str, config
-            )
-            return config
-
-        except Exception:
-            _LOGGER.exception(
-                "Failed to read transition times from %s", ieee_str
-            )
-            return {}
-
-    async def _write_transition_time(
-        self,
-        ieee_str: str,
-        setting: str,
-        value: float,
-    ) -> bool:
-        """Write a transition time attribute to genLevelCtrl on endpoint 1.
-
-        Uses standard ZCL write_attributes (not the raw _write_attributes
-        bypass used for manufacturer-specific attributes). The frontend sends
-        values in seconds; this method converts to 1/10th-second units with
-        the same x10 scale factor used by the Z2M converter.
-
-        Args:
-            ieee_str: Device IEEE address string.
-            setting: "on_off_duration" or "off_on_duration".
-            value: Transition time in seconds (0-10).
-
-        Returns:
-            True on success, False on failure.
-        """
-        attr_id = {
-            "on_off_duration": ATTR_OFF_TRANSITION_TIME,   # 0x0013
-            "off_on_duration": ATTR_ON_TRANSITION_TIME,    # 0x0012
-        }.get(setting)
-
-        if attr_id is None:
-            _LOGGER.warning("Unknown transition time setting: %s", setting)
-            return False
-
-        zha_device = self._get_zha_device(ieee_str)
-        if not zha_device:
-            _LOGGER.error("ZHA device not found: %s", ieee_str)
-            return False
-
-        try:
-            zigpy_device = zha_device.device
-            endpoint = zigpy_device.endpoints.get(DEFAULT_ENDPOINT)
-            if not endpoint:
-                _LOGGER.error(
-                    "Endpoint %d not found on %s", DEFAULT_ENDPOINT, ieee_str
-                )
-                return False
-
-            cluster = endpoint.in_clusters.get(CLUSTER_GEN_LEVEL_CTRL)
-            if not cluster:
-                _LOGGER.error(
-                    "Cluster 0x%04X not found on %s endpoint %d",
-                    CLUSTER_GEN_LEVEL_CTRL,
-                    ieee_str,
-                    DEFAULT_ENDPOINT,
-                )
-                return False
-
-            # Convert seconds to 1/10s units (matching Z2M scale: 10)
-            raw_value = round(value * 10)
-
-            # Standard ZCL attribute -- use normal write_attributes API
-            await cluster.write_attributes({attr_id: raw_value})
-
-            _LOGGER.debug(
-                "Wrote transition time %s to %s: %.1fs (raw: %d)",
-                setting,
-                ieee_str,
-                value,
-                raw_value,
-            )
-            return True
-
-        except Exception:
-            _LOGGER.exception(
-                "Failed to write transition time %s to %s", setting, ieee_str
             )
             return False
 
@@ -783,25 +538,24 @@ class ZHABackend:
     ) -> None:
         """Write all effect attributes in the correct order.
 
-        Order: segments mask (strip only) -> type -> colors -> speed.
-        Writing type first selects the effect, then colors and speed configure
-        it. Writing colors before type causes the type write to overwrite them.
+        Order: segments mask (strip only) -> type -> speed -> colors.
+        Matches the Z2M converter processing order. Writing colors last
+        ensures the device has the effect mode and speed configured before
+        receiving the color palette, preventing color overwrite by defaults.
         """
-        import zigpy.types as zigpy_t
-
         if segments_mask is not None:
             await self._write_cluster_attribute(
                 ieee_str, ATTR_EFFECT_SEGMENTS_MASK, segments_mask
             )
 
         await self._write_cluster_attribute(
-            ieee_str, ATTR_EFFECT_TYPE, zigpy_t.uint32_t(effect_type_value)
+            ieee_str, ATTR_EFFECT_TYPE, effect_type_value
+        )
+        await self._write_cluster_attribute(
+            ieee_str, ATTR_EFFECT_SPEED, speed
         )
         await self._write_cluster_attribute(
             ieee_str, ATTR_EFFECT_COLORS, colors_payload
-        )
-        await self._write_cluster_attribute(
-            ieee_str, ATTR_EFFECT_SPEED, zigpy_t.uint8_t(speed)
         )
 
     # --- Effects ---
@@ -848,9 +602,7 @@ class ZHABackend:
         # For T1 Strip, build effect segments mask if specified
         segments_mask: bytes | None = None
         if device_family == "strip" and effect.effect_segments is not None:
-            from .light_capabilities import get_segment_count
-
-            max_segments = get_segment_count(device.model_id) or 50
+            max_segments = self._get_strip_segment_count(ieee_str)
             seg_nums = _parse_segment_spec(effect.effect_segments, max_segments)
             if seg_nums:
                 segments_mask = build_effect_segments_mask(seg_nums, max_segments)
@@ -940,7 +692,12 @@ class ZHABackend:
 
         from .light_capabilities import get_segment_count
 
-        max_segments = get_segment_count(device.model_id) or 20
+        static_count = get_segment_count(device.model_id)
+        if static_count:
+            max_segments = static_count
+        else:
+            # T1 Strip: variable segment count based on strip length
+            max_segments = self._get_strip_segment_count(ieee_str)
 
         # Group segments by (color, brightness) to minimize cluster writes
         groups: dict[tuple[int, int, int, int], list[int]] = {}
@@ -1001,11 +758,10 @@ class ZHABackend:
 
         Returns True if transition completed, False if interrupted.
         """
-        context = (
-            self._entity_controller.create_context()
-            if self._entity_controller
-            else None
-        )
+        context = None
+        if self._entity_controller:
+            self._entity_controller.record_command(entity_id)
+            context = self._entity_controller.create_context()
 
         service_data: dict[str, Any] = {
             "entity_id": entity_id,
@@ -1083,8 +839,6 @@ class ZHABackend:
             sensitivity: Audio sensitivity level ("low" or "high")
             effect: Audio effect type ("random", "blink", "rainbow", "wave")
         """
-        import zigpy.types as zigpy_t
-
         ieee_str = self._entity_to_ieee.get(entity_id)
         if not ieee_str:
             _LOGGER.warning(
@@ -1093,7 +847,7 @@ class ZHABackend:
             return
 
         await self._write_cluster_attribute(
-            ieee_str, ATTR_AUDIO_ENABLE, zigpy_t.uint8_t(1 if enabled else 0)
+            ieee_str, ATTR_AUDIO_ENABLE, 1 if enabled else 0
         )
 
         if enabled:
@@ -1101,12 +855,10 @@ class ZHABackend:
             sensitivity_value = MUSIC_SYNC_SENSITIVITY_ENUM.get(sensitivity, 0)
 
             await self._write_cluster_attribute(
-                ieee_str, ATTR_AUDIO_EFFECT, zigpy_t.uint32_t(effect_value)
+                ieee_str, ATTR_AUDIO_EFFECT, effect_value
             )
             await self._write_cluster_attribute(
-                ieee_str,
-                ATTR_AUDIO_SENSITIVITY,
-                zigpy_t.uint8_t(sensitivity_value),
+                ieee_str, ATTR_AUDIO_SENSITIVITY, sensitivity_value
             )
 
         _LOGGER.debug(
@@ -1123,8 +875,6 @@ class ZHABackend:
         Args:
             entity_id: The Home Assistant entity ID
         """
-        import zigpy.types as zigpy_t
-
         ieee_str = self._entity_to_ieee.get(entity_id)
         if not ieee_str:
             _LOGGER.warning(
@@ -1133,7 +883,7 @@ class ZHABackend:
             return
 
         await self._write_cluster_attribute(
-            ieee_str, ATTR_AUDIO_ENABLE, zigpy_t.uint8_t(0)
+            ieee_str, ATTR_AUDIO_ENABLE, 0
         )
 
         _LOGGER.debug("Stopped music sync on %s", entity_id)
@@ -1164,148 +914,3 @@ class ZHABackend:
         _LOGGER.debug(
             "Set transition curve curvature for %s: %.1f", entity_id, curvature
         )
-
-    # --- Device config (cluster-level read/write) ---
-
-    # Mapping of config setting names to (attribute_id, device_families)
-    # device_families=None means all families support this setting
-    _CONFIG_SETTINGS: dict[str, tuple[int, set[str] | None]] = {
-        "dimming_range_min": (ATTR_DIMMING_RANGE_MIN, None),
-        "dimming_range_max": (ATTR_DIMMING_RANGE_MAX, None),
-        "transition_curve": (ATTR_TRANSITION_CURVE, {"t2_bulb", "t2_cct"}),
-        "initial_brightness": (ATTR_INITIAL_BRIGHTNESS, {"t2_bulb", "t2_cct"}),
-        "strip_length": (ATTR_STRIP_LENGTH, {"strip"}),
-    }
-
-    # Validation ranges: setting_name -> (min, max, step)
-    _CONFIG_RANGES: dict[str, tuple[float, float, float]] = {
-        "dimming_range_min": (1, 100, 1),
-        "dimming_range_max": (1, 100, 1),
-        "transition_curve": (0.2, 6, 0.01),
-        "initial_brightness": (0, 50, 1),
-        "strip_length": (1, 50, 1),
-    }
-
-    async def async_read_device_config(
-        self,
-        entity_id: str,
-    ) -> dict[str, Any]:
-        """Read hardware config attributes for a device.
-
-        Reads all config attributes relevant to the device type from the
-        manufacturer-specific cluster.
-        """
-        ieee_str = self._entity_to_ieee.get(entity_id)
-        if not ieee_str:
-            _LOGGER.warning(
-                "Cannot read device config: entity %s not mapped", entity_id
-            )
-            return {}
-
-        device = self.entry.runtime_data.aqara_devices.get(ieee_str)
-        if not device:
-            return {}
-
-        device_family = _get_device_family(device.model_id)
-        if not device_family:
-            return {}
-
-        config: dict[str, Any] = {}
-
-        for setting_name, (attr_id, families) in self._CONFIG_SETTINGS.items():
-            # Skip settings not applicable to this device family
-            if families is not None and device_family not in families:
-                continue
-
-            value = await self._read_cluster_attribute(ieee_str, attr_id)
-            if value is not None:
-                config[setting_name] = value
-
-        # Read transition times from genLevelCtrl (standard ZCL, not mfr-specific)
-        config.update(await self._read_transition_times(ieee_str))
-
-        _LOGGER.debug(
-            "Read device config for %s (%s): %s",
-            entity_id,
-            device_family,
-            config,
-        )
-        return config
-
-    async def async_write_device_config(
-        self,
-        entity_id: str,
-        setting: str,
-        value: Any,
-    ) -> bool:
-        """Write a hardware config attribute to a device.
-
-        Validates the setting name, device family compatibility, and value
-        range before writing to the cluster.
-        """
-        ieee_str = self._entity_to_ieee.get(entity_id)
-        if not ieee_str:
-            _LOGGER.warning(
-                "Cannot write device config: entity %s not mapped", entity_id
-            )
-            return False
-
-        device = self.entry.runtime_data.aqara_devices.get(ieee_str)
-        if not device:
-            return False
-
-        device_family = _get_device_family(device.model_id)
-        if not device_family:
-            return False
-
-        # Handle transition time settings (genLevelCtrl, not mfr-specific)
-        if setting in ("on_off_duration", "off_on_duration"):
-            numeric_value = float(value)
-            if numeric_value < 0 or numeric_value > 10:
-                _LOGGER.warning(
-                    "Value %s out of range for %s (0-10)", value, setting
-                )
-                return False
-            return await self._write_transition_time(
-                ieee_str, setting, numeric_value
-            )
-
-        # Validate setting name
-        setting_info = self._CONFIG_SETTINGS.get(setting)
-        if not setting_info:
-            _LOGGER.warning("Unknown config setting: %s", setting)
-            return False
-
-        attr_id, families = setting_info
-
-        # Validate device family compatibility
-        if families is not None and device_family not in families:
-            _LOGGER.warning(
-                "Setting %s not supported for device family %s",
-                setting,
-                device_family,
-            )
-            return False
-
-        # Validate value range
-        if setting in self._CONFIG_RANGES:
-            min_val, max_val, _ = self._CONFIG_RANGES[setting]
-            numeric_value = float(value)
-            if numeric_value < min_val or numeric_value > max_val:
-                _LOGGER.warning(
-                    "Value %s out of range for %s (%.1f-%.1f)",
-                    value,
-                    setting,
-                    min_val,
-                    max_val,
-                )
-                return False
-
-        success = await self._write_cluster_attribute(ieee_str, attr_id, value)
-
-        if success:
-            _LOGGER.debug(
-                "Wrote device config %s=%s for %s", setting, value, entity_id
-            )
-
-        return success

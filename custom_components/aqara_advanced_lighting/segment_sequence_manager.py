@@ -734,6 +734,8 @@ class SegmentSequenceManager:
                     for seg in range(1, total_segments + 1)
                 ]
                 try:
+                    if self._entity_controller:
+                        self._entity_controller.record_command(entity_id)
                     await self.backend.async_send_segment_pattern(
                         entity_id, clear_segments
                     )
@@ -836,6 +838,8 @@ class SegmentSequenceManager:
                     if step.activation_pattern == "all":
                         # Activate all segments at once
                         try:
+                            if self._entity_controller:
+                                self._entity_controller.record_command(entity_id)
                             await self.backend.async_send_segment_pattern(
                                 entity_id, segment_colors
                             )
@@ -883,6 +887,8 @@ class SegmentSequenceManager:
                                     segment=segment, color=color_map[segment]
                                 )
                                 try:
+                                    if self._entity_controller:
+                                        self._entity_controller.record_command(entity_id)
                                     await self.backend.async_send_segment_pattern(
                                         entity_id, [segment_color]
                                     )
@@ -1024,6 +1030,8 @@ class SegmentSequenceManager:
                     for seg in range(1, total_segments + 1)
                 ]
                 try:
+                    if self._entity_controller:
+                        self._entity_controller.record_command(entity_id)
                     await self.backend.async_send_segment_pattern(
                         entity_id, clear_segments
                     )
@@ -1135,6 +1143,8 @@ class SegmentSequenceManager:
                     # Apply activation pattern
                     if step.activation_pattern == "all":
                         try:
+                            if self._entity_controller:
+                                self._entity_controller.record_command(entity_id)
                             await self.backend.async_send_segment_pattern(
                                 entity_id, segment_colors
                             )
@@ -1180,6 +1190,8 @@ class SegmentSequenceManager:
                                     segment=segment, color=color_map[segment]
                                 )
                                 try:
+                                    if self._entity_controller:
+                                        self._entity_controller.record_command(entity_id)
                                     await self.backend.async_send_segment_pattern(
                                         entity_id, [segment_color]
                                     )
