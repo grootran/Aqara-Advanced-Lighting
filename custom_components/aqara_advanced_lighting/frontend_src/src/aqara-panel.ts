@@ -60,6 +60,8 @@ export class AqaraPanel extends LitElement {
   @state() private _useCustomBrightness = false;
   @state() private _useStaticSceneMode = false;
   @state() private _ignoreExternalChanges = false;
+  @state() private _useDistributionModeOverride = false;
+  @state() private _distributionModeOverride = 'shuffle_rotate';
   @state() private _collapsed: Record<string, boolean> = {};
   @state() private _hasIncompatibleLights = false;
   @state() private _includeAllLights = false;
@@ -334,6 +336,14 @@ export class AqaraPanel extends LitElement {
       if (prefs.static_scene_mode !== undefined) {
         this._useStaticSceneMode = prefs.static_scene_mode;
       }
+      if (prefs.distribution_mode_override) {
+        this._useDistributionModeOverride = true;
+        this._distributionModeOverride = prefs.distribution_mode_override;
+      }
+      if (prefs.brightness_override != null) {
+        this._useCustomBrightness = true;
+        this._brightness = prefs.brightness_override;
+      }
     } catch (err) {
       console.warn('Failed to load user preferences:', err);
       // Fall back to localStorage as read-only source if server unavailable
@@ -417,6 +427,8 @@ export class AqaraPanel extends LitElement {
           include_all_lights: this._includeAllLights,
           favorite_presets: this._favoritePresets,
           static_scene_mode: this._useStaticSceneMode,
+          distribution_mode_override: this._useDistributionModeOverride ? this._distributionModeOverride : null,
+          brightness_override: this._useCustomBrightness ? this._brightness : null,
         } as unknown as Record<string, unknown>
       ).catch(err => {
         console.warn('Failed to save user preferences:', err);
@@ -1844,10 +1856,12 @@ export class AqaraPanel extends LitElement {
 
   private _handleBrightnessChange(e: CustomEvent): void {
     this._brightness = e.detail.value;
+    this._saveUserPreferences();
   }
 
   private _handleCustomBrightnessToggle(e: Event): void {
     this._useCustomBrightness = (e.target as HTMLInputElement).checked;
+    this._saveUserPreferences();
   }
 
   private _handleStaticSceneModeToggle(e: Event): void {
@@ -1858,6 +1872,24 @@ export class AqaraPanel extends LitElement {
   private _handleIgnoreExternalChangesToggle(e: Event): void {
     this._ignoreExternalChanges = (e.target as HTMLInputElement).checked;
     this._saveGlobalPreferences();
+  }
+
+  private _handleDistributionModeOverrideToggle(e: Event): void {
+    this._useDistributionModeOverride = (e.target as HTMLInputElement).checked;
+    this._saveUserPreferences();
+  }
+
+  private _handleDistributionModeOverrideChange(e: CustomEvent): void {
+    this._distributionModeOverride = e.detail.value || 'shuffle_rotate';
+    this._saveUserPreferences();
+  }
+
+  private get _distributionModeOverrideOptions() {
+    return [
+      { value: 'shuffle_rotate', label: this._localize('dynamic_scene.distribution_shuffle_rotate') || 'Shuffle and rotate' },
+      { value: 'synchronized', label: this._localize('dynamic_scene.distribution_synchronized') || 'Synchronized' },
+      { value: 'random', label: this._localize('dynamic_scene.distribution_random') || 'Random' },
+    ];
   }
 
   private async _saveGlobalPreferences(): Promise<void> {
@@ -1948,7 +1980,7 @@ export class AqaraPanel extends LitElement {
       scene_name: preset.name,
       transition_time: preset.transition_time,
       hold_time: preset.hold_time,
-      distribution_mode: preset.distribution_mode,
+      distribution_mode: this._useDistributionModeOverride ? this._distributionModeOverride : preset.distribution_mode,
       random_order: preset.random_order,
       loop_mode: preset.loop_mode,
       end_behavior: preset.end_behavior,
@@ -2463,7 +2495,7 @@ export class AqaraPanel extends LitElement {
       scene_name: preset.name,
       transition_time: preset.transition_time,
       hold_time: preset.hold_time,
-      distribution_mode: preset.distribution_mode,
+      distribution_mode: this._useDistributionModeOverride ? this._distributionModeOverride : preset.distribution_mode,
       random_order: preset.random_order,
       loop_mode: preset.loop_mode,
       end_behavior: preset.end_behavior,
@@ -2816,6 +2848,14 @@ export class AqaraPanel extends LitElement {
                   </div>
 
                   <div class="override-item">
+                    <span class="form-label">${this._localize('target.distribution_mode_override_label')}</span>
+                    <ha-switch
+                      .checked=${this._useDistributionModeOverride}
+                      @change=${this._handleDistributionModeOverrideToggle}
+                    ></ha-switch>
+                  </div>
+
+                  <div class="override-item">
                     <span class="form-label">${this._localize('target.ignore_external_changes_label')}</span>
                     <ha-switch
                       .checked=${this._ignoreExternalChanges}
@@ -2823,6 +2863,24 @@ export class AqaraPanel extends LitElement {
                     ></ha-switch>
                   </div>
                 </div>
+
+                ${this._useDistributionModeOverride
+                  ? html`
+                      <div class="brightness-slider">
+                        <ha-selector
+                          .hass=${this.hass}
+                          .selector=${{
+                            select: {
+                              options: this._distributionModeOverrideOptions,
+                              mode: 'dropdown',
+                            },
+                          }}
+                          .value=${this._distributionModeOverride}
+                          @value-changed=${this._handleDistributionModeOverrideChange}
+                        ></ha-selector>
+                      </div>
+                    `
+                  : ''}
 
                 ${this._useCustomBrightness
                   ? html`

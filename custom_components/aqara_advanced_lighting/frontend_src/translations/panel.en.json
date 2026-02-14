@@ -35,6 +35,7 @@
     "custom_brightness_label": "Brightness",
     "static_scene_mode_label": "Static scene mode",
     "ignore_external_changes_label": "Ignore external changes",
+    "distribution_mode_override_label": "Scene color assignment",
     "controls_card_title": "Active presets",
     "activation_overrides_title": "Activation overrides",
     "effect_button": "Effect",

@@ -12,6 +12,13 @@ from .const import DOMAIN, MAX_COLOR_HISTORY_SIZE
 
 _LOGGER = logging.getLogger(__name__)
 
+
+
+class _Unset:
+    """Sentinel for distinguishing 'not provided' from None."""
+
+_UNSET = _Unset()
+
 STORAGE_KEY = f"{DOMAIN}.user_preferences"
 STORAGE_VERSION = 1
 
@@ -25,6 +32,8 @@ class UserPreferences(TypedDict):
     include_all_lights: bool
     favorite_presets: list[dict[str, str]]
     static_scene_mode: bool
+    distribution_mode_override: str | None
+    brightness_override: int | None
 
 
 DEFAULT_PREFERENCES: UserPreferences = {
@@ -34,6 +43,8 @@ DEFAULT_PREFERENCES: UserPreferences = {
     "include_all_lights": False,
     "favorite_presets": [],
     "static_scene_mode": False,
+    "distribution_mode_override": None,
+    "brightness_override": None,
 }
 
 GLOBAL_PREFERENCES_KEY = "__global__"
@@ -107,6 +118,8 @@ class UserPreferencesStore:
                 "include_all_lights": prefs.get("include_all_lights", False),
                 "favorite_presets": prefs.get("favorite_presets", []),
                 "static_scene_mode": prefs.get("static_scene_mode", False),
+                "distribution_mode_override": prefs.get("distribution_mode_override"),
+                "brightness_override": prefs.get("brightness_override"),
             }
         return {**DEFAULT_PREFERENCES}
 
@@ -169,6 +182,8 @@ class UserPreferencesStore:
         include_all_lights: bool | None = None,
         favorite_presets: list[dict[str, str]] | None = None,
         static_scene_mode: bool | None = None,
+        distribution_mode_override: str | None | _Unset = _UNSET,
+        brightness_override: int | None | _Unset = _UNSET,
     ) -> UserPreferences:
         """Partially update a user's preferences.
 
@@ -182,6 +197,8 @@ class UserPreferencesStore:
             include_all_lights: Whether to show all lights in selector, or None to leave unchanged.
             favorite_presets: Favorite preset references, or None to leave unchanged.
             static_scene_mode: Whether to apply scenes statically, or None to leave unchanged.
+            distribution_mode_override: Distribution mode override string, None to clear, or _UNSET to leave unchanged.
+            brightness_override: Brightness override value (1-100), None to clear, or _UNSET to leave unchanged.
 
         Returns:
             The full updated preferences.
@@ -208,6 +225,12 @@ class UserPreferencesStore:
 
         if static_scene_mode is not None:
             self._data[user_id]["static_scene_mode"] = static_scene_mode
+
+        if not isinstance(distribution_mode_override, _Unset):
+            self._data[user_id]["distribution_mode_override"] = distribution_mode_override
+
+        if not isinstance(brightness_override, _Unset):
+            self._data[user_id]["brightness_override"] = brightness_override
 
         await self.async_save()
 

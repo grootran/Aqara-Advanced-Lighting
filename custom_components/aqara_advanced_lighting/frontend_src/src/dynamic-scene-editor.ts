@@ -33,7 +33,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   @state() private _icon = '';
   // Note: _steps is used by ReorderableStepsMixin, but we also expose as _colors for clarity
   @state() protected _steps: EditableColor[] = [];
-  @state() private _transitionTime = 120;  // seconds (default 2 minutes)
+  @state() private _transitionTime = 600;  // seconds (default 10 minutes)
   @state() private _holdTime = 0;  // seconds
   @state() private _distributionMode = 'shuffle_rotate';
   @state() private _offsetDelay = 0;

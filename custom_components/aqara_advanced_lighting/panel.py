@@ -23,6 +23,8 @@ if TYPE_CHECKING:
     from .segment_zone_store import SegmentZoneStore
     from .user_preferences_store import UserPreferencesStore
 
+from .user_preferences_store import _UNSET
+
 from .const import (
     ATTR_BRIGHTNESS,
     ATTR_PRESET,
@@ -60,6 +62,7 @@ from .const import (
     SERVICE_STOP_DYNAMIC_SCENE,
     SERVICE_STOP_EFFECT,
     SERVICE_STOP_SEGMENT_SEQUENCE,
+    VALID_DISTRIBUTION_MODES,
     VALID_PRESET_TYPES,
     VALID_SORT_OPTIONS,
 )
@@ -829,6 +832,8 @@ class UserPreferencesView(HomeAssistantView):
         include_all_lights = None
         favorite_presets = None
         static_scene_mode = None
+        distribution_mode_override = _UNSET
+        brightness_override = _UNSET
 
         if "color_history" in data:
             error = _validate_color_history(data["color_history"])
@@ -868,6 +873,32 @@ class UserPreferencesView(HomeAssistantView):
                 )
             static_scene_mode = data["static_scene_mode"]
 
+        if "distribution_mode_override" in data:
+            value = data["distribution_mode_override"]
+            if value is not None and (
+                not isinstance(value, str)
+                or value not in VALID_DISTRIBUTION_MODES
+            ):
+                return web.Response(
+                    status=400,
+                    text=(
+                        "distribution_mode_override must be null or one of"
+                        f" {VALID_DISTRIBUTION_MODES}"
+                    ),
+                )
+            distribution_mode_override = value
+
+        if "brightness_override" in data:
+            value = data["brightness_override"]
+            if value is not None and (
+                not isinstance(value, (int, float)) or value < 1 or value > 100
+            ):
+                return web.Response(
+                    status=400,
+                    text="brightness_override must be null or a number between 1 and 100",
+                )
+            brightness_override = int(value) if value is not None else None
+
         if (
             color_history is None
             and sort_preferences is None
@@ -875,6 +906,8 @@ class UserPreferencesView(HomeAssistantView):
             and include_all_lights is None
             and favorite_presets is None
             and static_scene_mode is None
+            and distribution_mode_override is _UNSET
+            and brightness_override is _UNSET
         ):
             # Nothing to update, return current preferences
             preferences = store.get_preferences(user.id)
@@ -888,6 +921,8 @@ class UserPreferencesView(HomeAssistantView):
             include_all_lights=include_all_lights,
             favorite_presets=favorite_presets,
             static_scene_mode=static_scene_mode,
+            distribution_mode_override=distribution_mode_override,
+            brightness_override=brightness_override,
         )
         return web.json_response(preferences)
 

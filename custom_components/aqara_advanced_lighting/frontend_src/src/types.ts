@@ -315,6 +315,8 @@ export interface UserPreferences {
   include_all_lights?: boolean;
   favorite_presets: FavoritePresetRef[];
   static_scene_mode?: boolean;
+  distribution_mode_override?: string;
+  brightness_override?: number;
 }
 
 // Integration-wide preferences (not per-user)
