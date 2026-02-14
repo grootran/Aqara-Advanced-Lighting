@@ -6,13 +6,13 @@
 
 ![Aqara Advanced Lighting](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/main/images/aqara-advanced-lighting.png "Aqara Advanced Lighting")
 
-**Aqara Advanced Lighting** [Home Assistant](https://www.home-assistant.io/) integration for control of the **[Aqara T1M Ceiling Light](https://www.aqara.com/en/product/ceiling-light-t1m/)**, **[T1 LED Strip](https://www.aqara.com/en/product/led-strip-t1/)**, and **[T2 RGB & CCT bulbs](https://www.aqara.com/en/product/led-bulb-t2/)** via [Zigbee2MQTT](https://www.zigbee2mqtt.io/). All the features of the Aqara Home app and more but without an Aqara Hub.
+**Aqara Advanced Lighting** [Home Assistant](https://www.home-assistant.io/) integration for control of the **[Aqara T1M Ceiling Light](https://www.aqara.com/en/product/ceiling-light-t1m/)**, **[T1 LED Strip](https://www.aqara.com/en/product/led-strip-t1/)**, and **[T2 RGB & CCT bulbs](https://www.aqara.com/en/product/led-bulb-t2/)**. All the features of the Aqara Home app and more but without an Aqara Hub. Works with both Zigbee2MQTT and ZHA (Zigbee Home Automation).
 
 ## Overview
 
 Easily control the more advanced features of the **Aqara T1M Ceiling Light**, **T1 LED Strip** and **T2 RGB+CCT bulbs** through **Home Assistant**, with support for dynamic RGB effects, per-segment colors and gradients, animated segment sequences, multi-step color temperature transitions, dynamic scenes, and more. Save and reuse custom presets across all feature types.
 
-Includes a sidebar panel with visual editors for building effects, patterns, scenes, and sequences, plus 18 service actions, 20 device triggers and 7 device condition for use in automations and scripts.
+Includes a sidebar panel with visual editors for building effects, patterns, scenes, and sequences, plus 18 service actions, 20 device triggers and 7 device conditions for use in automations and scripts.
 
 _Please :star: this integration if you find it useful_
 
@@ -43,6 +43,7 @@ _If you want to show your support please_
 - Dynamic scenes with slow color transitions across multiple lights
 - Pause, resume, and stop control for all running sequences
 - Flexible segment selection: ranges, individual, odd/even, first-half, last-third, etc.
+- State capture and restoration when applying effects etc.
 
 **Presets**
 
@@ -57,9 +58,10 @@ _If you want to show your support please_
 
 - Sidebar-accessible UI for controlling lights and managing presets
 - Visual editors for effects, segment patterns, CCT sequences, segment sequences, and dynamic scenes
-- Favorite lights with control tiles for quick on/off and brightness adjustment
+- Favorite lights and presets for quick activation
 - Active presets section for monitoring and controlling all running operations
-- Activation overrides: custom brightness and static scene mode
+- Activation overrides: custom brightness, static scene mode, scene color assignment, and external changes
+- T1 LED Strip music sync control panel
 - Device configuration: transition curves (T2), initial brightness (T2), dimming settings, strip length (T1 Strip), segment zone presets (T1M/T1 Strip)
 - Multi-device configuration for pushing settings to multiple devices at once
 
@@ -74,24 +76,34 @@ _If you want to show your support please_
 
 **Integration**
 
-- Automatic device discovery via Zigbee2MQTT
+- Dual backend support: Zigbee2MQTT and ZHA (Zigbee Home Automation)
+- Automatic device discovery via Zigbee2MQTT or ZHA
 - Multiple Zigbee2MQTT instance support
-- State capture and restoration when applying effects
+- Mixed backend environments (some lights on Z2M, others on ZHA)
 
 ## Requirements
 
 - Home Assistant 2025.12.0 or newer (older versions not tested)
+- Supported Aqara light devices (see table above)
+- **One or both** of the following Zigbee backends:
+
+**For Zigbee2MQTT:**
+
 - MQTT integration configured and running
 - Zigbee2MQTT 2.7.2 or newer
-- Supported Aqara light devices (see table above)
+
+**For ZHA (Zigbee Home Automation):**
+
+- ZHA integration installed and configured
 
 ## Table of Contents
 
 - [Installation](#installation)
 - [Updating](#updating)
 - [Configuration](#configuration)
-  - [Setup](#setup)
-  - [Configuration Parameters](#configuration-parameters)
+  - [Zigbee2MQTT setup](#zigbee2mqtt-setup)
+  - [ZHA setup](#zha-setup)
+  - [Backend feature comparison](#backend-feature-comparison)
 - [Usage](#usage)
   - [Frontend Panel](#frontend-panel)
   - [Visual Editors](#visual-editors)
@@ -191,27 +203,31 @@ If you see a version mismatch warning in the panel after updating, this means th
 
 ## Configuration
 
-### Setup
+The integration supports two Zigbee backends: **Zigbee2MQTT** and **ZHA** (Zigbee Home Automation). During setup you choose which backend to use. You can run both simultaneously if you have lights on each.
 
 1. Go to **Settings** → **Devices & Services** → **Add Integration**
 2. Search for "Aqara Advanced Lighting"
-3. Enter your Zigbee2MQTT base topic (default: `zigbee2mqtt`)
-4. Click "Submit"
+3. Select your backend: **Zigbee2MQTT** or **ZHA**
+4. Follow the backend-specific steps below
+
+### Zigbee2MQTT setup
+
+1. Select **Zigbee2MQTT** as the backend
+2. Enter your Zigbee2MQTT base topic (default: `zigbee2mqtt`)
+3. Click "Submit"
 
 The integration will automatically discover your Aqara lights through Zigbee2MQTT.
 
-### Configuration Parameters
+#### Zigbee2MQTT configuration parameters
 
-The integration requires one configuration parameter during setup:
+The Zigbee2MQTT backend requires one configuration parameter during setup:
 
-#### Zigbee2MQTT Base Topic
+**Zigbee2MQTT base topic**
 
-- **Parameter**: `Zigbee2MQTT base topic`
 - **Default**: `zigbee2mqtt`
 - **Required**: Yes
 - **Type**: String
 
-**Description**:
 The MQTT base topic used by your Zigbee2MQTT installation. This integration subscribes to MQTT messages under this topic to discover and communicate with Aqara lights. The base topic must match the `base_topic` configured in your Zigbee2MQTT `configuration.yaml`.
 
 **Examples**:
@@ -226,18 +242,6 @@ The MQTT base topic used by your Zigbee2MQTT installation. This integration subs
 2. Look for the `mqtt` section
 3. Find the `base_topic` setting
 4. Use that exact value in this integration
-
-<details>
-<summary>Troubleshooting
-</summary>
-
-- If devices are not discovered, verify the base topic matches your Z2M configuration
-- Check that MQTT integration is properly configured and connected
-- Ensure Zigbee2MQTT is running and connected to the same MQTT broker
-- The integration validates the Z2M instance by subscribing to the `bridge/state` topic during setup
-- Use the Reconfigure option to update the base topic if needed
-
-</details>
 
 <details>
 <summary>Multiple Zigbee2MQTT Instances
@@ -311,6 +315,64 @@ Instance 2: zigbee2mqtt_strips (LED Strips)
 </details>
 
 <details>
+<summary>Z2M troubleshooting
+</summary>
+
+- If devices are not discovered, verify the base topic matches your Z2M configuration
+- Check that MQTT integration is properly configured and connected
+- Ensure Zigbee2MQTT is running and connected to the same MQTT broker
+- The integration validates the Z2M instance by subscribing to the `bridge/state` topic during setup
+- Use the Reconfigure option to update the base topic if needed
+
+</details>
+
+### ZHA setup
+
+1. Select **ZHA** as the backend
+2. The integration validates that the ZHA integration is loaded and finds supported Aqara devices
+3. Click "Submit"
+
+The integration automatically discovers all supported Aqara lights that are paired with ZHA. No additional configuration parameters are required.
+
+**Prerequisites:**
+
+- The ZHA integration must be installed and configured in Home Assistant
+- Your Aqara lights must already be paired through ZHA
+- MQTT integration is **not** required for ZHA-only setups
+
+**How it works:**
+
+- The integration registers custom Zigbee cluster definitions so that ZHA can communicate with Aqara-specific features (effects, segments, device configuration)
+- Supported devices are automatically detected from the ZHA device list
+- If ZHA was already running when the integration is installed, a one-time ZHA reload is triggered to apply the custom cluster definitions
+- Light entities are mapped to their ZHA devices for service routing
+
+<details>
+<summary>ZHA troubleshooting
+</summary>
+
+- **"No supported Aqara devices found"**: Ensure your lights are paired through ZHA and are one of the supported models (see table above)
+- **ZHA gateway not ready**: If the ZHA integration is still initializing, wait a moment and try adding the integration again
+- **Effects not applying after initial setup**: The integration triggers a ZHA reload to register custom cluster definitions. If effects still do not work, restart Home Assistant once, and wait for Home Assistant to fully load and setup
+- **Device not recognized**: ZHA v2 quirks may override the device model name. The integration handles this automatically, but if a device is not detected, check that its Zigbee model ID matches a supported model (e.g., `lumi.light.acn032` for T1M)
+
+</details>
+
+<details>
+<summary>ZHA notes
+</summary>
+
+- Only one ZHA config entry is supported per Home Assistant instance (ZHA itself only supports one gateway)
+- ZHA entries do not have a reconfiguration option since no user-configurable parameters are needed
+
+</details>
+
+### Mixed backend environments
+
+You can run both Z2M and ZHA simultaneously. For example, you might have some Aqara lights on Zigbee2MQTT and others on ZHA. The integration routes service calls to the correct backend automatically. Presets, favorites, and the frontend panel work across both backends.
+
+
+<details>
 <summary>
 Reconfiguration
 </summary>
@@ -358,7 +420,7 @@ To remove the integration from Home Assistant:
    - Delete the `custom_components/aqara_advanced_lighting` folder from your Home Assistant configuration directory
    - Restart Home Assistant
 
-**Note**: Removing the integration does not affect your Zigbee2MQTT configuration or your Aqara lights themselves. The lights will continue to work with Zigbee2MQTT and the standard Home Assistant MQTT Light integration.
+**Note**: Removing the integration does not affect your Zigbee2MQTT or ZHA configuration, nor your Aqara lights themselves. The lights will continue to work with their respective Zigbee backend and standard Home Assistant light entities.
 
 </details>
 
@@ -467,7 +529,7 @@ Create custom effects and patterns with interactive builders:
 
 ![Aqara Advanced Lighting Dynamic Scenes](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/scenes.png " Aqara Advanced Lighting Dynamic Scenes")
 
-- Create ambient lighting scenes that work across multiple lights
+- Create ambient active lighting scenes that work across multiple lights
 - Add up to 8 colors using XY color pickers with per-color brightness (1-100%)
 - Configure transition time (30-3600 seconds) for smooth color changes
 - Set hold time (0-3600 seconds) to pause at each color
@@ -1419,15 +1481,14 @@ All services support Home Assistant light groups. When you target a light group,
 
 - Detects the group and expands it to individual light entities
 - Removes any duplicate entities
-- Routes each entity to the correct Zigbee2MQTT instance automatically
+- Routes each entity to the correct backend (Z2M or ZHA) automatically
 - Applies the effect/pattern to all lights simultaneously
-- Uses batch MQTT publishing for optimal performance
 
-**Multi-Instance Support:**
-Light groups can contain entities from multiple Zigbee2MQTT instances. The integration automatically:
+**Multi-Backend and Multi-Instance Support:**
+Light groups can contain entities from different backends and multiple Zigbee2MQTT instances. The integration automatically:
 
-- Identifies which Z2M instance owns each entity
-- Routes service calls to the appropriate instance
+- Identifies which backend and instance owns each entity
+- Routes service calls to the appropriate backend
 - Processes all entities in parallel for synchronized effects
 
 **Example - Applying an effect to a group:**
@@ -1435,19 +1496,19 @@ Light groups can contain entities from multiple Zigbee2MQTT instances. The integ
 ```yaml
 service: aqara_advanced_lighting.set_dynamic_effect
 target:
-  entity_id: light.living_room_group  # Your light group (can span multiple Z2M instances)
+  entity_id: light.living_room_group  # Can span Z2M instances and ZHA
 data:
   preset: "sunset"
 ```
 
-**Example - Multi-instance group:**
+**Example - Mixed backend group:**
 
 ```yaml
 # light.whole_house_group contains:
-#   - light.living_room (from zigbee2mqtt instance)
-#   - light.bedroom (from zigbee2mqtt instance)
-#   - light.garage (from zigbee2mqtt_garage instance)
-#   - light.outdoor (from zigbee2mqtt_outdoor instance)
+#   - light.living_room (Zigbee2MQTT)
+#   - light.bedroom (Zigbee2MQTT)
+#   - light.kitchen (ZHA)
+#   - light.garage (zigbee2mqtt_garage instance)
 
 service: aqara_advanced_lighting.set_dynamic_effect
 target:
@@ -1456,7 +1517,7 @@ data:
   effect: "breathing"
   speed: 50
   color_1: [255, 100, 0]
-  # All lights receive the effect, routed to their respective Z2M instances
+  # All lights receive the effect, routed to their respective backends
 ```
 
 ### Custom Icons for Presets
@@ -2034,31 +2095,58 @@ automation:
 
 ### Integration won't load
 
+**Zigbee2MQTT backend:**
+
 - Verify MQTT integration is configured and running
 - Check that Zigbee2MQTT is connected
 - Review Home Assistant logs for specific errors
 
+**ZHA backend:**
+
+- Verify the ZHA integration is loaded and running
+- Check that at least one supported Aqara device is paired
+- Review Home Assistant logs for ZHA-related errors
+
 ### Lights not discovered
+
+**Zigbee2MQTT backend:**
 
 - Ensure lights are paired with Zigbee2MQTT
 - Verify Z2M base topic matches your configuration
 - Check that lights are one of the supported models
 
+**ZHA backend:**
+
+- Ensure lights are paired through ZHA (visible in **Settings** -> **Devices & Services** -> **ZHA**)
+- Verify the device model matches a supported model. ZHA v2 quirks may show a friendly name instead of the raw model ID, but the integration resolves this automatically
+- If a device was paired after the integration was set up, reload the integration entry
+
 ### Effects not working
 
+**Zigbee2MQTT backend:**
+
 - Verify the effect type is supported for your light model
-- Check Z2M logs for MQTT communication
+- Check Z2M logs for MQTT communication errors
 - Ensure light entity IDs are correct
+
+**ZHA backend:**
+
+- Verify the effect type is supported for your light model
+- If effects do not work after initial setup, restart Home Assistant to ensure the custom Zigbee cluster definitions are registered
+- Check Home Assistant logs for "Failed to write attribute" errors, which indicate cluster communication issues
 
 ### Service calls failing
 
-- Check that entity_id exists and is correct
+- Check that `entity_id` exists and is correct
 - Verify RGB color values are 0-255
 - Ensure speed is 1-100
+- Confirm the entity is associated with a configured integration entry (check diagnostics for entity mappings)
 
 ### T1 Strip segment count issues
 
-- Ensure your T1 Strip's `length` attribute is correctly set in Z2M or HA
+- Ensure your T1 Strip's `length` attribute is correctly set
+  - **Zigbee2MQTT**: Check the `length` attribute in Z2M or HA
+  - **ZHA**: Use the Device Config tab in the panel to set strip length
 - The integration reads this to calculate segment count (5 segments per meter)
 - If unavailable, it defaults to 10 segments (2 meters) with a warning
 
@@ -2069,9 +2157,24 @@ automation:
 - T1 strip: 0.0.0_0027
 - T2 bulb: 0.0.0_0030
 
+### ZHA-specific troubleshooting
+
+**Entity mapping delays**
+
+After adding the ZHA backend, the integration waits up to 30 seconds for ZHA to create light entities. If you see "0 entities mapped" in the logs, reload the integration entry after ZHA has fully started.
+
+**Checking ZHA logs**
+
+For debugging ZHA communication issues, look for these log entries:
+
+- `Resolved ZHA quirk model ... via zigpy device` -- successful model resolution
+- `ZHA device discovery complete: found X supported devices` -- device count at setup
+- `Skipping Aqara device ... not in SUPPORTED_MODELS` -- unsupported device filtered out
+- `Failed to write attribute` -- cluster write error (check coordinator connectivity)
+
 ### Diagnostics
 
-The integration provides downloadable diagnostics data to help with troubleshooting. This includes discovered devices, entity mappings, active effects and sequences, and configuration details. Sensitive data is automatically redacted.
+The integration provides downloadable diagnostics data to help with troubleshooting. This includes discovered devices, entity mappings, backend type, active effects and sequences, and configuration details. Sensitive data is automatically redacted.
 
 To download diagnostics:
 
