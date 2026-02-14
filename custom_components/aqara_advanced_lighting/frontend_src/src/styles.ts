@@ -1564,16 +1564,13 @@ export const panelStyles = css`
       grid-template-columns: 1fr 1fr;
       gap: 16px 24px;
     }
-
-    .music-sync-left {
-      grid-template-columns: 1fr 1fr;
-    }
   }
 
   .music-sync-left {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: 16px;
+    align-items: center;
   }
 
   .music-sync-right {
@@ -1795,6 +1792,10 @@ export const panelStyles = css`
 
     .overrides-grid {
       grid-template-columns: repeat(2, 1fr);
+    }
+
+    .music-sync-content {
+      grid-template-columns: 1fr;
     }
   }
 
