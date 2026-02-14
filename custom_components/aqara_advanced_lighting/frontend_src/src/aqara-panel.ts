@@ -1817,6 +1817,10 @@ export class AqaraPanel extends LitElement {
     // Clear active favorite when manually changing selection
     this._activeFavoriteId = null;
 
+    // Clear editor drafts so device type auto-set reflects the new selection
+    // (drafts set _hasUserInteraction=true which blocks auto-set)
+    this._clearEditorDraft();
+
     // Load curvature from first T2 entity when selection changes
     this._loadCurvatureFromEntity();
 

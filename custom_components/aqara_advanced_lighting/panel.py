@@ -1209,9 +1209,11 @@ class SupportedEntitiesView(HomeAssistantView):
                 elif model_id in [MODEL_T2_BULB_E26, MODEL_T2_BULB_E27,
                                   MODEL_T2_BULB_GU10_230V, MODEL_T2_BULB_GU10_110V]:
                     device_type = "t2_bulb"
+                elif model_id in [MODEL_T2_CCT_E26, MODEL_T2_CCT_E27,
+                                  MODEL_T2_CCT_GU10_230V, MODEL_T2_CCT_GU10_110V]:
+                    device_type = "t2_cct"
                 else:
-                    # Check for CCT-only models
-                    device_type = "t2_cct" if "cct" in model_id.lower() else "unknown"
+                    device_type = "unknown"
 
                 # Get segment count for this device model
                 from .light_capabilities import get_segment_count
