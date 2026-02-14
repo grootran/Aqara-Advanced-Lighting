@@ -84,7 +84,7 @@ _If you want to show your support please_
 ## Requirements
 
 - Home Assistant 2025.12.0 or newer (older versions not tested)
-- Supported Aqara light devices (see table above)
+- Supported Aqara light devices with Zigbee firmware (see table above)
 - **One or both** of the following Zigbee backends:
 
 **For Zigbee2MQTT:**
@@ -103,7 +103,6 @@ _If you want to show your support please_
 - [Configuration](#configuration)
   - [Zigbee2MQTT setup](#zigbee2mqtt-setup)
   - [ZHA setup](#zha-setup)
-  - [Backend feature comparison](#backend-feature-comparison)
 - [Usage](#usage)
   - [Frontend Panel](#frontend-panel)
   - [Visual Editors](#visual-editors)
@@ -488,6 +487,10 @@ Customize how presets are applied with optional overrides:
   - Apply scene colors once without starting transitions
   - Colors are distributed according to the scene's distribution mode
   - Lights remain at the assigned colors without cycling
+- **Scene color assignment**: For dynamic scenes only
+  - Change the way colors are assigned to lights from the method specified in the preset
+- **Ignore external changes**: For dynamic scenes and sequences
+  - By default, when a light has changes applied to it through other HA services such as the user manually changing the color, this integrations sequences are paused or stopped, enabling this toggle will ignore those changes and keep the sequence running.
 
 These overrides apply when activating presets from the panel and provide quick ways to adjust preset behavior without editing the preset itself.
 
@@ -531,6 +534,7 @@ Create custom effects and patterns with interactive builders:
 
 - Create ambient active lighting scenes that work across multiple lights
 - Add up to 8 colors using XY color pickers with per-color brightness (1-100%)
+- Create color palettes from uploaded images or image URLs, and optionally use those as preset thumbnails
 - Configure transition time (30-3600 seconds) for smooth color changes
 - Set hold time (0-3600 seconds) to pause at each color
 - Choose color assignment mode:
