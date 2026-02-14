@@ -717,9 +717,9 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
       segments: previousStep?.segments || 'all',  // Copy segments from previous step
       colors: previousStep?.colors?.map((c) => Array.isArray(c) ? [...c] : c) || [[255, 0, 0]],
       mode: previousStep?.mode || 'blocks_expand',
-      duration: 15,
-      hold: 60,
-      activation_pattern: 'all',
+      duration: previousStep?.duration ?? 15,
+      hold: previousStep?.hold ?? 60,
+      activation_pattern: previousStep?.activation_pattern ?? 'all',
       // Copy segment-selector fields from previous step
       coloredSegments: previousStep ? new Map(previousStep.coloredSegments) : new Map(),
       colorPalette: previousStep ? previousStep.colorPalette.map((c) => ({ ...c })) : [...DEFAULT_PALETTE],
