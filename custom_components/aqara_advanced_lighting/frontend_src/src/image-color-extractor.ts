@@ -23,7 +23,7 @@ export class ImageColorExtractor extends LitElement {
   @state() private _mode: 'upload' | 'url' = 'upload';
   @state() private _url = '';
   @state() private _saveThumbnail = true;
-  @state() private _extractBrightness = true;
+  @state() private _extractBrightness = false;
   @state() private _extracting = false;
   @state() private _error = '';
   @state() private _previewSrc = '';

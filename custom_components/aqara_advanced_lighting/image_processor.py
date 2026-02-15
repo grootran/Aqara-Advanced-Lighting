@@ -10,7 +10,6 @@ import math
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from homeassistant.core import HomeAssistant
-from homeassistant.util.color import color_RGB_to_xy
 
 from .const import (
     DEFAULT_EXTRACTED_COLORS,
@@ -24,6 +23,51 @@ _LOGGER = logging.getLogger(__name__)
 # Minimum max-channel value for a color to be usable by a light.
 # Pure black has no chromaticity and cannot be reproduced.
 _MIN_CHANNEL = 5
+
+# D65 white point (returned for black/zero-luminance inputs)
+_D65_X = 0.3127
+_D65_Y = 0.3290
+
+
+def _rgb_to_xy(r: int, g: int, b: int) -> tuple[float, float]:
+    """Convert sRGB to CIE 1931 xy chromaticity using the sRGB D65 matrix.
+
+    Home Assistant's ``color_RGB_to_xy`` uses the Wide RGB D65 matrix
+    (designed for Philips Hue), which produces non-standard chromaticity
+    coordinates. This function uses the IEC 61966-2-1 sRGB D65 matrix
+    so that the resulting xy values are consistent with the frontend's
+    ``rgbToXy`` / ``xyToRgb`` round-trip and with standard CIE 1931.
+    """
+    # Normalise to 0-1
+    red = r / 255.0
+    green = g / 255.0
+    blue = b / 255.0
+
+    # Inverse sRGB companding (gamma → linear)
+    red = (
+        pow((red + 0.055) / 1.055, 2.4) if red > 0.04045 else red / 12.92
+    )
+    green = (
+        pow((green + 0.055) / 1.055, 2.4)
+        if green > 0.04045
+        else green / 12.92
+    )
+    blue = (
+        pow((blue + 0.055) / 1.055, 2.4)
+        if blue > 0.04045
+        else blue / 12.92
+    )
+
+    # sRGB D65 forward matrix (IEC 61966-2-1)
+    x_val = red * 0.4124 + green * 0.3576 + blue * 0.1805
+    y_val = red * 0.2126 + green * 0.7152 + blue * 0.0722
+    z_val = red * 0.0193 + green * 0.1192 + blue * 0.9505
+
+    total = x_val + y_val + z_val
+    if total == 0:
+        return (_D65_X, _D65_Y)
+
+    return (x_val / total, y_val / total)
 
 
 def _color_distance(c1: RGBColor, c2: RGBColor) -> float:
@@ -150,10 +194,9 @@ def _extract_palette(
     colors = _select_diverse_colors(candidates, num_colors)
 
     # Build result with XY chromaticity, brightness, and hue.
-    # Use color_RGB_to_xy directly to avoid XYColor brightness validation.
     raw: list[dict[str, float]] = []
     for _count, rgb in colors:
-        x, y = color_RGB_to_xy(rgb.r, rgb.g, rgb.b)
+        x, y = _rgb_to_xy(rgb.r, rgb.g, rgb.b)
         luminance = 0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b
         hue, _, _ = colorsys.rgb_to_hsv(rgb.r / 255, rgb.g / 255, rgb.b / 255)
         raw.append({
@@ -169,7 +212,7 @@ def _extract_palette(
     result: list[dict[str, float | int]] = []
     for c in raw:
         brightness_pct = (
-            max(20, min(100, round(c["brightness_raw"])))
+            max(10, min(100, round(c["brightness_raw"])))
             if extract_brightness
             else 100
         )
