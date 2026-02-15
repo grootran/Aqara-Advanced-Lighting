@@ -61,7 +61,7 @@ Use Aqara advanced lighting features through the ZHA integration without requiri
 
 #### **Device Registry Merging**
 
-**Aqara devices now share the existing MQTT/ZHA device instead of creating duplicates**
+**Aqara Advanced Lighting devices now share the existing MQTT/ZHA device instead of creating duplicates**
 
   - The integration now merges into the existing MQTT or ZHA device in the Home Assistant device registry rather than creating a separate device for each light
   - For Z2M: uses shared MQTT identifiers so Home Assistant recognizes both integrations belong to the same physical device
