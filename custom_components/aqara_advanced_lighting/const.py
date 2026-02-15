@@ -345,6 +345,14 @@ SERVICE_SET_MUSIC_SYNC: Final = "set_music_sync"
 SERVICE_RESUME_ENTITY_CONTROL: Final = "resume_entity_control"
 ENTITY_CONTROL_GRACE_SECONDS: Final = 8.0
 
+# Music sync event types
+EVENT_MUSIC_SYNC_ENABLED: Final = f"{DOMAIN}_music_sync_enabled"
+EVENT_MUSIC_SYNC_DISABLED: Final = f"{DOMAIN}_music_sync_disabled"
+
+# Music sync event data keys
+EVENT_ATTR_SENSITIVITY: Final = "sensitivity"
+EVENT_ATTR_AUDIO_EFFECT: Final = "audio_effect"
+
 # Event types for automation triggers
 EVENT_SEQUENCE_STARTED: Final = f"{DOMAIN}_sequence_started"
 EVENT_SEQUENCE_COMPLETED: Final = f"{DOMAIN}_sequence_completed"
@@ -391,6 +399,8 @@ TRIGGER_TYPE_DYNAMIC_SCENE_RESUMED: Final = "dynamic_scene_resumed"
 TRIGGER_TYPE_DYNAMIC_SCENE_STOPPED: Final = "dynamic_scene_stopped"
 TRIGGER_TYPE_DYNAMIC_SCENE_LOOP_COMPLETED: Final = "dynamic_scene_loop_completed"
 TRIGGER_TYPE_DYNAMIC_SCENE_FINISHED: Final = "dynamic_scene_finished"
+TRIGGER_TYPE_MUSIC_SYNC_ENABLED: Final = "music_sync_enabled"
+TRIGGER_TYPE_MUSIC_SYNC_DISABLED: Final = "music_sync_disabled"
 
 # All device trigger types
 TRIGGER_TYPES: Final = {
@@ -414,6 +424,8 @@ TRIGGER_TYPES: Final = {
     TRIGGER_TYPE_DYNAMIC_SCENE_STOPPED,
     TRIGGER_TYPE_DYNAMIC_SCENE_LOOP_COMPLETED,
     TRIGGER_TYPE_DYNAMIC_SCENE_FINISHED,
+    TRIGGER_TYPE_MUSIC_SYNC_ENABLED,
+    TRIGGER_TYPE_MUSIC_SYNC_DISABLED,
 }
 
 # Trigger type groupings for preset filtering
@@ -449,6 +461,11 @@ DYNAMIC_SCENE_TRIGGER_TYPES: Final = {
     TRIGGER_TYPE_DYNAMIC_SCENE_FINISHED,
 }
 
+MUSIC_SYNC_TRIGGER_TYPES: Final = {
+    TRIGGER_TYPE_MUSIC_SYNC_ENABLED,
+    TRIGGER_TYPE_MUSIC_SYNC_DISABLED,
+}
+
 # Device condition types for HA automation UI
 CONDITION_TYPE_CCT_SEQUENCE_RUNNING: Final = "cct_sequence_running"
 CONDITION_TYPE_CCT_SEQUENCE_PAUSED: Final = "cct_sequence_paused"
@@ -457,6 +474,7 @@ CONDITION_TYPE_SEGMENT_SEQUENCE_PAUSED: Final = "segment_sequence_paused"
 CONDITION_TYPE_EFFECT_ACTIVE: Final = "effect_active"
 CONDITION_TYPE_DYNAMIC_SCENE_RUNNING: Final = "dynamic_scene_running"
 CONDITION_TYPE_DYNAMIC_SCENE_PAUSED: Final = "dynamic_scene_paused"
+CONDITION_TYPE_MUSIC_SYNC_ACTIVE: Final = "music_sync_active"
 
 # All device condition types
 CONDITION_TYPES: Final = {
@@ -467,6 +485,7 @@ CONDITION_TYPES: Final = {
     CONDITION_TYPE_EFFECT_ACTIVE,
     CONDITION_TYPE_DYNAMIC_SCENE_RUNNING,
     CONDITION_TYPE_DYNAMIC_SCENE_PAUSED,
+    CONDITION_TYPE_MUSIC_SYNC_ACTIVE,
 }
 
 # Condition type groupings for preset filtering
@@ -487,6 +506,10 @@ EFFECT_CONDITION_TYPES: Final = {
 DYNAMIC_SCENE_CONDITION_TYPES: Final = {
     CONDITION_TYPE_DYNAMIC_SCENE_RUNNING,
     CONDITION_TYPE_DYNAMIC_SCENE_PAUSED,
+}
+
+MUSIC_SYNC_CONDITION_TYPES: Final = {
+    CONDITION_TYPE_MUSIC_SYNC_ACTIVE,
 }
 
 # Friendly model names for device registry display

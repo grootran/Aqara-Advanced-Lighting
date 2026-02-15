@@ -64,11 +64,15 @@ from .const import (
     PRESET_TYPE_SEGMENT_SEQUENCE,
     END_BEHAVIOR_MAINTAIN,
     END_BEHAVIOR_TURN_OFF,
+    EVENT_ATTR_AUDIO_EFFECT,
     EVENT_ATTR_EFFECT_TYPE,
     EVENT_ATTR_ENTITY_ID,
     EVENT_ATTR_PRESET,
+    EVENT_ATTR_SENSITIVITY,
     EVENT_EFFECT_ACTIVATED,
     EVENT_EFFECT_STOPPED,
+    EVENT_MUSIC_SYNC_DISABLED,
+    EVENT_MUSIC_SYNC_ENABLED,
     LOOP_MODE_CONTINUOUS,
     LOOP_MODE_COUNT,
     LOOP_MODE_ONCE,
@@ -3189,6 +3193,15 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     "effect": effect,
                 }
 
+                hass.bus.async_fire(
+                    EVENT_MUSIC_SYNC_ENABLED,
+                    {
+                        EVENT_ATTR_ENTITY_ID: entity_id,
+                        EVENT_ATTR_SENSITIVITY: sensitivity,
+                        EVENT_ATTR_AUDIO_EFFECT: effect,
+                    },
+                )
+
                 _LOGGER.info(
                     "Enabled music sync on %s: effect=%s, sensitivity=%s",
                     entity_id,
@@ -3210,6 +3223,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     context=_get_context_and_record(hass, entity_id),
                 )
                 entity_state_manager.clear_state(entity_id)
+
+                hass.bus.async_fire(
+                    EVENT_MUSIC_SYNC_DISABLED,
+                    {EVENT_ATTR_ENTITY_ID: entity_id},
+                )
 
                 _LOGGER.info("Disabled music sync on %s", entity_id)
 

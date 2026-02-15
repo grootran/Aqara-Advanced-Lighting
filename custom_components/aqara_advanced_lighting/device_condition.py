@@ -22,10 +22,12 @@ from .const import (
     CONDITION_TYPE_DYNAMIC_SCENE_PAUSED,
     CONDITION_TYPE_DYNAMIC_SCENE_RUNNING,
     CONDITION_TYPE_EFFECT_ACTIVE,
+    CONDITION_TYPE_MUSIC_SYNC_ACTIVE,
     CONDITION_TYPE_SEGMENT_SEQUENCE_PAUSED,
     CONDITION_TYPE_SEGMENT_SEQUENCE_RUNNING,
     CONDITION_TYPES,
     CONF_PRESET_FILTER,
+    DATA_ACTIVE_MUSIC_SYNC,
     DATA_CCT_SEQUENCE_MANAGER,
     DATA_DYNAMIC_SCENE_MANAGER,
     DATA_SEGMENT_SEQUENCE_MANAGER,
@@ -143,6 +145,25 @@ def _get_managers_for_entity(
     return None
 
 
+def _is_music_sync_active(hass: HomeAssistant, entity_id: str) -> bool:
+    """Check if music sync is active for an entity.
+
+    Searches across all config entries for active music sync state.
+    """
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        if entry.state is not ConfigEntryState.LOADED:
+            continue
+
+        instance_data = hass.data.get(DOMAIN, {}).get("entries", {}).get(
+            entry.entry_id, {}
+        )
+        active_music_sync = instance_data.get(DATA_ACTIVE_MUSIC_SYNC, {})
+        if entity_id in active_music_sync:
+            return True
+
+    return False
+
+
 @callback
 def async_condition_from_config(
     hass: HomeAssistant, config: ConfigType
@@ -247,6 +268,10 @@ def async_condition_from_config(
                             return True
                     else:
                         return True
+
+            elif condition_type == CONDITION_TYPE_MUSIC_SYNC_ACTIVE:
+                if _is_music_sync_active(hass, entity_id):
+                    return True
 
         return False
 

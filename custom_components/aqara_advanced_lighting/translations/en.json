@@ -20,7 +20,9 @@
       "dynamic_scene_resumed": "Dynamic scene resumed",
       "dynamic_scene_stopped": "Dynamic scene stopped",
       "dynamic_scene_loop_completed": "Dynamic scene loop completed",
-      "dynamic_scene_finished": "Dynamic scene finished"
+      "dynamic_scene_finished": "Dynamic scene finished",
+      "music_sync_enabled": "Music sync enabled",
+      "music_sync_disabled": "Music sync disabled"
     },
     "condition_type": {
       "cct_sequence_running": "CCT sequence is running",
@@ -29,7 +31,8 @@
       "segment_sequence_paused": "Segment sequence is paused",
       "effect_active": "Dynamic effect is active",
       "dynamic_scene_running": "Dynamic scene is running",
-      "dynamic_scene_paused": "Dynamic scene is paused"
+      "dynamic_scene_paused": "Dynamic scene is paused",
+      "music_sync_active": "Music sync is active"
     },
     "extra_fields": {
       "preset": "Preset filter"

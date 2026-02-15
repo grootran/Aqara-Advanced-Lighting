@@ -12,7 +12,7 @@
 
 Easily control the more advanced features of the **Aqara T1M Ceiling Light**, **T1 LED Strip** and **T2 RGB+CCT bulbs** through **Home Assistant**, with support for dynamic RGB effects, per-segment colors and gradients, animated segment sequences, multi-step color temperature transitions, dynamic scenes, and more. Save and reuse custom presets across all feature types.
 
-Includes a sidebar panel with visual editors for building effects, patterns, scenes, and sequences, plus 18 service actions, 20 device triggers and 7 device conditions for use in automations and scripts.
+Includes a sidebar panel with visual editors for building effects, patterns, scenes, and sequences, plus 19 service actions, 24 device triggers and 9 device conditions for use in automations and scripts.
 
 _Please :star: this integration if you find it useful_
 
@@ -68,8 +68,8 @@ _If you want to show your support please_
 **Automation**
 
 - 18 service actions for use in automations, scripts, and Developer Tools
-- 20 device triggers for sequence, effect, and scene lifecycle events (started, completed, stopped, paused, resumed, step changed)
-- 7 device conditions to check if sequences, effects, or scenes are running or paused
+- 22 device triggers for sequence, effect, scene, and music sync lifecycle events (started, completed, stopped, paused, resumed, step changed)
+- 8 device conditions to check if sequences, effects, scenes, or music sync are running or paused
 - REST API trigger endpoint for external systems (Node-RED, phone shortcuts, voice assistants)
 - Light group support with automatic entity expansion and multi-instance routing
 - Auto turn-on option for all services
@@ -1202,7 +1202,7 @@ target:
 
 ![Aqara Advanced Lighting Device Triggers](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/trigger.png " Aqara Advanced Lighting Device Triggers")
 
-The integration provides device triggers that let you build automations that respond to sequence, effect, and scene events. These triggers appear in the Home Assistant automation UI when you select a device trigger for any supported Aqara light.
+The integration provides device triggers that let you build automations that respond to sequence, effect, scene, and music sync events. These triggers appear in the Home Assistant automation UI when you select a device trigger for any supported Aqara light.
 
 To use a device trigger in an automation:
 
@@ -1257,7 +1257,15 @@ To use a device trigger in an automation:
 | Dynamic scene loop completed | Fires each time a dynamic scene completes a full loop  |
 | Dynamic scene finished       | Fires when a dynamic scene finishes all loops and ends |
 
-**Preset Filter**: All triggers support an optional preset filter. When specified, the trigger only activates if the specific preset name is started, paused, or stopped. This allows you to create automations that respond to specific effects or sequences.
+**Music Sync Triggers** (T1 LED Strip only)
+
+
+| Trigger             | Description                                                                                    |
+| --------------------- | ------------------------------------------------------------------------------------------------ |
+| Music sync enabled  | Fires when music sync (audio-reactive mode) is enabled. Event data includes sensitivity and audio effect |
+| Music sync disabled | Fires when music sync is disabled and the light state is restored                              |
+
+**Preset Filter**: Sequence, effect, and scene triggers support an optional preset filter. When specified, the trigger only activates if the specific preset name is started, paused, or stopped. This allows you to create automations that respond to specific effects or sequences. Music sync triggers do not support preset filtering.
 
 #### Example Automations Using Triggers
 
@@ -1341,6 +1349,27 @@ automation:
 
 </details>
 
+<details>
+<summary>Dim room lights when music sync starts</summary>
+
+```yaml
+automation:
+  - alias: "Set mood lighting for music sync"
+    trigger:
+      - platform: device
+        domain: aqara_advanced_lighting
+        device_id: <your_device_id>
+        type: music_sync_enabled
+    action:
+      - service: light.turn_on
+        target:
+          entity_id: light.living_room
+        data:
+          brightness_pct: 20
+```
+
+</details>
+
 ### Condition Triggers
 
 ![Aqara Advanced Lighting Device Conditions](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/condition.png " Aqara Advanced Lighting Device Conditions")
@@ -1368,8 +1397,9 @@ To use a device condition in an automation:
 | Dynamic effect is active    | True when a dynamic RGB effect is currently active on the device    |
 | Dynamic scene is running    | True when a dynamic scene is actively running on the device         |
 | Dynamic scene is paused     | True when a dynamic scene is paused on the device                   |
+| Music sync is active        | True when music sync (audio-reactive mode) is active on the device (T1 LED Strip only) |
 
-**Preset Filter**: All conditions support an optional preset filter. When specified, the condition only returns true if the specific preset name is running or paused. This allows you to create automations that respond to specific effects or sequences.
+**Preset Filter**: Sequence, effect, and scene conditions support an optional preset filter. When specified, the condition only returns true if the specific preset name is running or paused. This allows you to create automations that respond to specific effects or sequences. The music sync condition does not support preset filtering.
 
 #### Example Automations Using Conditions
 
