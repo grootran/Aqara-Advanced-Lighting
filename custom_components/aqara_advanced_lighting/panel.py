@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 import json
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote
+import uuid
 
 from aiohttp import web
+import aiohttp
 
 from homeassistant.components import frontend
 from homeassistant.components.http import HomeAssistantView
@@ -40,8 +43,11 @@ from .const import (
     DATA_SEGMENT_ZONE_STORE,
     DATA_STATE_MANAGER,
     DATA_USER_PREFERENCES_STORE,
+    DEFAULT_EXTRACTED_COLORS,
     DOMAIN,
     MAX_COLOR_HISTORY_SIZE,
+    MAX_IMAGE_SIZE_BYTES,
+    THUMBNAIL_STORAGE_DIR,
     MODEL_T1M_20_SEGMENT,
     MODEL_T1M_26_SEGMENT,
     MODEL_T1_STRIP,
@@ -143,6 +149,10 @@ async def async_register_panel(hass: HomeAssistant) -> None:
 
     # Register running operations endpoint for panel status display
     hass.http.register_view(RunningOperationsView)
+
+    # Register image color extraction and thumbnail endpoints
+    hass.http.register_view(ColorExtractView)
+    hass.http.register_view(ThumbnailView)
 
     _LOGGER.info("Aqara Advanced Lighting panel registered")
 
@@ -1708,3 +1718,222 @@ class RunningOperationsView(HomeAssistantView):
                 })
 
         return web.json_response({"operations": operations})
+
+
+def _get_thumbnail_dir(hass: HomeAssistant) -> Path:
+    """Get the thumbnail storage directory, creating it if needed."""
+    path = Path(hass.config.path(f".storage/{THUMBNAIL_STORAGE_DIR}"))
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _get_pending_thumbnails(hass: HomeAssistant) -> dict[str, bytes]:
+    """Get the in-memory pending thumbnails dict, creating it if needed."""
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    if "pending_thumbnails" not in domain_data:
+        domain_data["pending_thumbnails"] = {}
+    return domain_data["pending_thumbnails"]
+
+
+class ColorExtractView(HomeAssistantView):
+    """Extract dominant colors from an uploaded image or image URL."""
+
+    url = f"/api/{DOMAIN}/extract_colors"
+    name = f"api:{DOMAIN}:extract_colors"
+    requires_auth = True
+
+    async def post(self, request: web.Request) -> web.Response:
+        """Extract colors from an image.
+
+        Accepts either:
+        - Multipart form with 'file' field and optional 'num_colors',
+          'save_thumbnail', 'extract_brightness'
+        - JSON body with 'url' and optional 'num_colors', 'save_thumbnail',
+          'extract_brightness'
+
+        Returns JSON with 'colors' list and optional 'thumbnail_id'.
+        """
+        hass: HomeAssistant = request.app["hass"]
+
+        from .image_processor import async_create_thumbnail, async_extract_colors
+
+        content_type = request.content_type or ""
+        image_bytes: bytes | None = None
+        num_colors = DEFAULT_EXTRACTED_COLORS
+        save_thumbnail = False
+        extract_brightness = True
+
+        if "multipart" in content_type:
+            # File upload
+            reader = await request.multipart()
+            async for part in reader:
+                if part.name == "file":
+                    image_bytes = await part.read(decode=False)
+                elif part.name == "num_colors":
+                    raw = await part.text()
+                    try:
+                        num_colors = int(raw)
+                    except ValueError:
+                        pass
+                elif part.name == "save_thumbnail":
+                    raw = await part.text()
+                    save_thumbnail = raw.lower() in ("true", "1", "yes")
+                elif part.name == "extract_brightness":
+                    raw = await part.text()
+                    extract_brightness = raw.lower() in ("true", "1", "yes")
+
+            if not image_bytes:
+                return web.Response(status=400, text="No file uploaded")
+
+        else:
+            # JSON body with URL
+            try:
+                data = await request.json()
+            except ValueError:
+                return web.Response(status=400, text="Invalid JSON")
+
+            url = data.get("url")
+            if not url or not isinstance(url, str):
+                return web.Response(status=400, text="Missing `url` field")
+
+            num_colors = int(data.get("num_colors", DEFAULT_EXTRACTED_COLORS))
+            save_thumbnail = bool(data.get("save_thumbnail", False))
+            extract_brightness = bool(data.get("extract_brightness", True))
+
+            # Download the image
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with asyncio.timeout(15):
+                        async with session.get(url) as resp:
+                            if resp.status != 200:
+                                return web.Response(
+                                    status=400,
+                                    text=f"Failed to download image: HTTP {resp.status}",
+                                )
+                            # Reject before downloading if Content-Length exceeds limit
+                            content_length = resp.headers.get("Content-Length")
+                            if (
+                                content_length
+                                and int(content_length) > MAX_IMAGE_SIZE_BYTES
+                            ):
+                                return web.Response(
+                                    status=413,
+                                    text="Image exceeds 10 MB size limit",
+                                )
+                            image_bytes = await resp.read()
+            except TimeoutError:
+                return web.Response(status=408, text="Image download timed out")
+            except aiohttp.ClientError as ex:
+                return web.Response(
+                    status=400, text=f"Failed to download image: {ex}"
+                )
+
+        # Validate size
+        if len(image_bytes) > MAX_IMAGE_SIZE_BYTES:
+            return web.Response(
+                status=413, text="Image exceeds 10 MB size limit"
+            )
+
+        # Clamp num_colors
+        num_colors = max(1, min(8, num_colors))
+
+        # Extract colors
+        try:
+            colors = await async_extract_colors(
+                hass, image_bytes, num_colors,
+                extract_brightness=extract_brightness,
+            )
+        except Exception as ex:
+            _LOGGER.warning("Color extraction failed: %s", ex)
+            return web.Response(status=422, text=f"Color extraction failed: {ex}")
+
+        result: dict[str, Any] = {"colors": colors}
+
+        # Optionally create thumbnail (held in memory until preset is saved)
+        if save_thumbnail:
+            try:
+                thumb_bytes = await async_create_thumbnail(hass, image_bytes)
+                thumb_id = uuid.uuid4().hex
+                pending = _get_pending_thumbnails(hass)
+                pending[thumb_id] = thumb_bytes
+                result["thumbnail_id"] = thumb_id
+            except Exception as ex:
+                _LOGGER.warning("Thumbnail creation failed: %s", ex)
+                # Non-fatal -- colors still returned
+
+        return web.json_response(result)
+
+
+class ThumbnailView(HomeAssistantView):
+    """Serve and manage stored preset thumbnails."""
+
+    url = f"/api/{DOMAIN}/thumbnails/{{thumbnail_id}}"
+    name = f"api:{DOMAIN}:thumbnail"
+    requires_auth = False
+
+    async def get(
+        self, request: web.Request, thumbnail_id: str
+    ) -> web.Response:
+        """Serve a thumbnail image by ID.
+
+        Checks pending (in-memory) thumbnails first, then falls back to
+        saved thumbnails on disk.
+        """
+        hass: HomeAssistant = request.app["hass"]
+
+        # Security: only allow hex characters in thumbnail ID
+        if not thumbnail_id.isalnum():
+            return web.Response(status=400, text="Invalid thumbnail ID")
+
+        # Check pending (unsaved) thumbnails in memory first
+        pending = _get_pending_thumbnails(hass)
+        if thumbnail_id in pending:
+            return web.Response(
+                body=pending[thumbnail_id],
+                content_type="image/jpeg",
+                headers={"Cache-Control": "no-store"},
+            )
+
+        # Fall back to saved thumbnails on disk
+        thumb_dir = _get_thumbnail_dir(hass)
+        thumb_path = thumb_dir / f"{thumbnail_id}.jpg"
+
+        # Ensure the resolved path is within the thumbnails directory
+        try:
+            thumb_path = thumb_path.resolve()
+            resolved_dir = thumb_dir.resolve()
+            if not str(thumb_path).startswith(str(resolved_dir)):
+                _LOGGER.warning("Path traversal attempt: %s", thumbnail_id)
+                return web.Response(status=403, text="Forbidden")
+        except (OSError, RuntimeError) as ex:
+            _LOGGER.error("Error resolving thumbnail path: %s", ex)
+            return web.Response(status=500, text="Server error")
+
+        if not thumb_path.exists():
+            return web.Response(status=404, text="Thumbnail not found")
+
+        def read_thumb() -> bytes:
+            return thumb_path.read_bytes()
+
+        content = await hass.async_add_executor_job(read_thumb)
+
+        return web.Response(
+            body=content,
+            content_type="image/jpeg",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
+
+    async def delete(
+        self, request: web.Request, thumbnail_id: str
+    ) -> web.Response:
+        """Delete a pending thumbnail from memory."""
+        hass: HomeAssistant = request.app["hass"]
+
+        if not thumbnail_id.isalnum():
+            return web.Response(status=400, text="Invalid thumbnail ID")
+
+        pending = _get_pending_thumbnails(hass)
+        if thumbnail_id in pending:
+            del pending[thumbnail_id]
+
+        return web.Response(status=204)

@@ -12,6 +12,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.storage import Store
 
+from pathlib import Path
+
 from .const import (
     DOMAIN,
     PRESET_TYPE_CCT_SEQUENCE,
@@ -19,6 +21,7 @@ from .const import (
     PRESET_TYPE_EFFECT,
     PRESET_TYPE_SEGMENT_PATTERN,
     PRESET_TYPE_SEGMENT_SEQUENCE,
+    THUMBNAIL_STORAGE_DIR,
     VALID_PRESET_TYPES,
 )
 from .models import RGBColor, XYColor
@@ -302,6 +305,9 @@ class PresetStore:
             len(self._data["dynamic_scene_presets"]),
         )
 
+        # Clean up orphaned thumbnails from previous sessions
+        await self._async_cleanup_orphaned_thumbnails()
+
     async def async_save(self) -> None:
         """Save presets to storage."""
         await self._store.async_save(self._data)
@@ -396,6 +402,10 @@ class PresetStore:
             "modified_at": timestamp,
         }
 
+        # Persist pending thumbnail to disk if present
+        if preset.get("thumbnail"):
+            await self._async_persist_pending_thumbnail(preset["thumbnail"])
+
         self._data[key].append(preset)
         await self.async_save()
         await self._notify_update_callbacks()
@@ -429,6 +439,17 @@ class PresetStore:
 
         for i, preset in enumerate(presets):
             if preset["id"] == preset_id:
+                old_thumb = preset.get("thumbnail")
+                new_thumb = preset_data.get("thumbnail")
+
+                # Persist pending thumbnail to disk if a new one is provided
+                if new_thumb and new_thumb != old_thumb:
+                    await self._async_persist_pending_thumbnail(new_thumb)
+
+                # Clean up old thumbnail from disk if replaced
+                if old_thumb and new_thumb and old_thumb != new_thumb:
+                    await self._async_delete_thumbnail(old_thumb)
+
                 # Preserve id and created_at, update modified_at
                 updated_preset = {
                     **preset,
@@ -452,7 +473,7 @@ class PresetStore:
         return None
 
     async def delete_preset(self, preset_type: str, preset_id: str) -> bool:
-        """Delete a preset.
+        """Delete a preset and its associated thumbnail if present.
 
         Args:
             preset_type: The type of preset
@@ -465,17 +486,128 @@ class PresetStore:
             return False
 
         key = self._get_storage_key(preset_type)
-        original_length = len(self._data[key])
 
+        # Find the preset before removing so we can clean up its thumbnail
+        thumbnail_id: str | None = None
+        for preset in self._data[key]:
+            if preset["id"] == preset_id:
+                thumbnail_id = preset.get("thumbnail")
+                break
+
+        original_length = len(self._data[key])
         self._data[key] = [p for p in self._data[key] if p["id"] != preset_id]
 
         if len(self._data[key]) < original_length:
             await self.async_save()
             await self._notify_update_callbacks()
             _LOGGER.debug("Deleted %s preset with ID %s", preset_type, preset_id)
+
+            # Clean up thumbnail file if present
+            if thumbnail_id:
+                await self._async_delete_thumbnail(thumbnail_id)
+
             return True
 
         return False
+
+    async def _async_delete_thumbnail(self, thumbnail_id: str) -> None:
+        """Delete a thumbnail file from storage (best-effort)."""
+        thumb_path = Path(
+            self.hass.config.path(
+                f".storage/{THUMBNAIL_STORAGE_DIR}/{thumbnail_id}.jpg"
+            )
+        )
+
+        def delete_file() -> None:
+            try:
+                if thumb_path.exists():
+                    thumb_path.unlink()
+                    _LOGGER.debug("Deleted thumbnail %s", thumbnail_id)
+            except OSError as ex:
+                _LOGGER.warning(
+                    "Failed to delete thumbnail %s: %s", thumbnail_id, ex
+                )
+
+        await self.hass.async_add_executor_job(delete_file)
+
+    async def _async_persist_pending_thumbnail(self, thumbnail_id: str) -> None:
+        """Move a pending thumbnail from memory to disk storage.
+
+        Called when a preset with a thumbnail is saved. The thumbnail bytes
+        are held in memory until this point to avoid orphaned files.
+        """
+        pending: dict[str, bytes] = (
+            self.hass.data.get(DOMAIN, {}).get("pending_thumbnails", {})
+        )
+        thumb_bytes = pending.pop(thumbnail_id, None)
+        if thumb_bytes is None:
+            _LOGGER.debug(
+                "Pending thumbnail %s not found in memory (may already be saved)",
+                thumbnail_id,
+            )
+            return
+
+        thumb_dir = Path(
+            self.hass.config.path(f".storage/{THUMBNAIL_STORAGE_DIR}")
+        )
+        thumb_path = thumb_dir / f"{thumbnail_id}.jpg"
+
+        def write_file() -> None:
+            thumb_dir.mkdir(parents=True, exist_ok=True)
+            thumb_path.write_bytes(thumb_bytes)
+
+        await self.hass.async_add_executor_job(write_file)
+        _LOGGER.debug("Persisted thumbnail %s to disk", thumbnail_id)
+
+    async def _async_cleanup_orphaned_thumbnails(self) -> None:
+        """Remove thumbnail files not referenced by any preset.
+
+        Runs at startup to clean up thumbnails orphaned by browser tab
+        closures, HA restarts during extraction, or other edge cases.
+        """
+        thumb_dir = Path(
+            self.hass.config.path(f".storage/{THUMBNAIL_STORAGE_DIR}")
+        )
+
+        def find_orphans() -> list[Path]:
+            if not thumb_dir.is_dir():
+                return []
+
+            # Collect all thumbnail IDs referenced by dynamic scene presets
+            referenced: set[str] = set()
+            for preset in self._data.get("dynamic_scene_presets", []):
+                thumb_id = preset.get("thumbnail")
+                if thumb_id:
+                    referenced.add(thumb_id)
+
+            # Find files on disk that are not referenced
+            orphans: list[Path] = []
+            for path in thumb_dir.iterdir():
+                if path.suffix == ".jpg" and path.stem not in referenced:
+                    orphans.append(path)
+            return orphans
+
+        def delete_orphans(orphans: list[Path]) -> int:
+            count = 0
+            for path in orphans:
+                try:
+                    path.unlink()
+                    count += 1
+                except OSError:
+                    pass
+            return count
+
+        try:
+            orphans = await self.hass.async_add_executor_job(find_orphans)
+            if orphans:
+                deleted = await self.hass.async_add_executor_job(
+                    delete_orphans, orphans
+                )
+                _LOGGER.info(
+                    "Cleaned up %d orphaned thumbnail(s)", deleted
+                )
+        except Exception:
+            _LOGGER.debug("Thumbnail cleanup skipped", exc_info=True)
 
     async def duplicate_preset(
         self, preset_type: str, preset_id: str, new_name: str | None = None
@@ -494,11 +626,12 @@ class PresetStore:
         if source_preset is None:
             return None
 
-        # Create a copy without id, created_at, modified_at
+        # Create a copy without id, created_at, modified_at, or thumbnail
+        # (thumbnail files are not duplicated, user can re-extract if needed)
         preset_data = {
             k: v
             for k, v in source_preset.items()
-            if k not in ("id", "created_at", "modified_at")
+            if k not in ("id", "created_at", "modified_at", "thumbnail")
         }
 
         # Set new name

@@ -265,6 +265,7 @@ export interface UserDynamicScenePreset {
   id: string;
   name: string;
   icon?: string;
+  thumbnail?: string;
   colors: DynamicSceneColor[];
   transition_time: number;
   hold_time: number;
@@ -397,6 +398,7 @@ export interface SegmentSequenceEditorDraft {
 export interface DynamicSceneEditorDraft {
   name: string;
   icon: string;
+  thumbnail?: string;
   colors: DynamicSceneColor[];
   transitionTime: number;
   holdTime: number;

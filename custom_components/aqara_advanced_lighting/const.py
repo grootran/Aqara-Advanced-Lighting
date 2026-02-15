@@ -571,6 +571,13 @@ PRESET_SEGMENT_SEQ_RAINBOW_FILL: Final = "rainbow_fill"
 PRESET_SEGMENT_SEQ_COMET: Final = "comet"
 PRESET_SEGMENT_SEQ_STELLA_BLUE: Final = "stella_blue"
 
+# Image processing constants
+MAX_IMAGE_SIZE_BYTES: Final = 10 * 1024 * 1024  # 10 MB
+THUMBNAIL_MAX_DIMENSION: Final = 300  # Max width or height in pixels
+THUMBNAIL_JPEG_QUALITY: Final = 85
+DEFAULT_EXTRACTED_COLORS: Final = 8
+THUMBNAIL_STORAGE_DIR: Final = "aqara_thumbnails"
+
 # Utility functions
 def brightness_percent_to_device(percent: int) -> int:
     """Convert brightness percentage (1-100) to device value (1-255).

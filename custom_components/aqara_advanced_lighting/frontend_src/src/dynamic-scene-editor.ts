@@ -12,6 +12,8 @@ import { addColorToHistory } from './color-history';
 import { ReorderableStepsMixin, reorderableStepStyles, ReorderableStepItem } from './reorderable-steps-mixin';
 import './xy-color-picker';
 import './color-history-swatches';
+import './image-color-extractor';
+import { ColorsExtractedDetail } from './image-color-extractor';
 
 // Editable color slot with unique ID for drag/drop
 interface EditableColor extends DynamicSceneColor, ReorderableStepItem {}
@@ -45,6 +47,8 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   @state() private _previewing = false;
   @state() private _editingColorIndex: number | null = null;
   @state() private _editingColor: XYColor | null = null;
+  @state() private _showExtractor = false;
+  @state() private _thumbnail?: string;
 
   // Alias for cleaner code
   private get _colors(): EditableColor[] {
@@ -238,6 +242,24 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
       cursor: not-allowed;
     }
 
+    .color-action-buttons {
+      display: flex;
+      gap: 8px;
+    }
+
+    .color-action-buttons .add-color-btn {
+      flex: 1;
+    }
+
+    .extract-btn {
+      border-style: dashed;
+    }
+
+    .extractor-modal {
+      max-width: 420px;
+      width: 90vw;
+    }
+
     /* Timing sliders */
     .timing-section {
       display: grid;
@@ -384,6 +406,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   private _loadPreset(preset: UserDynamicScenePreset): void {
     this._name = preset.name;
     this._icon = preset.icon || '';
+    this._thumbnail = preset.thumbnail;
     this._transitionTime = preset.transition_time;
     this._holdTime = preset.hold_time;
     this._distributionMode = preset.distribution_mode;
@@ -402,6 +425,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     return {
       name: this._name,
       icon: this._icon,
+      thumbnail: this._thumbnail,
       colors: this._colors.map(c => ({
         x: c.x,
         y: c.y,
@@ -421,6 +445,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   public resetToDefaults(): void {
     this._name = '';
     this._icon = '';
+    this._thumbnail = undefined;
     this._transitionTime = 120;
     this._holdTime = 0;
     this._distributionMode = 'shuffle_rotate';
@@ -435,6 +460,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   private _restoreDraft(draft: DynamicSceneEditorDraft): void {
     this._name = draft.name;
     this._icon = draft.icon;
+    this._thumbnail = draft.thumbnail;
     this._transitionTime = draft.transitionTime;
     this._holdTime = draft.holdTime;
     this._distributionMode = draft.distributionMode;
@@ -457,8 +483,10 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     ];
   }
 
+  private _colorIdCounter = 0;
+
   private _generateColorId(): string {
-    return `color-${this._colors.length}-${Date.now()}`;
+    return `color-${++this._colorIdCounter}-${Date.now()}`;
   }
 
   private _handleNameChange(e: CustomEvent): void {
@@ -568,6 +596,29 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     }];
   }
 
+  private _handleColorsExtracted(e: CustomEvent<ColorsExtractedDetail>): void {
+    const { colors, thumbnailId } = e.detail;
+
+    // Replace all color slots with extracted colors
+    this._colors = colors.map(c => ({
+      id: this._generateColorId(),
+      x: c.x,
+      y: c.y,
+      brightness_pct: c.brightness_pct,
+    }));
+
+    if (thumbnailId) {
+      // Delete previous unsaved thumbnail before storing the new one
+      const originalThumb = this.preset?.thumbnail;
+      if (this._thumbnail && this._thumbnail !== originalThumb) {
+        this._deleteThumbnail(this._thumbnail);
+      }
+      this._thumbnail = thumbnailId;
+    }
+
+    this._showExtractor = false;
+  }
+
   private _removeColor(colorId: string): void {
     if (this._colors.length <= 1) return;
     this._colors = this._colors.filter(c => c.id !== colorId);
@@ -577,6 +628,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     const data: Record<string, unknown> = {
       name: this._name,
       icon: this._icon || undefined,
+      thumbnail: this._thumbnail || undefined,
       colors: this._colors.map(c => ({
         x: c.x,
         y: c.y,
@@ -642,12 +694,29 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   }
 
   private _cancel(): void {
+    // Clean up unsaved thumbnail (one that was extracted but not yet persisted to a preset)
+    const originalThumb = this.preset?.thumbnail;
+    if (this._thumbnail && this._thumbnail !== originalThumb) {
+      this._deleteThumbnail(this._thumbnail);
+    }
+
     this.dispatchEvent(
       new CustomEvent('cancel', {
         bubbles: true,
         composed: true,
       })
     );
+  }
+
+  private _deleteThumbnail(thumbnailId: string): void {
+    const token = this.hass?.auth?.data?.access_token;
+    if (!token) return;
+    fetch(`/api/aqara_advanced_lighting/thumbnails/${thumbnailId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => {
+      // Best-effort cleanup
+    });
   }
 
   /**
@@ -767,16 +836,44 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
             `)}
             ${this._renderDropIndicator(this._colors.length)}
 
-            <button
-              class="add-color-btn ${this._colors.length >= 8 ? 'disabled' : ''}"
-              @click=${this._addColor}
-              ?disabled=${this._colors.length >= 8}
-            >
-              <ha-icon icon="mdi:plus"></ha-icon>
-              ${this._localize('dynamic_scene.add_color_button') || 'Add color'}
-            </button>
+            <div class="color-action-buttons">
+              <button
+                class="add-color-btn ${this._colors.length >= 8 ? 'disabled' : ''}"
+                @click=${this._addColor}
+                ?disabled=${this._colors.length >= 8}
+              >
+                <ha-icon icon="mdi:plus"></ha-icon>
+                ${this._localize('dynamic_scene.add_color_button') || 'Add color'}
+              </button>
+              <button
+                class="add-color-btn extract-btn"
+                @click=${() => { this._showExtractor = true; }}
+              >
+                <ha-icon icon="mdi:image-search-outline"></ha-icon>
+                ${this._localize('dynamic_scene.extract_from_image') || 'Extract from image'}
+              </button>
+            </div>
           </div>
         </div>
+
+        <!-- Image Color Extractor Dialog -->
+        ${this._showExtractor ? html`
+          <div class="color-picker-modal-overlay" @click=${() => { this._showExtractor = false; }}>
+            <div class="color-picker-modal extractor-modal" @click=${(e: Event) => e.stopPropagation()}>
+              <div class="color-picker-modal-header">
+                <span class="color-picker-modal-title">
+                  ${this._localize('dynamic_scene.extract_from_image') || 'Extract from image'}
+                </span>
+              </div>
+              <image-color-extractor
+                .hass=${this.hass}
+                .translations=${this.translations}
+                @colors-extracted=${this._handleColorsExtracted}
+                @extractor-cancelled=${() => { this._showExtractor = false; }}
+              ></image-color-extractor>
+            </div>
+          </div>
+        ` : ''}
 
         <!-- Timing Section -->
         <div class="form-section">
