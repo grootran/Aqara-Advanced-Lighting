@@ -59,6 +59,18 @@ Use Aqara advanced lighting features through the ZHA integration without requiri
 
 ### Improvements
 
+#### **Device Registry Merging**
+
+**Aqara devices now share the existing MQTT/ZHA device instead of creating duplicates**
+
+  - The integration now merges into the existing MQTT or ZHA device in the Home Assistant device registry rather than creating a separate device for each light
+  - For Z2M: uses shared MQTT identifiers so Home Assistant recognizes both integrations belong to the same physical device
+  - For ZHA: uses Zigbee IEEE connection matching for automatic device merging
+  - Users see one device per physical light with both integrations listed
+  - Old standalone devices from previous versions are automatically removed on upgrade
+  - Installing the integration does not affect existing MQTT/ZHA device setups
+  - See [Breaking Changes](#breaking-changes) for upgrade notes on device automations
+
 #### **Unified State Restoration**
 
 **Shared StateManager helper for all operation types**
@@ -79,20 +91,20 @@ Use Aqara advanced lighting features through the ZHA integration without requiri
 
 ### Breaking Changes
 
-None. This release is fully backward compatible with v0.12.0.
+#### **Device Automation Re-selection**
 
-- All existing presets and configurations preserved
-- No configuration changes required
-- All previous features and APIs unchanged
-- ZHA support is additive and optional - existing Z2M setups are unaffected
+**Device triggers and conditions require re-selection after upgrading**
+
+  - The old standalone Aqara Advanced Lighting device is removed during upgrade and replaced by the merged MQTT/ZHA device (see [Improvements](#improvements))
+  - **Action required:** If you have device automations (triggers or conditions) targeting the old standalone Aqara Advanced Lighting device, you will need to re-select the device in those automations after upgrading
 
 ### Compatibility
 
-- Fully backward compatible with v0.12.0
-- All existing features and APIs unchanged
+- All existing presets, favorites, and configurations preserved
 - No configuration changes required
-- All presets and favorites preserved
+- All previous features and APIs unchanged
 - ZHA support works alongside existing Zigbee2MQTT setups
+- Device automations using triggers or conditions need device re-selection (see breaking changes above)
 
 ## Full Changelog
 

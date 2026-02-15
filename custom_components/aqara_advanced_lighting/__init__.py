@@ -9,7 +9,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
-from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import config_validation as cv, device_registry as dr
 
 from .cct_sequence_manager import CCTSequenceManager
 from .const import (
@@ -92,6 +92,34 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     data=new_data,
                     minor_version=2,
                 )
+
+        if entry.minor_version < 3:
+            # v1.2 -> v1.3: One-time cleanup for device registry merging.
+            # Previous versions created standalone devices that conflict
+            # with MQTT/ZHA devices (duplicate MQTT identifiers). Remove
+            # ALL devices owned by this config entry so the backend can
+            # re-create them with proper identifier-based merging.
+            device_registry = dr.async_get(hass)
+            devices = dr.async_entries_for_config_entry(
+                device_registry, entry.entry_id
+            )
+            if devices:
+                _LOGGER.info(
+                    "v1.3 migration: removing %d devices for clean "
+                    "re-merge with MQTT/ZHA devices",
+                    len(devices),
+                )
+                for device in devices:
+                    _LOGGER.debug(
+                        "v1.3 migration: removing device %s (%s)",
+                        device.name,
+                        device.id,
+                    )
+                    device_registry.async_remove_device(device.id)
+            hass.config_entries.async_update_entry(
+                entry,
+                minor_version=3,
+            )
 
         return True
 
@@ -237,6 +265,44 @@ async def async_setup_entry(
 
     # Store runtime data in config entry
     entry.runtime_data = runtime_data
+
+    # Migrate old standalone devices: remove any device where our config
+    # entry is the SOLE config entry. A truly merged device (shared with
+    # MQTT or ZHA) will have multiple config entries and is preserved.
+    # Our backends will re-register devices on the next Z2M/ZHA update,
+    # this time merging correctly with the existing MQTT/ZHA device.
+    device_registry = dr.async_get(hass)
+    devices_for_entry = dr.async_entries_for_config_entry(
+        device_registry, entry.entry_id
+    )
+    _LOGGER.debug(
+        "Migration check: found %d devices for config entry %s",
+        len(devices_for_entry),
+        entry.entry_id,
+    )
+    for device in devices_for_entry:
+        is_sole_config_entry = (
+            len(device.config_entries) == 1
+            and entry.entry_id in device.config_entries
+        )
+        if is_sole_config_entry:
+            _LOGGER.info(
+                "Removing standalone device %s (%s) to allow merging "
+                "with MQTT/ZHA device (identifiers: %s)",
+                device.name,
+                device.id,
+                device.identifiers,
+            )
+            device_registry.async_remove_device(device.id)
+        else:
+            _LOGGER.debug(
+                "Keeping merged device %s (%s) - shared with %d config "
+                "entries (identifiers: %s)",
+                device.name,
+                device.id,
+                len(device.config_entries),
+                device.identifiers,
+            )
 
     _LOGGER.info(
         "Setting up Aqara Advanced Lighting (backend: %s%s)",

@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers.device_registry import CONNECTION_ZIGBEE
 
 from .const import (
     DOMAIN,
@@ -281,6 +282,7 @@ class ZHABackend:
             device_registry.async_get_or_create(
                 config_entry_id=self.entry.entry_id,
                 identifiers={(DOMAIN, ieee_str)},
+                connections={(CONNECTION_ZIGBEE, ieee_str)},
                 name=device.name or ieee_str,
                 manufacturer=device.manufacturer or "Aqara",
                 model=MODEL_FRIENDLY_NAMES.get(model_id, model_id),

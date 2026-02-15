@@ -177,16 +177,53 @@ class MQTTBackend:
                     model_id,
                 )
 
-                # Register device in HA device registry
+                # Register device in HA device registry. We use a two-step
+                # approach: first look for the existing MQTT device by the
+                # identifier Z2M uses, and if found, add our config entry
+                # to it. This avoids a device registry issue where passing
+                # multiple identifiers that match different existing devices
+                # only finds the first match, creating duplicates.
+                z2m_base_topic = self.entry.runtime_data.z2m_base_topic
+                mqtt_identifier = ("mqtt", f"{z2m_base_topic}_{ieee_address}")
+                our_identifier = (DOMAIN, ieee_address)
                 device_registry = dr.async_get(self.hass)
-                device_registry.async_get_or_create(
-                    config_entry_id=self.entry.entry_id,
-                    identifiers={(DOMAIN, ieee_address)},
-                    name=friendly_name,
-                    manufacturer=manufacturer or "Aqara",
-                    model=MODEL_FRIENDLY_NAMES.get(model_id, model_id),
-                    model_id=model_id,
+                existing_mqtt = device_registry.async_get_device(
+                    identifiers={mqtt_identifier},
                 )
+                if existing_mqtt:
+                    # Add our config entry to the existing MQTT device
+                    device_registry.async_get_or_create(
+                        config_entry_id=self.entry.entry_id,
+                        identifiers={mqtt_identifier},
+                    )
+                    # Add our identifier so device triggers can find it
+                    device_registry.async_update_device(
+                        existing_mqtt.id,
+                        merge_identifiers={our_identifier},
+                    )
+                    _LOGGER.debug(
+                        "Merged %s into existing MQTT device %s",
+                        friendly_name,
+                        existing_mqtt.id,
+                    )
+                else:
+                    # MQTT device not found yet - create with both
+                    # identifiers. When MQTT discovers this device later,
+                    # it will find ours by the shared mqtt identifier.
+                    device = device_registry.async_get_or_create(
+                        config_entry_id=self.entry.entry_id,
+                        identifiers={our_identifier, mqtt_identifier},
+                        name=friendly_name,
+                        manufacturer=manufacturer or "Aqara",
+                        model=MODEL_FRIENDLY_NAMES.get(model_id, model_id),
+                        model_id=model_id,
+                    )
+                    _LOGGER.debug(
+                        "Created new device for %s (%s), MQTT device "
+                        "will merge on discovery",
+                        friendly_name,
+                        device.id,
+                    )
 
             # Update entity to Z2M mapping
             self._update_entity_mapping()

@@ -536,3 +536,96 @@ def test_trigger_event_map_effects_have_no_sequence_type() -> None:
 def test_all_trigger_types_have_14_entries() -> None:
     """Test that we have exactly 14 trigger types."""
     assert len(TRIGGER_TYPES) == 14
+
+
+# --- Tests for merged devices (multiple identifiers) ---
+
+
+async def test_get_triggers_works_on_merged_device(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+) -> None:
+    """Test that triggers are returned for a merged device with multiple identifiers."""
+    from custom_components.aqara_advanced_lighting.device_trigger import (
+        async_get_triggers,
+    )
+
+    mock_config_entry.add_to_hass(hass)
+
+    # Create a mock MQTT config entry so the device registry accepts it
+    mqtt_config_entry = MockConfigEntry(
+        domain="mqtt",
+        title="Zigbee2MQTT",
+        data={"broker": "localhost"},
+        unique_id="z2m_bridge",
+    )
+    mqtt_config_entry.add_to_hass(hass)
+
+    # Create a merged device (has both MQTT and our identifiers + MAC connection)
+    device_registry.async_get_or_create(
+        config_entry_id=mqtt_config_entry.entry_id,
+        identifiers={("mqtt", "zigbee2mqtt_bridge_0x00158d0001abcdef")},
+        connections={("mac", "00:15:8d:00:01:ab:cd:ef")},
+        name=TEST_FRIENDLY_NAME,
+    )
+    # Our integration attaches to same device via matching MAC connection
+    merged_device = device_registry.async_get_or_create(
+        config_entry_id=mock_config_entry.entry_id,
+        identifiers={(DOMAIN, TEST_IEEE)},
+        connections={("mac", "00:15:8d:00:01:ab:cd:ef")},
+        name=TEST_FRIENDLY_NAME,
+    )
+
+    triggers = await async_get_triggers(hass, merged_device.id)
+
+    assert len(triggers) == len(TRIGGER_TYPES)
+    for trigger in triggers:
+        assert trigger[CONF_DEVICE_ID] == merged_device.id
+
+
+async def test_get_entity_ids_works_on_merged_device(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+) -> None:
+    """Test entity ID resolution works when device has multiple identifiers."""
+    mock_config_entry.add_to_hass(hass)
+
+    # Create a mock MQTT config entry so the device registry accepts it
+    mqtt_config_entry = MockConfigEntry(
+        domain="mqtt",
+        title="Zigbee2MQTT",
+        data={"broker": "localhost"},
+        unique_id="z2m_bridge",
+    )
+    mqtt_config_entry.add_to_hass(hass)
+
+    # Create merged device (MQTT first, then our integration attaches)
+    device_registry.async_get_or_create(
+        config_entry_id=mqtt_config_entry.entry_id,
+        identifiers={("mqtt", "zigbee2mqtt_bridge_0x00158d0001abcdef")},
+        connections={("mac", "00:15:8d:00:01:ab:cd:ef")},
+    )
+    merged_device = device_registry.async_get_or_create(
+        config_entry_id=mock_config_entry.entry_id,
+        identifiers={(DOMAIN, TEST_IEEE)},
+        connections={("mac", "00:15:8d:00:01:ab:cd:ef")},
+    )
+
+    # Set up runtime data with entity mapping
+    z2m_device = FakeZ2MDevice(
+        ieee_address=TEST_IEEE,
+        friendly_name=TEST_FRIENDLY_NAME,
+        model_id=TEST_MODEL_ID,
+    )
+    runtime_data = FakeRuntimeData(
+        config_entry=mock_config_entry,
+        devices={TEST_IEEE: z2m_device},
+        entity_to_z2m_map={"light.bedroom": TEST_FRIENDLY_NAME},
+    )
+    mock_config_entry.runtime_data = runtime_data
+    mock_config_entry.mock_state(hass, ConfigEntryState.LOADED)
+
+    result = get_entity_ids_for_device(hass, merged_device.id)
+    assert result == {"light.bedroom"}

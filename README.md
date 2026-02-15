@@ -330,6 +330,7 @@ Instance 2: zigbee2mqtt_strips (LED Strips)
 1. Select **ZHA** as the backend
 2. The integration validates that the ZHA integration is loaded and finds supported Aqara devices
 3. Click "Submit"
+4. Wait for the integration to discover the ZHA devices
 
 The integration automatically discovers all supported Aqara lights that are paired with ZHA. No additional configuration parameters are required.
 
