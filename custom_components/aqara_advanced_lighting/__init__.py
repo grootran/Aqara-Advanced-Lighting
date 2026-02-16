@@ -135,7 +135,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     # pick up the newly registered quirk definitions.
     from .quirks import register_quirks
 
-    register_quirks()
+    await hass.async_add_executor_job(register_quirks)
 
     # Initialize domain data storage with multi-instance support
     hass.data.setdefault(DOMAIN, {
