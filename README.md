@@ -12,6 +12,8 @@
 
 Works with both **Zigbee2MQTT** and **ZHA** (Zigbee Home Automation).
 
+![Zigbee2MQTT](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/zigbee2mqtt.png) ![Zigbee Home Automation](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/zigbee-home-automation.png)
+
 _Please :star: this integration if you find it useful_
 
 _If you want to show your support please_
@@ -58,12 +60,12 @@ See the [Getting started guide](docs/getting-started.md) for detailed installati
 
 | Frontend panel                                                                                                   | Visual editors                                                                                                   |
 | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| ![Panel](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/activate.png) | ![Editors](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/scenes.png) |
+| ![Aqara Advanced Lighting Panel](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/activate.png) | ![Aqara Advanced Lighting Editors](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/segments.png) |
 
 
 | Preset management                                                                                                 | Device configuration                                                                                             |
 | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| ![Presets](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/presets.png) | ![Config](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/devices.png) |
+| ![Aqara Advanced Lighting Presets](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/presets.png) | ![Aqara Advanced Lighting Config](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/devices.png) |
 
 ## Documentation
 
