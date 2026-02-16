@@ -426,12 +426,14 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
   private _addStep(): void {
     if (this._steps.length >= 20) return;
 
+    const previousStep = this._steps[this._steps.length - 1];
+
     const newStep: EditableStep = {
       id: this._generateStepId(),
-      color_temp: 4000,
-      brightness: 50,
-      transition: 15,
-      hold: 60,
+      color_temp: previousStep?.color_temp ?? 4000,
+      brightness: previousStep?.brightness ?? 50,
+      transition: previousStep?.transition ?? 15,
+      hold: previousStep?.hold ?? 60,
     };
 
     this._steps = [...this._steps, newStep];

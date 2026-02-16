@@ -678,7 +678,7 @@ SEGMENT_SEQUENCE_PRESETS: Final[dict[str, dict[str, Any]]] = {
             },
             {
                 "segments": "all",
-                "colors": [[255, 255, 255], [255, 200, 0], [0, 0, 0]],
+                "colors": [[0, 0, 0], [255, 255, 255], [255, 200, 0]],
                 "mode": SEGMENT_MODE_BLOCKS_REPEAT,
                 "duration": 10.0,
                 "hold": 0.0,
@@ -686,7 +686,7 @@ SEGMENT_SEQUENCE_PRESETS: Final[dict[str, dict[str, Any]]] = {
             },
             {
                 "segments": "all",
-                "colors": [[255, 255, 255], [255, 200, 0], [0, 0, 0]],
+                "colors": [[255, 200, 0], [0, 0, 0], [255, 255, 255]],
                 "mode": SEGMENT_MODE_BLOCKS_REPEAT,
                 "duration": 10.0,
                 "hold": 0.0,
@@ -711,7 +711,7 @@ SEGMENT_SEQUENCE_PRESETS: Final[dict[str, dict[str, Any]]] = {
             },
             {
                 "segments": "all",
-                "colors": [[255, 0, 0], [0, 0, 255], [0, 255, 0]],
+                "colors": [[0, 255, 0], [255, 0, 0], [0, 0, 255]],
                 "mode": SEGMENT_MODE_BLOCKS_REPEAT,
                 "duration": 15.0,
                 "hold": 0.0,
@@ -719,7 +719,7 @@ SEGMENT_SEQUENCE_PRESETS: Final[dict[str, dict[str, Any]]] = {
             },
             {
                 "segments": "all",
-                "colors": [[255, 0, 0], [0, 0, 255], [0, 255, 0]],
+                "colors": [[0, 0, 255], [0, 255, 0], [255, 0, 0]],
                 "mode": SEGMENT_MODE_BLOCKS_REPEAT,
                 "duration": 15.0,
                 "hold": 0.0,
@@ -752,12 +752,12 @@ SEGMENT_SEQUENCE_PRESETS: Final[dict[str, dict[str, Any]]] = {
             {
                 "segments": "all",
                 "colors": [
-                    [255, 0, 0],
-                    [255, 127, 0],
-                    [255, 255, 0],
-                    [0, 255, 0],
-                    [0, 0, 255],
                     [139, 0, 255],
+                    [0, 0, 255],
+                    [0, 255, 0],
+                    [255, 255, 0],
+                    [255, 127, 0],
+                    [255, 0, 0],
                 ],
                 "mode": SEGMENT_MODE_GRADIENT,
                 "duration": 30.0,

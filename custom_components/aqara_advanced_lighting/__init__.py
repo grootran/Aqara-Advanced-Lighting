@@ -9,10 +9,13 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
-from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import config_validation as cv, device_registry as dr
 
 from .cct_sequence_manager import CCTSequenceManager
 from .const import (
+    BACKEND_Z2M,
+    BACKEND_ZHA,
+    CONF_BACKEND_TYPE,
     CONF_Z2M_BASE_TOPIC,
     DATA_CCT_SEQUENCE_MANAGER,
     DATA_DYNAMIC_SCENE_MANAGER,
@@ -34,7 +37,7 @@ from .segment_zone_store import SegmentZoneStore
 from .user_preferences_store import UserPreferencesStore
 from .segment_sequence_manager import SegmentSequenceManager
 from .models import AqaraLightingConfigEntry, AqaraLightingRuntimeData
-from .mqtt_client import MQTTClient
+from .mqtt_backend import MQTTBackend
 from .panel import async_register_panel
 from .service_schema_manager import ServiceSchemaManager
 from .services import async_setup_services, async_unload_services
@@ -49,24 +52,73 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate old config entries to new format."""
-    _LOGGER.debug("Migrating entry %s from version %s", entry.entry_id, entry.version)
+    _LOGGER.debug(
+        "Migrating entry %s from version %s.%s",
+        entry.entry_id,
+        entry.version,
+        entry.minor_version,
+    )
 
-    # Migrate from version 1.0 to 1.1: Add unique_id based on z2m_base_topic
-    if entry.version == 1 and entry.minor_version < 1:
-        # Get the z2m_base_topic from entry data
-        z2m_base_topic = entry.data.get(CONF_Z2M_BASE_TOPIC, DEFAULT_Z2M_BASE_TOPIC)
+    # Migrate from version 1.x: Add unique_id and backend_type
+    if entry.version == 1:
+        if entry.minor_version < 1:
+            # v1.0 -> v1.1: Add unique_id based on z2m_base_topic
+            z2m_base_topic = entry.data.get(CONF_Z2M_BASE_TOPIC, DEFAULT_Z2M_BASE_TOPIC)
 
-        # Set unique_id if not already set
-        if not entry.unique_id:
-            _LOGGER.info(
-                "Migrating config entry %s to add unique_id: %s",
-                entry.entry_id,
-                z2m_base_topic,
+            if not entry.unique_id:
+                _LOGGER.info(
+                    "Migrating config entry %s to add unique_id: %s",
+                    entry.entry_id,
+                    z2m_base_topic,
+                )
+                hass.config_entries.async_update_entry(
+                    entry,
+                    unique_id=z2m_base_topic,
+                    minor_version=1,
+                )
+
+        if entry.minor_version < 2:
+            # v1.1 -> v1.2: Add backend_type for existing Z2M entries
+            new_data = {**entry.data}
+            if CONF_BACKEND_TYPE not in new_data:
+                new_data[CONF_BACKEND_TYPE] = BACKEND_Z2M
+                _LOGGER.info(
+                    "Migrating config entry %s to add backend_type: %s",
+                    entry.entry_id,
+                    BACKEND_Z2M,
+                )
+                hass.config_entries.async_update_entry(
+                    entry,
+                    data=new_data,
+                    minor_version=2,
+                )
+
+        if entry.minor_version < 3:
+            # v1.2 -> v1.3: One-time cleanup for device registry merging.
+            # Previous versions created standalone devices that conflict
+            # with MQTT/ZHA devices (duplicate MQTT identifiers). Remove
+            # ALL devices owned by this config entry so the backend can
+            # re-create them with proper identifier-based merging.
+            device_registry = dr.async_get(hass)
+            devices = dr.async_entries_for_config_entry(
+                device_registry, entry.entry_id
             )
+            if devices:
+                _LOGGER.info(
+                    "v1.3 migration: removing %d devices for clean "
+                    "re-merge with MQTT/ZHA devices",
+                    len(devices),
+                )
+                for device in devices:
+                    _LOGGER.debug(
+                        "v1.3 migration: removing device %s (%s)",
+                        device.name,
+                        device.id,
+                    )
+                    device_registry.async_remove_device(device.id)
             hass.config_entries.async_update_entry(
                 entry,
-                unique_id=z2m_base_topic,
-                minor_version=1,
+                minor_version=3,
             )
 
         return True
@@ -76,11 +128,27 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the Aqara Advanced Lighting integration."""
+    # Register ZHA quirks with zigpy so Aqara devices get our custom cluster
+    # (0xFCC0) with proper attribute types. Because "zha" is in
+    # after_dependencies, ZHA has already discovered devices by this point.
+    # async_setup_entry() will trigger a one-time ZHA reload so devices
+    # pick up the newly registered quirk definitions.
+    from .quirks import register_quirks
+
+    register_quirks()
+
     # Initialize domain data storage with multi-instance support
     hass.data.setdefault(DOMAIN, {
-        "entries": {},  # entry_id -> instance components (mqtt_client, managers, etc.)
+        "entries": {},  # entry_id -> instance components (backend, managers, etc.)
         "entity_routing": {},  # entity_id -> entry_id (for service routing)
     })
+
+    # Flag ZHA for reload if it already loaded before our quirks were
+    # registered. The reload happens in async_setup_entry() so it only
+    # triggers when a ZHA backend config entry actually exists.
+    zha_entries = hass.config_entries.async_entries("zha")
+    if any(entry.state.value == "loaded" for entry in zha_entries):
+        hass.data[DOMAIN]["_zha_needs_quirk_reload"] = True
 
     # Initialize favorites store (per-user favorites for the panel)
     # Only initialize if not already present (handles config entry removal/re-add)
@@ -143,46 +211,127 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: AqaraLightingConfigEntry
 ) -> bool:
     """Set up Aqara Advanced Lighting from a config entry."""
-    # Verify MQTT integration is loaded
-    try:
-        await mqtt.async_wait_for_mqtt_client(hass)
-    except Exception as ex:
-        _LOGGER.error("MQTT integration is not available: %s", ex)
-        raise ConfigEntryNotReady("MQTT integration not loaded") from ex
+    # Determine backend type from config entry
+    backend_type = entry.data.get(CONF_BACKEND_TYPE, BACKEND_Z2M)
 
-    # Get Z2M base topic from config entry
-    z2m_base_topic = entry.data.get(CONF_Z2M_BASE_TOPIC, DEFAULT_Z2M_BASE_TOPIC)
+    # Verify MQTT integration is loaded (required for Z2M backend)
+    if backend_type == BACKEND_Z2M:
+        try:
+            await mqtt.async_wait_for_mqtt_client(hass)
+        except Exception as ex:
+            _LOGGER.error("MQTT integration is not available: %s", ex)
+            raise ConfigEntryNotReady("MQTT integration not loaded") from ex
+
+    # Verify ZHA integration is loaded (required for ZHA backend)
+    if backend_type == BACKEND_ZHA:
+        # One-time ZHA reload: our quirks were registered after ZHA discovered
+        # devices (after_dependencies guarantees ZHA loads first). Reload ZHA
+        # config entries so devices get re-discovered with our quirk definitions.
+        # Uses pop() so the reload only triggers once per HA startup.
+        if hass.data[DOMAIN].pop("_zha_needs_quirk_reload", False):
+            _LOGGER.info("Reloading ZHA to apply Aqara device quirks")
+            for zha_entry in hass.config_entries.async_entries("zha"):
+                if zha_entry.state.value == "loaded":
+                    hass.async_create_task(
+                        hass.config_entries.async_reload(zha_entry.entry_id)
+                    )
+            raise ConfigEntryNotReady(
+                "ZHA reloading to apply Aqara quirk definitions"
+            )
+
+        try:
+            from homeassistant.components.zha.helpers import get_zha_gateway
+
+            get_zha_gateway(hass)
+        except (ImportError, ValueError) as ex:
+            _LOGGER.warning(
+                "ZHA gateway not ready yet, will retry: %s", ex
+            )
+            raise ConfigEntryNotReady("ZHA gateway not ready") from ex
+
+    # Get Z2M base topic from config entry (only used for Z2M backend)
+    z2m_base_topic = (
+        entry.data.get(CONF_Z2M_BASE_TOPIC, DEFAULT_Z2M_BASE_TOPIC)
+        if backend_type == BACKEND_Z2M
+        else ""
+    )
 
     # Initialize runtime data
     runtime_data = AqaraLightingRuntimeData(
         config_entry=entry,
+        backend_type=backend_type,
         z2m_base_topic=z2m_base_topic,
     )
 
     # Store runtime data in config entry
     entry.runtime_data = runtime_data
 
+    # Migrate old standalone devices: remove any device where our config
+    # entry is the SOLE config entry. A truly merged device (shared with
+    # MQTT or ZHA) will have multiple config entries and is preserved.
+    # Our backends will re-register devices on the next Z2M/ZHA update,
+    # this time merging correctly with the existing MQTT/ZHA device.
+    device_registry = dr.async_get(hass)
+    devices_for_entry = dr.async_entries_for_config_entry(
+        device_registry, entry.entry_id
+    )
+    _LOGGER.debug(
+        "Migration check: found %d devices for config entry %s",
+        len(devices_for_entry),
+        entry.entry_id,
+    )
+    for device in devices_for_entry:
+        is_sole_config_entry = (
+            len(device.config_entries) == 1
+            and entry.entry_id in device.config_entries
+        )
+        if is_sole_config_entry:
+            _LOGGER.info(
+                "Removing standalone device %s (%s) to allow merging "
+                "with MQTT/ZHA device (identifiers: %s)",
+                device.name,
+                device.id,
+                device.identifiers,
+            )
+            device_registry.async_remove_device(device.id)
+        else:
+            _LOGGER.debug(
+                "Keeping merged device %s (%s) - shared with %d config "
+                "entries (identifiers: %s)",
+                device.name,
+                device.id,
+                len(device.config_entries),
+                device.identifiers,
+            )
+
     _LOGGER.info(
-        "Setting up Aqara Advanced Lighting integration with Z2M topic: %s",
-        z2m_base_topic,
+        "Setting up Aqara Advanced Lighting (backend: %s%s)",
+        backend_type,
+        f", topic: {z2m_base_topic}" if backend_type == BACKEND_Z2M else "",
     )
 
     # Get integration-level entity controller
     entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
 
-    # Initialize MQTT client (pass entity controller for context tagging)
-    mqtt_client = MQTTClient(hass, entry, entity_controller)
-    await mqtt_client.async_setup()
+    # Initialize backend based on type
+    if backend_type == BACKEND_ZHA:
+        from .zha_backend import ZHABackend
+
+        backend = ZHABackend(hass, entry, entity_controller)
+    else:
+        backend = MQTTBackend(hass, entry, entity_controller)
+
+    await backend.async_setup()
 
     # Initialize state manager and load persisted states
     state_manager = StateManager(hass)
     await state_manager.async_load()
 
-    # Initialize CCT sequence manager (needs mqtt_client for direct Z2M communication)
-    cct_sequence_manager = CCTSequenceManager(hass, mqtt_client, entity_controller)
+    # Initialize CCT sequence manager (needs backend for device communication)
+    cct_sequence_manager = CCTSequenceManager(hass, backend, entity_controller)
 
-    # Initialize segment sequence manager (needs mqtt_client for direct Z2M communication)
-    segment_sequence_manager = SegmentSequenceManager(hass, mqtt_client, entity_controller)
+    # Initialize segment sequence manager (needs backend for device communication)
+    segment_sequence_manager = SegmentSequenceManager(hass, backend, entity_controller)
 
     # Initialize dynamic scene manager (uses HA light.turn_on for transitions)
     dynamic_scene_manager = DynamicSceneManager(hass, state_manager, entity_controller)
@@ -200,7 +349,7 @@ async def async_setup_entry(
 
     # Store components per-entry for multi-instance support
     hass.data[DOMAIN]["entries"][entry.entry_id] = {
-        "mqtt_client": mqtt_client,
+        "backend": backend,
         "state_manager": state_manager,
         DATA_CCT_SEQUENCE_MANAGER: cct_sequence_manager,
         DATA_SEGMENT_SEQUENCE_MANAGER: segment_sequence_manager,
@@ -208,9 +357,9 @@ async def async_setup_entry(
     }
 
     _LOGGER.info(
-        "Aqara Advanced Lighting instance setup complete (entry: %s, topic: %s)",
+        "Aqara Advanced Lighting instance setup complete (entry: %s, backend: %s)",
         entry.entry_id,
-        z2m_base_topic,
+        backend_type,
     )
 
     return True
@@ -245,10 +394,10 @@ async def async_unload_entry(
             # Stop all running scenes and cleanup (cleanup is synchronous)
             dynamic_scene_manager.cleanup()
 
-        # Get MQTT client from instance data
-        mqtt_client = instance_data.get("mqtt_client")
-        if mqtt_client:
-            await mqtt_client.async_teardown()
+        # Shut down backend
+        backend = instance_data.get("backend")
+        if backend:
+            await backend.async_shutdown()
 
         # Remove this entry's data
         del hass.data[DOMAIN]["entries"][entry.entry_id]

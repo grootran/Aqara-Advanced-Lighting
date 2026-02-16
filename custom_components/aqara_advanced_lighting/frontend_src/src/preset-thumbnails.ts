@@ -397,6 +397,16 @@ function dynamicSceneColorHue(c: DynamicSceneColor): number {
 export function renderDynamicSceneThumbnail(
   colorsOrPreset: DynamicSceneColor[] | UserDynamicScenePreset | DynamicScenePreset,
 ): TemplateResult | null {
+  // If the preset has an image thumbnail, render it as an <img> instead of SVG
+  if (!Array.isArray(colorsOrPreset) && (colorsOrPreset as UserDynamicScenePreset).thumbnail) {
+    const thumbId = (colorsOrPreset as UserDynamicScenePreset).thumbnail;
+    return html`<img
+      src="/api/aqara_advanced_lighting/thumbnails/${thumbId}"
+      alt="Preset thumbnail"
+      style="width:100%;height:100%;object-fit:cover;border-radius:4px"
+    />`;
+  }
+
   let colors: DynamicSceneColor[];
   let gradientId: string;
 

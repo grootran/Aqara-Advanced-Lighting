@@ -9,8 +9,9 @@ RELEASE_PROCESS.md
 TESTING*.md
 CLAUDE.md
 .claude/
-docs/
+docs/plans/
 tmpclaude*
+converters/
 
 # Python
 __pycache__/

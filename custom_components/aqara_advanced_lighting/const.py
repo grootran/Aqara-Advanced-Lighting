@@ -6,9 +6,14 @@ from typing import Final
 DOMAIN: Final = "aqara_advanced_lighting"
 
 # Configuration constants
+CONF_BACKEND_TYPE: Final = "backend_type"
 CONF_Z2M_BASE_TOPIC: Final = "z2m_base_topic"
 CONF_PRESET_FILTER: Final = "preset"
 DEFAULT_Z2M_BASE_TOPIC: Final = "zigbee2mqtt"
+
+# Backend types
+BACKEND_Z2M: Final = "z2m"
+BACKEND_ZHA: Final = "zha"
 
 # Service names
 SERVICE_SET_DYNAMIC_EFFECT: Final = "set_dynamic_effect"
@@ -61,6 +66,9 @@ ATTR_RESTORE_STATE: Final = "restore_state"
 ATTR_MODE: Final = "mode"
 ATTR_DURATION: Final = "duration"
 ATTR_ACTIVATION_PATTERN: Final = "activation_pattern"
+ATTR_ENABLED: Final = "enabled"
+ATTR_SENSITIVITY: Final = "sensitivity"
+ATTR_AUDIO_EFFECT: Final = "audio_effect"
 
 # MQTT topics
 TOPIC_Z2M_BRIDGE_DEVICES: Final = "bridge/devices"
@@ -166,6 +174,47 @@ ACTIVATION_PING_PONG: Final = "ping_pong"
 ACTIVATION_CENTER_OUT: Final = "center_out"
 ACTIVATION_EDGES_IN: Final = "edges_in"
 ACTIVATION_PAIRED: Final = "paired"
+
+# Music sync constants (T1 Strip audio-reactive mode)
+MUSIC_SYNC_SENSITIVITY_LOW: Final = "low"
+MUSIC_SYNC_SENSITIVITY_HIGH: Final = "high"
+MUSIC_SYNC_EFFECT_RANDOM: Final = "random"
+MUSIC_SYNC_EFFECT_BLINK: Final = "blink"
+MUSIC_SYNC_EFFECT_RAINBOW: Final = "rainbow"
+MUSIC_SYNC_EFFECT_WAVE: Final = "wave"
+
+VALID_MUSIC_SYNC_SENSITIVITIES: Final = {
+    MUSIC_SYNC_SENSITIVITY_LOW,
+    MUSIC_SYNC_SENSITIVITY_HIGH,
+}
+
+VALID_MUSIC_SYNC_EFFECTS: Final = {
+    MUSIC_SYNC_EFFECT_RANDOM,
+    MUSIC_SYNC_EFFECT_BLINK,
+    MUSIC_SYNC_EFFECT_RAINBOW,
+    MUSIC_SYNC_EFFECT_WAVE,
+}
+
+# Music sync Z2M MQTT payload keys
+PAYLOAD_AUDIO: Final = "audio"
+PAYLOAD_AUDIO_SENSITIVITY: Final = "audio_sensitivity"
+PAYLOAD_AUDIO_EFFECT: Final = "audio_effect"
+
+# Music sync ZHA enum mappings
+MUSIC_SYNC_EFFECT_ENUM: Final = {
+    MUSIC_SYNC_EFFECT_RANDOM: 0,
+    MUSIC_SYNC_EFFECT_BLINK: 1,
+    MUSIC_SYNC_EFFECT_RAINBOW: 2,
+    MUSIC_SYNC_EFFECT_WAVE: 3,
+}
+
+MUSIC_SYNC_SENSITIVITY_ENUM: Final = {
+    MUSIC_SYNC_SENSITIVITY_LOW: 0,
+    MUSIC_SYNC_SENSITIVITY_HIGH: 2,
+}
+
+# Runtime data key for active music sync tracking
+DATA_ACTIVE_MUSIC_SYNC: Final = "active_music_sync"
 
 # Segment sequence constraints
 MIN_SEGMENT_COLORS: Final = 1
@@ -292,7 +341,17 @@ INTEGRATION_CONTEXT_PARENT_ID: Final = "aal_entity_control"
 DATA_ENTITY_CONTROLLER: Final = "entity_controller"
 EVENT_ENTITY_EXTERNALLY_CONTROLLED: Final = f"{DOMAIN}_entity_externally_controlled"
 EVENT_ENTITY_CONTROL_RESUMED: Final = f"{DOMAIN}_entity_control_resumed"
+SERVICE_SET_MUSIC_SYNC: Final = "set_music_sync"
 SERVICE_RESUME_ENTITY_CONTROL: Final = "resume_entity_control"
+ENTITY_CONTROL_GRACE_SECONDS: Final = 8.0
+
+# Music sync event types
+EVENT_MUSIC_SYNC_ENABLED: Final = f"{DOMAIN}_music_sync_enabled"
+EVENT_MUSIC_SYNC_DISABLED: Final = f"{DOMAIN}_music_sync_disabled"
+
+# Music sync event data keys
+EVENT_ATTR_SENSITIVITY: Final = "sensitivity"
+EVENT_ATTR_AUDIO_EFFECT: Final = "audio_effect"
 
 # Event types for automation triggers
 EVENT_SEQUENCE_STARTED: Final = f"{DOMAIN}_sequence_started"
@@ -340,6 +399,8 @@ TRIGGER_TYPE_DYNAMIC_SCENE_RESUMED: Final = "dynamic_scene_resumed"
 TRIGGER_TYPE_DYNAMIC_SCENE_STOPPED: Final = "dynamic_scene_stopped"
 TRIGGER_TYPE_DYNAMIC_SCENE_LOOP_COMPLETED: Final = "dynamic_scene_loop_completed"
 TRIGGER_TYPE_DYNAMIC_SCENE_FINISHED: Final = "dynamic_scene_finished"
+TRIGGER_TYPE_MUSIC_SYNC_ENABLED: Final = "music_sync_enabled"
+TRIGGER_TYPE_MUSIC_SYNC_DISABLED: Final = "music_sync_disabled"
 
 # All device trigger types
 TRIGGER_TYPES: Final = {
@@ -363,6 +424,8 @@ TRIGGER_TYPES: Final = {
     TRIGGER_TYPE_DYNAMIC_SCENE_STOPPED,
     TRIGGER_TYPE_DYNAMIC_SCENE_LOOP_COMPLETED,
     TRIGGER_TYPE_DYNAMIC_SCENE_FINISHED,
+    TRIGGER_TYPE_MUSIC_SYNC_ENABLED,
+    TRIGGER_TYPE_MUSIC_SYNC_DISABLED,
 }
 
 # Trigger type groupings for preset filtering
@@ -398,6 +461,11 @@ DYNAMIC_SCENE_TRIGGER_TYPES: Final = {
     TRIGGER_TYPE_DYNAMIC_SCENE_FINISHED,
 }
 
+MUSIC_SYNC_TRIGGER_TYPES: Final = {
+    TRIGGER_TYPE_MUSIC_SYNC_ENABLED,
+    TRIGGER_TYPE_MUSIC_SYNC_DISABLED,
+}
+
 # Device condition types for HA automation UI
 CONDITION_TYPE_CCT_SEQUENCE_RUNNING: Final = "cct_sequence_running"
 CONDITION_TYPE_CCT_SEQUENCE_PAUSED: Final = "cct_sequence_paused"
@@ -406,6 +474,7 @@ CONDITION_TYPE_SEGMENT_SEQUENCE_PAUSED: Final = "segment_sequence_paused"
 CONDITION_TYPE_EFFECT_ACTIVE: Final = "effect_active"
 CONDITION_TYPE_DYNAMIC_SCENE_RUNNING: Final = "dynamic_scene_running"
 CONDITION_TYPE_DYNAMIC_SCENE_PAUSED: Final = "dynamic_scene_paused"
+CONDITION_TYPE_MUSIC_SYNC_ACTIVE: Final = "music_sync_active"
 
 # All device condition types
 CONDITION_TYPES: Final = {
@@ -416,6 +485,7 @@ CONDITION_TYPES: Final = {
     CONDITION_TYPE_EFFECT_ACTIVE,
     CONDITION_TYPE_DYNAMIC_SCENE_RUNNING,
     CONDITION_TYPE_DYNAMIC_SCENE_PAUSED,
+    CONDITION_TYPE_MUSIC_SYNC_ACTIVE,
 }
 
 # Condition type groupings for preset filtering
@@ -436,6 +506,10 @@ EFFECT_CONDITION_TYPES: Final = {
 DYNAMIC_SCENE_CONDITION_TYPES: Final = {
     CONDITION_TYPE_DYNAMIC_SCENE_RUNNING,
     CONDITION_TYPE_DYNAMIC_SCENE_PAUSED,
+}
+
+MUSIC_SYNC_CONDITION_TYPES: Final = {
+    CONDITION_TYPE_MUSIC_SYNC_ACTIVE,
 }
 
 # Friendly model names for device registry display
@@ -519,6 +593,13 @@ PRESET_SEGMENT_SEQ_THEATER_CHASE: Final = "theater_chase"
 PRESET_SEGMENT_SEQ_RAINBOW_FILL: Final = "rainbow_fill"
 PRESET_SEGMENT_SEQ_COMET: Final = "comet"
 PRESET_SEGMENT_SEQ_STELLA_BLUE: Final = "stella_blue"
+
+# Image processing constants
+MAX_IMAGE_SIZE_BYTES: Final = 10 * 1024 * 1024  # 10 MB
+THUMBNAIL_MAX_DIMENSION: Final = 300  # Max width or height in pixels
+THUMBNAIL_JPEG_QUALITY: Final = 85
+DEFAULT_EXTRACTED_COLORS: Final = 8
+THUMBNAIL_STORAGE_DIR: Final = "aqara_thumbnails"
 
 # Utility functions
 def brightness_percent_to_device(percent: int) -> int:

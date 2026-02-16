@@ -8,8 +8,8 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.const import ATTR_ENTITY_ID, STATE_OFF
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.const import ATTR_ENTITY_ID
+from homeassistant.core import Context, HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
@@ -64,11 +64,15 @@ from .const import (
     PRESET_TYPE_SEGMENT_SEQUENCE,
     END_BEHAVIOR_MAINTAIN,
     END_BEHAVIOR_TURN_OFF,
+    EVENT_ATTR_AUDIO_EFFECT,
     EVENT_ATTR_EFFECT_TYPE,
     EVENT_ATTR_ENTITY_ID,
     EVENT_ATTR_PRESET,
+    EVENT_ATTR_SENSITIVITY,
     EVENT_EFFECT_ACTIVATED,
     EVENT_EFFECT_STOPPED,
+    EVENT_MUSIC_SYNC_DISABLED,
+    EVENT_MUSIC_SYNC_ENABLED,
     LOOP_MODE_CONTINUOUS,
     LOOP_MODE_COUNT,
     LOOP_MODE_ONCE,
@@ -92,7 +96,15 @@ from .const import (
     SERVICE_RESUME_DYNAMIC_SCENE,
     SERVICE_START_DYNAMIC_SCENE,
     SERVICE_STOP_DYNAMIC_SCENE,
+    ATTR_AUDIO_EFFECT,
+    ATTR_ENABLED,
+    ATTR_SENSITIVITY,
+    DATA_ACTIVE_MUSIC_SYNC,
+    MUSIC_SYNC_SENSITIVITY_LOW,
+    MUSIC_SYNC_EFFECT_RANDOM,
     VALID_DISTRIBUTION_MODES,
+    VALID_MUSIC_SYNC_EFFECTS,
+    VALID_MUSIC_SYNC_SENSITIVITIES,
     MODEL_T1_STRIP,
     SEGMENT_MODE_BLOCKS_EXPAND,
     SEGMENT_MODE_BLOCKS_REPEAT,
@@ -105,6 +117,7 @@ from .const import (
     SERVICE_RESUME_ENTITY_CONTROL,
     SERVICE_RESUME_SEGMENT_SEQUENCE,
     SERVICE_SET_DYNAMIC_EFFECT,
+    SERVICE_SET_MUSIC_SYNC,
     SERVICE_SET_SEGMENT_PATTERN,
     SERVICE_START_CCT_SEQUENCE,
     SERVICE_START_SEGMENT_SEQUENCE,
@@ -127,6 +140,7 @@ from .light_capabilities import (
     validate_effect_for_model,
 )
 from .models import (
+    AqaraDevice,
     CCTSequence,
     CCTSequenceStep,
     DynamicEffect,
@@ -139,7 +153,7 @@ from .models import (
     SegmentSequenceStep,
     XYColor,
 )
-from .mqtt_client import MQTTClient
+from .backend_protocol import DeviceBackend
 from .segment_utils import (
     expand_segment_colors,
     generate_block_colors,
@@ -150,6 +164,22 @@ from .segment_utils import (
 from .state_manager import StateManager
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _get_context_and_record(
+    hass: HomeAssistant, entity_id: str
+) -> Context | None:
+    """Get integration context and record command timestamp.
+
+    Call before any hass.services.async_call targeting a controlled entity
+    to ensure the entity controller recognizes it as an internal command.
+    """
+    ec = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+    if ec:
+        ec.record_command(entity_id)
+        return ec.create_context()
+    return None
+
 
 # RGB color schema (for dict format - backward compatibility)
 RGB_COLOR_SCHEMA = vol.Schema(
@@ -535,6 +565,19 @@ SERVICE_RESUME_DYNAMIC_SCENE_SCHEMA = vol.Schema(
     }
 )
 
+SERVICE_SET_MUSIC_SYNC_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+        vol.Required(ATTR_ENABLED): cv.boolean,
+        vol.Optional(ATTR_SENSITIVITY, default=MUSIC_SYNC_SENSITIVITY_LOW): vol.In(
+            VALID_MUSIC_SYNC_SENSITIVITIES
+        ),
+        vol.Optional(ATTR_AUDIO_EFFECT, default=MUSIC_SYNC_EFFECT_RANDOM): vol.In(
+            VALID_MUSIC_SYNC_EFFECTS
+        ),
+    }
+)
+
 
 def _normalize_color_to_rgb(color_data: dict[str, Any] | list[int]) -> RGBColor:
     """Convert color input (XY, RGB dict, or RGB list) to RGBColor.
@@ -615,8 +658,8 @@ def _get_instance_for_entity(
     # Fall back to searching all instances
     entries = hass.data[DOMAIN].get("entries", {})
     for entry_id, instance_data in entries.items():
-        mqtt_client = instance_data.get("mqtt_client")
-        if mqtt_client and mqtt_client.get_z2m_friendly_name(entity_id):
+        backend = instance_data.get("backend")
+        if backend and backend.get_device_for_entity(entity_id):
             # Found it - update the routing map for faster future lookups
             entity_routing[entity_id] = entry_id
             return entry_id, instance_data
@@ -640,28 +683,28 @@ def _get_any_instance(hass: HomeAssistant) -> tuple[str | None, dict | None]:
     return None, None
 
 
-def _get_mqtt_client_for_entity(
+def _get_backend_for_entity(
     hass: HomeAssistant, entity_id: str
-) -> MQTTClient | None:
-    """Get the MQTT client for an entity.
+) -> DeviceBackend | None:
+    """Get the backend for an entity.
 
     Args:
         hass: Home Assistant instance
         entity_id: Entity ID to look up
 
     Returns:
-        MQTTClient for the instance that owns this entity, or None
+        Backend for the instance that owns this entity, or None
     """
     _, instance_data = _get_instance_for_entity(hass, entity_id)
     if instance_data:
-        return instance_data.get("mqtt_client")
+        return instance_data.get("backend")
     return None
 
 
-def _get_mqtt_client_and_state_manager(
+def _get_backend_and_state_manager(
     hass: HomeAssistant,
-) -> tuple[MQTTClient, StateManager]:
-    """Get any MQTT client and state manager from hass.data.
+) -> tuple[DeviceBackend, StateManager]:
+    """Get any backend and state manager from hass.data.
 
     This is used for validation that doesn't require entity-specific routing.
     For entity-specific operations, use _get_instance_for_entity instead.
@@ -680,29 +723,29 @@ def _get_mqtt_client_and_state_manager(
             translation_key="components_not_initialized",
         )
 
-    mqtt_client = instance_data.get("mqtt_client")
+    backend = instance_data.get("backend")
     state_manager = instance_data.get("state_manager")
 
-    if not mqtt_client or not state_manager:
+    if not backend or not state_manager:
         raise ServiceValidationError(
             translation_domain=DOMAIN,
             translation_key="components_not_initialized",
         )
 
-    return mqtt_client, state_manager
+    return backend, state_manager
 
 
 def _get_instance_components_for_entity(
     hass: HomeAssistant, entity_id: str
-) -> tuple[MQTTClient, StateManager, str]:
-    """Get MQTT client, state manager, and entry_id for a specific entity.
+) -> tuple[DeviceBackend, StateManager, str]:
+    """Get backend, state manager, and entry_id for a specific entity.
 
     Args:
         hass: Home Assistant instance
         entity_id: Entity ID to look up
 
     Returns:
-        Tuple of (mqtt_client, state_manager, entry_id)
+        Tuple of (backend, state_manager, entry_id)
 
     Raises:
         ServiceValidationError: If entity not found in any instance
@@ -712,32 +755,38 @@ def _get_instance_components_for_entity(
     if not entry_id or not instance_data:
         # List all configured instances for helpful error message
         entries = hass.data.get(DOMAIN, {}).get("entries", {})
-        instance_topics = []
+        instance_names = []
         for eid, idata in entries.items():
-            mc = idata.get("mqtt_client")
-            if mc:
-                topic = mc.entry.runtime_data.z2m_base_topic
-                instance_topics.append(topic)
+            backend = idata.get("backend")
+            if backend:
+                backend_type = getattr(
+                    getattr(backend, "entry", None),
+                    "runtime_data", None,
+                )
+                if backend_type:
+                    instance_names.append(
+                        f"{backend_type.backend_type}:{backend_type.z2m_base_topic or eid}"
+                    )
 
         raise ServiceValidationError(
             translation_domain=DOMAIN,
             translation_key="entity_not_found_in_any_instance",
             translation_placeholders={
                 "entity_id": entity_id,
-                "instances": ", ".join(instance_topics) if instance_topics else "none",
+                "instances": ", ".join(instance_names) if instance_names else "none",
             },
         )
 
-    mqtt_client = instance_data.get("mqtt_client")
+    backend = instance_data.get("backend")
     state_manager = instance_data.get("state_manager")
 
-    if not mqtt_client or not state_manager:
+    if not backend or not state_manager:
         raise ServiceValidationError(
             translation_domain=DOMAIN,
             translation_key="components_not_initialized",
         )
 
-    return mqtt_client, state_manager, entry_id
+    return backend, state_manager, entry_id
 
 
 def _get_preset_store(hass: HomeAssistant):
@@ -843,9 +892,9 @@ def _validate_supported_entities(
 
     for entity_id in entity_ids:
         # Try to find entity in any instance
-        mqtt_client = _get_mqtt_client_for_entity(hass, entity_id)
-        if mqtt_client:
-            is_supported, reason = mqtt_client.is_supported_entity(entity_id)
+        backend = _get_backend_for_entity(hass, entity_id)
+        if backend:
+            is_supported, reason = backend.is_entity_supported(entity_id)
             if not is_supported:
                 unsupported_entities.append({"entity_id": entity_id, "reason": reason})
         else:
@@ -875,10 +924,10 @@ def _is_aqara_entity(hass: HomeAssistant, entity_id: str) -> bool:
     Returns:
         True if entity is a supported Aqara device
     """
-    mqtt_client = _get_mqtt_client_for_entity(hass, entity_id)
-    if not mqtt_client:
+    backend = _get_backend_for_entity(hass, entity_id)
+    if not backend:
         return False
-    is_supported, _ = mqtt_client.is_supported_entity(entity_id)
+    is_supported, _ = backend.is_entity_supported(entity_id)
     return is_supported
 
 
@@ -1071,9 +1120,7 @@ def _get_actual_segment_count(
 
 async def _ensure_light_on(
     hass: HomeAssistant,
-    mqtt_client: MQTTClient,
     entity_id: str,
-    z2m_name: str,
     turn_on_if_off: bool,
 ) -> bool:
     """Ensure light is on if requested, checking current state first.
@@ -1103,6 +1150,7 @@ async def _ensure_light_on(
             "turn_on",
             {"entity_id": entity_id},
             blocking=True,
+            context=_get_context_and_record(hass, entity_id),
         )
 
         # Give the light a moment to turn on
@@ -1122,7 +1170,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         """Handle set_dynamic_effect service call."""
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
         sync: bool = call.data.get(ATTR_SYNC, True)
-        z2m_base_topic: str | None = call.data.get(ATTR_Z2M_BASE_TOPIC)
 
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
@@ -1283,76 +1330,66 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         # Colors are already RGBColor objects from _normalize_color_to_rgb
 
         # Prepare effects for all entities, grouped by instance for multi-Z2M support
-        # Structure: {entry_id: {"mqtt_client": client, "state_manager": mgr, "entities": [...]}}
+        # Structure: {entry_id: {"backend": client, "state_manager": mgr, "entities": [...]}}
         instance_groups: dict[str, dict] = {}
 
         # First pass: validate all entities and collect turn_on data
-        validated_entities: list[tuple] = []  # (entity_id, mqtt_client, z2m_name, device, entry_id, state_manager, entity_segments)
+        validated_entities: list[tuple] = []  # (entity_id, backend, aqara_device, entry_id, state_manager, entity_segments)
 
         for entity_id in resolved_entity_ids:
             # Get the correct instance components for this entity
-            entity_mqtt_client, entity_state_manager, entry_id = (
+            entity_backend, entity_state_manager, entry_id = (
                 _get_instance_components_for_entity(hass, entity_id)
             )
 
-            # Get Z2M friendly name from the correct instance
-            z2m_name = entity_mqtt_client.get_z2m_friendly_name(entity_id)
-            if not z2m_name:
+            # Get device info from the backend
+            aqara_device = entity_backend.get_device_for_entity(entity_id)
+            if not aqara_device:
                 _LOGGER.warning(
-                    "Entity %s not mapped to Z2M device, skipping", entity_id
-                )
-                continue
-
-            # Get device model from the correct instance's Z2M device registry
-            device = entity_mqtt_client.entry.runtime_data.devices_by_name.get(
-                z2m_name
-            )
-            if not device:
-                _LOGGER.warning(
-                    "Z2M device %s not found in registry, skipping", z2m_name
+                    "Entity %s not mapped to any Aqara device, skipping", entity_id
                 )
                 continue
 
             # Validate preset is compatible with device type if using preset
             if preset_data and "device_types" in preset_data:
                 allowed_device_types = preset_data["device_types"]
-                if device.model_id not in allowed_device_types:
+                if aqara_device.model_id not in allowed_device_types:
                     preset_name = preset_data.get("name", preset)
                     raise ServiceValidationError(
                         translation_domain=DOMAIN,
                         translation_key="preset_not_compatible",
                         translation_placeholders={
                             "preset": preset_name,
-                            "device": z2m_name,
-                            "model": device.model_id,
+                            "device": aqara_device.name,
+                            "model": aqara_device.model_id,
                         },
                     )
 
             # Validate effect is supported for this model
-            is_valid, error_msg = validate_effect_for_model(device.model_id, effect)
+            is_valid, error_msg = validate_effect_for_model(aqara_device.model_id, effect)
             if not is_valid:
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
                     translation_key="effect_not_supported",
                     translation_placeholders={
                         "effect": effect_str,
-                        "device": z2m_name,
+                        "device": aqara_device.name,
                         "reason": error_msg or "",
                     },
                 )
 
             # Check if device supports effect_segments parameter
             entity_segments = segments
-            if entity_segments and not supports_effect_segments(device.model_id):
+            if entity_segments and not supports_effect_segments(aqara_device.model_id):
                 _LOGGER.warning(
                     "Device %s does not support effect_segments parameter, ignoring",
-                    z2m_name,
+                    aqara_device.name,
                 )
                 entity_segments = None
 
-            # Resolve zone names in effect_segments (Z2M doesn't know our zones)
+            # Resolve zone names in effect_segments
             if entity_segments:
-                device_zones = _get_zones_for_device(hass, device.ieee_address)
+                device_zones = _get_zones_for_device(hass, aqara_device.identifier)
                 if device_zones and entity_segments.strip().lower() in device_zones:
                     entity_segments = device_zones[entity_segments.strip().lower()]
                     _LOGGER.debug(
@@ -1362,55 +1399,36 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     )
 
             validated_entities.append(
-                (entity_id, entity_mqtt_client, z2m_name, device, entry_id, entity_state_manager, entity_segments)
+                (entity_id, entity_backend, aqara_device, entry_id, entity_state_manager, entity_segments)
             )
 
-        # Turn on all lights in parallel if requested
-        if turn_on and validated_entities:
-            turn_on_tasks = [
-                _ensure_light_on(hass, mqtt_client, entity_id, z2m_name, True)
-                for entity_id, mqtt_client, z2m_name, *_ in validated_entities
-            ]
-            await asyncio.gather(*turn_on_tasks, return_exceptions=True)
-
         # Second pass: process each validated entity
-        for entity_id, entity_mqtt_client, z2m_name, device, entry_id, entity_state_manager, entity_segments in validated_entities:
+        for entity_id, entity_backend, aqara_device, entry_id, entity_state_manager, entity_segments in validated_entities:
             segments = entity_segments  # Use per-entity segments value
 
-            # Get sequence managers from the correct instance
+            # Stop all conflicting continuous actions (sequences, scenes)
             instance_data = hass.data[DOMAIN]["entries"].get(entry_id, {})
-            cct_manager = instance_data.get(DATA_CCT_SEQUENCE_MANAGER)
-            segment_manager = instance_data.get(DATA_SEGMENT_SEQUENCE_MANAGER)
+            entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+            if entity_controller:
+                await entity_controller.stop_all_for_entity(entity_id)
 
-            paused_cct = False
-            paused_segment = False
-
-            # Pause CCT sequence if running
-            if cct_manager and cct_manager.is_sequence_running(entity_id):
-                _LOGGER.debug("Pausing CCT sequence on %s before applying effect", entity_id)
-                cct_manager.pause_sequence(entity_id)
-                paused_cct = True
-
-            # Pause segment sequence if running
-            if segment_manager and segment_manager.is_sequence_running(entity_id):
-                _LOGGER.debug("Pausing segment sequence on %s before applying effect", entity_id)
-                segment_manager.pause_sequence(entity_id)
-                paused_segment = True
-
-            # Detach from dynamic scene if running (one-time effect overrides scene)
-            dsm = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
-            if dsm and dsm.is_scene_running(entity_id):
-                _LOGGER.debug("Detaching %s from dynamic scene before applying effect", entity_id)
-                dsm.detach_entity(entity_id)
+            # Stop music sync if active on this entity
+            active_music_sync = instance_data.get(DATA_ACTIVE_MUSIC_SYNC, {})
+            if entity_id in active_music_sync:
+                _LOGGER.debug(
+                    "Stopping music sync on %s before applying effect",
+                    entity_id,
+                )
+                try:
+                    await entity_backend.async_stop_music_sync(entity_id)
+                except Exception:
+                    _LOGGER.exception(
+                        "Failed to stop music sync on %s", entity_id
+                    )
+                active_music_sync.pop(entity_id, None)
 
             # Capture current state before applying effect
-            entity_state_manager.capture_state(entity_id, z2m_name)
-
-            # Mark which sequences were paused so we can resume them later
-            device_state = entity_state_manager.get_device_state(entity_id)
-            if device_state:
-                device_state.paused_cct_sequence = paused_cct
-                device_state.paused_segment_sequence = paused_segment
+            entity_state_manager.capture_state(entity_id, aqara_device.name)
 
             # Create dynamic effect
             dynamic_effect = DynamicEffect(
@@ -1423,43 +1441,48 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             # Group entities by instance for batch publishing
             if entry_id not in instance_groups:
                 instance_groups[entry_id] = {
-                    "mqtt_client": entity_mqtt_client,
+                    "backend": entity_backend,
                     "state_manager": entity_state_manager,
                     "entities": [],
                 }
             instance_groups[entry_id]["entities"].append(
-                (entity_id, z2m_name, dynamic_effect)
+                (entity_id, dynamic_effect)
             )
 
-        # Publish effects to all devices, grouped by instance
-        all_entities_published: list[tuple[str, str, DynamicEffect, StateManager]] = []
+        # Send effects to all devices, grouped by instance
+        all_entities_published: list[tuple[str, DynamicEffect, StateManager]] = []
+
+        # Record command timestamps before sending effects so device state
+        # reports from the writes are suppressed by the grace window
+        ec = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+        if ec:
+            for group_data in instance_groups.values():
+                for eid, _ in group_data["entities"]:
+                    ec.record_command(eid)
 
         for entry_id, group_data in instance_groups.items():
-            group_mqtt_client = group_data["mqtt_client"]
+            group_backend = group_data["backend"]
             group_state_manager = group_data["state_manager"]
             group_entities = group_data["entities"]
 
             if sync and len(group_entities) > 1:
-                # Synchronized mode - publish to all devices in this instance in parallel
+                # Synchronized mode - send to all devices in this instance in parallel
                 _LOGGER.debug(
-                    "Publishing effects to %d devices in instance %s (synchronized)",
+                    "Sending effects to %d devices in instance %s (synchronized)",
                     len(group_entities),
                     entry_id,
                 )
-                await group_mqtt_client.async_publish_batch_effects(
-                    [(z2m_name, eff) for _, z2m_name, eff in group_entities],
-                    z2m_base_topic,
+                await group_backend.async_send_batch_effects(
+                    [(eid, eff) for eid, eff in group_entities],
                 )
             else:
-                # Non-synchronized or single device - publish sequentially
-                for _, z2m_name, dynamic_effect in group_entities:
+                # Non-synchronized or single device - send sequentially
+                for eid, dynamic_effect in group_entities:
                     try:
-                        await group_mqtt_client.async_publish_dynamic_effect(
-                            z2m_name, dynamic_effect, z2m_base_topic
-                        )
+                        await group_backend.async_send_effect(eid, dynamic_effect)
                     except Exception as ex:
                         _LOGGER.warning(
-                            "Failed to publish effect to %s: %s", z2m_name, ex
+                            "Failed to send effect to %s: %s", eid, ex
                         )
                         continue
 
@@ -1469,8 +1492,18 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     (*entity_data, group_state_manager)
                 )
 
+        # Turn on lights after effect writes so the device has colors
+        # configured before powering on, avoiding a brief flash of wrong colors
+        if turn_on and validated_entities:
+            turn_on_tasks = [
+                _ensure_light_on(hass, entity_id, True)
+                for entity_id, _, _, _, _, _ in validated_entities
+            ]
+            if turn_on_tasks:
+                await asyncio.gather(*turn_on_tasks, return_exceptions=True)
+
         # Mark effects as active and fire events
-        for entity_id, z2m_name, dynamic_effect, entity_state_mgr in all_entities_published:
+        for entity_id, dynamic_effect, entity_state_mgr in all_entities_published:
             entity_state_mgr.mark_effect_active(entity_id, dynamic_effect, preset)
             _LOGGER.info("Applied effect %s to %s", effect, entity_id)
 
@@ -1487,13 +1520,14 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         # Set brightness using HA service if specified (in parallel for all entities)
         if brightness is not None:
             brightness_tasks = []
-            for entity_id, _, _, _ in all_entities_published:
+            for entity_id, _, _ in all_entities_published:
                 brightness_tasks.append(
                     hass.services.async_call(
                         "light",
                         "turn_on",
                         {"entity_id": entity_id, "brightness": brightness},
                         blocking=True,
+                        context=_get_context_and_record(hass, entity_id),
                     )
                 )
 
@@ -1510,7 +1544,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     async def handle_stop_effect(call: ServiceCall) -> None:
         """Handle stop_effect service call."""
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
-        z2m_base_topic: str | None = call.data.get(ATTR_Z2M_BASE_TOPIC)
 
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
@@ -1523,54 +1556,29 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         # Process each entity
         for entity_id in resolved_entity_ids:
             # Get the correct instance components for this entity
-            entity_mqtt_client, entity_state_manager, entry_id = (
+            entity_backend, entity_state_manager, entry_id = (
                 _get_instance_components_for_entity(hass, entity_id)
             )
 
-            # Get Z2M friendly name from the correct instance
-            z2m_name = entity_mqtt_client.get_z2m_friendly_name(entity_id)
-            if not z2m_name:
+            # Verify entity is mapped in this backend
+            aqara_device = entity_backend.get_device_for_entity(entity_id)
+            if not aqara_device:
                 _LOGGER.warning(
-                    "Entity %s not mapped to Z2M device, skipping", entity_id
+                    "Entity %s not mapped to any Aqara device, skipping", entity_id
                 )
                 continue
 
             # Stop the effect by restoring previous state using HA light service
             try:
-                payload = (
-                    entity_state_manager.get_restoration_payload(entity_id)
-                    if restore_state
-                    else None
-                )
+                ctx = _get_context_and_record(hass, entity_id)
+                restored = False
 
-                if payload:
-                    service_data: dict[str, Any] = {"entity_id": entity_id}
+                if restore_state:
+                    restored = await entity_state_manager.async_restore_entity_state(
+                        entity_id, blocking=True, context=ctx,
+                    )
 
-                    if payload.get("state") == STATE_OFF:
-                        await hass.services.async_call(
-                            "light", "turn_off", service_data, blocking=True,
-                        )
-                    else:
-                        if "brightness" in payload:
-                            service_data["brightness"] = payload["brightness"]
-
-                        # get_restoration_payload uses color_mode to pick the
-                        # correct format (xy_color for color mode, color_temp
-                        # for CCT mode) so dual-mode lights restore accurately
-                        if "xy_color" in payload:
-                            xy = payload["xy_color"]
-                            service_data["xy_color"] = [xy["x"], xy["y"]]
-                        elif "color" in payload:
-                            c = payload["color"]
-                            service_data["rgb_color"] = [c["r"], c["g"], c["b"]]
-
-                        if "color_temp" in payload:
-                            service_data["color_temp"] = payload["color_temp"]
-
-                        await hass.services.async_call(
-                            "light", "turn_on", service_data, blocking=True,
-                        )
-
+                if restored:
                     _LOGGER.info("Stopped effect and restored previous state for %s", entity_id)
                 else:
                     # No saved state - stop effect with a default warm white RGB color
@@ -1579,29 +1587,12 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         "turn_on",
                         {"entity_id": entity_id, "rgb_color": [255, 200, 150]},
                         blocking=True,
+                        context=ctx,
                     )
                     _LOGGER.info("Stopped effect for %s (set to default warm white)", entity_id)
 
                 # Mark effect as inactive (returns the preset that was active)
                 stopped_preset = entity_state_manager.mark_effect_inactive(entity_id)
-
-                # Resume any sequences that were paused when effect started
-                device_state = entity_state_manager.get_device_state(entity_id)
-                if device_state:
-                    # Get sequence managers from the correct instance
-                    instance_data = hass.data[DOMAIN]["entries"].get(entry_id, {})
-                    cct_manager = instance_data.get(DATA_CCT_SEQUENCE_MANAGER)
-                    segment_manager = instance_data.get(DATA_SEGMENT_SEQUENCE_MANAGER)
-
-                    if device_state.paused_cct_sequence and cct_manager:
-                        _LOGGER.debug("Resuming paused CCT sequence on %s", entity_id)
-                        cct_manager.resume_sequence(entity_id)
-                        device_state.paused_cct_sequence = False
-
-                    if device_state.paused_segment_sequence and segment_manager:
-                        _LOGGER.debug("Resuming paused segment sequence on %s", entity_id)
-                        segment_manager.resume_sequence(entity_id)
-                        device_state.paused_segment_sequence = False
 
                 # Fire effect stopped event with preset info
                 hass.bus.async_fire(
@@ -1618,7 +1609,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     async def handle_set_segment_pattern(call: ServiceCall) -> None:
         """Handle set_segment_pattern service call."""
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
-        z2m_base_topic: str | None = call.data.get(ATTR_Z2M_BASE_TOPIC)
 
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
@@ -1670,64 +1660,55 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         # Process each entity
         for entity_id in resolved_entity_ids:
             # Get the correct instance components for this entity
-            entity_mqtt_client, entity_state_manager, entry_id = (
+            entity_backend, entity_state_manager, entry_id = (
                 _get_instance_components_for_entity(hass, entity_id)
             )
 
-            z2m_name = entity_mqtt_client.get_z2m_friendly_name(entity_id)
-            if not z2m_name:
+            aqara_device = entity_backend.get_device_for_entity(entity_id)
+            if not aqara_device:
                 _LOGGER.warning(
-                    "Entity %s not mapped to Z2M device, skipping", entity_id
+                    "Entity %s not mapped to any Aqara device, skipping", entity_id
                 )
                 continue
 
-            # Get device and check if it supports segment addressing
-            device = entity_mqtt_client.entry.runtime_data.devices_by_name.get(
-                z2m_name
-            )
-            if not device:
-                _LOGGER.warning(
-                    "Z2M device %s not found in registry, skipping", z2m_name
-                )
-                continue
-
-            if not supports_segment_addressing(device.model_id):
+            if not supports_segment_addressing(aqara_device.model_id):
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
                     translation_key="segment_addressing_not_supported",
-                    translation_placeholders={"device": z2m_name},
+                    translation_placeholders={"device": aqara_device.name},
                 )
 
             # Get segment count for this device
-            max_segments = _get_actual_segment_count(hass, entity_id, device.model_id)
+            max_segments = _get_actual_segment_count(hass, entity_id, aqara_device.model_id)
 
             # Validate preset is compatible with device type if using preset
             if preset_data and "device_types" in preset_data:
                 allowed_device_types = preset_data["device_types"]
-                if device.model_id not in allowed_device_types:
+                if aqara_device.model_id not in allowed_device_types:
                     preset_name = preset_data.get("name", preset)
                     raise ServiceValidationError(
                         translation_domain=DOMAIN,
                         translation_key="preset_not_compatible",
                         translation_placeholders={
                             "preset": preset_name,
-                            "device": z2m_name,
-                            "model": device.model_id,
+                            "device": aqara_device.name,
+                            "model": aqara_device.model_id,
                         },
                     )
 
             # Ensure light is on if requested
-            await _ensure_light_on(hass, entity_mqtt_client, entity_id, z2m_name, turn_on)
+            await _ensure_light_on(hass, entity_id, turn_on)
 
             # For T1 Strip, set brightness BEFORE sending segment pattern
             # Z2M converter reads brightness from device state, not from segment objects
-            if brightness is not None and device.model_id == MODEL_T1_STRIP:
+            if brightness is not None and aqara_device.model_id == MODEL_T1_STRIP:
                 try:
                     await hass.services.async_call(
                         "light",
                         "turn_on",
                         {"entity_id": entity_id, "brightness": brightness},
                         blocking=True,
+                        context=_get_context_and_record(hass, entity_id),
                     )
                     _LOGGER.debug("Set brightness to %s for T1 Strip %s before segment pattern", brightness, entity_id)
                     # Small delay to ensure state is updated before segment command
@@ -1773,7 +1754,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 segment_colors_data = segment_colors_data_input
 
             # Expand segment ranges into individual segments
-            device_zones = _get_zones_for_device(hass, device.ieee_address)
+            device_zones = _get_zones_for_device(hass, aqara_device.identifier)
             expanded_data = expand_segment_colors(segment_colors_data, max_segments, zones=device_zones)
 
             # If turn_off_unspecified is enabled, add black to all unspecified segments
@@ -1792,45 +1773,18 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 for sc in expanded_data
             ]
 
-            # Check and pause any running sequences before applying segment pattern
-            # Get sequence managers from the correct instance
+            # Stop all conflicting continuous actions (sequences, scenes)
             instance_data = hass.data[DOMAIN]["entries"].get(entry_id, {})
-            cct_manager = instance_data.get(DATA_CCT_SEQUENCE_MANAGER)
-            segment_manager = instance_data.get(DATA_SEGMENT_SEQUENCE_MANAGER)
+            entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+            if entity_controller:
+                await entity_controller.stop_all_for_entity(entity_id)
 
-            paused_cct = False
-            paused_segment = False
-
-            # Pause CCT sequence if running
-            if cct_manager and cct_manager.is_sequence_running(entity_id):
-                _LOGGER.debug("Pausing CCT sequence on %s before applying segment pattern", entity_id)
-                cct_manager.pause_sequence(entity_id)
-                paused_cct = True
-
-            # Pause segment sequence if running
-            if segment_manager and segment_manager.is_sequence_running(entity_id):
-                _LOGGER.debug("Pausing segment sequence on %s before applying segment pattern", entity_id)
-                segment_manager.pause_sequence(entity_id)
-                paused_segment = True
-
-            # Detach from dynamic scene if running (one-time pattern overrides scene)
-            dsm = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
-            if dsm and dsm.is_scene_running(entity_id):
-                _LOGGER.debug("Detaching %s from dynamic scene before applying segment pattern", entity_id)
-                dsm.detach_entity(entity_id)
-
-            # Capture state and publish pattern
-            entity_state_manager.capture_state(entity_id, z2m_name)
-
-            # Mark which sequences were paused so we can resume them later
-            device_state = entity_state_manager.get_device_state(entity_id)
-            if device_state:
-                device_state.paused_cct_sequence = paused_cct
-                device_state.paused_segment_sequence = paused_segment
+            # Capture state before applying pattern
+            entity_state_manager.capture_state(entity_id, aqara_device.name)
 
             try:
-                await entity_mqtt_client.async_publish_segment_pattern(
-                    z2m_name, segment_colors, z2m_base_topic
+                await entity_backend.async_send_segment_pattern(
+                    entity_id, segment_colors
                 )
                 _LOGGER.info("Applied segment pattern to %s", entity_id)
 
@@ -1849,17 +1803,18 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 raise HomeAssistantError(
                     translation_domain=DOMAIN,
                     translation_key="publish_pattern_failed",
-                    translation_placeholders={"device": z2m_name},
+                    translation_placeholders={"device": aqara_device.name},
                 ) from ex
 
             # Set brightness using HA service for T1M only (T1 Strip brightness was already set above)
-            if brightness is not None and device.model_id != MODEL_T1_STRIP:
+            if brightness is not None and aqara_device.model_id != MODEL_T1_STRIP:
                 try:
                     await hass.services.async_call(
                         "light",
                         "turn_on",
                         {"entity_id": entity_id, "brightness": brightness},
                         blocking=True,
+                        context=_get_context_and_record(hass, entity_id),
                     )
                     _LOGGER.debug("Set brightness to %s for %s", brightness, entity_id)
                 except Exception as ex:
@@ -1868,7 +1823,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     async def handle_create_gradient(call: ServiceCall) -> None:
         """Handle create_gradient service call."""
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
-        z2m_base_topic: str | None = call.data.get(ATTR_Z2M_BASE_TOPIC)
 
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
@@ -1906,33 +1860,23 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         # Process each entity
         for entity_id in resolved_entity_ids:
             # Get the correct instance components for this entity
-            entity_mqtt_client, entity_state_manager, entry_id = (
+            entity_backend, entity_state_manager, entry_id = (
                 _get_instance_components_for_entity(hass, entity_id)
             )
 
-            z2m_name = entity_mqtt_client.get_z2m_friendly_name(entity_id)
-            if not z2m_name:
+            aqara_device = entity_backend.get_device_for_entity(entity_id)
+            if not aqara_device:
                 _LOGGER.warning(
-                    "Entity %s not mapped to Z2M device, skipping", entity_id
+                    "Entity %s not mapped to any Aqara device, skipping", entity_id
                 )
                 continue
 
-            # Get device capabilities
-            device = entity_mqtt_client.entry.runtime_data.devices_by_name.get(
-                z2m_name
-            )
-            if not device:
-                _LOGGER.warning(
-                    "Z2M device %s not found in registry, skipping", z2m_name
-                )
-                continue
-
-            capabilities = get_device_capabilities(device.model_id)
+            capabilities = get_device_capabilities(aqara_device.model_id)
             if not capabilities or not capabilities.supports_segment_addressing:
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
                     translation_key="segment_addressing_not_supported",
-                    translation_placeholders={"device": z2m_name},
+                    translation_placeholders={"device": aqara_device.name},
                 )
 
             # Detach from dynamic scene if running (one-time gradient overrides scene)
@@ -1943,17 +1887,18 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 dsm.detach_entity(entity_id)
 
             # Ensure light is on if requested
-            await _ensure_light_on(hass, entity_mqtt_client, entity_id, z2m_name, turn_on)
+            await _ensure_light_on(hass, entity_id, turn_on)
 
             # For T1 Strip, set brightness BEFORE sending gradient
             # Z2M converter reads brightness from device state, not from segment objects
-            if brightness is not None and device.model_id == MODEL_T1_STRIP:
+            if brightness is not None and aqara_device.model_id == MODEL_T1_STRIP:
                 try:
                     await hass.services.async_call(
                         "light",
                         "turn_on",
                         {"entity_id": entity_id, "brightness": brightness},
                         blocking=True,
+                        context=_get_context_and_record(hass, entity_id),
                     )
                     _LOGGER.debug("Set brightness to %s for T1 Strip %s before gradient", brightness, entity_id)
                     # Small delay to ensure state is updated before segment command
@@ -1962,15 +1907,15 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     _LOGGER.warning("Failed to set brightness for %s: %s", entity_id, ex)
 
             # Determine segments to use
-            device_zones = _get_zones_for_device(hass, device.ieee_address)
+            device_zones = _get_zones_for_device(hass, aqara_device.identifier)
             if segments_str:
                 # Parse segment range
-                max_segments = _get_actual_segment_count(hass, entity_id, device.model_id)
+                max_segments = _get_actual_segment_count(hass, entity_id, aqara_device.model_id)
                 segment_list = parse_segment_range(segments_str, max_segments, zones=device_zones)
                 segment_count = len(segment_list)
             else:
                 # Use all segments
-                segment_count = _get_actual_segment_count(hass, entity_id, device.model_id)
+                segment_count = _get_actual_segment_count(hass, entity_id, aqara_device.model_id)
                 segment_list = list(range(1, segment_count + 1))
 
             # Generate gradient (convert RGBColor objects to dicts)
@@ -1987,7 +1932,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
             # If turn_off_unspecified is enabled, add black to all unspecified segments
             if turn_off_unspecified and segments_str:
-                max_segments_total = _get_actual_segment_count(hass, entity_id, device.model_id)
+                max_segments_total = _get_actual_segment_count(hass, entity_id, aqara_device.model_id)
                 specified_segments = {sc["segment"] for sc in gradient_data}
                 for seg_num in range(1, max_segments_total + 1):
                     if seg_num not in specified_segments:
@@ -2003,11 +1948,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             ]
 
             # Capture state and publish gradient
-            entity_state_manager.capture_state(entity_id, z2m_name)
+            entity_state_manager.capture_state(entity_id, aqara_device.name)
 
             try:
-                await entity_mqtt_client.async_publish_segment_pattern(
-                    z2m_name, segment_colors, z2m_base_topic
+                await entity_backend.async_send_segment_pattern(
+                    entity_id, segment_colors
                 )
                 _LOGGER.info("Applied gradient to %s", entity_id)
 
@@ -2026,17 +1971,18 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 raise HomeAssistantError(
                     translation_domain=DOMAIN,
                     translation_key="publish_gradient_failed",
-                    translation_placeholders={"device": z2m_name},
+                    translation_placeholders={"device": aqara_device.name},
                 ) from ex
 
             # Set brightness using HA service for T1M only (T1 Strip brightness was already set above)
-            if brightness is not None and device.model_id != MODEL_T1_STRIP:
+            if brightness is not None and aqara_device.model_id != MODEL_T1_STRIP:
                 try:
                     await hass.services.async_call(
                         "light",
                         "turn_on",
                         {"entity_id": entity_id, "brightness": brightness},
                         blocking=True,
+                        context=_get_context_and_record(hass, entity_id),
                     )
                     _LOGGER.debug("Set brightness to %s for %s", brightness, entity_id)
                 except Exception as ex:
@@ -2045,7 +1991,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     async def handle_create_blocks(call: ServiceCall) -> None:
         """Handle create_blocks service call."""
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
-        z2m_base_topic: str | None = call.data.get(ATTR_Z2M_BASE_TOPIC)
 
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
@@ -2084,33 +2029,23 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         # Process each entity
         for entity_id in resolved_entity_ids:
             # Get the correct instance components for this entity
-            entity_mqtt_client, entity_state_manager, entry_id = (
+            entity_backend, entity_state_manager, entry_id = (
                 _get_instance_components_for_entity(hass, entity_id)
             )
 
-            z2m_name = entity_mqtt_client.get_z2m_friendly_name(entity_id)
-            if not z2m_name:
+            aqara_device = entity_backend.get_device_for_entity(entity_id)
+            if not aqara_device:
                 _LOGGER.warning(
-                    "Entity %s not mapped to Z2M device, skipping", entity_id
+                    "Entity %s not mapped to any Aqara device, skipping", entity_id
                 )
                 continue
 
-            # Get device capabilities
-            device = entity_mqtt_client.entry.runtime_data.devices_by_name.get(
-                z2m_name
-            )
-            if not device:
-                _LOGGER.warning(
-                    "Z2M device %s not found in registry, skipping", z2m_name
-                )
-                continue
-
-            capabilities = get_device_capabilities(device.model_id)
+            capabilities = get_device_capabilities(aqara_device.model_id)
             if not capabilities or not capabilities.supports_segment_addressing:
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
                     translation_key="segment_addressing_not_supported",
-                    translation_placeholders={"device": z2m_name},
+                    translation_placeholders={"device": aqara_device.name},
                 )
 
             # Detach from dynamic scene if running (one-time blocks overrides scene)
@@ -2121,17 +2056,18 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 dsm.detach_entity(entity_id)
 
             # Ensure light is on if requested
-            await _ensure_light_on(hass, entity_mqtt_client, entity_id, z2m_name, turn_on)
+            await _ensure_light_on(hass, entity_id, turn_on)
 
             # For T1 Strip, set brightness BEFORE sending blocks
             # Z2M converter reads brightness from device state, not from segment objects
-            if brightness is not None and device.model_id == MODEL_T1_STRIP:
+            if brightness is not None and aqara_device.model_id == MODEL_T1_STRIP:
                 try:
                     await hass.services.async_call(
                         "light",
                         "turn_on",
                         {"entity_id": entity_id, "brightness": brightness},
                         blocking=True,
+                        context=_get_context_and_record(hass, entity_id),
                     )
                     _LOGGER.debug("Set brightness to %s for T1 Strip %s before blocks", brightness, entity_id)
                     # Small delay to ensure state is updated before segment command
@@ -2140,15 +2076,15 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     _LOGGER.warning("Failed to set brightness for %s: %s", entity_id, ex)
 
             # Determine segments to use
-            device_zones = _get_zones_for_device(hass, device.ieee_address)
+            device_zones = _get_zones_for_device(hass, aqara_device.identifier)
             if segments_str:
                 # Parse segment range
-                max_segments = _get_actual_segment_count(hass, entity_id, device.model_id)
+                max_segments = _get_actual_segment_count(hass, entity_id, aqara_device.model_id)
                 segment_list = parse_segment_range(segments_str, max_segments, zones=device_zones)
                 segment_count = len(segment_list)
             else:
                 # Use all segments
-                segment_count = _get_actual_segment_count(hass, entity_id, device.model_id)
+                segment_count = _get_actual_segment_count(hass, entity_id, aqara_device.model_id)
                 segment_list = list(range(1, segment_count + 1))
 
             # Generate blocks (convert RGBColor objects to dicts)
@@ -2165,7 +2101,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
             # If turn_off_unspecified is enabled, add black to all unspecified segments
             if turn_off_unspecified and segments_str:
-                max_segments_total = _get_actual_segment_count(hass, entity_id, device.model_id)
+                max_segments_total = _get_actual_segment_count(hass, entity_id, aqara_device.model_id)
                 specified_segments = {sc["segment"] for sc in blocks_data}
                 for seg_num in range(1, max_segments_total + 1):
                     if seg_num not in specified_segments:
@@ -2181,11 +2117,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             ]
 
             # Capture state and publish blocks
-            entity_state_manager.capture_state(entity_id, z2m_name)
+            entity_state_manager.capture_state(entity_id, aqara_device.name)
 
             try:
-                await entity_mqtt_client.async_publish_segment_pattern(
-                    z2m_name, segment_colors, z2m_base_topic
+                await entity_backend.async_send_segment_pattern(
+                    entity_id, segment_colors
                 )
                 _LOGGER.info("Applied block pattern to %s", entity_id)
 
@@ -2204,17 +2140,18 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 raise HomeAssistantError(
                     translation_domain=DOMAIN,
                     translation_key="publish_blocks_failed",
-                    translation_placeholders={"device": z2m_name},
+                    translation_placeholders={"device": aqara_device.name},
                 ) from ex
 
             # Set brightness using HA service for T1M only (T1 Strip brightness was already set above)
-            if brightness is not None and device.model_id != MODEL_T1_STRIP:
+            if brightness is not None and aqara_device.model_id != MODEL_T1_STRIP:
                 try:
                     await hass.services.async_call(
                         "light",
                         "turn_on",
                         {"entity_id": entity_id, "brightness": brightness},
                         blocking=True,
+                        context=_get_context_and_record(hass, entity_id),
                     )
                     _LOGGER.debug("Set brightness to %s for %s", brightness, entity_id)
                 except Exception as ex:
@@ -2223,7 +2160,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     async def handle_start_cct_sequence(call: ServiceCall) -> None:
         """Handle start_cct_sequence service call."""
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
-        z2m_base_topic: str | None = call.data.get(ATTR_Z2M_BASE_TOPIC)
 
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
@@ -2411,7 +2347,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
         for entity_id in aqara_entity_ids:
             # Get the correct instance components for this entity
-            entity_mqtt_client, entity_state_manager, entry_id = (
+            entity_backend, entity_state_manager, entry_id = (
                 _get_instance_components_for_entity(hass, entity_id)
             )
 
@@ -2425,11 +2361,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 )
                 continue
 
-            # Get Z2M friendly name
-            z2m_name = entity_mqtt_client.get_z2m_friendly_name(entity_id)
-            if not z2m_name:
+            # Verify entity is mapped in this backend
+            aqara_device = entity_backend.get_device_for_entity(entity_id)
+            if not aqara_device:
                 _LOGGER.warning(
-                    "Entity %s not mapped to Z2M device, skipping", entity_id
+                    "Entity %s not mapped to any Aqara device, skipping", entity_id
                 )
                 continue
 
@@ -2442,9 +2378,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 }
 
             instance_groups[entry_id]["entities"].append(entity_id)
-            instance_groups[entry_id]["turn_on_data"].append(
-                (entity_mqtt_client, entity_id, z2m_name)
-            )
+            instance_groups[entry_id]["turn_on_data"].append(entity_id)
 
         # Route generic entities through any available CCT manager
         # CCT sequences use HA service calls so any manager works
@@ -2463,9 +2397,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             turn_on_tasks = []
             # Aqara lights
             for group_data in instance_groups.values():
-                for mqtt_client, entity_id, z2m_name in group_data["turn_on_data"]:
+                for entity_id in group_data["turn_on_data"]:
                     turn_on_tasks.append(
-                        _ensure_light_on(hass, mqtt_client, entity_id, z2m_name, True)
+                        _ensure_light_on(hass, entity_id, True)
                     )
             # Generic lights - use HA service call directly
             for entity_id in generic_entity_ids:
@@ -2476,6 +2410,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                             "light", "turn_on",
                             {"entity_id": entity_id},
                             blocking=False,
+                            context=_get_context_and_record(hass, entity_id),
                         )
                     )
             if turn_on_tasks:
@@ -2494,7 +2429,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             entity_list = group_data["entities"]
             start_tasks.append(
                 cct_manager.start_synchronized_group(
-                    entity_list, sequence, z2m_base_topic, preset
+                    entity_list, sequence, preset
                 )
             )
 
@@ -2503,7 +2438,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             generic_cct_manager, _ = generic_manager_pair
             start_tasks.append(
                 generic_cct_manager.start_synchronized_group(
-                    generic_entity_ids, sequence, None, preset
+                    generic_entity_ids, sequence, preset
                 )
             )
 
@@ -2592,7 +2527,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     async def handle_start_segment_sequence(call: ServiceCall) -> None:
         """Handle start_segment_sequence service call."""
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
-        z2m_base_topic: str | None = call.data.get(ATTR_Z2M_BASE_TOPIC)
 
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
@@ -2801,7 +2735,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
         for entity_id in resolved_entity_ids:
             # Get the correct instance components for this entity
-            entity_mqtt_client, entity_state_manager, entry_id = (
+            entity_backend, entity_state_manager, entry_id = (
                 _get_instance_components_for_entity(hass, entity_id)
             )
 
@@ -2815,25 +2749,15 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 )
                 continue
 
-            # Get Z2M friendly name
-            z2m_name = entity_mqtt_client.get_z2m_friendly_name(entity_id)
-            if not z2m_name:
+            # Verify entity is mapped and check segment support
+            aqara_device = entity_backend.get_device_for_entity(entity_id)
+            if not aqara_device:
                 _LOGGER.warning(
-                    "Entity %s not mapped to Z2M device, skipping", entity_id
+                    "Entity %s not mapped to any Aqara device, skipping", entity_id
                 )
                 continue
 
-            # Get device and check if it supports segment addressing
-            device = entity_mqtt_client.entry.runtime_data.devices_by_name.get(
-                z2m_name
-            )
-            if not device:
-                _LOGGER.warning(
-                    "Z2M device %s not found in registry, skipping", z2m_name
-                )
-                continue
-
-            if not supports_segment_addressing(device.model_id):
+            if not supports_segment_addressing(aqara_device.model_id):
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
                     translation_key="device_no_segment_support",
@@ -2849,17 +2773,15 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 }
 
             instance_groups[entry_id]["entities"].append(entity_id)
-            instance_groups[entry_id]["turn_on_data"].append(
-                (entity_mqtt_client, entity_id, z2m_name)
-            )
+            instance_groups[entry_id]["turn_on_data"].append(entity_id)
 
         # Turn on all lights in parallel if requested
         if turn_on:
             turn_on_tasks = []
             for group_data in instance_groups.values():
-                for mqtt_client, entity_id, z2m_name in group_data["turn_on_data"]:
+                for entity_id in group_data["turn_on_data"]:
                     turn_on_tasks.append(
-                        _ensure_light_on(hass, mqtt_client, entity_id, z2m_name, True)
+                        _ensure_light_on(hass, entity_id, True)
                     )
             if turn_on_tasks:
                 await asyncio.gather(*turn_on_tasks, return_exceptions=True)
@@ -2878,7 +2800,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             try:
                 # Use synchronized group start for multiple entities
                 sequence_ids = await segment_manager.start_synchronized_group(
-                    entity_list, sequence, z2m_base_topic, preset
+                    entity_list, sequence, preset
                 )
                 _LOGGER.info(
                     "Started synchronized segment sequence for %d entities",
@@ -3187,6 +3109,128 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
         manager.resume_scene(entity_ids)
 
+    async def handle_set_music_sync(call: ServiceCall) -> None:
+        """Handle set_music_sync service call.
+
+        Controls audio-reactive mode on T1 Strip devices. When enabling,
+        saves current state for later restoration. When disabling, restores
+        the previously saved state.
+        """
+        entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+        enabled: bool = call.data[ATTR_ENABLED]
+        sensitivity: str = call.data.get(ATTR_SENSITIVITY, MUSIC_SYNC_SENSITIVITY_LOW)
+        effect: str = call.data.get(ATTR_AUDIO_EFFECT, MUSIC_SYNC_EFFECT_RANDOM)
+
+        # Resolve groups to individual entities
+        resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
+
+        # Validate all entities are supported Aqara devices
+        _validate_supported_entities(hass, resolved_entity_ids)
+
+        for entity_id in resolved_entity_ids:
+            # Get the correct instance components for this entity
+            entity_backend, entity_state_manager, entry_id = (
+                _get_instance_components_for_entity(hass, entity_id)
+            )
+
+            # Validate this is a T1 Strip device
+            aqara_device = entity_backend.get_device_for_entity(entity_id)
+            if not aqara_device:
+                _LOGGER.warning(
+                    "Entity %s not mapped to any Aqara device, skipping",
+                    entity_id,
+                )
+                continue
+
+            if aqara_device.model_id != MODEL_T1_STRIP:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="music_sync_t1_strip_only",
+                    translation_placeholders={
+                        "device": aqara_device.name,
+                        "model": aqara_device.model_id,
+                    },
+                )
+
+            instance_data = hass.data[DOMAIN]["entries"].get(entry_id, {})
+
+            if enabled:
+                # Capture state before any changes, but preserve the existing
+                # stored state if an effect is active (it was captured when the
+                # effect started and is more accurate than the current effect state)
+                has_existing_state = entity_state_manager.has_stored_state(entity_id)
+                device_state = entity_state_manager.get_device_state(entity_id)
+                effect_was_active = device_state and device_state.effect_active
+
+                if not has_existing_state:
+                    entity_state_manager.capture_state(entity_id, aqara_device.name)
+
+                # Stop any active effect on this entity
+                if effect_was_active:
+                    _LOGGER.debug(
+                        "Stopping active effect on %s before enabling music sync",
+                        entity_id,
+                    )
+                    try:
+                        await entity_backend.async_stop_effect(entity_id)
+                    except Exception:
+                        _LOGGER.exception(
+                            "Failed to stop effect on %s", entity_id
+                        )
+                    entity_state_manager.mark_effect_inactive(entity_id)
+
+                # Send music sync command to device
+                await entity_backend.async_send_music_sync(
+                    entity_id, True, sensitivity, effect
+                )
+
+                # Track active music sync
+                active_music_sync = instance_data.setdefault(
+                    DATA_ACTIVE_MUSIC_SYNC, {}
+                )
+                active_music_sync[entity_id] = {
+                    "sensitivity": sensitivity,
+                    "effect": effect,
+                }
+
+                hass.bus.async_fire(
+                    EVENT_MUSIC_SYNC_ENABLED,
+                    {
+                        EVENT_ATTR_ENTITY_ID: entity_id,
+                        EVENT_ATTR_SENSITIVITY: sensitivity,
+                        EVENT_ATTR_AUDIO_EFFECT: effect,
+                    },
+                )
+
+                _LOGGER.info(
+                    "Enabled music sync on %s: effect=%s, sensitivity=%s",
+                    entity_id,
+                    effect,
+                    sensitivity,
+                )
+            else:
+                # Disable music sync
+                await entity_backend.async_stop_music_sync(entity_id)
+
+                # Remove from active tracking
+                active_music_sync = instance_data.get(DATA_ACTIVE_MUSIC_SYNC, {})
+                active_music_sync.pop(entity_id, None)
+
+                # Restore previous state
+                await entity_state_manager.async_restore_entity_state(
+                    entity_id,
+                    blocking=True,
+                    context=_get_context_and_record(hass, entity_id),
+                )
+                entity_state_manager.clear_state(entity_id)
+
+                hass.bus.async_fire(
+                    EVENT_MUSIC_SYNC_DISABLED,
+                    {EVENT_ATTR_ENTITY_ID: entity_id},
+                )
+
+                _LOGGER.info("Disabled music sync on %s", entity_id)
+
     async def handle_resume_entity_control(call: ServiceCall) -> None:
         """Handle resume_entity_control service call.
 
@@ -3337,6 +3381,13 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         ),
     )
 
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_MUSIC_SYNC,
+        handle_set_music_sync,
+        schema=SERVICE_SET_MUSIC_SYNC_SCHEMA,
+    )
+
     _LOGGER.info("Aqara Advanced Lighting services registered")
 
 
@@ -3359,6 +3410,7 @@ async def async_unload_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(DOMAIN, SERVICE_STOP_DYNAMIC_SCENE)
     hass.services.async_remove(DOMAIN, SERVICE_PAUSE_DYNAMIC_SCENE)
     hass.services.async_remove(DOMAIN, SERVICE_RESUME_DYNAMIC_SCENE)
+    hass.services.async_remove(DOMAIN, SERVICE_SET_MUSIC_SYNC)
     hass.services.async_remove(DOMAIN, SERVICE_RESUME_ENTITY_CONTROL)
 
     # Stop all running sequences across all instances

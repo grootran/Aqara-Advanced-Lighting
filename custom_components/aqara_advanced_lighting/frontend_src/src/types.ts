@@ -29,6 +29,7 @@ export interface HomeAssistant {
       eventType: string,
     ) => Promise<() => void>;
   };
+  entities?: Record<string, { entity_id: string; device_id?: string; platform?: string }>;
 }
 
 export interface HassEntity {
@@ -135,6 +136,7 @@ export interface FilteredPresets {
   showCCTSequences: boolean;
   showSegmentSequences: boolean;
   showDynamicScenes: boolean;
+  showMusicSync: boolean;
   hasT2: boolean;
   hasT1M: boolean;
   hasT1Strip: boolean;
@@ -263,6 +265,7 @@ export interface UserDynamicScenePreset {
   id: string;
   name: string;
   icon?: string;
+  thumbnail?: string;
   colors: DynamicSceneColor[];
   transition_time: number;
   hold_time: number;
@@ -313,6 +316,13 @@ export interface UserPreferences {
   include_all_lights?: boolean;
   favorite_presets: FavoritePresetRef[];
   static_scene_mode?: boolean;
+  distribution_mode_override?: string;
+  brightness_override?: number;
+}
+
+// Integration-wide preferences (not per-user)
+export interface GlobalPreferences {
+  ignore_external_changes?: boolean;
 }
 
 // Draft state types for editor tab caching (in-memory only, not persisted)
@@ -388,6 +398,7 @@ export interface SegmentSequenceEditorDraft {
 export interface DynamicSceneEditorDraft {
   name: string;
   icon: string;
+  thumbnail?: string;
   colors: DynamicSceneColor[];
   transitionTime: number;
   holdTime: number;
@@ -450,7 +461,7 @@ export interface HassEvent {
 }
 
 // Running operation types for the active presets display
-export type RunningOperationType = 'effect' | 'cct_sequence' | 'segment_sequence' | 'dynamic_scene';
+export type RunningOperationType = 'effect' | 'cct_sequence' | 'segment_sequence' | 'dynamic_scene' | 'music_sync';
 
 export interface RunningOperation {
   type: RunningOperationType;
@@ -467,6 +478,9 @@ export interface RunningOperation {
   // Sequence progress
   current_step?: number;
   total_steps?: number;
+  // Music sync
+  sensitivity?: string;
+  audio_effect?: string;
 }
 
 export interface RunningOperationsResponse {

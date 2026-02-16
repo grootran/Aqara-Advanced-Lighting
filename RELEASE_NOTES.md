@@ -1,9 +1,9 @@
-# Aqara Advanced Lighting v0.12.0
+# Aqara Advanced Lighting v0.13.0
 
 ## Upgrade Instructions
 
-**Upgrading from v0.11.x:**
-1. Update via HACS to v0.12.0
+**Upgrading from v0.12.x:**
+1. Update via HACS to v0.13.0
 2. Restart Home Assistant
 3. Clear browser cache (Ctrl+Shift+R or Cmd+Shift+R), clear HA app cache
 
@@ -13,155 +13,102 @@ Your existing configuration, presets, and favorites are automatically preserved.
 
 ### What's New
 
-Version 0.12.0 introduces Dynamic Scenes for ambient lighting across multiple lights, Device Conditions for advanced automations, Active Presets monitoring, Activation Overrides for quick preset customization, and Favorite Presets for easy access to your most-used configurations.
+Version 0.13.0 adds ZHA backend support as an alternative to Zigbee2MQTT, an image color extractor for dynamic scene presets, T1 Strip audio sync controls, dynamic scene color assignment overrides, and an ignore external changes toggle.
 
 ### New Features
 
-#### **Dynamic Scenes**
+#### **ZHA Backend Support**
 
-**Ambient lighting scenes across multiple lights**
+**Full ZHA integration alongside Zigbee2MQTT**
 
-Aimed primarily at T2 bulbs, create color transitions that work with any RGB light entity including non-Aqara devices
+Use Aqara advanced lighting features through the ZHA integration without requiring Zigbee2MQTT
 
-  - Up to 8 colors with XY color pickers and per-color brightness control (1-100%)
-  - Transition time (30-3600 seconds) for smooth color changes
-  - Hold time (0-3600 seconds) to pause at each color
-  - Three distribution modes:
-    - Shuffle and rotate - Each light gets a different color, then colors rotate smoothly through all lights along the color wheel
-    - Synchronized - All lights transition through the same colors together
-    - Random - Each light picks random colors from the palette
-  - Transition stagger (0-10 seconds) to create wave effects across lights
-  - Loop modes: once, count (1-1000), or continuous
-  - End behavior: restore to previous state or maintain last color
-  - Static mode option to apply colors once without transitions
-  - Works with any RGB light entity, not limited to Aqara devices
+  - Custom zigpy quirks for each supported device type (T2 bulbs, T1M, T1 Strip)
+  - Direct Zigbee cluster attribute writes for effects, segment patterns, and segment sequences
+  - Config flow support for quirked ZHA devices
+  - ZHA installation instructions added to README
 
-**58 built-in dynamic scene presets** - Nature themes, relaxation themes, vibrant & cosmic, seasonal, and many more
+#### **Image Color Extractor**
 
-**Dynamic scene editor** - Visual editor in the Scenes tab for creating custom dynamic scenes
+**Extract colors from images for dynamic scene presets**
 
-  - XY color pickers with per-color brightness
-  - Loop and end behavior configuration
-  - Save as custom presets
-  - Icon generation for gradient thumbnails
+  - Upload or link an image to automatically extract a color palette
+  - Extracted colors populate directly into the dynamic scene editor
 
-**Dynamic scene services** - Backend actions, triggers and conditions for scene automations
-  - `start_dynamic_scene` - Start a dynamic scene with preset or manual configuration
-  - `stop_dynamic_scene` - Stop running scene(s) with optional state restoration
-  - `pause_dynamic_scene` - Pause a running scene
-  - `resume_dynamic_scene` - Resume a paused scene
-  
-**Dynamic scene triggers** - 6 device triggers for scene lifecycle events
-  - Scene started, stopped, paused, resumed
-  - Loop completed, finished
+#### **T1 Strip Audio Sync**
 
-**REST API support** - Trigger dynamic scene presets via REST API endpoint
+**Frontend controls for T1 Strip music synchronization mode**
 
-#### **Device Conditions**
+  - Audio sync toggle, sensitivity, and effect controls in the panel
+  - 2 device triggers: music sync enabled, music sync disabled (with sensitivity and audio effect in event data)
+  - 1 device condition: music sync is active
 
-**7 device conditions for automations** - Check current state of lights in automation conditions
+#### **Dynamic Scene Color Assignment Override**
 
-  - CCT sequence is running / paused
-  - Segment sequence is running / paused
-  - Dynamic effect is active
-  - Dynamic scene is running / paused
+**Override color-to-light assignment when activating scenes**
 
-**Preset filter support** - Optional filter to check for specific preset by name
+  - Manually assign scene color distribution
+  - Brightness activation override for per-scene control
 
-  - Allows precise condition matching for specific effects, sequences, or scenes
-  - Example: "Only turn on fan if goodnight sequence is running"
+#### **Ignore External Changes Toggle**
 
-#### **Active Presets Monitoring**
+**Prevent external changes from pausing running operations**
 
-**Running presets display** - Real-time monitoring of all active operations
-
-  - Shows all running effects, sequences, and scenes
-  - Operation cards display preset icon, name, and target entity
-  - Control buttons: stop, pause, resume for each operation
-  - Multi-entity support with auto-refresh when operations change
-  - Replaces the previous Quick Actions section
-
-#### **Activation Overrides**
-
-**Custom brightness override** - Override preset brightness when activating (1-100%)
-
-  - Toggle to enable/disable
-  - Slider for brightness adjustment
-  - Applies to all preset types
-
-**Static scene mode** - For dynamic scenes only
-
-  - Apply scene colors once without starting transitions
-  - Colors distributed according to scene's distribution mode
-  - Lights remain at assigned colors without cycling
-
-#### **Favorite Presets**
-
-**Star your favorite presets** - Quick access to most-used presets
-
-  - Mark any preset as favorite with star icon
-  - Favorites appear in dedicated section for quick activation
-  - Device-type-level filtering - only show presets compatible with selected lights
-  - Sorting options: alphabetical or by date
-
-#### **Preset Management Improvements**
-
-**Dynamic preset population** - Service action dropdowns now populated with current presets
-
-  - Always shows up-to-date preset lists
-  - Includes both built-in and user-created presets
+  - Toggle to ignore external state changes on entities running sequences or scenes
+  - Prevents false external pause detection from other automations or manual adjustments
 
 ### Improvements
 
-#### Frontend Enhancements
+#### **Device Registry Merging**
 
-**Setup status indicator** - Shows when integration is still initializing
-  - Prevents confusion during initial setup
-  - Clear feedback when backend is not ready
+**Aqara Advanced Lighting devices now share the existing MQTT/ZHA device instead of creating duplicates**
 
-**Include-all-lights toggle** - Light selection control
-  - Option to include non-Aqara RGB/CCT lights for dynamic scenes and CCT sequences
-  - Improved generic light compatibility
+  - The integration now merges into the existing MQTT or ZHA device in the Home Assistant device registry rather than creating a separate device for each light
+  - For Z2M: uses shared MQTT identifiers so Home Assistant recognizes both integrations belong to the same physical device
+  - For ZHA: uses Zigbee IEEE connection matching for automatic device merging
+  - Users see one device per physical light with both integrations listed
+  - Old standalone devices from previous versions are automatically removed on upgrade
+  - Installing the integration does not affect existing MQTT/ZHA device setups
+  - See [Breaking Changes](#breaking-changes) for upgrade notes on device automations
 
-**Entity conflict resolution** - Cross-type conflict detection and handling
-  - Prevents conflicts between different operation types
-  - External change detection pauses affected entities
-  - Entities can rejoin operations after manual changes
+#### **Unified State Restoration**
 
-**Touch device improvements**
-  - Removed click-to-activate from My Presets tab
-  - Better touch target sizing
-  - Improved gesture support
+**Shared StateManager helper for all operation types**
+
+  - Consolidated state restoration logic into a shared StateManager helper
+  - Consistent save/restore behavior across effects, sequences, and scenes
+  - Cleaner codebase with reduced duplication
 
 ### Bug Fixes
 
-- **Fixed entity conflict resolution** - Proper handling of conflicts between operation types
-- **Fixed state restoration** - Correct restoration of light states after effects/scenes
-- **Fixed Circadian Rhythm preset** - Corrected timing and color temperature values
-- **Fixed falsy value handling** - Editor change handlers now use nullish coalescing (??) instead of logical OR (||)
-- **Fixed device automation translation format** - Proper translation for extra fields in device triggers/conditions
-- **Fixed editor cancel button** - Reset editor to default state when cancel is clicked
--  **Fixed segment zone panel** - Hide segment zone config when no compatible device selected
+- **Fixed auto-fill for new sequence steps** - New CCT and segment sequence steps now auto-fill with the previous step's settings instead of defaults
+- **Fixed false external pause detection** - Operations no longer incorrectly detect external changes and pause themselves
+- **Fixed deprecated `color_temp` usage** - State restore service calls now use the correct color temperature attribute
+- **Fixed tab compatibility detection** - Frontend now uses `device_type` from the backend API for reliable tab compatibility checks
+- **Fixed device type dropdown** - Device type dropdown now correctly updates when changing the selected entity
+- **Fixed brightness override persistence** - Brightness override setting is now properly stored in user preferences
+- **Fixed effects and patterns stopping sequences** - Effects and patterns now call `stop_all_for_entity` to fully stop running sequences instead of pausing and resuming them
 
 ### Breaking Changes
 
-None. This release is fully backward compatible with v0.11.0.
+#### **Device Automation Re-selection**
 
-- All existing presets and configurations preserved
-- No configuration changes required
-- All previous features and APIs unchanged
+**Device triggers and conditions require re-selection after upgrading**
+
+  - The old standalone Aqara Advanced Lighting device is removed during upgrade and replaced by the merged MQTT/ZHA device (see [Improvements](#improvements))
+  - **Action required:** If you have device automations (triggers or conditions) targeting the old standalone Aqara Advanced Lighting device, you will need to re-select the device in those automations after upgrading
 
 ### Compatibility
 
-- Fully backward compatible with v0.11.0
-- All existing features and APIs unchanged
+- All existing presets, favorites, and configurations preserved
 - No configuration changes required
-- All presets and favorites preserved
-- Dynamic scenes are an additive feature - existing functionality unchanged
+- All previous features and APIs unchanged
+- ZHA support works alongside existing Zigbee2MQTT setups
+- Device automations using triggers or conditions need device re-selection (see breaking changes above)
 
 ## Full Changelog
 
-[View full changelog](https://github.com/absent42/Aqara-Advanced-Lighting/blob/main/CHANGELOG.md#0120---2026-02-08)
+[View full changelog](https://github.com/absent42/Aqara-Advanced-Lighting/blob/main/CHANGELOG.md#0130---2026-02-15)
 
 ## Support
 

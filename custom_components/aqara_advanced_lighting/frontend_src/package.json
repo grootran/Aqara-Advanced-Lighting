@@ -1,6 +1,6 @@
 {
   "name": "aqara-advanced-lighting-panel",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "Frontend panel for Aqara Advanced Lighting integration",
   "private": true,
   "type": "module",

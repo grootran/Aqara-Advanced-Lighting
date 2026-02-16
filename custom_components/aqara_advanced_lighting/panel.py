@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 import json
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote
+import uuid
 
 from aiohttp import web
+import aiohttp
 
 from homeassistant.components import frontend
 from homeassistant.components.http import HomeAssistantView
@@ -23,6 +26,8 @@ if TYPE_CHECKING:
     from .segment_zone_store import SegmentZoneStore
     from .user_preferences_store import UserPreferencesStore
 
+from .user_preferences_store import _UNSET
+
 from .const import (
     ATTR_BRIGHTNESS,
     ATTR_PRESET,
@@ -30,6 +35,7 @@ from .const import (
     ATTR_SEGMENTS,
     DATA_CCT_SEQUENCE_MANAGER,
     DATA_DYNAMIC_SCENE_MANAGER,
+    DATA_ACTIVE_MUSIC_SYNC,
     DATA_ENTITY_CONTROLLER,
     DATA_FAVORITES_STORE,
     DATA_PRESET_STORE,
@@ -37,8 +43,11 @@ from .const import (
     DATA_SEGMENT_ZONE_STORE,
     DATA_STATE_MANAGER,
     DATA_USER_PREFERENCES_STORE,
+    DEFAULT_EXTRACTED_COLORS,
     DOMAIN,
     MAX_COLOR_HISTORY_SIZE,
+    MAX_IMAGE_SIZE_BYTES,
+    THUMBNAIL_STORAGE_DIR,
     MODEL_T1M_20_SEGMENT,
     MODEL_T1M_26_SEGMENT,
     MODEL_T1_STRIP,
@@ -59,6 +68,7 @@ from .const import (
     SERVICE_STOP_DYNAMIC_SCENE,
     SERVICE_STOP_EFFECT,
     SERVICE_STOP_SEGMENT_SEQUENCE,
+    VALID_DISTRIBUTION_MODES,
     VALID_PRESET_TYPES,
     VALID_SORT_OPTIONS,
 )
@@ -122,6 +132,7 @@ async def async_register_panel(hass: HomeAssistant) -> None:
 
     # Register user preferences endpoint
     hass.http.register_view(UserPreferencesView)
+    hass.http.register_view(GlobalPreferencesView)
 
     # Register version endpoint
     hass.http.register_view(VersionView)
@@ -138,6 +149,10 @@ async def async_register_panel(hass: HomeAssistant) -> None:
 
     # Register running operations endpoint for panel status display
     hass.http.register_view(RunningOperationsView)
+
+    # Register image color extraction and thumbnail endpoints
+    hass.http.register_view(ColorExtractView)
+    hass.http.register_view(ThumbnailView)
 
     _LOGGER.info("Aqara Advanced Lighting panel registered")
 
@@ -827,6 +842,8 @@ class UserPreferencesView(HomeAssistantView):
         include_all_lights = None
         favorite_presets = None
         static_scene_mode = None
+        distribution_mode_override = _UNSET
+        brightness_override = _UNSET
 
         if "color_history" in data:
             error = _validate_color_history(data["color_history"])
@@ -866,6 +883,32 @@ class UserPreferencesView(HomeAssistantView):
                 )
             static_scene_mode = data["static_scene_mode"]
 
+        if "distribution_mode_override" in data:
+            value = data["distribution_mode_override"]
+            if value is not None and (
+                not isinstance(value, str)
+                or value not in VALID_DISTRIBUTION_MODES
+            ):
+                return web.Response(
+                    status=400,
+                    text=(
+                        "distribution_mode_override must be null or one of"
+                        f" {VALID_DISTRIBUTION_MODES}"
+                    ),
+                )
+            distribution_mode_override = value
+
+        if "brightness_override" in data:
+            value = data["brightness_override"]
+            if value is not None and (
+                not isinstance(value, (int, float)) or value < 1 or value > 100
+            ):
+                return web.Response(
+                    status=400,
+                    text="brightness_override must be null or a number between 1 and 100",
+                )
+            brightness_override = int(value) if value is not None else None
+
         if (
             color_history is None
             and sort_preferences is None
@@ -873,6 +916,8 @@ class UserPreferencesView(HomeAssistantView):
             and include_all_lights is None
             and favorite_presets is None
             and static_scene_mode is None
+            and distribution_mode_override is _UNSET
+            and brightness_override is _UNSET
         ):
             # Nothing to update, return current preferences
             preferences = store.get_preferences(user.id)
@@ -886,6 +931,62 @@ class UserPreferencesView(HomeAssistantView):
             include_all_lights=include_all_lights,
             favorite_presets=favorite_presets,
             static_scene_mode=static_scene_mode,
+            distribution_mode_override=distribution_mode_override,
+            brightness_override=brightness_override,
+        )
+        return web.json_response(preferences)
+
+
+class GlobalPreferencesView(HomeAssistantView):
+    """View to get and update integration-wide global preferences."""
+
+    url = f"/api/{DOMAIN}/global_preferences"
+    name = f"api:{DOMAIN}:global_preferences"
+    requires_auth = True
+
+    async def get(self, request: web.Request) -> web.Response:
+        """Get current global preferences."""
+        hass = request.app["hass"]
+
+        store = _get_user_preferences_store(hass)
+        if not store:
+            return web.Response(
+                status=503, text="User preferences store not initialized"
+            )
+
+        return web.json_response(store.get_global_preferences())
+
+    async def put(self, request: web.Request) -> web.Response:
+        """Update global preferences."""
+        hass = request.app["hass"]
+
+        store = _get_user_preferences_store(hass)
+        if not store:
+            return web.Response(
+                status=503, text="User preferences store not initialized"
+            )
+
+        try:
+            data = await request.json()
+        except ValueError:
+            return web.Response(status=400, text="Invalid JSON")
+
+        if not isinstance(data, dict):
+            return web.Response(status=400, text="Request body must be a JSON object")
+
+        ignore_external_changes = None
+        if "ignore_external_changes" in data:
+            if not isinstance(data["ignore_external_changes"], bool):
+                return web.Response(
+                    status=400, text="ignore_external_changes must be a boolean"
+                )
+            ignore_external_changes = data["ignore_external_changes"]
+
+        if ignore_external_changes is None:
+            return web.json_response(store.get_global_preferences())
+
+        preferences = await store.update_global_preferences(
+            ignore_external_changes=ignore_external_changes,
         )
         return web.json_response(preferences)
 
@@ -926,12 +1027,12 @@ class VersionView(HomeAssistantView):
                 # No entries loaded yet
                 setup_complete = False
             else:
-                for entry_id, instance_data in entries_data.items():
-                    mqtt_client = instance_data.get("mqtt_client")
-                    if not mqtt_client:
+                for instance_data in entries_data.values():
+                    backend = instance_data.get("backend")
+                    if not backend:
                         continue
                     try:
-                        if not mqtt_client.entry.runtime_data.entity_mapping_ready:
+                        if not backend.entity_mapping_ready:
                             setup_complete = False
                             break
                     except AttributeError:
@@ -1042,7 +1143,7 @@ class ImportPresetsView(HomeAssistantView):
 
 
 class SupportedEntitiesView(HomeAssistantView):
-    """View to get all supported entities across all Z2M instances."""
+    """View to get all supported entities across all backend instances."""
 
     url = f"/api/{DOMAIN}/supported_entities"
     name = f"api:{DOMAIN}:supported_entities"
@@ -1064,16 +1165,19 @@ class SupportedEntitiesView(HomeAssistantView):
 
         # Iterate over all config entries for this integration
         entries_data = hass.data[DOMAIN].get("entries", {})
+        entity_routing = hass.data[DOMAIN].get("entity_routing", {})
 
         for entry_id, instance_data in entries_data.items():
-            mqtt_client = instance_data.get("mqtt_client")
-            if not mqtt_client:
+            backend = instance_data.get("backend")
+            if not backend:
                 continue
 
-            # Get entry info
-            entry = mqtt_client.entry
-            z2m_base_topic = entry.runtime_data.z2m_base_topic
-            devices = entry.runtime_data.devices
+            # Get entry info from config entries (avoid direct backend.entry access)
+            entry = hass.config_entries.async_get_entry(entry_id)
+            if not entry:
+                continue
+            backend_type = entry.runtime_data.backend_type
+            all_devices = backend.get_all_devices()
 
             # Calculate device counts by type
             device_counts: dict[str, int] = {
@@ -1086,13 +1190,11 @@ class SupportedEntitiesView(HomeAssistantView):
             }
             device_names: list[str] = []
 
-            for device in devices.values():
-                if not device.supported:
-                    continue
+            for aqara_device in all_devices.values():
                 device_counts["total"] += 1
-                device_names.append(device.friendly_name)
+                device_names.append(aqara_device.name)
 
-                model_id = device.model_id
+                model_id = aqara_device.model_id
                 if model_id in [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT]:
                     device_counts["t1m"] += 1
                 elif model_id == MODEL_T1_STRIP:
@@ -1109,47 +1211,42 @@ class SupportedEntitiesView(HomeAssistantView):
             instances.append({
                 "entry_id": entry_id,
                 "title": entry.title,
-                "z2m_base_topic": z2m_base_topic,
+                "backend_type": backend_type,
+                "z2m_base_topic": (
+                    entry.runtime_data.z2m_base_topic
+                    if backend_type == "z2m"
+                    else None
+                ),
                 "device_counts": device_counts,
                 "devices": sorted(device_names),
             })
 
-            # Get entity mappings
-            entity_to_z2m_map = entry.runtime_data.entity_to_z2m_map
-            devices = entry.runtime_data.devices
-            devices_by_name = entry.runtime_data.devices_by_name
+            # Get entities routed to this entry
+            entry_entity_ids = [
+                eid for eid, e_entry_id in entity_routing.items()
+                if e_entry_id == entry_id
+            ]
 
-            # Log for debugging
             _LOGGER.debug(
-                "SupportedEntitiesView: Processing entry %s with %d mapped entities and %d devices",
+                "SupportedEntitiesView: Processing entry %s (%s) with %d mapped entities and %d devices",
                 entry_id,
-                len(entity_to_z2m_map),
-                len(devices),
-            )
-            _LOGGER.debug(
-                "SupportedEntitiesView: entity_to_z2m_map = %s",
-                dict(entity_to_z2m_map),
-            )
-            _LOGGER.debug(
-                "SupportedEntitiesView: devices friendly names = %s",
-                [d.friendly_name for d in devices.values()],
+                backend_type,
+                len(entry_entity_ids),
+                len(all_devices),
             )
 
-            for entity_id, z2m_friendly_name in entity_to_z2m_map.items():
-                # Find the device to get model info
-                device = devices_by_name.get(z2m_friendly_name)
-
-                if not device:
+            for entity_id in entry_entity_ids:
+                # Get device via backend protocol
+                aqara_device = backend.get_device_for_entity(entity_id)
+                if not aqara_device:
                     _LOGGER.warning(
-                        "SupportedEntitiesView: Could not find device for entity %s "
-                        "(z2m_friendly_name=%s) - device not in devices dict",
+                        "SupportedEntitiesView: Could not find device for entity %s",
                         entity_id,
-                        z2m_friendly_name,
                     )
                     continue
 
                 # Determine device type category for frontend
-                model_id = device.model_id
+                model_id = aqara_device.model_id
                 if model_id in [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT]:
                     device_type = "t1m"
                 elif model_id == MODEL_T1_STRIP:
@@ -1157,9 +1254,11 @@ class SupportedEntitiesView(HomeAssistantView):
                 elif model_id in [MODEL_T2_BULB_E26, MODEL_T2_BULB_E27,
                                   MODEL_T2_BULB_GU10_230V, MODEL_T2_BULB_GU10_110V]:
                     device_type = "t2_bulb"
+                elif model_id in [MODEL_T2_CCT_E26, MODEL_T2_CCT_E27,
+                                  MODEL_T2_CCT_GU10_230V, MODEL_T2_CCT_GU10_110V]:
+                    device_type = "t2_cct"
                 else:
-                    # Check for CCT-only models
-                    device_type = "t2_cct" if "cct" in model_id.lower() else "unknown"
+                    device_type = "unknown"
 
                 # Get segment count for this device model
                 from .light_capabilities import get_segment_count
@@ -1167,12 +1266,18 @@ class SupportedEntitiesView(HomeAssistantView):
 
                 supported_entities[entity_id] = {
                     "entity_id": entity_id,
-                    "z2m_friendly_name": z2m_friendly_name,
+                    "device_name": aqara_device.name,
+                    "z2m_friendly_name": aqara_device.name,  # backwards compat
                     "model_id": model_id,
                     "device_type": device_type,
                     "entry_id": entry_id,
-                    "z2m_base_topic": z2m_base_topic,
-                    "ieee_address": device.ieee_address,
+                    "backend_type": backend_type,
+                    "z2m_base_topic": (
+                        entry.runtime_data.z2m_base_topic
+                        if backend_type == "z2m"
+                        else None
+                    ),
+                    "ieee_address": aqara_device.identifier,
                     "segment_count": segment_count,
                 }
 
@@ -1600,4 +1705,235 @@ class RunningOperationsView(HomeAssistantView):
                         "externally_paused_entities": ext_paused_entities,
                     })
 
+            # Music sync (per-entity, firmware-managed)
+            active_music_sync = instance_data.get(DATA_ACTIVE_MUSIC_SYNC, {})
+            for entity_id, sync_info in active_music_sync.items():
+                operations.append({
+                    "type": "music_sync",
+                    "entity_id": entity_id,
+                    "preset_id": None,
+                    "paused": False,
+                    "sensitivity": sync_info.get("sensitivity", "low"),
+                    "audio_effect": sync_info.get("audio_effect", "random"),
+                })
+
         return web.json_response({"operations": operations})
+
+
+def _get_thumbnail_dir(hass: HomeAssistant) -> Path:
+    """Get the thumbnail storage directory, creating it if needed."""
+    path = Path(hass.config.path(f".storage/{THUMBNAIL_STORAGE_DIR}"))
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _get_pending_thumbnails(hass: HomeAssistant) -> dict[str, bytes]:
+    """Get the in-memory pending thumbnails dict, creating it if needed."""
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    if "pending_thumbnails" not in domain_data:
+        domain_data["pending_thumbnails"] = {}
+    return domain_data["pending_thumbnails"]
+
+
+class ColorExtractView(HomeAssistantView):
+    """Extract dominant colors from an uploaded image or image URL."""
+
+    url = f"/api/{DOMAIN}/extract_colors"
+    name = f"api:{DOMAIN}:extract_colors"
+    requires_auth = True
+
+    async def post(self, request: web.Request) -> web.Response:
+        """Extract colors from an image.
+
+        Accepts either:
+        - Multipart form with 'file' field and optional 'num_colors',
+          'save_thumbnail', 'extract_brightness'
+        - JSON body with 'url' and optional 'num_colors', 'save_thumbnail',
+          'extract_brightness'
+
+        Returns JSON with 'colors' list and optional 'thumbnail_id'.
+        """
+        hass: HomeAssistant = request.app["hass"]
+
+        from .image_processor import async_create_thumbnail, async_extract_colors
+
+        content_type = request.content_type or ""
+        image_bytes: bytes | None = None
+        num_colors = DEFAULT_EXTRACTED_COLORS
+        save_thumbnail = False
+        extract_brightness = True
+
+        if "multipart" in content_type:
+            # File upload
+            reader = await request.multipart()
+            async for part in reader:
+                if part.name == "file":
+                    image_bytes = await part.read(decode=False)
+                elif part.name == "num_colors":
+                    raw = await part.text()
+                    try:
+                        num_colors = int(raw)
+                    except ValueError:
+                        pass
+                elif part.name == "save_thumbnail":
+                    raw = await part.text()
+                    save_thumbnail = raw.lower() in ("true", "1", "yes")
+                elif part.name == "extract_brightness":
+                    raw = await part.text()
+                    extract_brightness = raw.lower() in ("true", "1", "yes")
+
+            if not image_bytes:
+                return web.Response(status=400, text="No file uploaded")
+
+        else:
+            # JSON body with URL
+            try:
+                data = await request.json()
+            except ValueError:
+                return web.Response(status=400, text="Invalid JSON")
+
+            url = data.get("url")
+            if not url or not isinstance(url, str):
+                return web.Response(status=400, text="Missing `url` field")
+
+            num_colors = int(data.get("num_colors", DEFAULT_EXTRACTED_COLORS))
+            save_thumbnail = bool(data.get("save_thumbnail", False))
+            extract_brightness = bool(data.get("extract_brightness", True))
+
+            # Download the image
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with asyncio.timeout(15):
+                        async with session.get(url) as resp:
+                            if resp.status != 200:
+                                return web.Response(
+                                    status=400,
+                                    text=f"Failed to download image: HTTP {resp.status}",
+                                )
+                            # Reject before downloading if Content-Length exceeds limit
+                            content_length = resp.headers.get("Content-Length")
+                            if (
+                                content_length
+                                and int(content_length) > MAX_IMAGE_SIZE_BYTES
+                            ):
+                                return web.Response(
+                                    status=413,
+                                    text="Image exceeds 10 MB size limit",
+                                )
+                            image_bytes = await resp.read()
+            except TimeoutError:
+                return web.Response(status=408, text="Image download timed out")
+            except aiohttp.ClientError as ex:
+                return web.Response(
+                    status=400, text=f"Failed to download image: {ex}"
+                )
+
+        # Validate size
+        if len(image_bytes) > MAX_IMAGE_SIZE_BYTES:
+            return web.Response(
+                status=413, text="Image exceeds 10 MB size limit"
+            )
+
+        # Clamp num_colors
+        num_colors = max(1, min(8, num_colors))
+
+        # Extract colors
+        try:
+            colors = await async_extract_colors(
+                hass, image_bytes, num_colors,
+                extract_brightness=extract_brightness,
+            )
+        except Exception as ex:
+            _LOGGER.warning("Color extraction failed: %s", ex)
+            return web.Response(status=422, text=f"Color extraction failed: {ex}")
+
+        result: dict[str, Any] = {"colors": colors}
+
+        # Optionally create thumbnail (held in memory until preset is saved)
+        if save_thumbnail:
+            try:
+                thumb_bytes = await async_create_thumbnail(hass, image_bytes)
+                thumb_id = uuid.uuid4().hex
+                pending = _get_pending_thumbnails(hass)
+                pending[thumb_id] = thumb_bytes
+                result["thumbnail_id"] = thumb_id
+            except Exception as ex:
+                _LOGGER.warning("Thumbnail creation failed: %s", ex)
+                # Non-fatal -- colors still returned
+
+        return web.json_response(result)
+
+
+class ThumbnailView(HomeAssistantView):
+    """Serve and manage stored preset thumbnails."""
+
+    url = f"/api/{DOMAIN}/thumbnails/{{thumbnail_id}}"
+    name = f"api:{DOMAIN}:thumbnail"
+    requires_auth = False
+
+    async def get(
+        self, request: web.Request, thumbnail_id: str
+    ) -> web.Response:
+        """Serve a thumbnail image by ID.
+
+        Checks pending (in-memory) thumbnails first, then falls back to
+        saved thumbnails on disk.
+        """
+        hass: HomeAssistant = request.app["hass"]
+
+        # Security: only allow hex characters in thumbnail ID
+        if not thumbnail_id.isalnum():
+            return web.Response(status=400, text="Invalid thumbnail ID")
+
+        # Check pending (unsaved) thumbnails in memory first
+        pending = _get_pending_thumbnails(hass)
+        if thumbnail_id in pending:
+            return web.Response(
+                body=pending[thumbnail_id],
+                content_type="image/jpeg",
+                headers={"Cache-Control": "no-store"},
+            )
+
+        # Fall back to saved thumbnails on disk
+        thumb_dir = _get_thumbnail_dir(hass)
+        thumb_path = thumb_dir / f"{thumbnail_id}.jpg"
+
+        # Ensure the resolved path is within the thumbnails directory
+        try:
+            thumb_path = thumb_path.resolve()
+            resolved_dir = thumb_dir.resolve()
+            if not str(thumb_path).startswith(str(resolved_dir)):
+                _LOGGER.warning("Path traversal attempt: %s", thumbnail_id)
+                return web.Response(status=403, text="Forbidden")
+        except (OSError, RuntimeError) as ex:
+            _LOGGER.error("Error resolving thumbnail path: %s", ex)
+            return web.Response(status=500, text="Server error")
+
+        if not thumb_path.exists():
+            return web.Response(status=404, text="Thumbnail not found")
+
+        def read_thumb() -> bytes:
+            return thumb_path.read_bytes()
+
+        content = await hass.async_add_executor_job(read_thumb)
+
+        return web.Response(
+            body=content,
+            content_type="image/jpeg",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
+
+    async def delete(
+        self, request: web.Request, thumbnail_id: str
+    ) -> web.Response:
+        """Delete a pending thumbnail from memory."""
+        hass: HomeAssistant = request.app["hass"]
+
+        if not thumbnail_id.isalnum():
+            return web.Response(status=400, text="Invalid thumbnail ID")
+
+        pending = _get_pending_thumbnails(hass)
+        if thumbnail_id in pending:
+            del pending[thumbnail_id]
+
+        return web.Response(status=204)

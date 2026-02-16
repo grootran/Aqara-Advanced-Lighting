@@ -12,6 +12,13 @@ from .const import DOMAIN, MAX_COLOR_HISTORY_SIZE
 
 _LOGGER = logging.getLogger(__name__)
 
+
+
+class _Unset:
+    """Sentinel for distinguishing 'not provided' from None."""
+
+_UNSET = _Unset()
+
 STORAGE_KEY = f"{DOMAIN}.user_preferences"
 STORAGE_VERSION = 1
 
@@ -25,6 +32,8 @@ class UserPreferences(TypedDict):
     include_all_lights: bool
     favorite_presets: list[dict[str, str]]
     static_scene_mode: bool
+    distribution_mode_override: str | None
+    brightness_override: int | None
 
 
 DEFAULT_PREFERENCES: UserPreferences = {
@@ -34,6 +43,21 @@ DEFAULT_PREFERENCES: UserPreferences = {
     "include_all_lights": False,
     "favorite_presets": [],
     "static_scene_mode": False,
+    "distribution_mode_override": None,
+    "brightness_override": None,
+}
+
+GLOBAL_PREFERENCES_KEY = "__global__"
+
+
+class GlobalPreferences(TypedDict):
+    """Integration-wide preferences (not per-user)."""
+
+    ignore_external_changes: bool
+
+
+DEFAULT_GLOBAL_PREFERENCES: GlobalPreferences = {
+    "ignore_external_changes": False,
 }
 
 
@@ -47,19 +71,32 @@ class UserPreferencesStore:
             hass, STORAGE_VERSION, STORAGE_KEY
         )
         self._data: dict[str, UserPreferences] = {}
+        self._global_data: GlobalPreferences = {**DEFAULT_GLOBAL_PREFERENCES}
 
     async def async_load(self) -> None:
         """Load preferences from storage."""
         data = await self._store.async_load()
         if data is not None:
             self._data = data
+            # Load global preferences from reserved key
+            raw_global = self._data.pop(GLOBAL_PREFERENCES_KEY, None)
+            if raw_global and isinstance(raw_global, dict):
+                self._global_data = {
+                    "ignore_external_changes": raw_global.get(
+                        "ignore_external_changes", False
+                    ),
+                }
+            else:
+                self._global_data = {**DEFAULT_GLOBAL_PREFERENCES}
         else:
             self._data = {}
+            self._global_data = {**DEFAULT_GLOBAL_PREFERENCES}
         _LOGGER.debug("Loaded preferences for %d users", len(self._data))
 
     async def async_save(self) -> None:
         """Save preferences to storage."""
-        await self._store.async_save(self._data)
+        save_data = {**self._data, GLOBAL_PREFERENCES_KEY: self._global_data}
+        await self._store.async_save(save_data)
         _LOGGER.debug("Saved user preferences")
 
     def get_preferences(self, user_id: str) -> UserPreferences:
@@ -81,6 +118,8 @@ class UserPreferencesStore:
                 "include_all_lights": prefs.get("include_all_lights", False),
                 "favorite_presets": prefs.get("favorite_presets", []),
                 "static_scene_mode": prefs.get("static_scene_mode", False),
+                "distribution_mode_override": prefs.get("distribution_mode_override"),
+                "brightness_override": prefs.get("brightness_override"),
             }
         return {**DEFAULT_PREFERENCES}
 
@@ -143,6 +182,8 @@ class UserPreferencesStore:
         include_all_lights: bool | None = None,
         favorite_presets: list[dict[str, str]] | None = None,
         static_scene_mode: bool | None = None,
+        distribution_mode_override: str | None | _Unset = _UNSET,
+        brightness_override: int | None | _Unset = _UNSET,
     ) -> UserPreferences:
         """Partially update a user's preferences.
 
@@ -156,6 +197,8 @@ class UserPreferencesStore:
             include_all_lights: Whether to show all lights in selector, or None to leave unchanged.
             favorite_presets: Favorite preset references, or None to leave unchanged.
             static_scene_mode: Whether to apply scenes statically, or None to leave unchanged.
+            distribution_mode_override: Distribution mode override string, None to clear, or _UNSET to leave unchanged.
+            brightness_override: Brightness override value (1-100), None to clear, or _UNSET to leave unchanged.
 
         Returns:
             The full updated preferences.
@@ -183,7 +226,36 @@ class UserPreferencesStore:
         if static_scene_mode is not None:
             self._data[user_id]["static_scene_mode"] = static_scene_mode
 
+        if not isinstance(distribution_mode_override, _Unset):
+            self._data[user_id]["distribution_mode_override"] = distribution_mode_override
+
+        if not isinstance(brightness_override, _Unset):
+            self._data[user_id]["brightness_override"] = brightness_override
+
         await self.async_save()
 
         _LOGGER.debug("Updated preferences for user %s", user_id)
         return self.get_preferences(user_id)
+
+    def get_global_preferences(self) -> GlobalPreferences:
+        """Get integration-wide global preferences."""
+        return {**self._global_data}
+
+    def get_global_preference(self, key: str) -> Any:
+        """Get a single global preference value."""
+        return self._global_data.get(key, DEFAULT_GLOBAL_PREFERENCES.get(key))
+
+    async def update_global_preferences(
+        self,
+        ignore_external_changes: bool | None = None,
+    ) -> GlobalPreferences:
+        """Update integration-wide global preferences.
+
+        Only provided fields are updated. Omitted fields remain unchanged.
+        """
+        if ignore_external_changes is not None:
+            self._global_data["ignore_external_changes"] = ignore_external_changes
+
+        await self.async_save()
+        _LOGGER.debug("Updated global preferences")
+        return self.get_global_preferences()

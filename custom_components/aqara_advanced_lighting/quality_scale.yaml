@@ -21,7 +21,7 @@ rules:
 
   common-modules:
     status: done
-    comment: Shared modules implemented (const.py, models.py, mqtt_client.py, state_manager.py, segment_utils.py)
+    comment: Shared modules implemented (const.py, models.py, mqtt_backend.py, state_manager.py, segment_utils.py)
 
   config-flow-test-coverage:
     status: done

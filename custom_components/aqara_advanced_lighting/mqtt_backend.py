@@ -1,4 +1,4 @@
-"""MQTT client for Zigbee2MQTT communication."""
+"""Zigbee2MQTT backend implementing the DeviceBackend protocol."""
 
 from __future__ import annotations
 
@@ -26,10 +26,13 @@ from .const import (
     MODEL_T2_CCT_E27,
     MODEL_T2_CCT_GU10_110V,
     MODEL_T2_CCT_GU10_230V,
+    PAYLOAD_AUDIO,
+    PAYLOAD_AUDIO_EFFECT,
+    PAYLOAD_AUDIO_SENSITIVITY,
     PAYLOAD_SEGMENT_COLORS,
     TOPIC_Z2M_BRIDGE_DEVICES,
 )
-from .models import DynamicEffect, SegmentColor, Z2MDevice
+from .models import AqaraDevice, DynamicEffect, SegmentColor, Z2MDevice
 
 if TYPE_CHECKING:
     from homeassistant.components.mqtt import ReceiveMessage
@@ -70,8 +73,8 @@ SUPPORTED_MODELS = {
 }
 
 
-class MQTTClient:
-    """MQTT client for communicating with Zigbee2MQTT."""
+class MQTTBackend:
+    """Zigbee2MQTT backend implementing the DeviceBackend protocol."""
 
     def __init__(
         self,
@@ -79,7 +82,7 @@ class MQTTClient:
         entry: AqaraLightingConfigEntry,
         entity_controller: EntityController | None = None,
     ) -> None:
-        """Initialize the MQTT client."""
+        """Initialize the Z2M MQTT backend."""
         self.hass = hass
         self.entry = entry
         self._entity_controller = entity_controller
@@ -158,22 +161,69 @@ class MQTTClient:
                 # Store in runtime data (keyed by IEEE and by friendly name)
                 self.entry.runtime_data.devices[ieee_address] = z2m_device
                 self.entry.runtime_data.devices_by_name[friendly_name] = z2m_device
+
+                # Also populate the backend-agnostic aqara_devices dict
+                self.entry.runtime_data.aqara_devices[ieee_address] = AqaraDevice(
+                    identifier=ieee_address,
+                    name=friendly_name,
+                    model_id=model_id,
+                    manufacturer=manufacturer or "Aqara",
+                    backend_type="z2m",
+                )
+
                 _LOGGER.debug(
                     "Stored supported Aqara device %s (model: %s)",
                     friendly_name,
                     model_id,
                 )
 
-                # Register device in HA device registry
+                # Register device in HA device registry. We use a two-step
+                # approach: first look for the existing MQTT device by the
+                # identifier Z2M uses, and if found, add our config entry
+                # to it. This avoids a device registry issue where passing
+                # multiple identifiers that match different existing devices
+                # only finds the first match, creating duplicates.
+                z2m_base_topic = self.entry.runtime_data.z2m_base_topic
+                mqtt_identifier = ("mqtt", f"{z2m_base_topic}_{ieee_address}")
+                our_identifier = (DOMAIN, ieee_address)
                 device_registry = dr.async_get(self.hass)
-                device_registry.async_get_or_create(
-                    config_entry_id=self.entry.entry_id,
-                    identifiers={(DOMAIN, ieee_address)},
-                    name=friendly_name,
-                    manufacturer=manufacturer or "Aqara",
-                    model=MODEL_FRIENDLY_NAMES.get(model_id, model_id),
-                    model_id=model_id,
+                existing_mqtt = device_registry.async_get_device(
+                    identifiers={mqtt_identifier},
                 )
+                if existing_mqtt:
+                    # Add our config entry to the existing MQTT device
+                    device_registry.async_get_or_create(
+                        config_entry_id=self.entry.entry_id,
+                        identifiers={mqtt_identifier},
+                    )
+                    # Add our identifier so device triggers can find it
+                    device_registry.async_update_device(
+                        existing_mqtt.id,
+                        merge_identifiers={our_identifier},
+                    )
+                    _LOGGER.debug(
+                        "Merged %s into existing MQTT device %s",
+                        friendly_name,
+                        existing_mqtt.id,
+                    )
+                else:
+                    # MQTT device not found yet - create with both
+                    # identifiers. When MQTT discovers this device later,
+                    # it will find ours by the shared mqtt identifier.
+                    device = device_registry.async_get_or_create(
+                        config_entry_id=self.entry.entry_id,
+                        identifiers={our_identifier, mqtt_identifier},
+                        name=friendly_name,
+                        manufacturer=manufacturer or "Aqara",
+                        model=MODEL_FRIENDLY_NAMES.get(model_id, model_id),
+                        model_id=model_id,
+                    )
+                    _LOGGER.debug(
+                        "Created new device for %s (%s), MQTT device "
+                        "will merge on discovery",
+                        friendly_name,
+                        device.id,
+                    )
 
             # Update entity to Z2M mapping
             self._update_entity_mapping()
@@ -360,7 +410,7 @@ class MQTTClient:
         """Get Z2M friendly name for a Home Assistant entity ID."""
         return self.entry.runtime_data.entity_to_z2m_map.get(entity_id)
 
-    def is_supported_entity(self, entity_id: str) -> tuple[bool, str]:
+    def is_entity_supported(self, entity_id: str) -> tuple[bool, str]:
         """Check if entity is a supported Aqara device.
 
         Args:
@@ -482,28 +532,6 @@ class MQTTClient:
         _LOGGER.debug("Stopping effect on %s by setting solid RGB color", z2m_friendly_name)
 
         await mqtt.async_publish(self.hass, topic, json.dumps(payload))
-
-    async def async_restore_state(
-        self,
-        z2m_friendly_name: str,
-        state_data: dict[str, Any],
-        z2m_base_topic: str | None = None,
-    ) -> None:
-        """Restore previous state to Z2M device.
-
-        Args:
-            z2m_friendly_name: The Z2M device friendly name
-            state_data: The state data to restore
-            z2m_base_topic: Optional custom Z2M base topic override
-        """
-        base_topic = self._get_base_topic(z2m_base_topic)
-        topic = f"{base_topic}/{z2m_friendly_name}/set"
-
-        _LOGGER.debug(
-            "Restoring state for %s: %s", z2m_friendly_name, state_data
-        )
-
-        await mqtt.async_publish(self.hass, topic, json.dumps(state_data))
 
     async def async_publish_batch_effects(
         self,
@@ -711,11 +739,10 @@ class MQTTClient:
         if transition is not None:
             service_data["transition"] = transition
 
-        context = (
-            self._entity_controller.create_context()
-            if self._entity_controller
-            else None
-        )
+        context = None
+        if self._entity_controller:
+            self._entity_controller.record_command(entity_id)
+            context = self._entity_controller.create_context()
 
         _LOGGER.debug("Setting CCT values via HA service: %s", service_data)
         await self.hass.services.async_call(
@@ -747,3 +774,233 @@ class MQTTClient:
             blocking=True,
             context=context,
         )
+
+    # --- DeviceBackend protocol methods ---
+    # These methods accept entity_id and resolve Z2M names internally,
+    # matching the DeviceBackend protocol interface.
+
+    async def async_shutdown(self) -> None:
+        """Shut down the backend and clean up resources."""
+        await self.async_teardown()
+
+    @property
+    def entity_mapping_ready(self) -> bool:
+        """Whether entity-to-device mapping has completed."""
+        return self.entry.runtime_data.entity_mapping_ready
+
+    def get_device_for_entity(self, entity_id: str) -> AqaraDevice | None:
+        """Get the Aqara device for a Home Assistant entity.
+
+        Args:
+            entity_id: The Home Assistant entity ID
+
+        Returns:
+            AqaraDevice if found, None otherwise
+        """
+        z2m_name = self.get_z2m_friendly_name(entity_id)
+        if not z2m_name:
+            return None
+
+        z2m_device = self.entry.runtime_data.devices_by_name.get(z2m_name)
+        if not z2m_device:
+            return None
+
+        return self.entry.runtime_data.aqara_devices.get(
+            z2m_device.ieee_address
+        )
+
+    def get_all_devices(self) -> dict[str, AqaraDevice]:
+        """Get all discovered Aqara devices.
+
+        Returns:
+            Dictionary of identifier -> AqaraDevice
+        """
+        return dict(self.entry.runtime_data.aqara_devices)
+
+    async def async_send_effect(
+        self,
+        entity_id: str,
+        effect: DynamicEffect,
+    ) -> None:
+        """Send a dynamic effect to a device via the protocol interface.
+
+        Resolves entity_id to Z2M friendly name internally.
+
+        Args:
+            entity_id: The Home Assistant entity ID
+            effect: The dynamic effect to apply
+        """
+        z2m_name = self.get_z2m_friendly_name(entity_id)
+        if not z2m_name:
+            _LOGGER.warning("Cannot send effect: entity %s not mapped", entity_id)
+            return
+        await self.async_publish_dynamic_effect(z2m_name, effect)
+
+    async def async_send_batch_effects(
+        self,
+        entity_effects: list[tuple[str, DynamicEffect]],
+    ) -> None:
+        """Send dynamic effects to multiple devices via the protocol interface.
+
+        Resolves entity_ids to Z2M friendly names internally.
+
+        Args:
+            entity_effects: List of (entity_id, effect) tuples
+        """
+        z2m_effects: list[tuple[str, DynamicEffect]] = []
+        for entity_id, effect in entity_effects:
+            z2m_name = self.get_z2m_friendly_name(entity_id)
+            if z2m_name:
+                z2m_effects.append((z2m_name, effect))
+            else:
+                _LOGGER.warning(
+                    "Skipping effect for unmapped entity %s", entity_id
+                )
+        if z2m_effects:
+            await self.async_publish_batch_effects(z2m_effects)
+
+    async def async_stop_effect(self, entity_id: str) -> None:
+        """Stop the active effect on a device via the protocol interface.
+
+        Args:
+            entity_id: The Home Assistant entity ID
+        """
+        z2m_name = self.get_z2m_friendly_name(entity_id)
+        if not z2m_name:
+            _LOGGER.warning("Cannot stop effect: entity %s not mapped", entity_id)
+            return
+        await self.async_turn_off_effect(z2m_name)
+
+    async def async_send_segment_pattern(
+        self,
+        entity_id: str,
+        segments: list[SegmentColor],
+    ) -> None:
+        """Send a segment color pattern via the protocol interface.
+
+        Resolves entity_id to Z2M friendly name internally.
+
+        Args:
+            entity_id: The Home Assistant entity ID
+            segments: List of segment color assignments
+        """
+        z2m_name = self.get_z2m_friendly_name(entity_id)
+        if not z2m_name:
+            _LOGGER.warning(
+                "Cannot send segments: entity %s not mapped", entity_id
+            )
+            return
+        await self.async_publish_segment_pattern(z2m_name, segments)
+
+    async def async_send_batch_segments(
+        self,
+        entity_segments: list[tuple[str, list[SegmentColor]]],
+    ) -> None:
+        """Send segment patterns to multiple devices via the protocol interface.
+
+        Resolves entity_ids to Z2M friendly names internally.
+
+        Args:
+            entity_segments: List of (entity_id, segment_colors) tuples
+        """
+        z2m_segments: list[tuple[str, list[SegmentColor]]] = []
+        for entity_id, segs in entity_segments:
+            z2m_name = self.get_z2m_friendly_name(entity_id)
+            if z2m_name:
+                z2m_segments.append((z2m_name, segs))
+            else:
+                _LOGGER.warning(
+                    "Skipping segments for unmapped entity %s", entity_id
+                )
+        if z2m_segments:
+            await self.async_publish_batch_segments(z2m_segments)
+
+    async def async_set_transition_curve(
+        self,
+        entity_id: str,
+        curvature: float,
+    ) -> None:
+        """Set transition curve curvature via the protocol interface.
+
+        Args:
+            entity_id: The Home Assistant entity ID
+            curvature: Transition curve curvature (0.2-6)
+        """
+        z2m_name = self.get_z2m_friendly_name(entity_id)
+        if not z2m_name:
+            _LOGGER.warning(
+                "Cannot set transition curve: entity %s not mapped", entity_id
+            )
+            return
+        await self.async_set_t2_transition_curve(z2m_name, curvature)
+
+    async def async_publish_music_sync(
+        self,
+        z2m_friendly_name: str,
+        enabled: bool,
+        sensitivity: str,
+        effect: str,
+        z2m_base_topic: str | None = None,
+    ) -> None:
+        """Publish music sync configuration to Z2M device.
+
+        Args:
+            z2m_friendly_name: The Z2M device friendly name
+            enabled: Whether to enable or disable audio mode
+            sensitivity: Audio sensitivity ("low" or "high")
+            effect: Audio effect ("random", "blink", "rainbow", "wave")
+            z2m_base_topic: Optional custom Z2M base topic override
+        """
+        base_topic = self._get_base_topic(z2m_base_topic)
+        topic = f"{base_topic}/{z2m_friendly_name}/set"
+
+        payload: dict[str, str] = {
+            PAYLOAD_AUDIO: "ON" if enabled else "OFF",
+        }
+        if enabled:
+            payload[PAYLOAD_AUDIO_SENSITIVITY] = sensitivity
+            payload[PAYLOAD_AUDIO_EFFECT] = effect
+
+        _LOGGER.debug(
+            "Publishing music sync to %s: %s", z2m_friendly_name, payload
+        )
+
+        await mqtt.async_publish(self.hass, topic, json.dumps(payload))
+
+    async def async_send_music_sync(
+        self,
+        entity_id: str,
+        enabled: bool,
+        sensitivity: str,
+        effect: str,
+    ) -> None:
+        """Send music sync configuration via the protocol interface.
+
+        Args:
+            entity_id: The Home Assistant entity ID
+            enabled: Whether to enable or disable audio mode
+            sensitivity: Audio sensitivity ("low" or "high")
+            effect: Audio effect ("random", "blink", "rainbow", "wave")
+        """
+        z2m_name = self.get_z2m_friendly_name(entity_id)
+        if not z2m_name:
+            _LOGGER.warning(
+                "Cannot send music sync: entity %s not mapped", entity_id
+            )
+            return
+        await self.async_publish_music_sync(z2m_name, enabled, sensitivity, effect)
+
+    async def async_stop_music_sync(self, entity_id: str) -> None:
+        """Stop music sync on a device via the protocol interface.
+
+        Args:
+            entity_id: The Home Assistant entity ID
+        """
+        z2m_name = self.get_z2m_friendly_name(entity_id)
+        if not z2m_name:
+            _LOGGER.warning(
+                "Cannot stop music sync: entity %s not mapped", entity_id
+            )
+            return
+        await self.async_publish_music_sync(z2m_name, enabled=False, sensitivity="low", effect="random")
+

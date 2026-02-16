@@ -34,6 +34,8 @@
     "quick_controls_label": "Quick controls",
     "custom_brightness_label": "Brightness",
     "static_scene_mode_label": "Static scene mode",
+    "ignore_external_changes_label": "Ignore external changes",
+    "distribution_mode_override_label": "Scene color assignment",
     "controls_card_title": "Active presets",
     "activation_overrides_title": "Activation overrides",
     "effect_button": "Effect",
@@ -68,6 +70,7 @@
     "cct_sequences": "CCT Sequences",
     "segment_sequences": "Segment Sequences",
     "dynamic_scenes": "Dynamic Scenes",
+    "music_sync": "Music Sync",
     "subtitle_presets": "{count} presets",
     "subtitle_presets_custom": "{count} presets ({custom} custom)",
     "subtitle_user_presets": "{count} presets",
@@ -296,8 +299,23 @@
     "recent_colors": "Recent colors",
     "clear": "Clear"
   },
+  "music_sync": {
+    "title": "Music Sync",
+    "subtitle": "T1 Strip audio-reactive mode",
+    "enabled_label": "Music sync",
+    "sensitivity_label": "Sensitivity",
+    "sensitivity_low": "Low",
+    "sensitivity_high": "High",
+    "effect_label": "Effect",
+    "effect_random": "Random",
+    "effect_blink": "Blink",
+    "effect_rainbow": "Rainbow",
+    "effect_wave": "Wave",
+    "active_label": "Music sync active"
+  },
   "dynamic_scene": {
     "add_color_button": "Add color",
+    "extract_from_image": "Extract from image",
     "timing_label": "Timing",
     "distribution_mode_label": "Color assignment",
     "distribution_shuffle_rotate": "Shuffle and rotate",
@@ -309,5 +327,19 @@
     "offset_delay_label": "Offset delay between lights",
     "end_behavior_restore": "Restore previous state",
     "select_lights_for_preview": "Select light entities in the Activate tab to preview dynamic scenes on your devices."
+  },
+  "image_extractor": {
+    "upload_tab": "Upload",
+    "url_tab": "URL",
+    "drop_hint": "Click or drop an image here",
+    "change_image": "Change image",
+    "url_label": "Image URL",
+    "extract_brightness": "Extract brightness from image",
+    "save_thumbnail": "Use image as preset thumbnail",
+    "extract_button": "Extract colors",
+    "cancel_button": "Cancel",
+    "error_no_file": "No file selected",
+    "error_server": "Error {status}",
+    "error_failed": "Extraction failed"
   }
 }

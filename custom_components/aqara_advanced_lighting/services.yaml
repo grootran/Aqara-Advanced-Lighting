@@ -6,7 +6,6 @@ set_dynamic_effect:
   target:
     entity:
       domain: light
-      integration: mqtt
   fields:
     preset:
       name: Preset effect
@@ -154,8 +153,8 @@ set_dynamic_effect:
       selector:
         boolean:
     z2m_base_topic:
-      name: Z2M base topic
-      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      name: Z2M base topic (deprecated)
+      description: "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
       required: false
       example: "zigbee2mqtt"
       selector:
@@ -167,7 +166,6 @@ stop_effect:
   target:
     entity:
       domain: light
-      integration: mqtt
   fields:
     restore_state:
       name: Restore state
@@ -177,8 +175,8 @@ stop_effect:
       selector:
         boolean:
     z2m_base_topic:
-      name: Z2M base topic
-      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      name: Z2M base topic (deprecated)
+      description: "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
       required: false
       example: "zigbee2mqtt"
       selector:
@@ -190,7 +188,6 @@ set_segment_pattern:
   target:
     entity:
       domain: light
-      integration: mqtt
   fields:
     preset:
       name: Preset pattern
@@ -251,8 +248,8 @@ set_segment_pattern:
       selector:
         boolean:
     z2m_base_topic:
-      name: Z2M base topic
-      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      name: Z2M base topic (deprecated)
+      description: "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
       required: false
       example: "zigbee2mqtt"
       selector:
@@ -264,7 +261,6 @@ create_gradient:
   target:
     entity:
       domain: light
-      integration: mqtt
   fields:
     color_1:
       name: Color 1
@@ -348,8 +344,8 @@ create_gradient:
       selector:
         boolean:
     z2m_base_topic:
-      name: Z2M base topic
-      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      name: Z2M base topic (deprecated)
+      description: "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
       required: false
       example: "zigbee2mqtt"
       selector:
@@ -361,7 +357,6 @@ create_blocks:
   target:
     entity:
       domain: light
-      integration: mqtt
   fields:
     color_1:
       name: Color 1
@@ -452,8 +447,8 @@ create_blocks:
       selector:
         boolean:
     z2m_base_topic:
-      name: Z2M base topic
-      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      name: Z2M base topic (deprecated)
+      description: "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
       required: false
       example: "zigbee2mqtt"
       selector:
@@ -465,7 +460,6 @@ start_cct_sequence:
   target:
     entity:
       domain: light
-      integration: mqtt
   fields:
     preset:
       name: Preset sequence
@@ -973,8 +967,8 @@ start_cct_sequence:
             - label: "Turn off light"
               value: "turn_off"
     z2m_base_topic:
-      name: Z2M base topic
-      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      name: Z2M base topic (deprecated)
+      description: "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
       required: false
       example: "zigbee2mqtt"
       selector:
@@ -986,11 +980,10 @@ stop_cct_sequence:
   target:
     entity:
       domain: light
-      integration: mqtt
   fields:
     z2m_base_topic:
-      name: Z2M base topic
-      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      name: Z2M base topic (deprecated)
+      description: "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
       required: false
       example: "zigbee2mqtt"
       selector:
@@ -1002,11 +995,10 @@ pause_cct_sequence:
   target:
     entity:
       domain: light
-      integration: mqtt
   fields:
     z2m_base_topic:
-      name: Z2M base topic
-      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      name: Z2M base topic (deprecated)
+      description: "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
       required: false
       example: "zigbee2mqtt"
       selector:
@@ -1018,11 +1010,10 @@ resume_cct_sequence:
   target:
     entity:
       domain: light
-      integration: mqtt
   fields:
     z2m_base_topic:
-      name: Z2M base topic
-      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      name: Z2M base topic (deprecated)
+      description: "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
       required: false
       example: "zigbee2mqtt"
       selector:
@@ -1034,7 +1025,6 @@ start_segment_sequence:
   target:
     entity:
       domain: light
-      integration: mqtt
   fields:
     preset:
       name: Preset sequence
@@ -2123,8 +2113,8 @@ start_segment_sequence:
       selector:
         boolean:
     z2m_base_topic:
-      name: Z2M base topic
-      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      name: Z2M base topic (deprecated)
+      description: "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
       required: false
       example: "zigbee2mqtt"
       selector:
@@ -2136,11 +2126,10 @@ stop_segment_sequence:
   target:
     entity:
       domain: light
-      integration: mqtt
   fields:
     z2m_base_topic:
-      name: Z2M base topic
-      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      name: Z2M base topic (deprecated)
+      description: "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
       required: false
       example: "zigbee2mqtt"
       selector:
@@ -2152,11 +2141,10 @@ pause_segment_sequence:
   target:
     entity:
       domain: light
-      integration: mqtt
   fields:
     z2m_base_topic:
-      name: Z2M base topic
-      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      name: Z2M base topic (deprecated)
+      description: "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
       required: false
       example: "zigbee2mqtt"
       selector:
@@ -2168,11 +2156,10 @@ resume_segment_sequence:
   target:
     entity:
       domain: light
-      integration: mqtt
   fields:
     z2m_base_topic:
-      name: Z2M base topic
-      description: Custom Zigbee2MQTT base topic. If not specified, uses the topic configured during integration setup.
+      name: Z2M base topic (deprecated)
+      description: "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
       required: false
       example: "zigbee2mqtt"
       selector:
@@ -2184,7 +2171,6 @@ start_dynamic_scene:
   target:
     entity:
       domain: light
-      integration: mqtt
   fields:
     preset:
       name: Preset scene
@@ -2364,7 +2350,6 @@ stop_dynamic_scene:
   target:
     entity:
       domain: light
-      integration: mqtt
   fields:
     restore_state:
       name: Restore state
@@ -2380,7 +2365,6 @@ pause_dynamic_scene:
   target:
     entity:
       domain: light
-      integration: mqtt
 
 resume_dynamic_scene:
   name: Resume dynamic scene
@@ -2388,7 +2372,48 @@ resume_dynamic_scene:
   target:
     entity:
       domain: light
-      integration: mqtt
+
+set_music_sync:
+  name: Set music sync
+  description: Control audio-reactive lighting mode on T1 LED Strip. Enables the strip's built-in microphone to react to sound with visual effects.
+  target:
+    entity:
+      domain: light
+  fields:
+    enabled:
+      name: Enabled
+      description: Enable or disable music sync mode.
+      required: true
+      selector:
+        boolean:
+    sensitivity:
+      name: Sensitivity
+      description: Audio sensitivity level.
+      required: false
+      default: "low"
+      selector:
+        select:
+          options:
+            - label: "Low"
+              value: "low"
+            - label: "High"
+              value: "high"
+    audio_effect:
+      name: Effect
+      description: Audio-reactive effect type.
+      required: false
+      default: "random"
+      selector:
+        select:
+          options:
+            - label: "Random"
+              value: "random"
+            - label: "Blink"
+              value: "blink"
+            - label: "Rainbow"
+              value: "rainbow"
+            - label: "Wave"
+              value: "wave"
 
 resume_entity_control:
   name: Resume entity control

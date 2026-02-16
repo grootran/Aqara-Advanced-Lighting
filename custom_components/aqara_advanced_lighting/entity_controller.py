@@ -10,31 +10,47 @@ service calls from external changes.
 from __future__ import annotations
 
 import logging
+import time
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.const import STATE_OFF
-from homeassistant.core import Context, Event, HomeAssistant, callback
+from homeassistant.core import Context, Event, HomeAssistant, State, callback
 
 from .const import (
     DATA_CCT_SEQUENCE_MANAGER,
     DATA_DYNAMIC_SCENE_MANAGER,
     DATA_SEGMENT_SEQUENCE_MANAGER,
     DATA_STATE_MANAGER,
+    DATA_USER_PREFERENCES_STORE,
     DOMAIN,
+    ENTITY_CONTROL_GRACE_SECONDS,
     EVENT_ATTR_ENTITY_ID,
+    EVENT_ATTR_PRESET,
     EVENT_ATTR_REASON,
+    EVENT_EFFECT_STOPPED,
     EVENT_ENTITY_CONTROL_RESUMED,
     EVENT_ENTITY_EXTERNALLY_CONTROLLED,
     INTEGRATION_CONTEXT_PARENT_ID,
 )
 
 if TYPE_CHECKING:
+    from .backend_protocol import DeviceBackend
     from .cct_sequence_manager import CCTSequenceManager
     from .dynamic_scene_manager import DynamicSceneManager
     from .segment_sequence_manager import SegmentSequenceManager
     from .state_manager import StateManager
 
 _LOGGER = logging.getLogger(__name__)
+
+_WATCHED_ATTRS = ("brightness", "color_temp_kelvin", "xy_color", "rgb_color", "hs_color")
+
+
+def _state_attributes_equal(old_state: State, new_state: State) -> bool:
+    """Check if light-relevant attributes are unchanged between two states."""
+    for attr in _WATCHED_ATTRS:
+        if old_state.attributes.get(attr) != new_state.attributes.get(attr):
+            return False
+    return True
 
 
 class EntityController:
@@ -48,6 +64,8 @@ class EntityController:
         """Initialize the entity controller."""
         self.hass = hass
         self._externally_paused: set[str] = set()
+        self._pending_restore: set[str] = set()
+        self._last_command_time: dict[str, float] = {}
         self._state_listener_remove: Any | None = None
 
     def setup(self) -> None:
@@ -65,6 +83,18 @@ class EntityController:
             if not entity_id.startswith("light."):
                 return
 
+            # Restore previous state when a light with a pending restore turns on.
+            # This handles: effect was active -> user turned off -> user turns back on.
+            # The restore sets a solid color which overrides the device effect.
+            if (
+                entity_id in self._pending_restore
+                and new_state.state != STATE_OFF
+            ):
+                self.hass.async_create_task(
+                    self._restore_pending_state(entity_id)
+                )
+                return
+
             # Check if this entity is under control of any manager
             if not self._is_entity_controlled(entity_id):
                 return
@@ -73,9 +103,21 @@ class EntityController:
             if event.context.parent_id == INTEGRATION_CONTEXT_PARENT_ID:
                 return
 
-            # External change detected
+            # Suppress state echoes within the grace window after our commands
+            last_cmd = self._last_command_time.get(entity_id)
+            if last_cmd is not None:
+                elapsed = time.monotonic() - last_cmd
+                if elapsed < ENTITY_CONTROL_GRACE_SECONDS:
+                    _LOGGER.debug(
+                        "Ignoring state echo on %s (%.1fs after command)",
+                        entity_id,
+                        elapsed,
+                    )
+                    return
+
+            # External off always stops the controlling action,
+            # regardless of the ignore_external_changes toggle
             if new_state.state == STATE_OFF:
-                # Light turned off externally - stop the controlling action
                 _LOGGER.info(
                     "Light %s turned off externally, stopping controlling action",
                     entity_id,
@@ -83,18 +125,48 @@ class EntityController:
                 self.hass.async_create_task(
                     self._stop_entity_action(entity_id, reason="external_off")
                 )
-            else:
-                # Attribute change (brightness, color, etc.) - pause entity
-                _LOGGER.info(
-                    "External change detected on %s, pausing entity control",
+                return
+
+            # Skip no-op attribute changes (state unchanged)
+            old_state = event.data.get("old_state")
+            if old_state and _state_attributes_equal(old_state, new_state):
+                _LOGGER.debug(
+                    "Ignoring no-op state change on %s",
                     entity_id,
                 )
-                self._pause_entity(entity_id)
+                return
+
+            # Check if user has disabled external attribute change detection
+            store = self.hass.data.get(DOMAIN, {}).get(
+                DATA_USER_PREFERENCES_STORE
+            )
+            if store and store.get_global_preference("ignore_external_changes"):
+                _LOGGER.debug(
+                    "Ignoring external change on %s (user preference)",
+                    entity_id,
+                )
+                return
+
+            # Attribute change (brightness, color, etc.) - pause entity
+            _LOGGER.info(
+                "External change detected on %s, pausing entity control",
+                entity_id,
+            )
+            self._pause_entity(entity_id)
 
         self._state_listener_remove = self.hass.bus.async_listen(
             "state_changed", _async_state_changed
         )
         _LOGGER.debug("Entity controller state listener registered")
+
+    def record_command(self, entity_id: str) -> None:
+        """Record that this integration just sent a command to an entity.
+
+        Call this before any hass.services.async_call that targets a
+        controlled entity. The timestamp suppresses state echo events
+        within the grace window.
+        """
+        self._last_command_time[entity_id] = time.monotonic()
 
     def create_context(self) -> Context:
         """Create a Context tagged with the integration marker.
@@ -116,6 +188,7 @@ class EntityController:
         one-time actions (effects, patterns) as active.
         """
         self._externally_paused.discard(entity_id)
+        self._pending_restore.discard(entity_id)
 
         for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():
             # Clear effect/pattern active flag in state manager
@@ -196,6 +269,8 @@ class EntityController:
         Called by managers during cleanup to remove stale tracking.
         """
         self._externally_paused.discard(entity_id)
+        self._pending_restore.discard(entity_id)
+        self._last_command_time.pop(entity_id, None)
 
     def cleanup(self) -> None:
         """Remove listener and clear state.
@@ -206,11 +281,23 @@ class EntityController:
             self._state_listener_remove()
             self._state_listener_remove = None
         self._externally_paused.clear()
+        self._pending_restore.clear()
+        self._last_command_time.clear()
         _LOGGER.debug("Entity controller cleaned up")
 
     def _is_entity_controlled(self, entity_id: str) -> bool:
-        """Check if an entity is currently controlled by any continuous action manager."""
+        """Check if an entity is currently controlled by any action.
+
+        Includes both continuous actions (scenes, sequences) and one-time
+        actions (effects, segment patterns) tracked by the state manager.
+        """
         for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():
+            state_mgr: StateManager | None = instance_data.get(
+                DATA_STATE_MANAGER
+            )
+            if state_mgr and state_mgr.is_effect_active(entity_id):
+                return True
+
             dsm: DynamicSceneManager | None = instance_data.get(
                 DATA_DYNAMIC_SCENE_MANAGER
             )
@@ -272,15 +359,33 @@ class EntityController:
     async def _stop_entity_action(self, entity_id: str, reason: str) -> None:
         """Stop the controlling action for an entity entirely.
 
-        Used when a light is turned off externally.
+        Used when a light is turned off externally. Marks the effect inactive
+        and schedules state restoration for when the light is next turned on.
+        The restore sets a solid color which overrides the device effect in
+        firmware (writing effect_type=0 is not universal -- on T1M, 0 means
+        flow1, not off).
         """
         self._externally_paused.discard(entity_id)
 
         for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():
-            # Clear effect/pattern active flag
-            state_mgr = instance_data.get(DATA_STATE_MANAGER)
+            # Clear effect/pattern active flag and schedule restore on next turn-on
+            state_mgr: StateManager | None = instance_data.get(DATA_STATE_MANAGER)
             if state_mgr and state_mgr.is_effect_active(entity_id):
-                state_mgr.mark_effect_inactive(entity_id)
+                stopped_preset = state_mgr.mark_effect_inactive(entity_id)
+
+                # Schedule state restoration for when the light is turned back on.
+                # The captured state (color, brightness) will override the device
+                # effect by setting a solid color.
+                self._pending_restore.add(entity_id)
+
+                # Fire effect stopped event so frontend updates
+                self.hass.bus.async_fire(
+                    EVENT_EFFECT_STOPPED,
+                    {
+                        EVENT_ATTR_ENTITY_ID: entity_id,
+                        EVENT_ATTR_PRESET: stopped_preset,
+                    },
+                )
 
             dsm: DynamicSceneManager | None = instance_data.get(
                 DATA_DYNAMIC_SCENE_MANAGER
@@ -307,3 +412,36 @@ class EntityController:
                 EVENT_ATTR_REASON: reason,
             },
         )
+
+    async def _restore_pending_state(self, entity_id: str) -> None:
+        """Restore the captured state for an entity after it was turned back on.
+
+        Called when a light with a pending restore transitions from off to on.
+        Sends the previously captured color/brightness via light.turn_on,
+        which overrides the device effect with a solid color.
+        """
+        self._pending_restore.discard(entity_id)
+
+        for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():
+            state_mgr: StateManager | None = instance_data.get(DATA_STATE_MANAGER)
+            if not state_mgr or not state_mgr.has_stored_state(entity_id):
+                continue
+
+            payload = state_mgr.get_restoration_payload(entity_id)
+            if not payload or payload.get("state") == STATE_OFF:
+                # Previous state was off -- don't turn the light back off
+                _LOGGER.debug(
+                    "Skipping restore for %s (previous state was off)", entity_id
+                )
+                break
+
+            _LOGGER.info(
+                "Restoring previous state for %s after effect cleared", entity_id
+            )
+            self.record_command(entity_id)
+            await state_mgr.async_restore_entity_state(
+                entity_id,
+                blocking=True,
+                context=self.create_context(),
+            )
+            break

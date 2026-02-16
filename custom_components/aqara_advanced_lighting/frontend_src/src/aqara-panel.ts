@@ -59,6 +59,9 @@ export class AqaraPanel extends LitElement {
   @state() private _brightness = 100;
   @state() private _useCustomBrightness = false;
   @state() private _useStaticSceneMode = false;
+  @state() private _ignoreExternalChanges = false;
+  @state() private _useDistributionModeOverride = false;
+  @state() private _distributionModeOverride = 'shuffle_rotate';
   @state() private _collapsed: Record<string, boolean> = {};
   @state() private _hasIncompatibleLights = false;
   @state() private _includeAllLights = false;
@@ -77,7 +80,7 @@ export class AqaraPanel extends LitElement {
   @state() private _colorHistory: XYColor[] = [];
   @state() private _backendVersion?: string;
   @state() private _frontendVersion = '__FRONTEND_VERSION__';
-  @state() private _supportedEntities: Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; ieee_address?: string; segment_count?: number; is_group?: boolean; member_count?: number }> = new Map();
+  @state() private _supportedEntities: Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; ieee_address?: string; segment_count?: number; backend_type?: string; is_group?: boolean; member_count?: number }> = new Map();
   @state() private _deviceZones: Map<string, Array<{ name: string; segments: string }>> = new Map();
   @state() private _zoneEditing: Map<string, Array<{ name: string; segments: string }>> = new Map();
   @state() private _zoneSaving = false;
@@ -94,6 +97,9 @@ export class AqaraPanel extends LitElement {
   @state() private _isImporting = false;
   @state() private _favoritePresets: FavoritePresetRef[] = [];
   @state() private _runningOperations: RunningOperation[] = [];
+  @state() private _musicSyncEnabled = false;
+  @state() private _musicSyncSensitivity = 'low';
+  @state() private _musicSyncEffect = 'random';
   @state() private _setupComplete = true;
   private _setupPollTimer?: ReturnType<typeof setTimeout>;
   private _translations: Record<string, any> = PANEL_TRANSLATIONS;
@@ -330,10 +336,30 @@ export class AqaraPanel extends LitElement {
       if (prefs.static_scene_mode !== undefined) {
         this._useStaticSceneMode = prefs.static_scene_mode;
       }
+      if (prefs.distribution_mode_override) {
+        this._useDistributionModeOverride = true;
+        this._distributionModeOverride = prefs.distribution_mode_override;
+      }
+      if (prefs.brightness_override != null) {
+        this._useCustomBrightness = true;
+        this._brightness = prefs.brightness_override;
+      }
     } catch (err) {
       console.warn('Failed to load user preferences:', err);
       // Fall back to localStorage as read-only source if server unavailable
       this._loadSortPreferencesFromLocalStorage();
+    }
+
+    // Load global preferences (separate endpoint, not per-user)
+    try {
+      const globalPrefs = await this.hass.callApi<{ignore_external_changes?: boolean}>(
+        'GET', 'aqara_advanced_lighting/global_preferences'
+      );
+      if (globalPrefs.ignore_external_changes !== undefined) {
+        this._ignoreExternalChanges = globalPrefs.ignore_external_changes;
+      }
+    } catch (err) {
+      console.warn('Failed to load global preferences:', err);
     }
   }
 
@@ -401,6 +427,8 @@ export class AqaraPanel extends LitElement {
           include_all_lights: this._includeAllLights,
           favorite_presets: this._favoritePresets,
           static_scene_mode: this._useStaticSceneMode,
+          distribution_mode_override: this._useDistributionModeOverride ? this._distributionModeOverride : null,
+          brightness_override: this._useCustomBrightness ? this._brightness : null,
         } as unknown as Record<string, unknown>
       ).catch(err => {
         console.warn('Failed to save user preferences:', err);
@@ -659,7 +687,7 @@ export class AqaraPanel extends LitElement {
       }
       const data = await response.json();
       // Build a map for fast lookup
-      const entityMap = new Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; ieee_address?: string; segment_count?: number; is_group?: boolean; member_count?: number }>();
+      const entityMap = new Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; ieee_address?: string; segment_count?: number; backend_type?: string; is_group?: boolean; member_count?: number }>();
       for (const entity of data.entities || []) {
         entityMap.set(entity.entity_id, {
           device_type: entity.device_type,
@@ -667,6 +695,7 @@ export class AqaraPanel extends LitElement {
           z2m_friendly_name: entity.z2m_friendly_name,
           ieee_address: entity.ieee_address,
           segment_count: entity.segment_count,
+          backend_type: entity.backend_type,
         });
       }
 
@@ -699,8 +728,25 @@ export class AqaraPanel extends LitElement {
       if (!response.ok) return;
       const data: RunningOperationsResponse = await response.json();
       this._runningOperations = data.operations || [];
+
+      // Sync music sync state from running operations
+      this._syncMusicSyncState();
     } catch (err) {
       console.warn('Failed to load running operations:', err);
+    }
+  }
+
+  private _syncMusicSyncState(): void {
+    const activeMusicSync = this._runningOperations.find(
+      op => op.type === 'music_sync' && op.entity_id && this._selectedEntities.includes(op.entity_id)
+    );
+
+    if (activeMusicSync) {
+      this._musicSyncEnabled = true;
+      if (activeMusicSync.sensitivity) this._musicSyncSensitivity = activeMusicSync.sensitivity;
+      if (activeMusicSync.audio_effect) this._musicSyncEffect = activeMusicSync.audio_effect;
+    } else {
+      this._musicSyncEnabled = false;
     }
   }
 
@@ -1424,76 +1470,10 @@ export class AqaraPanel extends LitElement {
     let hasIncompatible = false;
 
     for (const entityId of this._selectedEntities) {
-      const entity = this.hass.states[entityId];
-      if (!entity) {
-        continue;
-      }
-
-      // First, check if this entity is in the backend's supported entities map
-      const supportedEntity = this._supportedEntities.get(entityId);
-      if (supportedEntity) {
-        if (supportedEntity.device_type === 't1m') {
-          // Distinguish T1M RGB from T1M White using supported_color_modes
-          // Both endpoints share the same effect_list, so we check for xy/hs/rgb modes
-          const colorModes = entity.attributes.supported_color_modes as string[] | undefined;
-          const hasRGBMode = colorModes && Array.isArray(colorModes) &&
-            colorModes.some(mode => ['xy', 'hs', 'rgb', 'rgbw', 'rgbww'].includes(mode));
-          if (hasRGBMode) {
-            deviceTypes.add('t1m');  // RGB endpoint
-          } else {
-            deviceTypes.add('t1m_white');  // White/CCT endpoint
-          }
-          continue;
-        }
-        // Use the device type from the backend - this is authoritative
-        if (supportedEntity.device_type && supportedEntity.device_type !== 'unknown') {
-          deviceTypes.add(supportedEntity.device_type);
-          continue;
-        }
-      }
-
-      // If the "include all lights" toggle is on, classify as generic light
-      if (this._includeAllLights) {
-        const colorModes = entity.attributes.supported_color_modes as string[] | undefined;
-        const hasRGBMode = colorModes && Array.isArray(colorModes) &&
-          colorModes.some(mode => ['xy', 'hs', 'rgb', 'rgbw', 'rgbww'].includes(mode));
-        const hasCCTMode = colorModes && Array.isArray(colorModes) &&
-          colorModes.includes('color_temp');
-
-        if (hasRGBMode) {
-          deviceTypes.add('generic_rgb');
-          continue;
-        } else if (hasCCTMode) {
-          deviceTypes.add('generic_cct');
-          continue;
-        }
-      }
-
-      // Fallback: Try to detect device type from effect_list
-      // (Zigbee2MQTT doesn't expose model in entity attributes)
-      const effectList = entity.attributes.effect_list as string[] | undefined;
-
-      if (effectList && Array.isArray(effectList)) {
-        // Unique effects per device type:
-        // T1M: flow1, flow2, rolling
-        // T1 Strip: rainbow1, rainbow2, chasing, flicker, dash
-        // T2 Bulb: candlelight
-
-        if (effectList.includes('flow1') || effectList.includes('flow2') || effectList.includes('rolling')) {
-          deviceTypes.add('t1m');
-        } else if (effectList.includes('rainbow1') || effectList.includes('rainbow2') || effectList.includes('chasing') || effectList.includes('flicker') || effectList.includes('dash')) {
-          deviceTypes.add('t1_strip');
-        } else if (effectList.includes('candlelight')) {
-          deviceTypes.add('t2_bulb');
-        } else {
-          // Unknown device with effects - mark as incompatible
-          hasIncompatible = true;
-        }
-      } else if (!effectList && entity.attributes.color_temp !== undefined) {
-        // CCT-only light (no RGB effects)
-        deviceTypes.add('t2_cct');
+      const dt = this._getEntityDeviceType(entityId);
+      if (dt) {
+        deviceTypes.add(dt);
       } else {
-        // No effect list and no detection possible - incompatible
         hasIncompatible = true;
       }
     }
@@ -1515,43 +1495,39 @@ export class AqaraPanel extends LitElement {
 
     // Look for T1 Strip entities and get the "length" attribute
     for (const entityId of this._selectedEntities) {
+      if (this._getEntityDeviceType(entityId) !== 't1_strip') continue;
+
       const entity = this.hass.states[entityId];
       if (!entity) continue;
 
-      // Check if this is a T1 Strip by looking at effect_list
-      const effectList = entity.attributes.effect_list as string[] | undefined;
-      if (effectList && Array.isArray(effectList)) {
-        if (effectList.includes('rainbow1') || effectList.includes('rainbow2') || effectList.includes('chasing') || effectList.includes('flicker') || effectList.includes('dash')) {
-          // This is a T1 Strip - try to get the length
-          let lengthMeters: number | undefined;
+      // This is a T1 Strip - try to get the length
+      let lengthMeters: number | undefined;
 
-          // Method 1: Check direct attribute on light entity
-          const attrLength = entity.attributes.length as number | undefined;
-          if (attrLength && typeof attrLength === 'number' && attrLength > 0) {
-            lengthMeters = attrLength;
-          }
+      // Method 1: Check direct attribute on light entity
+      const attrLength = entity.attributes.length as number | undefined;
+      if (attrLength && typeof attrLength === 'number' && attrLength > 0) {
+        lengthMeters = attrLength;
+      }
 
-          // Method 2: Look for separate length entity (number.xxx_length or sensor.xxx_length)
-          if (lengthMeters === undefined) {
-            const baseName = entityId.split('.')[1] || '';
-            for (const domain of ['number', 'sensor']) {
-              const lengthEntityId = `${domain}.${baseName}_length`;
-              const lengthEntity = this.hass.states[lengthEntityId];
-              if (lengthEntity && lengthEntity.state && lengthEntity.state !== 'unknown' && lengthEntity.state !== 'unavailable') {
-                const parsed = parseFloat(lengthEntity.state);
-                if (!isNaN(parsed) && parsed > 0) {
-                  lengthMeters = parsed;
-                  break;
-                }
-              }
+      // Method 2: Look for separate length entity (number.xxx_length or sensor.xxx_length)
+      if (lengthMeters === undefined) {
+        const baseName = entityId.split('.')[1] || '';
+        for (const domain of ['number', 'sensor']) {
+          const lengthEntityId = `${domain}.${baseName}_length`;
+          const lengthEntity = this.hass.states[lengthEntityId];
+          if (lengthEntity && lengthEntity.state && lengthEntity.state !== 'unknown' && lengthEntity.state !== 'unavailable') {
+            const parsed = parseFloat(lengthEntity.state);
+            if (!isNaN(parsed) && parsed > 0) {
+              lengthMeters = parsed;
+              break;
             }
           }
-
-          if (lengthMeters !== undefined && lengthMeters > 0) {
-            // 5 segments per meter - use Math.floor to match backend's int() behavior
-            return Math.floor(lengthMeters * 5);
-          }
         }
+      }
+
+      if (lengthMeters !== undefined && lengthMeters > 0) {
+        // 5 segments per meter - use Math.floor to match backend's int() behavior
+        return Math.floor(lengthMeters * 5);
       }
     }
 
@@ -1647,80 +1623,94 @@ export class AqaraPanel extends LitElement {
       colorModes.some(mode => ['xy', 'hs', 'rgb', 'rgbw', 'rgbww'].includes(mode));
   }
 
-  // Check if an entity is a T1M endpoint (has T1M-specific effects like flow1)
-  private _isT1MEntity(entity: { attributes: Record<string, unknown> }): boolean {
+  /**
+   * Resolve the device type for a single entity.
+   *
+   * Uses the backend supported-entities API (authoritative), then the
+   * "include all lights" generic classification, then a legacy
+   * effect_list fallback for Z2M entities.
+   */
+  private _getEntityDeviceType(entityId: string): string | null {
+    const entity = this.hass?.states[entityId];
+    if (!entity) return null;
+
+    // Backend supported entities map is authoritative
+    const supportedEntity = this._supportedEntities.get(entityId);
+    if (supportedEntity) {
+      if (supportedEntity.device_type === 't1m') {
+        // Distinguish T1M RGB from T1M White using supported_color_modes
+        return this._hasRGBColorMode(entity) ? 't1m' : 't1m_white';
+      }
+      if (supportedEntity.device_type && supportedEntity.device_type !== 'unknown') {
+        return supportedEntity.device_type;
+      }
+    }
+
+    // Generic light classification when "include all lights" is on
+    if (this._includeAllLights) {
+      if (this._hasRGBColorMode(entity)) return 'generic_rgb';
+      const colorModes = entity.attributes.supported_color_modes as string[] | undefined;
+      if (colorModes?.includes('color_temp')) return 'generic_cct';
+    }
+
+    // Legacy fallback: detect from effect_list (Z2M only, ZHA lacks this)
     const effectList = entity.attributes.effect_list as string[] | undefined;
-    return !!effectList && Array.isArray(effectList) && effectList.includes('flow1');
+    if (effectList && Array.isArray(effectList)) {
+      if (effectList.includes('flow1') || effectList.includes('flow2') || effectList.includes('rolling')) return 't1m';
+      if (effectList.includes('rainbow1') || effectList.includes('rainbow2') || effectList.includes('chasing') || effectList.includes('flicker') || effectList.includes('dash')) return 't1_strip';
+      if (effectList.includes('candlelight')) return 't2_bulb';
+    } else if (!effectList && entity.attributes.color_temp !== undefined) {
+      return 't2_cct';
+    }
+
+    return null;
   }
 
+  // Effects: T2 bulb, T1M RGB, T1 Strip (Aqara-only)
   private _isEffectsCompatible(): boolean {
     if (!this.hass || !this._selectedEntities.length) return false;
     return this._selectedEntities.some(entityId => {
-      // Only Aqara devices support MQTT-based effects
       if (!this._supportedEntities.has(entityId)) return false;
-      const entity = this.hass!.states[entityId];
-      if (!entity) return false;
-      const effectList = entity.attributes.effect_list as string[] | undefined;
-      if (!effectList || !Array.isArray(effectList) || effectList.length === 0) return false;
-      // T1M white endpoint has effect_list but only supports CCT - exclude it
-      if (this._isT1MEntity(entity) && !this._hasRGBColorMode(entity)) return false;
-      return true;
+      const dt = this._getEntityDeviceType(entityId);
+      return dt === 't2_bulb' || dt === 't1m' || dt === 't1_strip';
     });
   }
 
-  // Patterns: T1M RGB, T1 Strip only (entities with segment-capable effect_list and RGB color mode)
+  // Patterns: T1M RGB, T1 Strip only (segment-capable devices)
   private _isPatternsCompatible(): boolean {
     if (!this.hass || !this._selectedEntities.length) return false;
     return this._selectedEntities.some(entityId => {
-      // Only Aqara devices support MQTT-based segment patterns
       if (!this._supportedEntities.has(entityId)) return false;
-      const entity = this.hass!.states[entityId];
-      if (!entity) return false;
-      const effectList = entity.attributes.effect_list as string[] | undefined;
-      if (!effectList || !Array.isArray(effectList)) return false;
-      // T1M has flow1/flow2/rolling, T1 Strip has rainbow1/rainbow2/chasing/flicker/dash
-      // T2 has candlelight but doesn't support patterns
-      // T1M white endpoint has flow1 but only supports CCT - exclude it
-      if (!(effectList.includes('flow1') || effectList.includes('rainbow1'))) return false;
-      if (this._isT1MEntity(entity) && !this._hasRGBColorMode(entity)) return false;
-      return true;
+      const dt = this._getEntityDeviceType(entityId);
+      return dt === 't1m' || dt === 't1_strip';
     });
   }
 
-  // CCT: Entities with color_temp support (T2 RGB, T2 CCT, T1M White, T1 Strip)
-  // T1M RGB endpoint has color_temp in supported_color_modes but doesn't support CCT sequences
+  // CCT: Entities with color_temp support (T2 RGB, T2 CCT, T1M White, T1 Strip, generic)
+  // T1M RGB endpoint has color_temp but doesn't support CCT sequences
   private _isCCTCompatible(): boolean {
     if (!this.hass || !this._selectedEntities.length) return false;
     return this._selectedEntities.some(entityId => {
       const entity = this.hass!.states[entityId];
       if (!entity) return false;
-      // Must have color_temp attribute to support CCT sequences
       const hasCCT = entity.attributes.color_temp !== undefined ||
              entity.attributes.color_temp_kelvin !== undefined ||
              entity.attributes.min_color_temp_kelvin !== undefined;
       if (!hasCCT) return false;
-      // T1M RGB endpoint has color_temp but doesn't support CCT sequences - exclude it
-      if (this._isT1MEntity(entity) && this._hasRGBColorMode(entity)) return false;
+      // T1M RGB endpoint has color_temp but doesn't support CCT sequences
+      const dt = this._getEntityDeviceType(entityId);
+      if (dt === 't1m') return false;
       return true;
     });
   }
 
-  // Segments: T1M RGB, T1 Strip only (entities with segment-capable effect_list and RGB color mode)
+  // Segments: T1M RGB, T1 Strip only (segment-capable devices)
   private _isSegmentsCompatible(): boolean {
     if (!this.hass || !this._selectedEntities.length) return false;
     return this._selectedEntities.some(entityId => {
-      // Only Aqara devices support MQTT-based segment sequences
       if (!this._supportedEntities.has(entityId)) return false;
-      const entity = this.hass!.states[entityId];
-      if (!entity) return false;
-      const effectList = entity.attributes.effect_list as string[] | undefined;
-      if (!effectList || !Array.isArray(effectList)) return false;
-      // T1M has flow1/flow2/rolling, T1 Strip has rainbow1/rainbow2/chasing/flicker/dash
-      // T2 has candlelight but doesn't support segments
-      // T1M white endpoint has flow1 but only supports CCT - exclude it
-      if (!(effectList.includes('flow1') || effectList.includes('rainbow1'))) return false;
-      if (this._isT1MEntity(entity) && !this._hasRGBColorMode(entity)) return false;
-      return true;
+      const dt = this._getEntityDeviceType(entityId);
+      return dt === 't1m' || dt === 't1_strip';
     });
   }
 
@@ -1731,13 +1721,8 @@ export class AqaraPanel extends LitElement {
     if (!this.hass) return [];
     return this._selectedEntities.filter(entityId => {
       if (!this._supportedEntities.has(entityId)) return false;
-      const entity = this.hass!.states[entityId];
-      if (!entity) return false;
-      const effectList = entity.attributes.effect_list as string[] | undefined;
-      if (!effectList || !Array.isArray(effectList) || effectList.length === 0) return false;
-      // T1M white endpoint has effect_list but only supports CCT - exclude it
-      if (this._isT1MEntity(entity) && !this._hasRGBColorMode(entity)) return false;
-      return true;
+      const dt = this._getEntityDeviceType(entityId);
+      return dt === 't2_bulb' || dt === 't1m' || dt === 't1_strip';
     });
   }
 
@@ -1745,14 +1730,8 @@ export class AqaraPanel extends LitElement {
     if (!this.hass) return [];
     return this._selectedEntities.filter(entityId => {
       if (!this._supportedEntities.has(entityId)) return false;
-      const entity = this.hass!.states[entityId];
-      if (!entity) return false;
-      const effectList = entity.attributes.effect_list as string[] | undefined;
-      if (!effectList || !Array.isArray(effectList)) return false;
-      if (!(effectList.includes('flow1') || effectList.includes('rainbow1'))) return false;
-      // T1M white endpoint has flow1 but only supports CCT - exclude it
-      if (this._isT1MEntity(entity) && !this._hasRGBColorMode(entity)) return false;
-      return true;
+      const dt = this._getEntityDeviceType(entityId);
+      return dt === 't1m' || dt === 't1_strip';
     });
   }
 
@@ -1765,8 +1744,9 @@ export class AqaraPanel extends LitElement {
              entity.attributes.color_temp_kelvin !== undefined ||
              entity.attributes.min_color_temp_kelvin !== undefined;
       if (!hasCCT) return false;
-      // T1M RGB endpoint has color_temp but doesn't support CCT sequences - exclude it
-      if (this._isT1MEntity(entity) && this._hasRGBColorMode(entity)) return false;
+      // T1M RGB endpoint has color_temp but doesn't support CCT sequences
+      const dt = this._getEntityDeviceType(entityId);
+      if (dt === 't1m') return false;
       return true;
     });
   }
@@ -1775,29 +1755,17 @@ export class AqaraPanel extends LitElement {
     if (!this.hass) return [];
     return this._selectedEntities.filter(entityId => {
       if (!this._supportedEntities.has(entityId)) return false;
-      const entity = this.hass!.states[entityId];
-      if (!entity) return false;
-      const effectList = entity.attributes.effect_list as string[] | undefined;
-      if (!effectList || !Array.isArray(effectList)) return false;
-      if (!(effectList.includes('flow1') || effectList.includes('rainbow1'))) return false;
-      // T1M white endpoint has flow1 but only supports CCT - exclude it
-      if (this._isT1MEntity(entity) && !this._hasRGBColorMode(entity)) return false;
-      return true;
+      const dt = this._getEntityDeviceType(entityId);
+      return dt === 't1m' || dt === 't1_strip';
     });
   }
 
   // T2 devices only (for transition curve and initial brightness settings)
-  // T2 RGB: has 'candlelight' in effect_list
-  // T2 CCT: no effect_list but has color_temp attribute
   private _getT2CompatibleEntities(): string[] {
     if (!this.hass) return [];
     return this._selectedEntities.filter(entityId => {
-      const entity = this.hass!.states[entityId];
-      if (!entity) return false;
-      const effectList = entity.attributes.effect_list as string[] | undefined;
-      const isT2RGB = effectList && effectList.includes('candlelight');
-      const isT2CCT = !effectList && entity.attributes.color_temp !== undefined;
-      return isT2RGB || isT2CCT;
+      const dt = this._getEntityDeviceType(entityId);
+      return dt === 't2_bulb' || dt === 't2_cct';
     });
   }
 
@@ -1823,6 +1791,8 @@ export class AqaraPanel extends LitElement {
     const showCCTSequences = hasSelection && (hasT2 || hasT2CCT || hasT1MWhite || hasT1Strip || hasGenericRGB || hasGenericCCT);
     // Dynamic scenes: Aqara RGB + generic RGB lights
     const showDynamicScenes = hasSelection && (hasT2 || hasT1M || hasT1Strip || hasGenericRGB);
+    // Music sync: T1 Strip only
+    const showMusicSync = hasSelection && hasT1Strip;
 
     return {
       showDynamicEffects,
@@ -1830,6 +1800,7 @@ export class AqaraPanel extends LitElement {
       showCCTSequences,
       showSegmentSequences,
       showDynamicScenes,
+      showMusicSync,
       hasT2,
       hasT1M,
       hasT1Strip,
@@ -1858,6 +1829,10 @@ export class AqaraPanel extends LitElement {
     // Clear active favorite when manually changing selection
     this._activeFavoriteId = null;
 
+    // Clear editor drafts so device type auto-set reflects the new selection
+    // (drafts set _hasUserInteraction=true which blocks auto-set)
+    this._clearEditorDraft();
+
     // Load curvature from first T2 entity when selection changes
     this._loadCurvatureFromEntity();
 
@@ -1881,15 +1856,50 @@ export class AqaraPanel extends LitElement {
 
   private _handleBrightnessChange(e: CustomEvent): void {
     this._brightness = e.detail.value;
+    this._saveUserPreferences();
   }
 
   private _handleCustomBrightnessToggle(e: Event): void {
     this._useCustomBrightness = (e.target as HTMLInputElement).checked;
+    this._saveUserPreferences();
   }
 
   private _handleStaticSceneModeToggle(e: Event): void {
     this._useStaticSceneMode = (e.target as HTMLInputElement).checked;
     this._saveUserPreferences();
+  }
+
+  private _handleIgnoreExternalChangesToggle(e: Event): void {
+    this._ignoreExternalChanges = (e.target as HTMLInputElement).checked;
+    this._saveGlobalPreferences();
+  }
+
+  private _handleDistributionModeOverrideToggle(e: Event): void {
+    this._useDistributionModeOverride = (e.target as HTMLInputElement).checked;
+    this._saveUserPreferences();
+  }
+
+  private _handleDistributionModeOverrideChange(e: CustomEvent): void {
+    this._distributionModeOverride = e.detail.value || 'shuffle_rotate';
+    this._saveUserPreferences();
+  }
+
+  private get _distributionModeOverrideOptions() {
+    return [
+      { value: 'shuffle_rotate', label: this._localize('dynamic_scene.distribution_shuffle_rotate') || 'Shuffle and rotate' },
+      { value: 'synchronized', label: this._localize('dynamic_scene.distribution_synchronized') || 'Synchronized' },
+      { value: 'random', label: this._localize('dynamic_scene.distribution_random') || 'Random' },
+    ];
+  }
+
+  private async _saveGlobalPreferences(): Promise<void> {
+    try {
+      await this.hass.callApi('PUT', 'aqara_advanced_lighting/global_preferences', {
+        ignore_external_changes: this._ignoreExternalChanges,
+      });
+    } catch (err) {
+      console.warn('Failed to save global preferences:', err);
+    }
   }
 
   private _handleExpansionChange(sectionId: string, e: CustomEvent): void {
@@ -1970,7 +1980,7 @@ export class AqaraPanel extends LitElement {
       scene_name: preset.name,
       transition_time: preset.transition_time,
       hold_time: preset.hold_time,
-      distribution_mode: preset.distribution_mode,
+      distribution_mode: this._useDistributionModeOverride ? this._distributionModeOverride : preset.distribution_mode,
       random_order: preset.random_order,
       loop_mode: preset.loop_mode,
       end_behavior: preset.end_behavior,
@@ -2081,6 +2091,8 @@ export class AqaraPanel extends LitElement {
         return this._renderSequenceOp(op);
       case 'dynamic_scene':
         return this._renderSceneOp(op);
+      case 'music_sync':
+        return this._renderMusicSyncOp(op);
       default:
         return '';
     }
@@ -2483,7 +2495,7 @@ export class AqaraPanel extends LitElement {
       scene_name: preset.name,
       transition_time: preset.transition_time,
       hold_time: preset.hold_time,
-      distribution_mode: preset.distribution_mode,
+      distribution_mode: this._useDistributionModeOverride ? this._distributionModeOverride : preset.distribution_mode,
       random_order: preset.random_order,
       loop_mode: preset.loop_mode,
       end_behavior: preset.end_behavior,
@@ -2818,8 +2830,8 @@ export class AqaraPanel extends LitElement {
                 </div>
               </div>
               <div class="section-content controls-content">
-                <div class="brightness-override-section">
-                  <div class="form-section">
+                <div class="overrides-grid">
+                  <div class="override-item">
                     <span class="form-label">${this._localize('target.custom_brightness_label')}</span>
                     <ha-switch
                       .checked=${this._useCustomBrightness}
@@ -2827,34 +2839,68 @@ export class AqaraPanel extends LitElement {
                     ></ha-switch>
                   </div>
 
-                  ${this._useCustomBrightness
-                    ? html`
-                        <div class="brightness-slider">
-                          <ha-selector
-                            .hass=${this.hass}
-                            .selector=${{
-                              number: {
-                                min: 1,
-                                max: 100,
-                                mode: 'slider',
-                                unit_of_measurement: '%',
-                              },
-                            }}
-                            .value=${this._brightness}
-                            @value-changed=${this._handleBrightnessChange}
-                          ></ha-selector>
-                        </div>
-                      `
-                    : ''}
+                  <div class="override-item">
+                    <span class="form-label">${this._localize('target.static_scene_mode_label')}</span>
+                    <ha-switch
+                      .checked=${this._useStaticSceneMode}
+                      @change=${this._handleStaticSceneModeToggle}
+                    ></ha-switch>
+                  </div>
+
+                  <div class="override-item">
+                    <span class="form-label">${this._localize('target.distribution_mode_override_label')}</span>
+                    <ha-switch
+                      .checked=${this._useDistributionModeOverride}
+                      @change=${this._handleDistributionModeOverrideToggle}
+                    ></ha-switch>
+                  </div>
+
+                  <div class="override-item">
+                    <span class="form-label">${this._localize('target.ignore_external_changes_label')}</span>
+                    <ha-switch
+                      .checked=${this._ignoreExternalChanges}
+                      @change=${this._handleIgnoreExternalChangesToggle}
+                    ></ha-switch>
+                  </div>
                 </div>
 
-                <div class="form-section">
-                  <span class="form-label">${this._localize('target.static_scene_mode_label')}</span>
-                  <ha-switch
-                    .checked=${this._useStaticSceneMode}
-                    @change=${this._handleStaticSceneModeToggle}
-                  ></ha-switch>
-                </div>
+                ${this._useDistributionModeOverride
+                  ? html`
+                      <div class="brightness-slider">
+                        <ha-selector
+                          .hass=${this.hass}
+                          .selector=${{
+                            select: {
+                              options: this._distributionModeOverrideOptions,
+                              mode: 'dropdown',
+                            },
+                          }}
+                          .value=${this._distributionModeOverride}
+                          @value-changed=${this._handleDistributionModeOverrideChange}
+                        ></ha-selector>
+                      </div>
+                    `
+                  : ''}
+
+                ${this._useCustomBrightness
+                  ? html`
+                      <div class="brightness-slider">
+                        <ha-selector
+                          .hass=${this.hass}
+                          .selector=${{
+                            number: {
+                              min: 1,
+                              max: 100,
+                              mode: 'slider',
+                              unit_of_measurement: '%',
+                            },
+                          }}
+                          .value=${this._brightness}
+                          @value-changed=${this._handleBrightnessChange}
+                        ></ha-selector>
+                      </div>
+                    `
+                  : ''}
               </div>
             </ha-expansion-panel>
           `
@@ -2909,6 +2955,10 @@ export class AqaraPanel extends LitElement {
               ? this._renderDynamicEffectsSection(this._localize('devices.t1_strip'), filtered.t1StripPresets, 't1_strip')
               : ''}
           `
+        : ''}
+
+      ${filtered.showMusicSync && !this._hasIncompatibleLights
+        ? this._renderMusicSyncSection()
         : ''}
 
       ${filtered.showSegmentPatterns && !this._hasIncompatibleLights
@@ -4191,6 +4241,170 @@ export class AqaraPanel extends LitElement {
     `;
   }
 
+  private _renderMusicSyncSection() {
+    const sectionId = 'music_sync';
+    const isExpanded = !this._collapsed[sectionId];
+
+    const effects = [
+      { id: 'random', icon: 'random.svg' },
+      { id: 'blink', icon: 'blink.svg' },
+      { id: 'rainbow', icon: 'rainbow.svg' },
+      { id: 'wave', icon: 'wave.svg' },
+    ];
+
+    return html`
+      <ha-expansion-panel
+        outlined
+        .expanded=${isExpanded}
+        @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange(sectionId, e)}
+      >
+        <div slot="header" class="section-header">
+          <div>
+            <div class="section-title">${this._localize('sections.music_sync')}</div>
+            <div class="section-subtitle">${this._localize('music_sync.subtitle')}</div>
+          </div>
+        </div>
+        <div class="section-content music-sync-content">
+          <div class="music-sync-left">
+            <div class="music-sync-toggle">
+              <label class="toggle-label">
+                <ha-switch
+                  .checked=${this._musicSyncEnabled}
+                  @change=${this._handleMusicSyncToggle}
+                ></ha-switch>
+                <span class="control-label">${this._localize('music_sync.enabled_label')}</span>
+              </label>
+            </div>
+
+            <div class="music-sync-sensitivity-group ${!this._musicSyncEnabled ? 'disabled' : ''}">
+              <span class="control-label">${this._localize('music_sync.sensitivity_label')}</span>
+              <div class="music-sync-sensitivity">
+                <button
+                  class="sensitivity-btn ${this._musicSyncSensitivity === 'low' ? 'active' : ''}"
+                  ?disabled=${!this._musicSyncEnabled}
+                  @click=${() => this._handleMusicSyncSensitivity('low')}
+                >${this._localize('music_sync.sensitivity_low')}</button>
+                <button
+                  class="sensitivity-btn ${this._musicSyncSensitivity === 'high' ? 'active' : ''}"
+                  ?disabled=${!this._musicSyncEnabled}
+                  @click=${() => this._handleMusicSyncSensitivity('high')}
+                >${this._localize('music_sync.sensitivity_high')}</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="music-sync-right ${!this._musicSyncEnabled ? 'disabled' : ''}">
+            <span class="control-label">${this._localize('music_sync.effect_label')}</span>
+            <div class="music-sync-effects">
+              ${effects.map(effect => html`
+                <div
+                  class="preset-button ${this._musicSyncEffect === effect.id ? 'music-sync-active' : ''} ${!this._musicSyncEnabled ? 'disabled' : ''}"
+                  @click=${() => this._musicSyncEnabled ? this._handleMusicSyncEffectSelect(effect.id) : null}
+                >
+                  <div class="preset-icon">
+                    <div
+                      class="effect-icon"
+                      style="
+                        -webkit-mask-image: url('/api/aqara_advanced_lighting/icons/${effect.icon}');
+                        mask-image: url('/api/aqara_advanced_lighting/icons/${effect.icon}');
+                      "
+                    ></div>
+                  </div>
+                  <div class="preset-name">${this._localize(`music_sync.effect_${effect.id}`)}</div>
+                </div>
+              `)}
+            </div>
+          </div>
+        </div>
+      </ha-expansion-panel>
+    `;
+  }
+
+  private async _handleMusicSyncToggle(e: Event): Promise<void> {
+    const enabled = (e.target as HTMLInputElement).checked;
+    this._musicSyncEnabled = enabled;
+
+    // Get T1 Strip entities from selection
+    const stripEntities = this._selectedEntities.filter(entityId => {
+      const dt = this._getEntityDeviceType(entityId);
+      return dt === 't1_strip';
+    });
+    if (stripEntities.length === 0) return;
+
+    await this.hass.callService('aqara_advanced_lighting', 'set_music_sync', {
+      entity_id: stripEntities,
+      enabled,
+      sensitivity: this._musicSyncSensitivity,
+      audio_effect: this._musicSyncEffect,
+    });
+  }
+
+  private async _handleMusicSyncSensitivity(sensitivity: string): Promise<void> {
+    this._musicSyncSensitivity = sensitivity;
+    if (!this._musicSyncEnabled) return;
+
+    const stripEntities = this._selectedEntities.filter(entityId => {
+      const dt = this._getEntityDeviceType(entityId);
+      return dt === 't1_strip';
+    });
+    if (stripEntities.length === 0) return;
+
+    await this.hass.callService('aqara_advanced_lighting', 'set_music_sync', {
+      entity_id: stripEntities,
+      enabled: true,
+      sensitivity,
+      audio_effect: this._musicSyncEffect,
+    });
+  }
+
+  private async _handleMusicSyncEffectSelect(effect: string): Promise<void> {
+    this._musicSyncEffect = effect;
+    if (!this._musicSyncEnabled) return;
+
+    const stripEntities = this._selectedEntities.filter(entityId => {
+      const dt = this._getEntityDeviceType(entityId);
+      return dt === 't1_strip';
+    });
+    if (stripEntities.length === 0) return;
+
+    await this.hass.callService('aqara_advanced_lighting', 'set_music_sync', {
+      entity_id: stripEntities,
+      enabled: true,
+      sensitivity: this._musicSyncSensitivity,
+      audio_effect: effect,
+    });
+  }
+
+  private _renderMusicSyncOp(op: RunningOperation) {
+    const entityName = this._getEntityName(op.entity_id!);
+    return html`
+      <div class="running-op-card">
+        <div class="running-op-info">
+          <ha-icon class="running-op-icon" icon="mdi:music-note"></ha-icon>
+          <div class="running-op-details">
+            <span class="running-op-name">${this._localize('music_sync.active_label')}</span>
+            <span class="running-op-entity"><span class="running-op-entity-name">${entityName}</span></span>
+          </div>
+        </div>
+        <div class="running-op-actions">
+          <ha-icon-button
+            .label=${this._localize('target.stop')}
+            @click=${() => this._stopMusicSync(op.entity_id!)}
+          >
+            <ha-icon icon="mdi:stop"></ha-icon>
+          </ha-icon-button>
+        </div>
+      </div>
+    `;
+  }
+
+  private async _stopMusicSync(entityId: string): Promise<void> {
+    await this.hass.callService('aqara_advanced_lighting', 'set_music_sync', {
+      entity_id: [entityId],
+      enabled: false,
+    });
+  }
+
   private _renderSegmentPatternsSection(title: string, builtinPresets: SegmentPatternPreset[], deviceType: string) {
     const sectionId = `segment_pat_${title.toLowerCase().replace(/\s+/g, '_')}`;
     const isExpanded = !this._collapsed[sectionId];
@@ -4534,7 +4748,7 @@ export class AqaraPanel extends LitElement {
     const dimmingRangeMinEntity = this._findDimmingRangeMinEntity();
     const dimmingRangeMaxEntity = this._findDimmingRangeMaxEntity();
 
-    // Get current values from entities
+    // Get current values from number entities
     const initialBrightnessValue = initialBrightnessEntity && this.hass?.states[initialBrightnessEntity]
       ? parseFloat(this.hass.states[initialBrightnessEntity].state) || 0
       : 0;
@@ -4559,7 +4773,7 @@ export class AqaraPanel extends LitElement {
       ? parseFloat(this.hass.states[dimmingRangeMaxEntity].state) || 100
       : 100;
 
-    // Check if any dimming entities are available
+    // Check if any dimming controls are available (number entities from Z2M or ZHA quirk)
     const hasDimmingEntities = onOffDurationEntity || offOnDurationEntity || dimmingRangeMinEntity || dimmingRangeMaxEntity;
 
     return html`
@@ -4799,7 +5013,7 @@ export class AqaraPanel extends LitElement {
                           },
                         }}
                         .value=${onOffDurationValue}
-                        @value-changed=${(e: CustomEvent) => this._handleDimmingSettingChange(e, 'on_off_duration')}
+                        @value-changed=${(e: CustomEvent) => this._handleOnOffDurationChange(e)}
                         ?disabled=${!onOffDurationEntity}
                       ></ha-selector>
                       ${!onOffDurationEntity ? html`
@@ -4822,7 +5036,7 @@ export class AqaraPanel extends LitElement {
                           },
                         }}
                         .value=${offOnDurationValue}
-                        @value-changed=${(e: CustomEvent) => this._handleDimmingSettingChange(e, 'off_on_duration')}
+                        @value-changed=${(e: CustomEvent) => this._handleOffOnDurationChange(e)}
                         ?disabled=${!offOnDurationEntity}
                       ></ha-selector>
                       ${!offOnDurationEntity ? html`
@@ -5042,348 +5256,134 @@ export class AqaraPanel extends LitElement {
 
     // Find all initial brightness entities for all selected T2 devices
     const brightnessEntities = this._findAllInitialBrightnessEntities();
-    if (!brightnessEntities.length) return;
 
-    // Apply to all T2 devices
-    try {
-      await Promise.all(
-        brightnessEntities.map(entityId =>
-          this.hass!.callService('number', 'set_value', {
-            entity_id: entityId,
-            value: value,
-          })
-        )
-      );
-    } catch (err) {
-      console.error('Failed to set initial brightness:', err);
+    if (brightnessEntities.length) {
+      // Z2M path: write via number entities
+      try {
+        await Promise.all(
+          brightnessEntities.map(entityId =>
+            this.hass!.callService('number', 'set_value', {
+              entity_id: entityId,
+              value: value,
+            })
+          )
+        );
+      } catch (err) {
+        console.error('Failed to set initial brightness:', err);
+      }
     }
   }
 
   /**
-   * Find the transition_curve_curvature number entity for the first selected T2 device.
-   * Supports both T2 RGB bulbs (with candlelight effect) and T2 CCT bulbs (CCT-only).
-   * The entity ID pattern is: number.{device_name}_transition_curve_curvature
+   * Core helper: find a sibling number entity for a given light entity.
+   * Uses multiple strategies to handle different naming conventions across backends:
+   *   1. Direct name substitution (Z2M standard naming)
+   *   2. Z2M friendly name from backend metadata
+   *   3. HA device registry lookup (works for ZHA and any backend)
+   *   4. Fuzzy word match (last resort)
    */
-  private _findTransitionCurveEntity(): string | undefined {
-    if (!this.hass || !this._selectedEntities.length) return undefined;
+  private _findSiblingNumberEntity(lightEntityId: string, suffix: string): string | undefined {
+    if (!this.hass) return undefined;
 
-    const suffix = 'transition_curve_curvature';
+    // Pattern 1: Direct name substitution (works for Z2M standard naming)
+    const baseName = lightEntityId.replace('light.', '');
+    const directId = `number.${baseName}_${suffix}`;
+    if (this.hass.states[directId]) return directId;
 
-    // Find the first T2 device in selected entities
-    for (const entityId of this._selectedEntities) {
-      const entity = this.hass.states[entityId];
-      if (!entity) continue;
+    // Pattern 2: Z2M friendly name from backend metadata
+    const supportedEntity = this._supportedEntities.get(lightEntityId);
+    if (supportedEntity?.z2m_friendly_name) {
+      const z2mBase = supportedEntity.z2m_friendly_name.toLowerCase().replace(/\s+/g, '_');
+      const z2mId = `number.${z2mBase}_${suffix}`;
+      if (this.hass.states[z2mId]) return z2mId;
+    }
 
-      // Check if this is a T2 device using _supportedEntities first (most reliable)
-      const supportedEntity = this._supportedEntities.get(entityId);
-      const isT2FromBackend = supportedEntity?.device_type === 't2_bulb' || supportedEntity?.device_type === 't2_cct';
-
-      // Fallback to effect_list check if not in _supportedEntities
-      const effectList = entity.attributes.effect_list as string[] | undefined;
-      const isT2RGB = effectList && effectList.includes('candlelight');
-      const isT2CCT = !effectList && entity.attributes.color_temp !== undefined;
-
-      if (!isT2FromBackend && !isT2RGB && !isT2CCT) continue;
-
-      // Pattern 1: Replace light. with number. and append suffix
-      const baseName = entityId.replace('light.', '');
-      const curveEntityId = `number.${baseName}_${suffix}`;
-
-      if (this.hass.states[curveEntityId]) {
-        return curveEntityId;
-      }
-
-      // Pattern 2: Use Z2M friendly name from _supportedEntities for better matching
-      if (supportedEntity?.z2m_friendly_name) {
-        const z2mBaseName = supportedEntity.z2m_friendly_name.toLowerCase().replace(/\s+/g, '_');
-        const z2mTargetEntityId = `number.${z2mBaseName}_${suffix}`;
-        if (this.hass.states[z2mTargetEntityId]) {
-          return z2mTargetEntityId;
-        }
-      }
-
-      // Pattern 3: Search with stricter matching (at least first 2 words)
-      const deviceName = baseName.toLowerCase();
-      const deviceWords = deviceName.split('_');
-      for (const stateEntityId of Object.keys(this.hass.states)) {
-        if (
-          stateEntityId.startsWith('number.') &&
-          stateEntityId.includes(suffix)
-        ) {
-          const stateBaseName = stateEntityId.replace('number.', '').replace(`_${suffix}`, '').toLowerCase();
-          const stateWords = stateBaseName.split('_');
-          if (deviceWords.length >= 2 && stateWords.length >= 2 &&
-              deviceWords[0] === stateWords[0] && deviceWords[1] === stateWords[1]) {
-            return stateEntityId;
+    // Pattern 3: HA device registry lookup (works for ZHA where entity naming differs)
+    if (this.hass.entities) {
+      const lightEntry = this.hass.entities[lightEntityId];
+      if (lightEntry?.device_id) {
+        for (const [eid, entry] of Object.entries(this.hass.entities)) {
+          if (
+            entry.device_id === lightEntry.device_id &&
+            eid.startsWith('number.') &&
+            eid.endsWith(`_${suffix}`)
+          ) {
+            if (this.hass.states[eid]) return eid;
           }
         }
       }
     }
 
+    // Pattern 4: Fuzzy word match (last resort)
+    const deviceWords = baseName.toLowerCase().split('_');
+    if (deviceWords.length >= 2) {
+      for (const eid of Object.keys(this.hass.states)) {
+        if (eid.startsWith('number.') && eid.endsWith(`_${suffix}`)) {
+          const stateBase = eid.slice(7, eid.length - suffix.length - 1).toLowerCase();
+          const stateWords = stateBase.split('_');
+          if (stateWords.length >= 2 &&
+              deviceWords[0] === stateWords[0] && deviceWords[1] === stateWords[1]) {
+            return eid;
+          }
+        }
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Find sibling number entities for multiple light entities.
+   * Returns unique results only.
+   */
+  private _findAllSiblingNumberEntities(lightEntityIds: string[], suffix: string): string[] {
+    if (!this.hass) return [];
+    const results: string[] = [];
+    for (const lightId of lightEntityIds) {
+      const found = this._findSiblingNumberEntity(lightId, suffix);
+      if (found && !results.includes(found)) {
+        results.push(found);
+      }
+    }
+    return results;
+  }
+
+  private _findTransitionCurveEntity(): string | undefined {
+    const t2Entities = this._getT2CompatibleEntities();
+    for (const eid of t2Entities) {
+      const found = this._findSiblingNumberEntity(eid, 'transition_curve_curvature');
+      if (found) return found;
+    }
     return undefined;
   }
 
   private _findInitialBrightnessEntity(): string | undefined {
-    if (!this.hass || !this._selectedEntities.length) return undefined;
-
-    const suffix = 'transition_initial_brightness';
-
-    // Find the first T2 device in selected entities
-    for (const entityId of this._selectedEntities) {
-      const entity = this.hass.states[entityId];
-      if (!entity) continue;
-
-      // Check if this is a T2 device using _supportedEntities first (most reliable)
-      const supportedEntity = this._supportedEntities.get(entityId);
-      const isT2FromBackend = supportedEntity?.device_type === 't2_bulb' || supportedEntity?.device_type === 't2_cct';
-
-      // Fallback to effect_list check if not in _supportedEntities
-      const effectList = entity.attributes.effect_list as string[] | undefined;
-      const isT2RGB = effectList && effectList.includes('candlelight');
-      const isT2CCT = !effectList && entity.attributes.color_temp !== undefined;
-
-      if (!isT2FromBackend && !isT2RGB && !isT2CCT) continue;
-
-      // Pattern 1: Replace light. with number. and append suffix
-      const baseName = entityId.replace('light.', '');
-      const brightnessEntityId = `number.${baseName}_${suffix}`;
-
-      if (this.hass.states[brightnessEntityId]) {
-        return brightnessEntityId;
-      }
-
-      // Pattern 2: Use Z2M friendly name from _supportedEntities for better matching
-      if (supportedEntity?.z2m_friendly_name) {
-        const z2mBaseName = supportedEntity.z2m_friendly_name.toLowerCase().replace(/\s+/g, '_');
-        const z2mTargetEntityId = `number.${z2mBaseName}_${suffix}`;
-        if (this.hass.states[z2mTargetEntityId]) {
-          return z2mTargetEntityId;
-        }
-      }
-
-      // Pattern 3: Search with stricter matching (at least first 2 words)
-      const deviceName = baseName.toLowerCase();
-      const deviceWords = deviceName.split('_');
-      for (const stateEntityId of Object.keys(this.hass.states)) {
-        if (
-          stateEntityId.startsWith('number.') &&
-          stateEntityId.includes(suffix)
-        ) {
-          const stateBaseName = stateEntityId.replace('number.', '').replace(`_${suffix}`, '').toLowerCase();
-          const stateWords = stateBaseName.split('_');
-          if (deviceWords.length >= 2 && stateWords.length >= 2 &&
-              deviceWords[0] === stateWords[0] && deviceWords[1] === stateWords[1]) {
-            return stateEntityId;
-          }
-        }
-      }
+    const t2Entities = this._getT2CompatibleEntities();
+    for (const eid of t2Entities) {
+      const found = this._findSiblingNumberEntity(eid, 'transition_initial_brightness');
+      if (found) return found;
     }
-
     return undefined;
   }
 
-  // Find ALL transition curve entities for ALL selected T2 devices
   private _findAllTransitionCurveEntities(): string[] {
-    if (!this.hass || !this._selectedEntities.length) return [];
-
-    const entities: string[] = [];
-    const t2Entities = this._getT2CompatibleEntities();
-    const suffix = 'transition_curve_curvature';
-
-    for (const entityId of t2Entities) {
-      const baseName = entityId.replace('light.', '');
-      const curveEntityId = `number.${baseName}_${suffix}`;
-
-      if (this.hass.states[curveEntityId]) {
-        entities.push(curveEntityId);
-        continue;
-      }
-
-      // Pattern 2: Use Z2M friendly name from _supportedEntities for better matching
-      const supportedEntity = this._supportedEntities.get(entityId);
-      if (supportedEntity?.z2m_friendly_name) {
-        const z2mBaseName = supportedEntity.z2m_friendly_name.toLowerCase().replace(/\s+/g, '_');
-        const z2mTargetEntityId = `number.${z2mBaseName}_${suffix}`;
-        if (this.hass.states[z2mTargetEntityId] && !entities.includes(z2mTargetEntityId)) {
-          entities.push(z2mTargetEntityId);
-          continue;
-        }
-      }
-
-      // Pattern 3: Search with stricter matching (at least first 2 words)
-      const deviceName = baseName.toLowerCase();
-      const deviceWords = deviceName.split('_');
-      for (const stateEntityId of Object.keys(this.hass.states)) {
-        if (
-          stateEntityId.startsWith('number.') &&
-          stateEntityId.includes(suffix) &&
-          !entities.includes(stateEntityId)
-        ) {
-          const stateBaseName = stateEntityId.replace('number.', '').replace(`_${suffix}`, '').toLowerCase();
-          const stateWords = stateBaseName.split('_');
-          if (deviceWords.length >= 2 && stateWords.length >= 2 &&
-              deviceWords[0] === stateWords[0] && deviceWords[1] === stateWords[1]) {
-            entities.push(stateEntityId);
-            break;
-          }
-        }
-      }
-    }
-
-    return entities;
+    return this._findAllSiblingNumberEntities(this._getT2CompatibleEntities(), 'transition_curve_curvature');
   }
 
-  // Find ALL initial brightness entities for ALL selected T2 devices
   private _findAllInitialBrightnessEntities(): string[] {
-    if (!this.hass || !this._selectedEntities.length) return [];
-
-    const entities: string[] = [];
-    const t2Entities = this._getT2CompatibleEntities();
-    const suffix = 'transition_initial_brightness';
-
-    for (const entityId of t2Entities) {
-      const baseName = entityId.replace('light.', '');
-      const brightnessEntityId = `number.${baseName}_${suffix}`;
-
-      if (this.hass.states[brightnessEntityId]) {
-        entities.push(brightnessEntityId);
-        continue;
-      }
-
-      // Pattern 2: Use Z2M friendly name from _supportedEntities for better matching
-      const supportedEntity = this._supportedEntities.get(entityId);
-      if (supportedEntity?.z2m_friendly_name) {
-        const z2mBaseName = supportedEntity.z2m_friendly_name.toLowerCase().replace(/\s+/g, '_');
-        const z2mTargetEntityId = `number.${z2mBaseName}_${suffix}`;
-        if (this.hass.states[z2mTargetEntityId] && !entities.includes(z2mTargetEntityId)) {
-          entities.push(z2mTargetEntityId);
-          continue;
-        }
-      }
-
-      // Pattern 3: Search with stricter matching (at least first 2 words)
-      const deviceName = baseName.toLowerCase();
-      const deviceWords = deviceName.split('_');
-      for (const stateEntityId of Object.keys(this.hass.states)) {
-        if (
-          stateEntityId.startsWith('number.') &&
-          stateEntityId.includes(suffix) &&
-          !entities.includes(stateEntityId)
-        ) {
-          const stateBaseName = stateEntityId.replace('number.', '').replace(`_${suffix}`, '').toLowerCase();
-          const stateWords = stateBaseName.split('_');
-          if (deviceWords.length >= 2 && stateWords.length >= 2 &&
-              deviceWords[0] === stateWords[0] && deviceWords[1] === stateWords[1]) {
-            entities.push(stateEntityId);
-            break;
-          }
-        }
-      }
-    }
-
-    return entities;
+    return this._findAllSiblingNumberEntities(this._getT2CompatibleEntities(), 'transition_initial_brightness');
   }
 
-  // Find ALL dimming entities for ALL selected devices (all models support these)
   private _findAllDimmingEntities(suffix: string): string[] {
-    if (!this.hass || !this._selectedEntities.length) return [];
-
-    const entities: string[] = [];
-
-    for (const entityId of this._selectedEntities) {
-      const entity = this.hass.states[entityId];
-      if (!entity) continue;
-
-      const baseName = entityId.replace('light.', '');
-      const targetEntityId = `number.${baseName}_${suffix}`;
-
-      if (this.hass.states[targetEntityId]) {
-        entities.push(targetEntityId);
-        continue;
-      }
-
-      // Pattern 2: Use Z2M friendly name from _supportedEntities for better matching
-      const supportedEntity = this._supportedEntities.get(entityId);
-      if (supportedEntity?.z2m_friendly_name) {
-        const z2mBaseName = supportedEntity.z2m_friendly_name.toLowerCase().replace(/\s+/g, '_');
-        const z2mTargetEntityId = `number.${z2mBaseName}_${suffix}`;
-        if (this.hass.states[z2mTargetEntityId] && !entities.includes(z2mTargetEntityId)) {
-          entities.push(z2mTargetEntityId);
-          continue;
-        }
-      }
-
-      // Pattern 3: Search with stricter matching (at least first 2 words)
-      const deviceName = baseName.toLowerCase();
-      const deviceWords = deviceName.split('_');
-      for (const stateEntityId of Object.keys(this.hass.states)) {
-        if (
-          stateEntityId.startsWith('number.') &&
-          stateEntityId.includes(suffix) &&
-          !entities.includes(stateEntityId)
-        ) {
-          const stateBaseName = stateEntityId.replace('number.', '').replace(`_${suffix}`, '').toLowerCase();
-          const stateWords = stateBaseName.split('_');
-          // Match if first 2+ words match
-          if (deviceWords.length >= 2 && stateWords.length >= 2 &&
-              deviceWords[0] === stateWords[0] && deviceWords[1] === stateWords[1]) {
-            entities.push(stateEntityId);
-            break;
-          }
-        }
-      }
-    }
-
-    return entities;
+    return this._findAllSiblingNumberEntities(this._selectedEntities, suffix);
   }
 
-  // Generic entity finder for any supported light (not just T2)
   private _findDimmingEntity(suffix: string): string | undefined {
-    if (!this.hass || !this._selectedEntities.length) return undefined;
-
-    for (const entityId of this._selectedEntities) {
-      const entity = this.hass.states[entityId];
-      if (!entity) continue;
-
-      // Pattern 1: Replace light. with number. and append suffix
-      const baseName = entityId.replace('light.', '');
-      const targetEntityId = `number.${baseName}_${suffix}`;
-
-      if (this.hass.states[targetEntityId]) {
-        return targetEntityId;
-      }
-
-      // Pattern 2: Use Z2M friendly name from _supportedEntities for better matching
-      const supportedEntity = this._supportedEntities.get(entityId);
-      if (supportedEntity?.z2m_friendly_name) {
-        // Z2M uses the friendly name (with spaces converted to underscores) for entity naming
-        const z2mBaseName = supportedEntity.z2m_friendly_name.toLowerCase().replace(/\s+/g, '_');
-        const z2mTargetEntityId = `number.${z2mBaseName}_${suffix}`;
-        if (this.hass.states[z2mTargetEntityId]) {
-          return z2mTargetEntityId;
-        }
-      }
-
-      // Pattern 3: Search for any number entity containing the full device name and suffix
-      const deviceName = baseName.toLowerCase();
-      for (const stateEntityId of Object.keys(this.hass.states)) {
-        if (
-          stateEntityId.startsWith('number.') &&
-          stateEntityId.includes(suffix)
-        ) {
-          // Check if this entity shares enough of the device name (at least first 2 words)
-          const stateBaseName = stateEntityId.replace('number.', '').replace(`_${suffix}`, '').toLowerCase();
-          const deviceWords = deviceName.split('_');
-          const stateWords = stateBaseName.split('_');
-          // Match if first 2+ words match
-          if (deviceWords.length >= 2 && stateWords.length >= 2 &&
-              deviceWords[0] === stateWords[0] && deviceWords[1] === stateWords[1]) {
-            return stateEntityId;
-          }
-        }
-      }
+    for (const eid of this._selectedEntities) {
+      if (!this.hass?.states[eid]) continue;
+      const found = this._findSiblingNumberEntity(eid, suffix);
+      if (found) return found;
     }
-
     return undefined;
   }
 
@@ -5405,15 +5405,20 @@ export class AqaraPanel extends LitElement {
 
   private async _handleDimmingSettingChange(
     e: CustomEvent,
-    suffix: string
+    ...suffixes: string[]
   ): Promise<void> {
     if (!this.hass) return;
 
     const value = e.detail.value;
     if (typeof value !== 'number') return;
 
-    // Find all entities with this suffix for all selected devices
-    const entities = this._findAllDimmingEntities(suffix);
+    // Find all entities across all suffixes
+    const entities: string[] = [];
+    for (const suffix of suffixes) {
+      for (const eid of this._findAllDimmingEntities(suffix)) {
+        if (!entities.includes(eid)) entities.push(eid);
+      }
+    }
     if (!entities.length) return;
 
     // Apply to all devices
@@ -5439,14 +5444,13 @@ export class AqaraPanel extends LitElement {
     const newMin = e.detail.value;
     if (typeof newMin !== 'number') return;
 
-    // Get current max value
+    // Get current max value from entity
     const maxValue = maxEntityId && this.hass.states[maxEntityId]
       ? parseFloat(this.hass.states[maxEntityId].state) || 100
       : 100;
 
     // Validate: min cannot exceed max
     if (newMin >= maxValue) {
-      // Show error or just clamp
       return;
     }
 
@@ -5461,128 +5465,52 @@ export class AqaraPanel extends LitElement {
     const newMax = e.detail.value;
     if (typeof newMax !== 'number') return;
 
-    // Get current min value
+    // Get current min value from entity
     const minValue = minEntityId && this.hass.states[minEntityId]
       ? parseFloat(this.hass.states[minEntityId].state) || 1
       : 1;
 
     // Validate: max cannot be less than min
     if (newMax <= minValue) {
-      // Show error or just clamp
       return;
     }
 
     await this._handleDimmingSettingChange(e, 'dimming_range_maximum');
   }
 
+  private async _handleOnOffDurationChange(e: CustomEvent): Promise<void> {
+    const entity = this._findOnOffDurationEntity();
+    if (!this.hass || !entity) return;
+
+    await this._handleDimmingSettingChange(e, 'on_off_duration');
+  }
+
+  private async _handleOffOnDurationChange(e: CustomEvent): Promise<void> {
+    const entity = this._findOffOnDurationEntity();
+    if (!this.hass || !entity) return;
+
+    await this._handleDimmingSettingChange(e, 'off_on_duration');
+  }
+
   // T1 Strip specific methods
   private _getT1StripCompatibleEntities(): string[] {
     if (!this.hass) return [];
     return this._selectedEntities.filter(entityId => {
-      const entity = this.hass!.states[entityId];
-      if (!entity) return false;
-      const effectList = entity.attributes.effect_list as string[] | undefined;
-      // T1 Strip has 'dash' effect but not 'candlelight' (which is T2-only)
-      return effectList && effectList.includes('dash') && !effectList.includes('candlelight');
+      return this._getEntityDeviceType(entityId) === 't1_strip';
     });
   }
 
   private _findT1StripLengthEntity(): string | undefined {
-    if (!this.hass || !this._selectedEntities.length) return undefined;
-
     const t1StripEntities = this._getT1StripCompatibleEntities();
-    if (!t1StripEntities.length) return undefined;
-
-    const suffix = 'length';
-
-    // Find the first T1 Strip length entity
-    for (const entityId of t1StripEntities) {
-      const baseName = entityId.replace('light.', '');
-      const lengthEntityId = `number.${baseName}_${suffix}`;
-
-      if (this.hass.states[lengthEntityId]) {
-        return lengthEntityId;
-      }
-
-      // Pattern 2: Use Z2M friendly name from _supportedEntities for better matching
-      const supportedEntity = this._supportedEntities.get(entityId);
-      if (supportedEntity?.z2m_friendly_name) {
-        const z2mBaseName = supportedEntity.z2m_friendly_name.toLowerCase().replace(/\s+/g, '_');
-        const z2mTargetEntityId = `number.${z2mBaseName}_${suffix}`;
-        if (this.hass.states[z2mTargetEntityId]) {
-          return z2mTargetEntityId;
-        }
-      }
-
-      // Pattern 3: Search with stricter matching (at least first 2 words)
-      const deviceName = baseName.toLowerCase();
-      const deviceWords = deviceName.split('_');
-      for (const stateEntityId of Object.keys(this.hass.states)) {
-        if (
-          stateEntityId.startsWith('number.') &&
-          stateEntityId.endsWith(`_${suffix}`)
-        ) {
-          const stateBaseName = stateEntityId.replace('number.', '').replace(`_${suffix}`, '').toLowerCase();
-          const stateWords = stateBaseName.split('_');
-          if (deviceWords.length >= 2 && stateWords.length >= 2 &&
-              deviceWords[0] === stateWords[0] && deviceWords[1] === stateWords[1]) {
-            return stateEntityId;
-          }
-        }
-      }
+    for (const eid of t1StripEntities) {
+      const found = this._findSiblingNumberEntity(eid, 'length');
+      if (found) return found;
     }
-
     return undefined;
   }
 
   private _findAllT1StripLengthEntities(): string[] {
-    if (!this.hass || !this._selectedEntities.length) return [];
-
-    const entities: string[] = [];
-    const t1StripEntities = this._getT1StripCompatibleEntities();
-    const suffix = 'length';
-
-    for (const entityId of t1StripEntities) {
-      const baseName = entityId.replace('light.', '');
-      const lengthEntityId = `number.${baseName}_${suffix}`;
-
-      if (this.hass.states[lengthEntityId]) {
-        entities.push(lengthEntityId);
-        continue;
-      }
-
-      // Pattern 2: Use Z2M friendly name from _supportedEntities for better matching
-      const supportedEntity = this._supportedEntities.get(entityId);
-      if (supportedEntity?.z2m_friendly_name) {
-        const z2mBaseName = supportedEntity.z2m_friendly_name.toLowerCase().replace(/\s+/g, '_');
-        const z2mTargetEntityId = `number.${z2mBaseName}_${suffix}`;
-        if (this.hass.states[z2mTargetEntityId] && !entities.includes(z2mTargetEntityId)) {
-          entities.push(z2mTargetEntityId);
-          continue;
-        }
-      }
-
-      // Pattern 3: Search with stricter matching (at least first 2 words)
-      const deviceName = baseName.toLowerCase();
-      const deviceWords = deviceName.split('_');
-      for (const stateEntityId of Object.keys(this.hass.states)) {
-        if (
-          stateEntityId.startsWith('number.') &&
-          stateEntityId.endsWith(`_${suffix}`) &&
-          !entities.includes(stateEntityId)
-        ) {
-          const stateBaseName = stateEntityId.replace('number.', '').replace(`_${suffix}`, '').toLowerCase();
-          const stateWords = stateBaseName.split('_');
-          if (deviceWords.length >= 2 && stateWords.length >= 2 &&
-              deviceWords[0] === stateWords[0] && deviceWords[1] === stateWords[1]) {
-            entities.push(stateEntityId);
-            break;
-          }
-        }
-      }
-    }
-
-    return entities;
+    return this._findAllSiblingNumberEntities(this._getT1StripCompatibleEntities(), 'length');
   }
 
   private async _handleT1StripLengthChange(e: CustomEvent): Promise<void> {
@@ -5592,19 +5520,21 @@ export class AqaraPanel extends LitElement {
     if (typeof value !== 'number') return;
 
     const entities = this._findAllT1StripLengthEntities();
-    if (!entities.length) return;
 
-    try {
-      await Promise.all(
-        entities.map(entityId =>
-          this.hass!.callService('number', 'set_value', {
-            entity_id: entityId,
-            value: value,
-          })
-        )
-      );
-    } catch (err) {
-      console.error('Failed to set T1 Strip length:', err);
+    if (entities.length) {
+      // Z2M path: write via number entities
+      try {
+        await Promise.all(
+          entities.map(entityId =>
+            this.hass!.callService('number', 'set_value', {
+              entity_id: entityId,
+              value: value,
+            })
+          )
+        );
+      } catch (err) {
+        console.error('Failed to set T1 Strip length:', err);
+      }
     }
   }
 
@@ -5638,20 +5568,22 @@ export class AqaraPanel extends LitElement {
   private async _applyCurvature(): Promise<void> {
     if (!this.hass) return;
 
-    const entities = this._findAllTransitionCurveEntities();
-    if (!entities.length) return;
-
     this._applyingCurvature = true;
 
     try {
-      await Promise.all(
-        entities.map(entityId =>
-          this.hass!.callService('number', 'set_value', {
-            entity_id: entityId,
-            value: this._localCurvature,
-          })
-        )
-      );
+      const entities = this._findAllTransitionCurveEntities();
+
+      if (entities.length) {
+        // Z2M path: write via number entities
+        await Promise.all(
+          entities.map(entityId =>
+            this.hass!.callService('number', 'set_value', {
+              entity_id: entityId,
+              value: this._localCurvature,
+            })
+          )
+        );
+      }
     } catch (err) {
       console.error('Failed to set transition curve curvature:', err);
     } finally {
@@ -5661,15 +5593,17 @@ export class AqaraPanel extends LitElement {
 
   private _loadCurvatureFromEntity(): void {
     const entityId = this._findTransitionCurveEntity();
-    if (!this.hass || !entityId) return;
-
-    const entity = this.hass.states[entityId];
-    if (!entity) return;
-
-    const curvature = parseFloat(entity.state);
-    if (!isNaN(curvature) && curvature >= 0.2 && curvature <= 6.0) {
-      this._localCurvature = Math.round(curvature * 100) / 100;
+    if (this.hass && entityId) {
+      const entity = this.hass.states[entityId];
+      if (entity) {
+        const curvature = parseFloat(entity.state);
+        if (!isNaN(curvature) && curvature >= 0.2 && curvature <= 6.0) {
+          this._localCurvature = Math.round(curvature * 100) / 100;
+          return;
+        }
+      }
     }
+
   }
 
 }
