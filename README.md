@@ -12,7 +12,7 @@
 
 Works with both **Zigbee2MQTT** and **ZHA** (Zigbee Home Automation).
 
-![Zigbee2MQTT](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/zigbee2mqtt.png) ![Zigbee Home Automation](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/images/zigbee-home-automation.png)
+![Zigbee2MQTT](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/zigbee2mqtt.png) ![Zigbee Home Automation](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/zigbee-home-automation.png)
 
 _Please :star: this integration if you find it useful_
 
