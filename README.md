@@ -1,9 +1,9 @@
 # Aqara Advanced Lighting
 
-![GitHub Release](https://img.shields.io/github/v/release/absent42/Aqara-Advanced-Lighting?style=for-the-badge)
+[![GitHub Release][releases-shield]][releases]
 [![License][license-shield]](LICENSE)
 
-![Home Assistant)](https://img.shields.io/badge/Home%20Assistant-18BCF2?style=for-the-badge&logo=Home%20Assistant&logoColor=white)
+[![homeassistant][homeassistant-badge]][homeassistant]
 [![hacs][hacsbadge]][hacs]
 
 ![Aqara Advanced Lighting](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/main/images/aqara-advanced-lighting.png "Aqara Advanced Lighting")
@@ -12,7 +12,7 @@
 
 Works with both **Zigbee2MQTT** and **ZHA** (Zigbee Home Automation).
 
-![Zigbee2MQTT](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/zigbee2mqtt.png) ![Zigbee Home Automation](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/zigbee-home-automation.png)
+![Zigbee2MQTT](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/zigbee2mqtt.png) ![Zigbee Home Automation](images/zigbee-home-automation.png)
 
 _Please :star: this integration if you find it useful_
 
@@ -104,6 +104,10 @@ This is an unofficial integration and is not provided by or supported by Aqara.
 - **Documentation**: [GitHub Repository](https://github.com/absent42/Aqara-Advanced-Lighting)
 - **Contributing**: [Contribution Guidelines](CONTRIBUTING.md)
 
+[releases-shield]: https://img.shields.io/github/v/release/absent42/Aqara-Advanced-Lighting?style=for-the-badge
+[releases]: https://github.com/absent42/Aqara-Advanced-Lighting/releases
 [license-shield]: https://img.shields.io/github/license/absent42/Aqara-Advanced-Lighting?style=for-the-badge
 [hacsbadge]: https://img.shields.io/badge/HACS-Default-41BDF5?style=for-the-badge
 [hacs]: https://github.com/hacs/integration
+[homeassistant-badge]: https://img.shields.io/badge/Home%20Assistant-18BCF2?style=for-the-badge&logo=Home%20Assistant&logoColor=white
+[homeassistant]: https://www.home-assistant.io/
