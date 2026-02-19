@@ -454,8 +454,8 @@ class MQTTBackend:
     ) -> None:
         """Publish dynamic effect to Z2M device.
 
-        IMPORTANT: Payload order matters per Z2M requirements.
-        Order: effect, effect_speed, effect_colors, [effect_segments]
+        Payload key order is device-dependent (T2 requires speed before
+        colors, T1M/T1 Strip benefit from colors before speed).
 
         Note: Brightness should be set using Home Assistant light.turn_on service,
         not via MQTT, as Z2M converters don't accept brightness with effect commands.
@@ -467,7 +467,11 @@ class MQTTBackend:
         """
         base_topic = self._get_base_topic(z2m_base_topic)
         topic = f"{base_topic}/{z2m_friendly_name}/set"
-        payload = effect.to_mqtt_payload()
+
+        # Look up device model for payload ordering
+        device = self.entry.runtime_data.devices_by_name.get(z2m_friendly_name)
+        device_model = device.model_id if device else None
+        payload = effect.to_mqtt_payload(device_model)
 
         _LOGGER.debug(
             "Publishing dynamic effect to %s: %s", z2m_friendly_name, payload

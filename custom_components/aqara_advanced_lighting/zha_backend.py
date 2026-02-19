@@ -537,14 +537,17 @@ class ZHABackend:
         speed: int,
         colors_payload: bytes,
         segments_mask: bytes | None = None,
+        device_model: str | None = None,
     ) -> None:
         """Write all effect attributes in the correct order.
 
-        Order: segments mask (strip only) -> type -> speed -> colors.
-        Matches the Z2M converter processing order. Writing colors last
-        ensures the device has the effect mode and speed configured before
-        receiving the color palette, preventing color overwrite by defaults.
+        T2: segments -> type -> speed -> colors (speed restarts effect
+            with default colors, so colors must come last to overwrite).
+        T1M/T1 Strip: segments -> type -> colors -> speed (colors first
+            for faster rendering, speed is a live adjustment).
         """
+        from .const import T2_RGB_MODELS
+
         if segments_mask is not None:
             await self._write_cluster_attribute(
                 ieee_str, ATTR_EFFECT_SEGMENTS_MASK, segments_mask
@@ -553,12 +556,23 @@ class ZHABackend:
         await self._write_cluster_attribute(
             ieee_str, ATTR_EFFECT_TYPE, effect_type_value
         )
-        await self._write_cluster_attribute(
-            ieee_str, ATTR_EFFECT_SPEED, speed
-        )
-        await self._write_cluster_attribute(
-            ieee_str, ATTR_EFFECT_COLORS, colors_payload
-        )
+
+        if device_model and device_model in T2_RGB_MODELS:
+            # T2: speed before colors (speed restart loads default colors)
+            await self._write_cluster_attribute(
+                ieee_str, ATTR_EFFECT_SPEED, speed
+            )
+            await self._write_cluster_attribute(
+                ieee_str, ATTR_EFFECT_COLORS, colors_payload
+            )
+        else:
+            # T1M/T1 Strip: colors before speed (speed is live adjustment)
+            await self._write_cluster_attribute(
+                ieee_str, ATTR_EFFECT_COLORS, colors_payload
+            )
+            await self._write_cluster_attribute(
+                ieee_str, ATTR_EFFECT_SPEED, speed
+            )
 
     # --- Effects ---
 
@@ -615,6 +629,7 @@ class ZHABackend:
             effect.effect_speed,
             colors_payload,
             segments_mask,
+            device_model=device.model_id,
         )
 
         _LOGGER.debug(

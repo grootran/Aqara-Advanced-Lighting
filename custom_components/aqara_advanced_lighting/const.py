@@ -109,6 +109,15 @@ MODEL_T2_CCT_E27: Final = "lumi.light.agl004"
 MODEL_T2_CCT_GU10_230V: Final = "lumi.light.agl006"
 MODEL_T2_CCT_GU10_110V: Final = "lumi.light.agl008"
 
+# T2 RGB models require effect_speed before effect_colors in MQTT payload
+# Writing speed restarts the effect with default colors on T2 firmware
+T2_RGB_MODELS: Final = frozenset({
+    MODEL_T2_BULB_E26,
+    MODEL_T2_BULB_E27,
+    MODEL_T2_BULB_GU10_230V,
+    MODEL_T2_BULB_GU10_110V,
+})
+
 # CIE 1931 color gamut triangles for Aqara lights
 # These define the actual color space the lights can produce
 # Format: [(red_x, red_y), (green_x, green_y), (blue_x, blue_y)]
