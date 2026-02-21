@@ -73,9 +73,6 @@ ATTR_EFFECT_SEGMENTS_MASK = 0x0530
 # Default endpoint for manufacturer-specific writes
 DEFAULT_ENDPOINT = 1
 
-# Delay between segment color group writes (seconds)
-SEGMENT_GROUP_DELAY = 0.05
-
 # Effect type enum values per device family
 EFFECT_ENUM_T2: dict[str, int] = {
     "off": 0,
@@ -546,10 +543,13 @@ class ZHABackend:
     ) -> None:
         """Write all effect attributes in the correct order.
 
-        T2: segments -> type -> speed -> colors (speed restarts effect
-            with default colors, so colors must come last to overwrite).
-        T1M/T1 Strip: segments -> type -> colors -> speed (colors first
-            for faster rendering, speed is a live adjustment).
+        T2: segments -> type+speed (combined) -> colors.
+            Speed restarts effect with default colors, so colors must
+            come last to overwrite. Type and speed are combined into a
+            single ZCL frame to save one Zigbee round-trip.
+        T1M/T1 Strip: segments -> type -> colors+speed (combined).
+            Colors before speed for faster rendering. Speed is a live
+            adjustment so it can share a frame with colors.
         """
         from .const import T2_RGB_MODELS
 
@@ -558,25 +558,35 @@ class ZHABackend:
                 ieee_str, ATTR_EFFECT_SEGMENTS_MASK, segments_mask
             )
 
-        await self._write_cluster_attribute(
-            ieee_str, ATTR_EFFECT_TYPE, effect_type_value
-        )
+        cluster = self._get_aqara_cluster(ieee_str)
+        if not cluster:
+            _LOGGER.error(
+                "Aqara cluster not found for effect write: %s", ieee_str
+            )
+            return
 
-        if device_model and device_model in T2_RGB_MODELS:
-            # T2: speed before colors (speed restart loads default colors)
-            await self._write_cluster_attribute(
-                ieee_str, ATTR_EFFECT_SPEED, speed
-            )
-            await self._write_cluster_attribute(
-                ieee_str, ATTR_EFFECT_COLORS, colors_payload
-            )
-        else:
-            # T1M/T1 Strip: colors before speed (speed is live adjustment)
-            await self._write_cluster_attribute(
-                ieee_str, ATTR_EFFECT_COLORS, colors_payload
-            )
-            await self._write_cluster_attribute(
-                ieee_str, ATTR_EFFECT_SPEED, speed
+        try:
+            if device_model and device_model in T2_RGB_MODELS:
+                # T2: type+speed combined, then colors separately
+                await cluster.write_attributes({
+                    ATTR_EFFECT_TYPE: effect_type_value,
+                    ATTR_EFFECT_SPEED: speed,
+                })
+                await cluster.write_attributes({
+                    ATTR_EFFECT_COLORS: colors_payload,
+                })
+            else:
+                # T1M/T1 Strip: type first, then colors+speed combined
+                await cluster.write_attributes({
+                    ATTR_EFFECT_TYPE: effect_type_value,
+                })
+                await cluster.write_attributes({
+                    ATTR_EFFECT_COLORS: colors_payload,
+                    ATTR_EFFECT_SPEED: speed,
+                })
+        except Exception:
+            _LOGGER.exception(
+                "Failed to write effect attributes to %s", ieee_str
             )
 
     # --- Effects ---
@@ -732,7 +742,7 @@ class ZHABackend:
             ATTR_T1M_SEGMENT if device_family == "t1m" else ATTR_STRIP_SEGMENT
         )
 
-        for i, ((r, g, b, brightness), seg_nums) in enumerate(groups.items()):
+        for (r, g, b, brightness), seg_nums in groups.items():
             color = RGBColor(r=r, g=g, b=b)
 
             if device_family == "t1m":
@@ -743,10 +753,6 @@ class ZHABackend:
                 )
 
             await self._write_cluster_attribute(ieee_str, attr_id, payload)
-
-            # Delay between groups (matching Z2M converter behavior)
-            if i < len(groups) - 1:
-                await asyncio.sleep(SEGMENT_GROUP_DELAY)
 
         _LOGGER.debug(
             "Sent segment pattern to %s: %d color groups", entity_id, len(groups)

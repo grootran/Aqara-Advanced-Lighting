@@ -30,9 +30,6 @@ SERVICE_STOP_SEGMENT_SEQUENCE: Final = "stop_segment_sequence"
 SERVICE_PAUSE_SEGMENT_SEQUENCE: Final = "pause_segment_sequence"
 SERVICE_RESUME_SEGMENT_SEQUENCE: Final = "resume_segment_sequence"
 
-# Group synchronization delay (seconds between commands for synced groups)
-GROUP_SYNC_DELAY: Final = 0.05
-
 # Service attributes
 ATTR_Z2M_BASE_TOPIC: Final = "z2m_base_topic"
 ATTR_EFFECT: Final = "effect"

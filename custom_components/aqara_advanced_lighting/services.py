@@ -1153,8 +1153,8 @@ async def _ensure_light_on(
             context=_get_context_and_record(hass, entity_id),
         )
 
-        # Give the light a moment to turn on
-        await asyncio.sleep(0.5)
+        # Give the light a moment to turn on (blocking=True already confirms dispatch)
+        await asyncio.sleep(0.25)
 
         return True
     except Exception as ex:
@@ -1711,8 +1711,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         context=_get_context_and_record(hass, entity_id),
                     )
                     _LOGGER.debug("Set brightness to %s for T1 Strip %s before segment pattern", brightness, entity_id)
-                    # Small delay to ensure state is updated before segment command
-                    await asyncio.sleep(0.1)
+                    # Brief delay for Z2M state propagation (blocking=True confirms dispatch)
+                    await asyncio.sleep(0.05)
                 except Exception as ex:
                     _LOGGER.warning("Failed to set brightness for %s: %s", entity_id, ex)
 
@@ -1901,8 +1901,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         context=_get_context_and_record(hass, entity_id),
                     )
                     _LOGGER.debug("Set brightness to %s for T1 Strip %s before gradient", brightness, entity_id)
-                    # Small delay to ensure state is updated before segment command
-                    await asyncio.sleep(0.1)
+                    # Brief delay for Z2M state propagation (blocking=True confirms dispatch)
+                    await asyncio.sleep(0.05)
                 except Exception as ex:
                     _LOGGER.warning("Failed to set brightness for %s: %s", entity_id, ex)
 
@@ -2070,8 +2070,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         context=_get_context_and_record(hass, entity_id),
                     )
                     _LOGGER.debug("Set brightness to %s for T1 Strip %s before blocks", brightness, entity_id)
-                    # Small delay to ensure state is updated before segment command
-                    await asyncio.sleep(0.1)
+                    # Brief delay for Z2M state propagation (blocking=True confirms dispatch)
+                    await asyncio.sleep(0.05)
                 except Exception as ex:
                     _LOGGER.warning("Failed to set brightness for %s: %s", entity_id, ex)
 
