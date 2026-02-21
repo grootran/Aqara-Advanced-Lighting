@@ -26,10 +26,17 @@ from .const import (
     EVENT_DYNAMIC_SCENE_RESUMED,
     EVENT_DYNAMIC_SCENE_STARTED,
     EVENT_DYNAMIC_SCENE_STOPPED,
+    MIN_TRANSITION_STEPS,
     SEQUENCE_TYPE_DYNAMIC_SCENE,
+    SOFTWARE_TRANSITION_MODELS,
     brightness_percent_to_device,
 )
 from .models import DynamicScene, DynamicSceneColor
+from .transition_utils import (
+    ease_in_out_cubic,
+    get_entity_model_id,
+    get_software_step_interval,
+)
 
 if TYPE_CHECKING:
     from .entity_controller import EntityController
@@ -69,6 +76,9 @@ class SceneState:
     initial_applied: bool = False
     # Entities paused by external changes or detached by cross-type conflicts
     externally_paused_entities: set[str] = field(default_factory=set)
+    # T1-family entities needing software-interpolated transitions
+    # Maps entity_id -> model_id for per-entity interval calculation
+    software_transition_entities: dict[str, str] = field(default_factory=dict)
 
 
 class DynamicSceneManager:
@@ -139,6 +149,19 @@ class DynamicSceneManager:
         if scene.distribution_mode == "shuffle_rotate":
             hue_sorted_indices = self._get_hue_sorted_indices(scene.colors)
 
+        # Resolve which entities need software-interpolated transitions
+        software_transition_entities: dict[str, str] = {}
+        for entity_id in light_order:
+            model_id = get_entity_model_id(self.hass, entity_id)
+            if model_id and model_id in SOFTWARE_TRANSITION_MODELS:
+                software_transition_entities[entity_id] = model_id
+
+        if software_transition_entities:
+            _LOGGER.debug(
+                "Software transitions for %d entities in scene",
+                len(software_transition_entities),
+            )
+
         # Create scene state
         scene_state = SceneState(
             scene_id=scene_id,
@@ -148,6 +171,7 @@ class DynamicSceneManager:
             light_color_indices=light_color_indices,
             light_order=light_order,
             hue_sorted_indices=hue_sorted_indices,
+            software_transition_entities=software_transition_entities,
         )
         self._scene_states[scene_id] = scene_state
 
@@ -888,6 +912,9 @@ class DynamicSceneManager:
             else None
         )
 
+        # Collect software transition tasks for T1-family devices
+        software_tasks: list[asyncio.Task[None]] = []
+
         for i, entity_id in enumerate(light_order):
             if stop_event.is_set():
                 return
@@ -920,47 +947,223 @@ class DynamicSceneManager:
                 color.brightness_pct
             )
 
-            # Record command timestamp to suppress state echo detection
-            if self._entity_controller:
-                self._entity_controller.record_command(entity_id)
+            # Check if this entity needs software-interpolated transitions
+            model_id = scene_state.software_transition_entities.get(entity_id)
+            if model_id and transition_time > 0:
+                # Launch async task for software interpolation
+                task = asyncio.create_task(
+                    self._software_color_transition(
+                        entity_id,
+                        color.x,
+                        color.y,
+                        effective_brightness,
+                        transition_time,
+                        model_id,
+                        stop_event,
+                        context,
+                    )
+                )
+                software_tasks.append(task)
 
-            # Send XY color directly for better precision (avoids RGB conversion loss)
-            await self.hass.services.async_call(
-                "light",
-                "turn_on",
-                {
-                    ATTR_ENTITY_ID: entity_id,
-                    "xy_color": [color.x, color.y],
-                    "brightness": effective_brightness,
-                    "transition": transition_time,
-                },
-                blocking=False,
-                context=context,
-            )
+                _LOGGER.debug(
+                    "Software transition for color %d on %s: "
+                    "XY(%.4f,%.4f) brightness=%d transition=%ss",
+                    color_index,
+                    entity_id,
+                    color.x,
+                    color.y,
+                    effective_brightness,
+                    transition_time,
+                )
+            else:
+                # Hardware transition path (T2, generic, or initial instant)
+                # Record command timestamp to suppress state echo detection
+                if self._entity_controller:
+                    self._entity_controller.record_command(entity_id)
 
-            _LOGGER.debug(
-                "Applied color %d to %s: XY(%.4f,%.4f) brightness=%d transition=%ss%s",
-                color_index,
-                entity_id,
-                color.x,
-                color.y,
-                effective_brightness,
-                transition_time,
-                " (initial)" if is_initial else "",
-            )
+                await self.hass.services.async_call(
+                    "light",
+                    "turn_on",
+                    {
+                        ATTR_ENTITY_ID: entity_id,
+                        "xy_color": [color.x, color.y],
+                        "brightness": effective_brightness,
+                        "transition": transition_time,
+                    },
+                    blocking=False,
+                    context=context,
+                )
+
+                _LOGGER.debug(
+                    "Applied color %d to %s: XY(%.4f,%.4f) brightness=%d "
+                    "transition=%ss%s",
+                    color_index,
+                    entity_id,
+                    color.x,
+                    color.y,
+                    effective_brightness,
+                    transition_time,
+                    " (initial)" if is_initial else "",
+                )
 
         # Mark initial application complete
         if is_initial:
             scene_state.initial_applied = True
 
-        # Wait for transition to complete (skip wait on initial instant transition)
-        if transition_time > 0:
+        # Wait for transitions to complete (skip wait on initial instant transition)
+        if software_tasks:
+            # Software transition tasks each take transition_time seconds;
+            # gather waits for all to finish (or stop early via stop_event)
+            await asyncio.gather(*software_tasks, return_exceptions=True)
+        elif transition_time > 0:
+            # Hardware-only: wait for transition to complete
             try:
                 await asyncio.wait_for(
                     stop_event.wait(), timeout=transition_time
                 )
             except TimeoutError:
                 pass  # Normal - transition time elapsed
+
+    async def _software_color_transition(
+        self,
+        entity_id: str,
+        target_x: float,
+        target_y: float,
+        target_brightness: int,
+        transition_time: float,
+        model_id: str,
+        stop_event: asyncio.Event,
+        context: Any | None,
+    ) -> None:
+        """Perform software-interpolated color transition for T1-family devices.
+
+        T1M and T1 Strip devices don't fully support hardware transitions
+        for color changes. This method sends incremental light commands with
+        cubic easing to simulate smooth XY color and brightness transitions.
+
+        Args:
+            entity_id: The Home Assistant light entity ID
+            target_x: Target CIE x coordinate
+            target_y: Target CIE y coordinate
+            target_brightness: Target brightness level (1-255)
+            transition_time: Total transition time in seconds
+            model_id: Device model ID for interval selection
+            stop_event: Event to signal interruption
+            context: HA context for service calls
+        """
+        # Read current state as starting point
+        state = self.hass.states.get(entity_id)
+        if state is None or state.state == "unavailable":
+            _LOGGER.debug(
+                "Entity %s unavailable, applying target directly", entity_id
+            )
+            if self._entity_controller:
+                self._entity_controller.record_command(entity_id)
+            await self.hass.services.async_call(
+                "light",
+                "turn_on",
+                {
+                    ATTR_ENTITY_ID: entity_id,
+                    "xy_color": [target_x, target_y],
+                    "brightness": target_brightness,
+                },
+                blocking=False,
+                context=context,
+            )
+            return
+
+        # Get current XY color and brightness
+        current_xy = state.attributes.get("xy_color")
+        if current_xy and len(current_xy) == 2:
+            start_x, start_y = current_xy
+        else:
+            start_x, start_y = target_x, target_y
+
+        start_brightness = state.attributes.get("brightness", target_brightness)
+
+        # Calculate step interval and count
+        step_interval = get_software_step_interval(model_id, transition_time)
+        num_steps = max(
+            MIN_TRANSITION_STEPS, round(transition_time / step_interval)
+        )
+        actual_interval = transition_time / num_steps
+
+        # Ensure actual_interval never drops below model minimum
+        if actual_interval < step_interval:
+            num_steps = max(1, round(transition_time / step_interval))
+            actual_interval = transition_time / num_steps
+
+        _LOGGER.debug(
+            "Software color transition for %s (%s): %d steps, %.2fs interval, "
+            "XY(%.4f,%.4f)->XY(%.4f,%.4f), brightness %d->%d",
+            entity_id,
+            model_id,
+            num_steps,
+            actual_interval,
+            start_x,
+            start_y,
+            target_x,
+            target_y,
+            start_brightness,
+            target_brightness,
+        )
+
+        for step in range(1, num_steps + 1):
+            # Check for stop before each sub-step
+            if stop_event.is_set():
+                _LOGGER.debug(
+                    "Software color transition stopped for %s", entity_id
+                )
+                return
+
+            # Calculate eased progress
+            t = step / num_steps
+            eased_t = ease_in_out_cubic(t)
+
+            # Interpolate XY coordinates and brightness
+            x = start_x + (target_x - start_x) * eased_t
+            y = start_y + (target_y - start_y) * eased_t
+            brightness = round(
+                start_brightness
+                + (target_brightness - start_brightness) * eased_t
+            )
+
+            # Record command and send without transition parameter
+            if self._entity_controller:
+                self._entity_controller.record_command(entity_id)
+
+            await self.hass.services.async_call(
+                "light",
+                "turn_on",
+                {
+                    ATTR_ENTITY_ID: entity_id,
+                    "xy_color": [round(x, 4), round(y, 4)],
+                    "brightness": brightness,
+                },
+                blocking=False,
+                context=context,
+            )
+
+            # Wait before next sub-step (interruptible)
+            if step < num_steps:
+                try:
+                    await asyncio.wait_for(
+                        stop_event.wait(), timeout=actual_interval
+                    )
+                    _LOGGER.debug(
+                        "Software color transition interrupted for %s at"
+                        " step %d/%d",
+                        entity_id,
+                        step,
+                        num_steps,
+                    )
+                    return
+                except TimeoutError:
+                    pass
+
+        _LOGGER.debug(
+            "Software color transition complete for %s", entity_id
+        )
 
     def _advance_colors(self, scene_state: SceneState) -> None:
         """Advance color indices for the next iteration."""

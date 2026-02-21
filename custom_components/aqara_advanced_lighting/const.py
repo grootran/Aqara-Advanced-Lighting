@@ -118,6 +118,28 @@ T2_RGB_MODELS: Final = frozenset({
     MODEL_T2_BULB_GU10_110V,
 })
 
+# T1-family models that need software-interpolated CCT transitions
+# These devices ignore or partially ignore the transition parameter:
+# - T1M: Fixed ~2s hardware transition, ignores requested duration
+# - T1 Strip: Supports brightness transitions but not color temp transitions
+SOFTWARE_TRANSITION_MODELS: Final = frozenset({
+    MODEL_T1M_20_SEGMENT,   # lumi.light.acn031
+    MODEL_T1M_26_SEGMENT,   # lumi.light.acn032
+    MODEL_T1_STRIP,         # lumi.light.acn132
+})
+
+# T1M models have a fixed ~2s hardware transition that smooths each sub-step
+T1M_MODELS: Final = frozenset({
+    MODEL_T1M_20_SEGMENT,
+    MODEL_T1M_26_SEGMENT,
+})
+
+# Minimum step intervals for software-interpolated transitions (seconds)
+# T1M: Longer interval since hardware provides ~2s smoothing between steps
+# T1 Strip: Shorter interval since color temp changes are instant
+SOFTWARE_TRANSITION_T1M_INTERVAL: Final = 2.0
+SOFTWARE_TRANSITION_T1_STRIP_INTERVAL: Final = 0.5
+
 # CIE 1931 color gamut triangles for Aqara lights
 # These define the actual color space the lights can produce
 # Format: [(red_x, red_y), (green_x, green_y), (blue_x, blue_y)]
