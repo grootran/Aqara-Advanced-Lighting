@@ -1,9 +1,9 @@
-# Aqara Advanced Lighting v0.13.0
+# Aqara Advanced Lighting v0.13.1
 
 ## Upgrade Instructions
 
-**Upgrading from v0.12.x:**
-1. Update via HACS to v0.13.0
+**Upgrading from v0.13.0:**
+1. Update via HACS to v0.13.1
 2. Restart Home Assistant
 3. Clear browser cache (Ctrl+Shift+R or Cmd+Shift+R), clear HA app cache
 
@@ -13,102 +13,51 @@ Your existing configuration, presets, and favorites are automatically preserved.
 
 ### What's New
 
-Version 0.13.0 adds ZHA backend support as an alternative to Zigbee2MQTT, an image color extractor for dynamic scene presets, T1 Strip audio sync controls, dynamic scene color assignment overrides, and an ignore external changes toggle.
+Version 0.13.1 adds software-interpolated transitions for T1-family devices, optimizes effect attribute write order per device type, and reduces activation timing delays.
 
 ### New Features
 
-#### **ZHA Backend Support**
+#### **Software-Interpolated Transitions for T1-Family Devices**
 
-**Full ZHA integration alongside Zigbee2MQTT**
+**CCT and color transitions on T1M and T1 Strip**
 
-Use Aqara advanced lighting features through the ZHA integration without requiring Zigbee2MQTT
+T1M and T1 Strip devices don't fully support hardware transitions (T1M has a fixed ~2s transition that ignores requested duration; T1 Strip supports brightness transitions but not color temperature). This release adds software interpolation to simulate smoother longer transitions on these devices.
 
-  - Custom zigpy quirks for each supported device type (T2 bulbs, T1M, T1 Strip)
-  - Direct Zigbee cluster attribute writes for effects, segment patterns, and segment sequences
-  - Config flow support for quirked ZHA devices
-  - ZHA installation instructions added to README
-
-#### **Image Color Extractor**
-
-**Extract colors from images for dynamic scene presets**
-
-  - Upload or link an image to automatically extract a color palette
-  - Extracted colors populate directly into the dynamic scene editor
-
-#### **T1 Strip Audio Sync**
-
-**Frontend controls for T1 Strip music synchronization mode**
-
-  - Audio sync toggle, sensitivity, and effect controls in the panel
-  - 2 device triggers: music sync enabled, music sync disabled (with sensitivity and audio effect in event data)
-  - 1 device condition: music sync is active
-
-#### **Dynamic Scene Color Assignment Override**
-
-**Override color-to-light assignment when activating scenes**
-
-  - Manually assign scene color distribution
-  - Brightness activation override for per-scene control
-
-#### **Ignore External Changes Toggle**
-
-**Prevent external changes from pausing running operations**
-
-  - Toggle to ignore external state changes on entities running sequences or scenes
-  - Prevents false external pause detection from other automations or manual adjustments
+  - Cubic easing for natural-looking transitions
+  - Per-device step intervals: T1M minimum 2.0s (hardware smooths between steps), T1 Strip minimum 0.5s
+  - CCT transitions in both MQTT and ZHA backends
+  - XY color transitions in both MQTT and ZHA backends
+  - Interruptible at any sub-step via stop events
 
 ### Improvements
 
-#### **Device Registry Merging**
+#### **Device-Specific Effect Attribute Write Order**
 
-**Aqara Advanced Lighting devices now share the existing MQTT/ZHA device instead of creating duplicates**
+**Optimized MQTT payload and ZCL write order per device type**
 
-  - The integration now merges into the existing MQTT or ZHA device in the Home Assistant device registry rather than creating a separate device for each light
-  - For Z2M: uses shared MQTT identifiers so Home Assistant recognizes both integrations belong to the same physical device
-  - For ZHA: uses Zigbee IEEE connection matching for automatic device merging
-  - Users see one device per physical light with both integrations listed
-  - Old standalone devices from previous versions are automatically removed on upgrade
-  - Installing the integration does not affect existing MQTT/ZHA device setups
-  - See [Breaking Changes](#breaking-changes) for upgrade notes on device automations
+  - T2 bulbs: speed before colors (writing speed restarts the effect with default colors on T2 firmware)
+  - T1M and T1 Strip: colors before speed (speed is a live adjustment, colors render faster this way)
+  - ZHA backend combines related attributes into single ZCL frames to reduce Zigbee round-trips
 
-#### **Unified State Restoration**
+#### **Reduced Activation Timing Delays**
 
-**Shared StateManager helper for all operation types**
-
-  - Consolidated state restoration logic into a shared StateManager helper
-  - Consistent save/restore behavior across effects, sequences, and scenes
-  - Cleaner codebase with reduced duplication
-
-### Bug Fixes
-
-- **Fixed auto-fill for new sequence steps** - New CCT and segment sequence steps now auto-fill with the previous step's settings instead of defaults
-- **Fixed false external pause detection** - Operations no longer incorrectly detect external changes and pause themselves
-- **Fixed deprecated `color_temp` usage** - State restore service calls now use the correct color temperature attribute
-- **Fixed tab compatibility detection** - Frontend now uses `device_type` from the backend API for reliable tab compatibility checks
-- **Fixed device type dropdown** - Device type dropdown now correctly updates when changing the selected entity
-- **Fixed brightness override persistence** - Brightness override setting is now properly stored in user preferences
-- **Fixed effects and patterns stopping sequences** - Effects and patterns now call `stop_all_for_entity` to fully stop running sequences instead of pausing and resuming them
+  - Light turn-on delay reduced from 0.5s to 0.25s
+  - T1 Strip brightness pre-set delay reduced from 0.1s to 0.05s
+  - Removed unnecessary inter-group delays between ZHA segment writes
 
 ### Breaking Changes
 
-#### **Device Automation Re-selection**
-
-**Device triggers and conditions require re-selection after upgrading**
-
-  - The old standalone Aqara Advanced Lighting device is removed during upgrade and replaced by the merged MQTT/ZHA device (see [Improvements](#improvements))
-  - **Action required:** If you have device automations (triggers or conditions) targeting the old standalone Aqara Advanced Lighting device, you will need to re-select the device in those automations after upgrading
+None. This release is fully backward compatible with v0.13.0. If updrading from an earlier version, see breaking changes in v0.13.0 changelog.
 
 ### Compatibility
 
 - All existing presets, favorites, and configurations preserved
 - No configuration changes required
 - All previous features and APIs unchanged
-- ZHA support works alongside existing Zigbee2MQTT setups
-- Device automations using triggers or conditions need device re-selection (see breaking changes above)
 
 ## Full Changelog
 
-[View full changelog](https://github.com/absent42/Aqara-Advanced-Lighting/blob/main/CHANGELOG.md#0130---2026-02-15)
+[View full changelog](https://github.com/absent42/Aqara-Advanced-Lighting/blob/main/CHANGELOG.md#0131---2026-02-21)
 
 ## Support
 

@@ -2,6 +2,59 @@
 
 All notable changes to the Aqara Advanced Lighting integration will be documented in this file.
 
+## [0.13.1] - 2026-02-21
+
+### What's New
+
+Version 0.13.1 adds software-interpolated transitions for T1-family devices, optimizes effect attribute write order per device type, and reduces activation timing delays.
+
+### New Features
+
+#### **Software-Interpolated Transitions for T1-Family Devices**
+
+**Smooth CCT and color transitions on T1M and T1 Strip**
+
+T1M and T1 Strip devices don't fully support hardware transitions (T1M has a fixed ~2s transition that ignores requested duration; T1 Strip supports brightness transitions but not color temperature). This release adds software interpolation to simulate smoother longer transitions on these devices.
+
+  - Cubic easing (`ease_in_out_cubic`) for natural-looking transitions
+  - Per-device step intervals: T1M minimum 2.0s (hardware smooths between steps), T1 Strip minimum 0.5s
+  - Adaptive interval scaling: shorter intervals for quick transitions, longer for extended sequences
+  - Interruptible at any sub-step via stop events
+  - CCT transitions in both MQTT and ZHA backends
+  - XY color transitions in both MQTT and ZHA backends
+  - Shared `transition_utils.py` module used by both backends and the scene manager
+  - Falls back to direct application if entity is unavailable
+
+### Improvements
+
+#### **Device-Specific Effect Attribute Write Order**
+
+**Optimized MQTT payload and ZCL write order per device type**
+
+  - T2 bulbs: effect type and speed are written before colors (writing speed restarts the effect with default colors, so colors must come last)
+  - T1M and T1 Strip: effect type is written first, then colors and speed together (speed is a live adjustment on T1-family, so colors before speed gives faster visual rendering)
+  - ZHA backend combines related attributes into single ZCL frames to reduce Zigbee round-trips
+  - `DynamicEffect.to_mqtt_payload()` now accepts `device_model` parameter for per-device ordering
+
+#### **Reduced Activation Timing Delays**
+
+  - Light turn-on delay reduced from 0.5s to 0.25s (blocking service call already confirms dispatch)
+  - T1 Strip brightness pre-set delay reduced from 0.1s to 0.05s for segment patterns, gradients, and blocks
+  - Removed unnecessary `GROUP_SYNC_DELAY` constant
+  - Removed inter-group delay between ZHA segment color writes
+
+### Breaking Changes
+
+None. This release is fully backward compatible with v0.13.0.
+
+### Compatibility
+
+- All existing presets, favorites, and configurations preserved
+- No configuration changes required
+- All previous features and APIs unchanged
+
+---
+
 ## [0.13.0] - 2026-02-15
 
 ### What's New
@@ -1595,4 +1648,5 @@ One click HACS cutton
 [0.10.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.10.0
 [0.11.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.11.0
 [0.12.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.12.0
+[0.13.1]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.13.1
 [0.13.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.13.0
