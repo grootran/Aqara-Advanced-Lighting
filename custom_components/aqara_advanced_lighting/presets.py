@@ -561,13 +561,13 @@ CCT_SEQUENCE_PRESETS: Final[dict[str, dict[str, Any]]] = {
             {
                 "color_temp": 3500,
                 "brightness": 50,  # 20%
-                "transition": 1.5,
+                "transition": 2.0,
                 "hold": 0.5,
             },
             {
                 "color_temp": 4900,
                 "brightness": 204,  # 80%
-                "transition": 2.0,
+                "transition": 2.5,
                 "hold": 0.5,
             },
         ],

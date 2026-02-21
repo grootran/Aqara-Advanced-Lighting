@@ -20,6 +20,7 @@ from homeassistant.helpers.device_registry import CONNECTION_ZIGBEE
 
 from .const import (
     DOMAIN,
+    MIN_TRANSITION_STEPS,
     MODEL_FRIENDLY_NAMES,
     MODEL_T1M_20_SEGMENT,
     MODEL_T1M_26_SEGMENT,
@@ -34,7 +35,10 @@ from .const import (
     MODEL_T2_CCT_GU10_230V,
     MUSIC_SYNC_EFFECT_ENUM,
     MUSIC_SYNC_SENSITIVITY_ENUM,
+    SOFTWARE_TRANSITION_MODELS,
+    T1M_MODELS,
 )
+from .transition_utils import ease_in_out_cubic, get_software_step_interval
 from .models import AqaraDevice, DynamicEffect, RGBColor, SegmentColor
 from .mqtt_backend import SUPPORTED_MODELS
 from .payload_builder import (
@@ -49,6 +53,7 @@ if TYPE_CHECKING:
     from .models import AqaraLightingConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
+
 
 # Aqara manufacturer-specific Zigbee cluster ID
 CLUSTER_MANU_SPECIFIC_LUMI = 0xFCC0
@@ -67,9 +72,6 @@ ATTR_EFFECT_SEGMENTS_MASK = 0x0530
 
 # Default endpoint for manufacturer-specific writes
 DEFAULT_ENDPOINT = 1
-
-# Delay between segment color group writes (seconds)
-SEGMENT_GROUP_DELAY = 0.05
 
 # Effect type enum values per device family
 EFFECT_ENUM_T2: dict[str, int] = {
@@ -101,7 +103,7 @@ EFFECT_ENUM_STRIP: dict[str, int] = {
 }
 
 # Device family classification by model ID
-T1M_MODELS = {MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT}
+# T1M_MODELS is imported from const.py as a frozenset
 T1_STRIP_MODELS = {MODEL_T1_STRIP}
 T2_BULB_MODELS = {
     MODEL_T2_BULB_E26,
@@ -537,28 +539,55 @@ class ZHABackend:
         speed: int,
         colors_payload: bytes,
         segments_mask: bytes | None = None,
+        device_model: str | None = None,
     ) -> None:
         """Write all effect attributes in the correct order.
 
-        Order: segments mask (strip only) -> type -> speed -> colors.
-        Matches the Z2M converter processing order. Writing colors last
-        ensures the device has the effect mode and speed configured before
-        receiving the color palette, preventing color overwrite by defaults.
+        T2: segments -> type+speed (combined) -> colors.
+            Speed restarts effect with default colors, so colors must
+            come last to overwrite. Type and speed are combined into a
+            single ZCL frame to save one Zigbee round-trip.
+        T1M/T1 Strip: segments -> type -> colors+speed (combined).
+            Colors before speed for faster rendering. Speed is a live
+            adjustment so it can share a frame with colors.
         """
+        from .const import T2_RGB_MODELS
+
         if segments_mask is not None:
             await self._write_cluster_attribute(
                 ieee_str, ATTR_EFFECT_SEGMENTS_MASK, segments_mask
             )
 
-        await self._write_cluster_attribute(
-            ieee_str, ATTR_EFFECT_TYPE, effect_type_value
-        )
-        await self._write_cluster_attribute(
-            ieee_str, ATTR_EFFECT_SPEED, speed
-        )
-        await self._write_cluster_attribute(
-            ieee_str, ATTR_EFFECT_COLORS, colors_payload
-        )
+        cluster = self._get_aqara_cluster(ieee_str)
+        if not cluster:
+            _LOGGER.error(
+                "Aqara cluster not found for effect write: %s", ieee_str
+            )
+            return
+
+        try:
+            if device_model and device_model in T2_RGB_MODELS:
+                # T2: type+speed combined, then colors separately
+                await cluster.write_attributes({
+                    ATTR_EFFECT_TYPE: effect_type_value,
+                    ATTR_EFFECT_SPEED: speed,
+                })
+                await cluster.write_attributes({
+                    ATTR_EFFECT_COLORS: colors_payload,
+                })
+            else:
+                # T1M/T1 Strip: type first, then colors+speed combined
+                await cluster.write_attributes({
+                    ATTR_EFFECT_TYPE: effect_type_value,
+                })
+                await cluster.write_attributes({
+                    ATTR_EFFECT_COLORS: colors_payload,
+                    ATTR_EFFECT_SPEED: speed,
+                })
+        except Exception:
+            _LOGGER.exception(
+                "Failed to write effect attributes to %s", ieee_str
+            )
 
     # --- Effects ---
 
@@ -615,6 +644,7 @@ class ZHABackend:
             effect.effect_speed,
             colors_payload,
             segments_mask,
+            device_model=device.model_id,
         )
 
         _LOGGER.debug(
@@ -712,7 +742,7 @@ class ZHABackend:
             ATTR_T1M_SEGMENT if device_family == "t1m" else ATTR_STRIP_SEGMENT
         )
 
-        for i, ((r, g, b, brightness), seg_nums) in enumerate(groups.items()):
+        for (r, g, b, brightness), seg_nums in groups.items():
             color = RGBColor(r=r, g=g, b=b)
 
             if device_family == "t1m":
@@ -723,10 +753,6 @@ class ZHABackend:
                 )
 
             await self._write_cluster_attribute(ieee_str, attr_id, payload)
-
-            # Delay between groups (matching Z2M converter behavior)
-            if i < len(groups) - 1:
-                await asyncio.sleep(SEGMENT_GROUP_DELAY)
 
         _LOGGER.debug(
             "Sent segment pattern to %s: %d color groups", entity_id, len(groups)
@@ -756,10 +782,34 @@ class ZHABackend:
         """Apply a CCT step to a light entity using HA light service.
 
         Uses Home Assistant's light.turn_on service which works with any
-        Zigbee backend through standard ZCL clusters.
+        Zigbee backend through standard ZCL clusters. For T1-family devices
+        that don't support hardware transitions, this performs software
+        interpolation with cubic easing.
 
         Returns True if transition completed, False if interrupted.
         """
+        _LOGGER.info(
+            "Applying CCT step to %s: %dK, brightness %d, transition %ss",
+            entity_id,
+            color_temp_kelvin,
+            brightness,
+            transition,
+        )
+
+        # Check if this device needs software-interpolated transitions
+        if transition > 0:
+            device = self.get_device_for_entity(entity_id)
+            if device and device.model_id in SOFTWARE_TRANSITION_MODELS:
+                return await self._software_cct_transition(
+                    entity_id,
+                    color_temp_kelvin,
+                    brightness,
+                    transition,
+                    device.model_id,
+                    stop_event,
+                )
+
+        # Hardware transition path (T2 bulbs, generic lights)
         context = None
         if self._entity_controller:
             self._entity_controller.record_command(entity_id)
@@ -772,14 +822,6 @@ class ZHABackend:
         }
         if transition > 0:
             service_data["transition"] = transition
-
-        _LOGGER.info(
-            "Applying CCT step to %s: %dK, brightness %d, transition %ss",
-            entity_id,
-            color_temp_kelvin,
-            brightness,
-            transition,
-        )
 
         await self.hass.services.async_call(
             "light",
@@ -800,6 +842,146 @@ class ZHABackend:
         elif transition > 0:
             await asyncio.sleep(transition)
 
+        return True
+
+    async def _software_cct_transition(
+        self,
+        entity_id: str,
+        target_color_temp: int,
+        target_brightness: int,
+        transition: float,
+        model_id: str,
+        stop_event: asyncio.Event | None = None,
+    ) -> bool:
+        """Perform software-interpolated CCT transition for T1-family devices.
+
+        T1M and T1 Strip devices don't fully support hardware transitions.
+        This method sends incremental light commands with cubic easing to
+        simulate smooth transitions.
+
+        Args:
+            entity_id: The Home Assistant light entity ID
+            target_color_temp: Target color temperature in kelvin
+            target_brightness: Target brightness level (1-255)
+            transition: Total transition time in seconds
+            model_id: Device model ID for interval selection
+            stop_event: Optional event to signal interruption
+
+        Returns:
+            True if transition completed, False if interrupted
+        """
+        # Read current state as starting point
+        state = self.hass.states.get(entity_id)
+        if state is None or state.state == "unavailable":
+            _LOGGER.debug(
+                "Entity %s unavailable, applying target directly", entity_id
+            )
+            context = None
+            if self._entity_controller:
+                self._entity_controller.record_command(entity_id)
+                context = self._entity_controller.create_context()
+            await self.hass.services.async_call(
+                "light",
+                "turn_on",
+                {
+                    "entity_id": entity_id,
+                    "color_temp_kelvin": target_color_temp,
+                    "brightness": target_brightness,
+                },
+                blocking=True,
+                context=context,
+            )
+            return True
+
+        start_color_temp = state.attributes.get(
+            "color_temp_kelvin", target_color_temp
+        )
+        start_brightness = state.attributes.get("brightness", target_brightness)
+
+        # Calculate step interval and count
+        step_interval = get_software_step_interval(model_id, transition)
+        num_steps = max(MIN_TRANSITION_STEPS, round(transition / step_interval))
+        actual_interval = transition / num_steps
+
+        # Ensure actual_interval never drops below model minimum (can happen
+        # when MIN_TRANSITION_STEPS forces more steps than the device can
+        # handle, e.g. T1M with its fixed 2s hardware transition)
+        if actual_interval < step_interval:
+            num_steps = max(1, round(transition / step_interval))
+            actual_interval = transition / num_steps
+
+        _LOGGER.debug(
+            "Software transition for %s (%s): %d steps, %.2fs interval, "
+            "%dK->%dK, brightness %d->%d",
+            entity_id,
+            model_id,
+            num_steps,
+            actual_interval,
+            start_color_temp,
+            target_color_temp,
+            start_brightness,
+            target_brightness,
+        )
+
+        for step in range(1, num_steps + 1):
+            # Check for stop before each sub-step
+            if stop_event is not None and stop_event.is_set():
+                _LOGGER.debug("Software transition stopped for %s", entity_id)
+                return False
+
+            # Calculate eased progress
+            t = step / num_steps
+            eased_t = ease_in_out_cubic(t)
+
+            # Interpolate color temp and brightness
+            color_temp = round(
+                start_color_temp
+                + (target_color_temp - start_color_temp) * eased_t
+            )
+            brightness = round(
+                start_brightness
+                + (target_brightness - start_brightness) * eased_t
+            )
+
+            # Send without transition parameter
+            context = None
+            if self._entity_controller:
+                self._entity_controller.record_command(entity_id)
+                context = self._entity_controller.create_context()
+
+            await self.hass.services.async_call(
+                "light",
+                "turn_on",
+                {
+                    "entity_id": entity_id,
+                    "color_temp_kelvin": color_temp,
+                    "brightness": brightness,
+                },
+                blocking=True,
+                context=context,
+            )
+
+            # Wait before next sub-step (interruptible)
+            if step < num_steps:
+                if stop_event is not None:
+                    try:
+                        await asyncio.wait_for(
+                            stop_event.wait(), timeout=actual_interval
+                        )
+                        _LOGGER.debug(
+                            "Software transition interrupted for %s at step"
+                            " %d/%d",
+                            entity_id,
+                            step,
+                            num_steps,
+                        )
+                        return False
+                    except asyncio.TimeoutError:
+                        pass
+                else:
+                    await asyncio.sleep(actual_interval)
+
+        _LOGGER.debug("Software transition complete for %s", entity_id)
         return True
 
     async def async_turn_off_light(self, entity_id: str) -> None:

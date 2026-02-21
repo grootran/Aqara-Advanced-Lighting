@@ -14,6 +14,7 @@ from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from .const import (
     DOMAIN,
+    MIN_TRANSITION_STEPS,
     MODEL_FRIENDLY_NAMES,
     MODEL_T1M_20_SEGMENT,
     MODEL_T1M_26_SEGMENT,
@@ -30,8 +31,10 @@ from .const import (
     PAYLOAD_AUDIO_EFFECT,
     PAYLOAD_AUDIO_SENSITIVITY,
     PAYLOAD_SEGMENT_COLORS,
+    SOFTWARE_TRANSITION_MODELS,
     TOPIC_Z2M_BRIDGE_DEVICES,
 )
+from .transition_utils import ease_in_out_cubic, get_software_step_interval
 from .models import AqaraDevice, DynamicEffect, SegmentColor, Z2MDevice
 
 if TYPE_CHECKING:
@@ -41,20 +44,6 @@ if TYPE_CHECKING:
     from .models import AqaraLightingConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _ease_in_out_cubic(t: float) -> float:
-    """Cubic easing function for smooth transitions.
-
-    Args:
-        t: Progress from 0.0 to 1.0
-
-    Returns:
-        Eased value from 0.0 to 1.0
-    """
-    if t < 0.5:
-        return 4 * t * t * t
-    return 1 - pow(-2 * t + 2, 3) / 2
 
 
 # Supported Aqara light models
@@ -454,8 +443,8 @@ class MQTTBackend:
     ) -> None:
         """Publish dynamic effect to Z2M device.
 
-        IMPORTANT: Payload order matters per Z2M requirements.
-        Order: effect, effect_speed, effect_colors, [effect_segments]
+        Payload key order is device-dependent (T2 requires speed before
+        colors, T1M/T1 Strip benefit from colors before speed).
 
         Note: Brightness should be set using Home Assistant light.turn_on service,
         not via MQTT, as Z2M converters don't accept brightness with effect commands.
@@ -467,7 +456,11 @@ class MQTTBackend:
         """
         base_topic = self._get_base_topic(z2m_base_topic)
         topic = f"{base_topic}/{z2m_friendly_name}/set"
-        payload = effect.to_mqtt_payload()
+
+        # Look up device model for payload ordering
+        device = self.entry.runtime_data.devices_by_name.get(z2m_friendly_name)
+        device_model = device.model_id if device else None
+        payload = effect.to_mqtt_payload(device_model)
 
         _LOGGER.debug(
             "Publishing dynamic effect to %s: %s", z2m_friendly_name, payload
@@ -593,6 +586,9 @@ class MQTTBackend:
         with standard Zigbee clusters (genLevelCtrl, lightingColorCtrl). This
         avoids "No converter available" errors from Z2M custom converters.
 
+        For T1-family devices that don't support hardware transitions, this
+        performs software interpolation with cubic easing.
+
         Args:
             entity_id: The Home Assistant light entity ID
             color_temp_kelvin: Target color temperature in kelvin (2700-6500)
@@ -612,9 +608,20 @@ class MQTTBackend:
             transition,
         )
 
-        # Use HA light service for CCT control - this properly interfaces with
-        # standard Zigbee clusters (genLevelCtrl, lightingColorCtrl) and avoids
-        # "No converter available" errors from Z2M custom converters
+        # Check if this device needs software-interpolated transitions
+        if transition > 0:
+            device = self.get_device_for_entity(entity_id)
+            if device and device.model_id in SOFTWARE_TRANSITION_MODELS:
+                return await self._software_cct_transition(
+                    entity_id,
+                    color_temp_kelvin,
+                    brightness,
+                    transition,
+                    device.model_id,
+                    stop_event,
+                )
+
+        # Hardware transition path (T2 bulbs, generic lights)
         await self._apply_cct_values_via_service(
             entity_id, color_temp_kelvin, brightness, transition
         )
@@ -623,16 +630,130 @@ class MQTTBackend:
         if stop_event is not None and transition > 0:
             try:
                 await asyncio.wait_for(stop_event.wait(), timeout=transition)
-                # Stop event was set - transition was interrupted
                 _LOGGER.debug("Transition interrupted for %s", entity_id)
                 return False
             except asyncio.TimeoutError:
-                # Normal - transition completed
                 pass
         elif transition > 0:
             await asyncio.sleep(transition)
 
         _LOGGER.debug("Transition complete for %s", entity_id)
+        return True
+
+    async def _software_cct_transition(
+        self,
+        entity_id: str,
+        target_color_temp: int,
+        target_brightness: int,
+        transition: float,
+        model_id: str,
+        stop_event: asyncio.Event | None = None,
+    ) -> bool:
+        """Perform software-interpolated CCT transition for T1-family devices.
+
+        T1M and T1 Strip devices don't fully support hardware transitions.
+        This method sends incremental light commands with cubic easing to
+        simulate smooth transitions.
+
+        Args:
+            entity_id: The Home Assistant light entity ID
+            target_color_temp: Target color temperature in kelvin
+            target_brightness: Target brightness level (1-255)
+            transition: Total transition time in seconds
+            model_id: Device model ID for interval selection
+            stop_event: Optional event to signal interruption
+
+        Returns:
+            True if transition completed, False if interrupted
+        """
+        # Read current state as starting point
+        state = self.hass.states.get(entity_id)
+        if state is None or state.state == "unavailable":
+            _LOGGER.debug(
+                "Entity %s unavailable, applying target directly", entity_id
+            )
+            await self._apply_cct_values_via_service(
+                entity_id, target_color_temp, target_brightness
+            )
+            return True
+
+        start_color_temp = state.attributes.get(
+            "color_temp_kelvin", target_color_temp
+        )
+        start_brightness = state.attributes.get("brightness", target_brightness)
+
+        # Calculate step interval and count
+        step_interval = get_software_step_interval(model_id, transition)
+        num_steps = max(MIN_TRANSITION_STEPS, round(transition / step_interval))
+        actual_interval = transition / num_steps
+
+        # Ensure actual_interval never drops below model minimum (can happen
+        # when MIN_TRANSITION_STEPS forces more steps than the device can
+        # handle, e.g. T1M with its fixed 2s hardware transition)
+        if actual_interval < step_interval:
+            num_steps = max(1, round(transition / step_interval))
+            actual_interval = transition / num_steps
+
+        _LOGGER.debug(
+            "Software transition for %s (%s): %d steps, %.2fs interval, "
+            "%dK->%dK, brightness %d->%d",
+            entity_id,
+            model_id,
+            num_steps,
+            actual_interval,
+            start_color_temp,
+            target_color_temp,
+            start_brightness,
+            target_brightness,
+        )
+
+        for step in range(1, num_steps + 1):
+            # Check for stop before each sub-step
+            if stop_event is not None and stop_event.is_set():
+                _LOGGER.debug("Software transition stopped for %s", entity_id)
+                return False
+
+            # Calculate eased progress
+            t = step / num_steps
+            eased_t = ease_in_out_cubic(t)
+
+            # Interpolate color temp and brightness
+            color_temp = round(
+                start_color_temp
+                + (target_color_temp - start_color_temp) * eased_t
+            )
+            brightness = round(
+                start_brightness
+                + (target_brightness - start_brightness) * eased_t
+            )
+
+            # Send without transition parameter (device handles instantly or
+            # with its fixed hardware transition)
+            await self._apply_cct_values_via_service(
+                entity_id, color_temp, brightness
+            )
+
+            # Wait before next sub-step (interruptible)
+            if step < num_steps:
+                if stop_event is not None:
+                    try:
+                        await asyncio.wait_for(
+                            stop_event.wait(), timeout=actual_interval
+                        )
+                        _LOGGER.debug(
+                            "Software transition interrupted for %s at step"
+                            " %d/%d",
+                            entity_id,
+                            step,
+                            num_steps,
+                        )
+                        return False
+                    except asyncio.TimeoutError:
+                        pass
+                else:
+                    await asyncio.sleep(actual_interval)
+
+        _LOGGER.debug("Software transition complete for %s", entity_id)
         return True
 
     async def async_set_t2_transition_curve(

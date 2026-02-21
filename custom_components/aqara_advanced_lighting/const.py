@@ -30,9 +30,6 @@ SERVICE_STOP_SEGMENT_SEQUENCE: Final = "stop_segment_sequence"
 SERVICE_PAUSE_SEGMENT_SEQUENCE: Final = "pause_segment_sequence"
 SERVICE_RESUME_SEGMENT_SEQUENCE: Final = "resume_segment_sequence"
 
-# Group synchronization delay (seconds between commands for synced groups)
-GROUP_SYNC_DELAY: Final = 0.05
-
 # Service attributes
 ATTR_Z2M_BASE_TOPIC: Final = "z2m_base_topic"
 ATTR_EFFECT: Final = "effect"
@@ -108,6 +105,37 @@ MODEL_T2_CCT_E26: Final = "lumi.light.agl002"
 MODEL_T2_CCT_E27: Final = "lumi.light.agl004"
 MODEL_T2_CCT_GU10_230V: Final = "lumi.light.agl006"
 MODEL_T2_CCT_GU10_110V: Final = "lumi.light.agl008"
+
+# T2 RGB models require effect_speed before effect_colors in MQTT payload
+# Writing speed restarts the effect with default colors on T2 firmware
+T2_RGB_MODELS: Final = frozenset({
+    MODEL_T2_BULB_E26,
+    MODEL_T2_BULB_E27,
+    MODEL_T2_BULB_GU10_230V,
+    MODEL_T2_BULB_GU10_110V,
+})
+
+# T1-family models that need software-interpolated CCT transitions
+# These devices ignore or partially ignore the transition parameter:
+# - T1M: Fixed ~2s hardware transition, ignores requested duration
+# - T1 Strip: Supports brightness transitions but not color temp transitions
+SOFTWARE_TRANSITION_MODELS: Final = frozenset({
+    MODEL_T1M_20_SEGMENT,   # lumi.light.acn031
+    MODEL_T1M_26_SEGMENT,   # lumi.light.acn032
+    MODEL_T1_STRIP,         # lumi.light.acn132
+})
+
+# T1M models have a fixed ~2s hardware transition that smooths each sub-step
+T1M_MODELS: Final = frozenset({
+    MODEL_T1M_20_SEGMENT,
+    MODEL_T1M_26_SEGMENT,
+})
+
+# Minimum step intervals for software-interpolated transitions (seconds)
+# T1M: Longer interval since hardware provides ~2s smoothing between steps
+# T1 Strip: Shorter interval since color temp changes are instant
+SOFTWARE_TRANSITION_T1M_INTERVAL: Final = 2.0
+SOFTWARE_TRANSITION_T1_STRIP_INTERVAL: Final = 0.5
 
 # CIE 1931 color gamut triangles for Aqara lights
 # These define the actual color space the lights can produce

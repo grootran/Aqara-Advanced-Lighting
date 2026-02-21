@@ -270,17 +270,31 @@ class DynamicEffect:
     effect_colors: list[RGBColor]
     effect_segments: str | None = None  # T1 Strip only, e.g., "1-10", "odd"
 
-    def to_mqtt_payload(self) -> dict[str, Any]:
+    def to_mqtt_payload(self, device_model: str | None = None) -> dict[str, Any]:
         """Convert to MQTT payload dictionary.
 
-        IMPORTANT: Payload order matters per Z2M requirements.
-        Order: effect, effect_speed, effect_colors, [effect_segments]
+        IMPORTANT: Payload key order determines Z2M write order.
+        T2: effect, effect_speed, effect_colors - speed before colors
+            because writing speed restarts the effect with default colors.
+        T1M/T1 Strip: effect, effect_colors, effect_speed - colors before
+            speed for faster color rendering after effect type activates.
         """
-        payload: dict[str, Any] = {
-            "effect": self.effect.value,
-            "effect_speed": self.effect_speed,
-            "effect_colors": [color.to_dict() for color in self.effect_colors],
-        }
+        from .const import T2_RGB_MODELS
+
+        colors = [color.to_dict() for color in self.effect_colors]
+
+        if device_model and device_model in T2_RGB_MODELS:
+            payload: dict[str, Any] = {
+                "effect": self.effect.value,
+                "effect_speed": self.effect_speed,
+                "effect_colors": colors,
+            }
+        else:
+            payload: dict[str, Any] = {
+                "effect": self.effect.value,
+                "effect_colors": colors,
+                "effect_speed": self.effect_speed,
+            }
 
         # Add effect_segments for T1 Strip if specified
         if self.effect_segments is not None:
