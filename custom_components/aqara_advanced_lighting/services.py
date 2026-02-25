@@ -57,6 +57,7 @@ from .const import (
     DEFAULT_DYNAMIC_SCENE_TRANSITION_TIME,
     DISTRIBUTION_SHUFFLE_ROTATE,
     DOMAIN,
+    MAX_SEQUENCE_STEPS,
     PRESET_TYPE_CCT_SEQUENCE,
     PRESET_TYPE_DYNAMIC_SCENE,
     PRESET_TYPE_EFFECT,
@@ -124,6 +125,8 @@ from .const import (
     SERVICE_STOP_CCT_SEQUENCE,
     SERVICE_STOP_EFFECT,
     SERVICE_STOP_SEGMENT_SEQUENCE,
+    T1_STRIP_DEFAULT_SEGMENT_COUNT,
+    T1_STRIP_SEGMENTS_PER_METER,
     brightness_percent_to_device,
 )
 from .presets import (
@@ -312,6 +315,60 @@ SERVICE_CREATE_BLOCKS_SCHEMA = vol.Schema(
     }
 )
 
+def _add_cct_step_fields(schema_dict: dict, step_num: int) -> None:
+    """Add CCT sequence step fields to a schema dict."""
+    schema_dict[f"step_{step_num}_color_temp"] = vol.Optional(vol.All(
+        vol.Coerce(int), vol.Range(min=MIN_COLOR_TEMP_KELVIN, max=MAX_COLOR_TEMP_KELVIN)
+    ))
+    schema_dict[f"step_{step_num}_brightness"] = vol.Optional(vol.All(
+        vol.Coerce(int), vol.Range(min=MIN_BRIGHTNESS_PERCENT, max=MAX_BRIGHTNESS_PERCENT)
+    ))
+    schema_dict[f"step_{step_num}_transition"] = vol.Optional(vol.All(
+        vol.Coerce(float), vol.Range(min=MIN_TRANSITION_TIME, max=MAX_TRANSITION_TIME)
+    ))
+    schema_dict[f"step_{step_num}_hold"] = vol.Optional(vol.All(
+        vol.Coerce(float), vol.Range(min=MIN_HOLD_TIME, max=MAX_HOLD_TIME)
+    ))
+
+
+# Activation patterns used in segment sequence step schemas
+_ACTIVATION_PATTERN_VALUES = [
+    ACTIVATION_ALL,
+    ACTIVATION_SEQUENTIAL_FORWARD,
+    ACTIVATION_SEQUENTIAL_REVERSE,
+    ACTIVATION_RANDOM,
+    ACTIVATION_PING_PONG,
+    ACTIVATION_CENTER_OUT,
+    ACTIVATION_EDGES_IN,
+    ACTIVATION_PAIRED,
+]
+
+
+def _add_segment_step_fields(schema_dict: dict, step_num: int) -> None:
+    """Add segment sequence step fields to a schema dict."""
+    schema_dict[f"step_{step_num}_segments"] = vol.Optional(cv.string)
+    schema_dict[f"step_{step_num}_mode"] = vol.Optional(
+        vol.In([SEGMENT_MODE_BLOCKS_REPEAT, SEGMENT_MODE_BLOCKS_EXPAND, SEGMENT_MODE_GRADIENT])
+    )
+    for color_num in range(1, 7):
+        schema_dict[f"step_{step_num}_color_{color_num}"] = vol.Optional(COLOR_SCHEMA)
+    schema_dict[f"step_{step_num}_segment_colors"] = vol.Optional(
+        vol.All(cv.ensure_list, [vol.Schema({
+            vol.Required("segment"): vol.Coerce(int),
+            vol.Required("color"): RGB_COLOR_SCHEMA,
+        })])
+    )
+    schema_dict[f"step_{step_num}_duration"] = vol.Optional(
+        vol.All(vol.Coerce(float), vol.Range(min=MIN_DURATION, max=MAX_DURATION))
+    )
+    schema_dict[f"step_{step_num}_hold"] = vol.Optional(
+        vol.All(vol.Coerce(float), vol.Range(min=MIN_HOLD_TIME, max=MAX_HOLD_TIME))
+    )
+    schema_dict[f"step_{step_num}_activation_pattern"] = vol.Optional(
+        vol.In(_ACTIVATION_PATTERN_VALUES)
+    )
+
+
 # Build CCT sequence service schema with individual step fields
 _cct_sequence_schema_dict = {
     vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
@@ -320,34 +377,9 @@ _cct_sequence_schema_dict = {
     vol.Optional(ATTR_SYNC, default=True): cv.boolean,
 }
 
-# Add step 1 fields (optional - required only when not using a preset)
-_cct_sequence_schema_dict["step_1_color_temp"] = vol.Optional(vol.All(
-    vol.Coerce(int), vol.Range(min=MIN_COLOR_TEMP_KELVIN, max=MAX_COLOR_TEMP_KELVIN)
-))
-_cct_sequence_schema_dict["step_1_brightness"] = vol.Optional(vol.All(
-    vol.Coerce(int), vol.Range(min=MIN_BRIGHTNESS_PERCENT, max=MAX_BRIGHTNESS_PERCENT)
-))
-_cct_sequence_schema_dict["step_1_transition"] = vol.Optional(vol.All(
-    vol.Coerce(float), vol.Range(min=MIN_TRANSITION_TIME, max=MAX_TRANSITION_TIME)
-))
-_cct_sequence_schema_dict["step_1_hold"] = vol.Optional(vol.All(
-    vol.Coerce(float), vol.Range(min=MIN_HOLD_TIME, max=MAX_HOLD_TIME)
-))
-
-# Add steps 2-20 fields (optional)
-for step_num in range(2, 21):
-    _cct_sequence_schema_dict[f"step_{step_num}_color_temp"] = vol.Optional(vol.All(
-        vol.Coerce(int), vol.Range(min=MIN_COLOR_TEMP_KELVIN, max=MAX_COLOR_TEMP_KELVIN)
-    ))
-    _cct_sequence_schema_dict[f"step_{step_num}_brightness"] = vol.Optional(vol.All(
-        vol.Coerce(int), vol.Range(min=MIN_BRIGHTNESS_PERCENT, max=MAX_BRIGHTNESS_PERCENT)
-    ))
-    _cct_sequence_schema_dict[f"step_{step_num}_transition"] = vol.Optional(vol.All(
-        vol.Coerce(float), vol.Range(min=MIN_TRANSITION_TIME, max=MAX_TRANSITION_TIME)
-    ))
-    _cct_sequence_schema_dict[f"step_{step_num}_hold"] = vol.Optional(vol.All(
-        vol.Coerce(float), vol.Range(min=MIN_HOLD_TIME, max=MAX_HOLD_TIME)
-    ))
+# Add step 1-20 fields (all optional - required only when not using a preset)
+for _step_num in range(1, MAX_SEQUENCE_STEPS + 1):
+    _add_cct_step_fields(_cct_sequence_schema_dict, _step_num)
 
 # Add loop/end behavior fields
 _cct_sequence_schema_dict[vol.Optional(ATTR_LOOP_MODE, default=LOOP_MODE_ONCE)] = vol.In(
@@ -392,78 +424,9 @@ _segment_sequence_schema_dict = {
     vol.Optional(ATTR_SYNC, default=True): cv.boolean,
 }
 
-# Add step 1 fields (optional - required only when not using a preset)
-_segment_sequence_schema_dict["step_1_segments"] = vol.Optional(cv.string)
-_segment_sequence_schema_dict["step_1_mode"] = vol.Optional(
-    vol.In([SEGMENT_MODE_BLOCKS_REPEAT, SEGMENT_MODE_BLOCKS_EXPAND, SEGMENT_MODE_GRADIENT])
-)
-_segment_sequence_schema_dict["step_1_color_1"] = vol.Optional(COLOR_SCHEMA)
-_segment_sequence_schema_dict["step_1_color_2"] = vol.Optional(COLOR_SCHEMA)
-_segment_sequence_schema_dict["step_1_color_3"] = vol.Optional(COLOR_SCHEMA)
-_segment_sequence_schema_dict["step_1_color_4"] = vol.Optional(COLOR_SCHEMA)
-_segment_sequence_schema_dict["step_1_color_5"] = vol.Optional(COLOR_SCHEMA)
-_segment_sequence_schema_dict["step_1_color_6"] = vol.Optional(COLOR_SCHEMA)
-_segment_sequence_schema_dict["step_1_segment_colors"] = vol.Optional(
-    vol.All(cv.ensure_list, [vol.Schema({
-        vol.Required("segment"): vol.Coerce(int),
-        vol.Required("color"): RGB_COLOR_SCHEMA,
-    })])
-)
-_segment_sequence_schema_dict["step_1_duration"] = vol.Optional(
-    vol.All(vol.Coerce(float), vol.Range(min=MIN_DURATION, max=MAX_DURATION))
-)
-_segment_sequence_schema_dict["step_1_hold"] = vol.Optional(
-    vol.All(vol.Coerce(float), vol.Range(min=MIN_HOLD_TIME, max=MAX_HOLD_TIME))
-)
-_segment_sequence_schema_dict["step_1_activation_pattern"] = vol.Optional(
-    vol.In([
-        ACTIVATION_ALL,
-        ACTIVATION_SEQUENTIAL_FORWARD,
-        ACTIVATION_SEQUENTIAL_REVERSE,
-        ACTIVATION_RANDOM,
-        ACTIVATION_PING_PONG,
-        ACTIVATION_CENTER_OUT,
-        ACTIVATION_EDGES_IN,
-        ACTIVATION_PAIRED,
-    ])
-)
-
-# Add steps 2-20 fields (optional)
-for step_num in range(2, 21):
-    _segment_sequence_schema_dict[f"step_{step_num}_segments"] = vol.Optional(cv.string)
-    _segment_sequence_schema_dict[f"step_{step_num}_mode"] = vol.Optional(
-        vol.In([SEGMENT_MODE_BLOCKS_REPEAT, SEGMENT_MODE_BLOCKS_EXPAND, SEGMENT_MODE_GRADIENT])
-    )
-    _segment_sequence_schema_dict[f"step_{step_num}_color_1"] = vol.Optional(COLOR_SCHEMA)
-    _segment_sequence_schema_dict[f"step_{step_num}_color_2"] = vol.Optional(COLOR_SCHEMA)
-    _segment_sequence_schema_dict[f"step_{step_num}_color_3"] = vol.Optional(COLOR_SCHEMA)
-    _segment_sequence_schema_dict[f"step_{step_num}_color_4"] = vol.Optional(COLOR_SCHEMA)
-    _segment_sequence_schema_dict[f"step_{step_num}_color_5"] = vol.Optional(COLOR_SCHEMA)
-    _segment_sequence_schema_dict[f"step_{step_num}_color_6"] = vol.Optional(COLOR_SCHEMA)
-    _segment_sequence_schema_dict[f"step_{step_num}_segment_colors"] = vol.Optional(
-        vol.All(cv.ensure_list, [vol.Schema({
-            vol.Required("segment"): vol.Coerce(int),
-            vol.Required("color"): RGB_COLOR_SCHEMA,
-        })])
-    )
-    _segment_sequence_schema_dict[f"step_{step_num}_duration"] = vol.Optional(
-        vol.All(vol.Coerce(float), vol.Range(min=MIN_DURATION, max=MAX_DURATION))
-    )
-    _segment_sequence_schema_dict[f"step_{step_num}_hold"] = vol.Optional(
-        vol.All(vol.Coerce(float), vol.Range(min=MIN_HOLD_TIME, max=MAX_HOLD_TIME))
-    )
-    _segment_sequence_schema_dict[f"step_{step_num}_activation_pattern"] = vol.Optional(
-        vol.In([
-            ACTIVATION_ALL,
-            ACTIVATION_SEQUENTIAL_FORWARD,
-            ACTIVATION_SEQUENTIAL_REVERSE,
-            ACTIVATION_RANDOM,
-            ACTIVATION_PING_PONG,
-            ACTIVATION_CENTER_OUT,
-            ACTIVATION_EDGES_IN,
-            ACTIVATION_PAIRED,
-        ])
-    )
+# Add step 1-20 fields (all optional - required only when not using a preset)
+for _step_num in range(1, MAX_SEQUENCE_STEPS + 1):
+    _add_segment_step_fields(_segment_sequence_schema_dict, _step_num)
 
 # Add loop/end behavior fields
 _segment_sequence_schema_dict[vol.Optional(ATTR_LOOP_MODE, default=LOOP_MODE_ONCE)] = vol.In(
@@ -1012,109 +975,151 @@ def _find_cct_manager_for_entity(
     return None
 
 
+def _get_dynamic_scene_manager(hass: HomeAssistant) -> Any:
+    """Get the dynamic scene manager from any available config entry.
+
+    Dynamic scenes use HA service calls so any instance's manager works.
+
+    Returns:
+        Dynamic scene manager instance
+
+    Raises:
+        HomeAssistantError: If no manager is available
+    """
+    for instance_data in hass.data.get(DOMAIN, {}).get("entries", {}).values():
+        manager = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+        if manager:
+            return manager
+    raise HomeAssistantError("Dynamic scene manager not initialized")
+
+
+def _get_t1_strip_length_from_state(
+    hass: HomeAssistant, entity_id: str
+) -> float | None:
+    """Try to get T1 Strip length from the main entity's attributes."""
+    state = hass.states.get(entity_id)
+    if state and state.attributes:
+        length = state.attributes.get("length")
+        if length is not None:
+            return float(length)
+    return None
+
+
+def _get_t1_strip_length_from_sibling(
+    hass: HomeAssistant, entity_id: str
+) -> float | None:
+    """Try to get T1 Strip length from a sibling number/sensor entity.
+
+    Builds the expected entity ID from the light entity name,
+    e.g. light.t1_led_strip -> number.t1_led_strip_length.
+    """
+    base_name = entity_id.split(".", 1)[-1] if "." in entity_id else entity_id
+
+    for domain in ("number", "sensor"):
+        length_entity_id = f"{domain}.{base_name}_length"
+        length_state = hass.states.get(length_entity_id)
+        if length_state and length_state.state not in ("unknown", "unavailable"):
+            try:
+                length = float(length_state.state)
+                _LOGGER.debug(
+                    "Found T1 Strip length from entity %s: %s meters",
+                    length_entity_id,
+                    length,
+                )
+                return length
+            except (ValueError, TypeError):
+                pass
+    return None
+
+
+def _get_t1_strip_length_from_registry(
+    hass: HomeAssistant, entity_id: str
+) -> float | None:
+    """Try to get T1 Strip length by searching the device registry.
+
+    Finds all entities on the same device and looks for one with
+    "length" in its entity_id or unique_id.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    entity_reg = er.async_get(hass)
+    light_entry = entity_reg.async_get(entity_id)
+    if not light_entry or not light_entry.device_id:
+        return None
+
+    for entry in er.async_entries_for_device(entity_reg, light_entry.device_id):
+        if entry.domain not in ("number", "sensor"):
+            continue
+        if "length" not in entry.entity_id.lower() and not (
+            entry.unique_id and "length" in entry.unique_id.lower()
+        ):
+            continue
+        length_state = hass.states.get(entry.entity_id)
+        if length_state and length_state.state not in ("unknown", "unavailable"):
+            try:
+                length = float(length_state.state)
+                _LOGGER.debug(
+                    "Found T1 Strip length from device entity %s: %s meters",
+                    entry.entity_id,
+                    length,
+                )
+                return length
+            except (ValueError, TypeError):
+                pass
+    return None
+
+
+# Cache for T1 Strip segment counts (entity_id -> segment_count).
+# Cleared only on HA restart; strip length rarely changes at runtime.
+_t1_strip_segment_cache: dict[str, int] = {}
+
+
 def _get_actual_segment_count(
     hass: HomeAssistant, entity_id: str, model_id: str
 ) -> int:
     """Get actual segment count for a device, considering T1 Strip variable length.
 
     For T1 Strip, attempts to read the length attribute from entity state.
-    Falls back to reasonable defaults if unavailable.
+    Falls back to reasonable defaults if unavailable. Results for T1 Strip
+    are cached since physical strip length rarely changes.
     """
     base_count = get_segment_count(model_id)
-
-    # If not T1 Strip (base_count != 0), return the fixed count
     if base_count != 0:
         return base_count
 
-    # For T1 Strip, try to get actual length from entity attributes or separate length entity
     if model_id == MODEL_T1_STRIP:
-        state = hass.states.get(entity_id)
-        length_meters = None
+        if entity_id in _t1_strip_segment_cache:
+            return _t1_strip_segment_cache[entity_id]
 
-        # Try to get length from main entity attributes first
-        if state and state.attributes:
-            length_meters = state.attributes.get("length")
+        # Try each lookup strategy in order of cost
+        length_meters = (
+            _get_t1_strip_length_from_state(hass, entity_id)
+            or _get_t1_strip_length_from_sibling(hass, entity_id)
+            or _get_t1_strip_length_from_registry(hass, entity_id)
+        )
 
-        # If not in attributes, try to find separate length entity
-        if length_meters is None:
-            # Method 1: Try to build entity ID from light entity name
-            # e.g., light.t1_led_strip -> number.t1_led_strip_length
-            base_name = entity_id.split(".", 1)[-1] if "." in entity_id else entity_id
-
-            for domain in ["number", "sensor"]:
-                length_entity_id = f"{domain}.{base_name}_length"
-                length_state = hass.states.get(length_entity_id)
-                if length_state and length_state.state not in ("unknown", "unavailable"):
-                    try:
-                        length_meters = float(length_state.state)
-                        _LOGGER.debug(
-                            "Found T1 Strip length from entity %s: %s meters",
-                            length_entity_id,
-                            length_meters
-                        )
-                        break
-                    except (ValueError, TypeError):
-                        pass
-
-            # Method 2: If still not found, search device registry for length entity on same device
-            if length_meters is None:
-                from homeassistant.helpers import entity_registry as er, device_registry as dr
-
-                entity_reg = er.async_get(hass)
-                device_reg = dr.async_get(hass)
-
-                # Get the light entity's entry to find its device
-                light_entity_entry = entity_reg.async_get(entity_id)
-                if light_entity_entry and light_entity_entry.device_id:
-                    # Get all entities for this device
-                    device_entities = er.async_entries_for_device(
-                        entity_reg, light_entity_entry.device_id
-                    )
-
-                    # Look for a length entity (number or sensor with "length" in unique_id or entity_id)
-                    for entity_entry in device_entities:
-                        if entity_entry.domain in ["number", "sensor"]:
-                            # Check if it's a length entity by looking at unique_id or entity_id
-                            if (
-                                "length" in entity_entry.entity_id.lower()
-                                or (entity_entry.unique_id and "length" in entity_entry.unique_id.lower())
-                            ):
-                                length_state = hass.states.get(entity_entry.entity_id)
-                                if length_state and length_state.state not in ("unknown", "unavailable"):
-                                    try:
-                                        length_meters = float(length_state.state)
-                                        _LOGGER.debug(
-                                            "Found T1 Strip length from device entity %s: %s meters",
-                                            entity_entry.entity_id,
-                                            length_meters
-                                        )
-                                        break
-                                    except (ValueError, TypeError):
-                                        pass
-
-        # Calculate segment count from length if we found it
         if length_meters is not None:
             try:
-                # T1 Strip has 5 segments per meter
-                segment_count = int(float(length_meters) * 5)
+                segment_count = int(float(length_meters) * T1_STRIP_SEGMENTS_PER_METER)
                 _LOGGER.debug(
                     "T1 Strip %s: %s meters = %s segments",
                     entity_id,
                     length_meters,
-                    segment_count
+                    segment_count,
                 )
+                _t1_strip_segment_cache[entity_id] = segment_count
                 return segment_count
             except (ValueError, TypeError):
                 pass
 
-        # Default to 2 meters (10 segments) if length unavailable
         _LOGGER.debug(
-            "Could not determine T1 Strip length for %s (no length entity or attribute found), defaulting to 10 segments (2 meters)",
-            entity_id
+            "Could not determine T1 Strip length for %s, defaulting to %d segments",
+            entity_id,
+            T1_STRIP_DEFAULT_SEGMENT_COUNT,
         )
-        return 10
+        return T1_STRIP_DEFAULT_SEGMENT_COUNT
 
-    # For other unknown devices, return a reasonable default
+    # Unknown device default
     return 20
 
 
@@ -2282,7 +2287,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
             # Extract steps from individual field inputs
             sequence_steps = []
-            for step_num in range(1, 21):
+            for step_num in range(1, MAX_SEQUENCE_STEPS + 1):
                 color_temp_key = f"step_{step_num}_color_temp"
                 brightness_key = f"step_{step_num}_brightness"
                 transition_key = f"step_{step_num}_transition"
@@ -2647,7 +2652,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
             # Extract steps from individual field inputs
             sequence_steps = []
-            for step_num in range(1, 21):
+            for step_num in range(1, MAX_SEQUENCE_STEPS + 1):
                 segments_key = f"step_{step_num}_segments"
                 mode_key = f"step_{step_num}_mode"
 
@@ -2968,15 +2973,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             )
         valid_entity_ids = rgb_entity_ids
 
-        # Get dynamic scene manager from first available config entry
-        # (scenes work across all Z2M instances so any manager will do)
-        manager = None
-        for instance_data in hass.data[DOMAIN].get("entries", {}).values():
-            manager = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
-            if manager:
-                break
-        if not manager:
-            raise HomeAssistantError("Dynamic scene manager not initialized")
+        manager = _get_dynamic_scene_manager(hass)
 
         # Build scene from preset or manual parameters
         if preset_name:
@@ -3067,46 +3064,19 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     async def handle_stop_dynamic_scene(call: ServiceCall) -> None:
         """Handle stop_dynamic_scene service call."""
         entity_ids: list[str] | None = call.data.get(ATTR_ENTITY_ID)
-
-        # Get dynamic scene manager from first available config entry
-        manager = None
-        for instance_data in hass.data[DOMAIN].get("entries", {}).values():
-            manager = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
-            if manager:
-                break
-        if not manager:
-            raise HomeAssistantError("Dynamic scene manager not initialized")
-
+        manager = _get_dynamic_scene_manager(hass)
         await manager.stop_scene(entity_ids=entity_ids)
 
     async def handle_pause_dynamic_scene(call: ServiceCall) -> None:
         """Handle pause_dynamic_scene service call."""
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
-
-        # Get dynamic scene manager from first available config entry
-        manager = None
-        for instance_data in hass.data[DOMAIN].get("entries", {}).values():
-            manager = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
-            if manager:
-                break
-        if not manager:
-            raise HomeAssistantError("Dynamic scene manager not initialized")
-
+        manager = _get_dynamic_scene_manager(hass)
         manager.pause_scene(entity_ids)
 
     async def handle_resume_dynamic_scene(call: ServiceCall) -> None:
         """Handle resume_dynamic_scene service call."""
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
-
-        # Get dynamic scene manager from first available config entry
-        manager = None
-        for instance_data in hass.data[DOMAIN].get("entries", {}).values():
-            manager = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
-            if manager:
-                break
-        if not manager:
-            raise HomeAssistantError("Dynamic scene manager not initialized")
-
+        manager = _get_dynamic_scene_manager(hass)
         manager.resume_scene(entity_ids)
 
     async def handle_set_music_sync(call: ServiceCall) -> None:
