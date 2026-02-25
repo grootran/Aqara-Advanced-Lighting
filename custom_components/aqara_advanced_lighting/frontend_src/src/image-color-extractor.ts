@@ -6,7 +6,7 @@
 
 import { LitElement, html, css, TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { HomeAssistant, DynamicSceneColor } from './types';
+import { HomeAssistant, DynamicSceneColor, Translations } from './types';
 
 const API_BASE = '/api/aqara_advanced_lighting';
 
@@ -18,7 +18,7 @@ export interface ColorsExtractedDetail {
 @customElement('image-color-extractor')
 export class ImageColorExtractor extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
-  @property({ type: Object }) public translations: Record<string, any> = {};
+  @property({ type: Object }) public translations: Translations = {};
 
   @state() private _mode: 'upload' | 'url' = 'upload';
   @state() private _url = '';

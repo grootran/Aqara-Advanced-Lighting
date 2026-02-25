@@ -15,7 +15,7 @@
 
 import { LitElement, html, css, PropertyValues, CSSResultGroup, TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { XYColor, HSColor, HomeAssistant, SegmentZoneResolved } from './types';
+import { XYColor, HSColor, HomeAssistant, SegmentZoneResolved, Translations } from './types';
 import {
   xyToRgb,
   rgbToXy,
@@ -26,11 +26,6 @@ import {
 } from './color-utils';
 import { addColorToHistory } from './color-history';
 import './color-history-swatches';
-
-// Translations object type
-interface Translations {
-  [key: string]: string | Translations;
-}
 
 // Component mode types
 type SegmentSelectorMode = 'selection' | 'color' | 'sequence';

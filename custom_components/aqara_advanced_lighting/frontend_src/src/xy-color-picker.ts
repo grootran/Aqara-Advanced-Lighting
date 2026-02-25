@@ -21,6 +21,9 @@ export class XyColorPicker extends LitElement {
   @query('canvas') private _canvas!: HTMLCanvasElement;
   @query('.marker') private _marker!: HTMLDivElement;
 
+  private _drawnSize = 0;
+  private _rgbInputs: HTMLInputElement[] | null = null;
+
   static styles = css`
     :host {
       display: block;
@@ -118,10 +121,13 @@ export class XyColorPicker extends LitElement {
     const canvas = this._canvas;
     if (!canvas) return;
 
+    const size = this.size;
+    if (size === this._drawnSize) return;
+
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const size = this.size;
+    this._drawnSize = size;
     const centerX = size / 2;
     const centerY = size / 2;
     const radius = size / 2;
@@ -280,13 +286,16 @@ export class XyColorPicker extends LitElement {
   }
 
   private _updateRgbInputs(xyColor: XYColor): void {
-    const rgbInputs = this.shadowRoot?.querySelectorAll('.rgb-input-field');
-    if (!rgbInputs || rgbInputs.length !== 3) return;
+    if (!this._rgbInputs) {
+      const nodes = this.shadowRoot?.querySelectorAll('.rgb-input-field');
+      if (!nodes || nodes.length !== 3) return;
+      this._rgbInputs = Array.from(nodes) as HTMLInputElement[];
+    }
 
     const rgb = xyToRgb(xyColor.x, xyColor.y, 255);
-    (rgbInputs[0] as HTMLInputElement).value = rgb.r.toString();
-    (rgbInputs[1] as HTMLInputElement).value = rgb.g.toString();
-    (rgbInputs[2] as HTMLInputElement).value = rgb.b.toString();
+    this._rgbInputs[0]!.value = rgb.r.toString();
+    this._rgbInputs[1]!.value = rgb.g.toString();
+    this._rgbInputs[2]!.value = rgb.b.toString();
   }
 
   private _fireColorChanged(xyColor: XYColor): void {

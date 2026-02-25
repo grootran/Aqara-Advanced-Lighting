@@ -6,6 +6,7 @@
  */
 
 import { css } from 'lit';
+import type { Translations } from './types';
 
 /** Human-readable labels for segment device types. */
 export const DEVICE_LABELS: Record<string, string> = {
@@ -27,18 +28,19 @@ export const ALL_DEVICE_LABELS: Record<string, string> = {
  * replaced by the value of `replacements.name`.
  */
 export function localize(
-  translations: Record<string, unknown>,
+  translations: Translations,
   key: string,
   replacements?: Record<string, string>,
 ): string {
   const keys = key.split('.');
-  let value: unknown = translations;
+  let value: string | Translations = translations;
   for (const k of keys) {
-    if (value && typeof value === 'object' && k in (value as Record<string, unknown>)) {
-      value = (value as Record<string, unknown>)[k];
-    } else {
+    if (typeof value !== 'object' || !(k in value)) {
       return key;
     }
+    const next: string | Translations | undefined = value[k];
+    if (next === undefined) return key;
+    value = next;
   }
   let result = typeof value === 'string' ? value : key;
 

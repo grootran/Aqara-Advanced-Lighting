@@ -36,6 +36,9 @@ import {
   SegmentZoneResolved,
   EditorDraftCache,
   FavoritePresetRef,
+  PresetType,
+  AnyPreset,
+  Translations,
   RunningOperation,
   RunningOperationsResponse,
 } from './types';
@@ -46,6 +49,12 @@ import './segment-sequence-editor';
 import './dynamic-scene-editor';
 import './transition-curve-editor';
 import './color-history-swatches';
+
+// HA tile card custom element interface (created via document.createElement)
+type HaTileCard = HTMLElement & {
+  setConfig: (config: Record<string, unknown>) => void;
+  hass: HomeAssistant;
+};
 
 @customElement('aqara-advanced-lighting-panel')
 export class AqaraPanel extends LitElement {
@@ -102,12 +111,12 @@ export class AqaraPanel extends LitElement {
   @state() private _musicSyncEffect = 'random';
   @state() private _setupComplete = true;
   private _setupPollTimer?: ReturnType<typeof setTimeout>;
-  private _translations: Record<string, any> = PANEL_TRANSLATIONS;
+  private _translations: Translations = PANEL_TRANSLATIONS;
   private _fileInputRef: HTMLInputElement | null = null;
   private _eventUnsubscribers: Array<() => void> = [];
 
   private _tileCardRef: Ref<HTMLElement> = createRef();
-  private _tileCards: Map<string, any> = new Map();
+  private _tileCards: Map<string, HaTileCard> = new Map();
   private _preferencesSaveTimer?: ReturnType<typeof setTimeout>;
   private _editorDraftCache: EditorDraftCache = {};
 
@@ -120,15 +129,15 @@ export class AqaraPanel extends LitElement {
   private _localize(key: string, values?: Record<string, string>): string {
     // Navigate through nested translation keys
     const keys = key.split('.');
-    let translated: any = this._translations;
+    let translated: string | Translations = this._translations;
 
     for (const k of keys) {
-      if (translated && typeof translated === 'object' && k in translated) {
-        translated = translated[k];
-      } else {
-        // Fallback to key if translation not found
+      if (typeof translated !== 'object' || !(k in translated)) {
         return key;
       }
+      const next: string | Translations | undefined = translated[k];
+      if (next === undefined) return key;
+      translated = next;
     }
 
     // Ensure we got a string
@@ -138,12 +147,14 @@ export class AqaraPanel extends LitElement {
 
     // Replace placeholders like {count} with actual values
     if (values) {
+      let result = translated;
       Object.keys(values).forEach(placeholder => {
         const value = values[placeholder];
         if (value !== undefined) {
-          translated = translated.replace(`{${placeholder}}`, value);
+          result = result.replace(`{${placeholder}}`, value);
         }
       });
+      return result;
     }
 
     return translated;
@@ -240,7 +251,7 @@ export class AqaraPanel extends LitElement {
       // Check if card exists and is attached to the current container
       if (!card || card.parentElement !== container) {
         // Create new card for this entity
-        card = document.createElement('hui-tile-card');
+        card = document.createElement('hui-tile-card') as HaTileCard;
         container.appendChild(card);
         this._tileCards.set(entityId, card);
       }
@@ -456,12 +467,12 @@ export class AqaraPanel extends LitElement {
   };
 
   /** Check if a preset is in the favorites list. */
-  private _isPresetFavorited(type: string, id: string): boolean {
+  private _isPresetFavorited(type: PresetType, id: string): boolean {
     return this._favoritePresets.some(fav => fav.type === type && fav.id === id);
   }
 
   /** Toggle favorite status for a preset. Stops propagation to prevent activation. */
-  private _toggleFavoritePreset(type: string, id: string, event: Event): void {
+  private _toggleFavoritePreset(type: PresetType, id: string, event: Event): void {
     event.stopPropagation();
     const index = this._favoritePresets.findIndex(fav => fav.type === type && fav.id === id);
     if (index >= 0) {
@@ -476,7 +487,7 @@ export class AqaraPanel extends LitElement {
   }
 
   /** Render a star icon for favorite toggling on preset buttons. */
-  private _renderFavoriteStar(type: string, id: string) {
+  private _renderFavoriteStar(type: PresetType, id: string) {
     const isFav = this._isPresetFavorited(type, id);
     return html`
       <ha-icon-button
@@ -496,14 +507,14 @@ export class AqaraPanel extends LitElement {
    */
   private _getResolvedFavoritePresets(): Array<{
     ref: FavoritePresetRef;
-    preset: any;
+    preset: AnyPreset;
     isUser: boolean;
     deviceType?: string;
   }> {
-    const resolved: Array<{ ref: FavoritePresetRef; preset: any; isUser: boolean; deviceType?: string }> = [];
+    const resolved: Array<{ ref: FavoritePresetRef; preset: AnyPreset; isUser: boolean; deviceType?: string }> = [];
 
     for (const ref of this._favoritePresets) {
-      let preset: any = null;
+      let preset: AnyPreset | null = null;
       let isUser = false;
       let deviceType: string | undefined;
 
@@ -514,16 +525,16 @@ export class AqaraPanel extends LitElement {
             if (found) { preset = found; deviceType = key; break; }
           }
           if (!preset) {
-            preset = this._userPresets?.effect_presets?.find(p => p.id === ref.id) || null;
-            if (preset) { isUser = true; deviceType = preset.device_type; }
+            const userPreset = this._userPresets?.effect_presets?.find(p => p.id === ref.id);
+            if (userPreset) { preset = userPreset; isUser = true; deviceType = userPreset.device_type; }
           }
           break;
         }
         case 'segment_pattern': {
           preset = this._presets?.segment_patterns?.find(p => p.id === ref.id) || null;
           if (!preset) {
-            preset = this._userPresets?.segment_pattern_presets?.find(p => p.id === ref.id) || null;
-            if (preset) { isUser = true; deviceType = preset.device_type; }
+            const userPreset = this._userPresets?.segment_pattern_presets?.find(p => p.id === ref.id);
+            if (userPreset) { preset = userPreset; isUser = true; deviceType = userPreset.device_type; }
           }
           break;
         }
@@ -538,8 +549,8 @@ export class AqaraPanel extends LitElement {
         case 'segment_sequence': {
           preset = this._presets?.segment_sequences?.find(p => p.id === ref.id) || null;
           if (!preset) {
-            preset = this._userPresets?.segment_sequence_presets?.find(p => p.id === ref.id) || null;
-            if (preset) { isUser = true; deviceType = preset.device_type; }
+            const userPreset = this._userPresets?.segment_sequence_presets?.find(p => p.id === ref.id);
+            if (userPreset) { preset = userPreset; isUser = true; deviceType = userPreset.device_type; }
           }
           break;
         }
@@ -568,59 +579,59 @@ export class AqaraPanel extends LitElement {
   }
 
   /** Activate a favorite preset by dispatching to the appropriate activation method. */
-  private async _activateFavoritePreset(ref: FavoritePresetRef, preset: any, isUser: boolean): Promise<void> {
+  private async _activateFavoritePreset(ref: FavoritePresetRef, preset: AnyPreset, isUser: boolean): Promise<void> {
     switch (ref.type) {
       case 'effect':
         if (isUser) {
-          await this._activateUserEffectPreset(preset);
+          await this._activateUserEffectPreset(preset as UserEffectPreset);
         } else {
-          await this._activateDynamicEffect(preset);
+          await this._activateDynamicEffect(preset as DynamicEffectPreset);
         }
         break;
       case 'segment_pattern':
         if (isUser) {
-          await this._activateUserPatternPreset(preset);
+          await this._activateUserPatternPreset(preset as UserSegmentPatternPreset);
         } else {
-          await this._activateSegmentPattern(preset);
+          await this._activateSegmentPattern(preset as SegmentPatternPreset);
         }
         break;
       case 'cct_sequence':
         if (isUser) {
-          await this._activateUserCCTSequencePreset(preset);
+          await this._activateUserCCTSequencePreset(preset as UserCCTSequencePreset);
         } else {
-          await this._activateCCTSequence(preset);
+          await this._activateCCTSequence(preset as CCTSequencePreset);
         }
         break;
       case 'segment_sequence':
         if (isUser) {
-          await this._activateUserSegmentSequencePreset(preset);
+          await this._activateUserSegmentSequencePreset(preset as UserSegmentSequencePreset);
         } else {
-          await this._activateSegmentSequence(preset);
+          await this._activateSegmentSequence(preset as SegmentSequencePreset);
         }
         break;
       case 'dynamic_scene':
         if (isUser) {
-          await this._activateUserDynamicScenePreset(preset);
+          await this._activateUserDynamicScenePreset(preset as UserDynamicScenePreset);
         } else {
-          await this._activateDynamicScene(preset);
+          await this._activateDynamicScene(preset as DynamicScenePreset);
         }
         break;
     }
   }
 
   /** Render the icon/thumbnail for a favorite preset based on its type. */
-  private _renderFavoritePresetIcon(ref: FavoritePresetRef, preset: any, isUser: boolean) {
+  private _renderFavoritePresetIcon(ref: FavoritePresetRef, preset: AnyPreset, isUser: boolean) {
     switch (ref.type) {
       case 'effect':
-        return isUser ? this._renderUserEffectIcon(preset) : this._renderPresetIcon(preset.icon, 'mdi:lightbulb-on');
+        return isUser ? this._renderUserEffectIcon(preset as UserEffectPreset) : this._renderPresetIcon(preset.icon, 'mdi:lightbulb-on');
       case 'segment_pattern':
-        return isUser ? this._renderUserPatternIcon(preset) : this._renderPresetIcon(preset.icon, 'mdi:palette');
+        return isUser ? this._renderUserPatternIcon(preset as UserSegmentPatternPreset) : this._renderPresetIcon(preset.icon, 'mdi:palette');
       case 'cct_sequence':
-        return isUser ? this._renderUserCCTIcon(preset) : this._renderPresetIcon(preset.icon, 'mdi:temperature-kelvin');
+        return isUser ? this._renderUserCCTIcon(preset as UserCCTSequencePreset) : this._renderPresetIcon(preset.icon, 'mdi:temperature-kelvin');
       case 'segment_sequence':
-        return isUser ? this._renderUserSegmentSequenceIcon(preset) : this._renderPresetIcon(preset.icon, 'mdi:animation-play');
+        return isUser ? this._renderUserSegmentSequenceIcon(preset as UserSegmentSequencePreset) : this._renderPresetIcon(preset.icon, 'mdi:animation-play');
       case 'dynamic_scene':
-        return isUser ? this._renderUserDynamicSceneIcon(preset) : this._renderBuiltinDynamicSceneIcon(preset);
+        return isUser ? this._renderUserDynamicSceneIcon(preset as UserDynamicScenePreset) : this._renderBuiltinDynamicSceneIcon(preset as DynamicScenePreset);
       default:
         return html`<ha-icon icon="mdi:star"></ha-icon>`;
     }

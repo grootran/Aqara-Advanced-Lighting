@@ -85,6 +85,7 @@ export function ReorderableStepsMixin<T extends Constructor<LitElement>>(
     private _boundMove = this._onPointerMove.bind(this);
     private _boundEnd = this._onPointerEnd.bind(this);
     private _scrollContainer: Element | null = null;
+    private _cachedStepList: Element | null = null;
     private _autoScrollRaf = 0;
     private _lastClientY = 0;
 
@@ -100,9 +101,9 @@ export function ReorderableStepsMixin<T extends Constructor<LitElement>>(
       e.stopPropagation();
 
       const stepList = this.shadowRoot?.querySelector('.step-list');
-      const stepItems = this.shadowRoot?.querySelectorAll('.step-item');
-      if (!stepList || !stepItems) return;
+      if (!stepList) return;
 
+      this._cachedStepList = stepList;
       this._scrollContainer = this._findScrollContainer(stepList);
 
       this._dragState = {
@@ -110,6 +111,7 @@ export function ReorderableStepsMixin<T extends Constructor<LitElement>>(
         dropTargetIndex: null,
       };
 
+      const stepItems = stepList.querySelectorAll('.step-item');
       stepItems[index]?.classList.add('dragging');
       stepList.classList.add('is-dragging');
 
@@ -158,12 +160,15 @@ export function ReorderableStepsMixin<T extends Constructor<LitElement>>(
         this._autoScrollRaf = 0;
       }
 
-      const stepList = this.shadowRoot?.querySelector('.step-list');
-      stepList?.classList.remove('is-dragging');
-      this.shadowRoot
-        ?.querySelectorAll('.step-item.dragging')
-        .forEach((el) => el.classList.remove('dragging'));
+      const stepList = this._cachedStepList;
+      if (stepList) {
+        stepList.classList.remove('is-dragging');
+        stepList
+          .querySelectorAll('.step-item.dragging')
+          .forEach((el) => el.classList.remove('dragging'));
+      }
 
+      this._cachedStepList = null;
       this._scrollContainer = null;
       this._dragState = { ...INITIAL_DRAG_STATE };
       this.requestUpdate();
@@ -181,8 +186,10 @@ export function ReorderableStepsMixin<T extends Constructor<LitElement>>(
     private _calcDropTarget(clientY: number): number | null {
       if (this._dragState.draggingIndex === null) return null;
 
-      const stepItems = this.shadowRoot?.querySelectorAll('.step-item');
-      if (!stepItems || stepItems.length === 0) return null;
+      const stepList = this._cachedStepList;
+      if (!stepList) return null;
+      const stepItems = stepList.querySelectorAll('.step-item');
+      if (stepItems.length === 0) return null;
 
       for (let i = 0; i < stepItems.length; i++) {
         const rect = stepItems[i]!.getBoundingClientRect();
