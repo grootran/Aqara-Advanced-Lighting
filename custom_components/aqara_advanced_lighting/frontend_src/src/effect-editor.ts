@@ -15,9 +15,6 @@ const EFFECT_TYPES: Record<string, string[]> = {
   t1_strip: ['breathing', 'rainbow1', 'chasing', 'flash', 'hopping', 'rainbow2', 'flicker', 'dash'],
 };
 
-// Map effect names to icon filenames (for cases where they differ)
-const EFFECT_ICON_MAP: Record<string, string> = {};
-
 const DEVICE_LABELS: Record<string, string> = {
   t2_bulb: 'T2 Bulb',
   t1: 'T1 (20 segments)',
@@ -408,8 +405,7 @@ export class EffectEditor extends LitElement {
   }
 
   private _getEffectIconUrl(effect: string): string {
-    const iconName = EFFECT_ICON_MAP[effect] || effect;
-    return `/api/aqara_advanced_lighting/icons/${iconName}.svg`;
+    return `/api/aqara_advanced_lighting/icons/${effect}.svg`;
   }
 
   private _selectEffect(effect: string): void {
