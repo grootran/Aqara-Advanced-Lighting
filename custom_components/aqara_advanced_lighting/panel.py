@@ -199,7 +199,7 @@ class PresetsDataView(HomeAssistantView):
 
     url = f"/api/{DOMAIN}/presets"
     name = f"api:{DOMAIN}:presets"
-    requires_auth = True
+    requires_auth = False
 
     async def get(self, request: web.Request) -> web.Response:
         """Serve presets data as JSON."""
@@ -1029,7 +1029,7 @@ class VersionView(HomeAssistantView):
 
     url = f"/api/{DOMAIN}/version"
     name = f"api:{DOMAIN}:version"
-    requires_auth = True
+    requires_auth = False
 
     async def get(self, request: web.Request) -> web.Response:
         """Get the integration version and setup status from manifest.json."""
