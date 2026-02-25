@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, RGBColor, XYColor, SegmentColorEntry, UserSegmentPatternPreset, DeviceContext, PatternEditorDraft } from './types';
 import { xyToRgb, rgbToXy } from './color-utils';
 import { colorPickerStyles } from './styles';
+import { DEVICE_LABELS, editorFormStyles, localize } from './editor-constants';
 // Note: hs-color-picker import removed - color picking handled by segment-selector
 
 // Segment counts per device type
@@ -10,12 +11,6 @@ const SEGMENT_COUNTS: Record<string, number> = {
   t1: 20,
   t1m: 26,
   t1_strip: 50, // 10 meters x 5 segments per meter (max)
-};
-
-const DEVICE_LABELS: Record<string, string> = {
-  t1: 'T1 (20 segments)',
-  t1m: 'T1M (26 segments)',
-  t1_strip: 'T1 Strip (up to 50 segments)',
 };
 
 // Default palette colors in XY space
@@ -78,66 +73,8 @@ export class PatternEditor extends LitElement {
 
   static styles = [
     colorPickerStyles,
+    editorFormStyles,
     css`
-    :host {
-      display: block;
-    }
-
-    .editor-content {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .form-row {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .form-row-pair {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 16px;
-    }
-
-    .form-row-triple {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 16px;
-    }
-
-    .form-row-pair .form-field,
-    .form-row-triple .form-field {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .form-section {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-bottom: 16px;
-    }
-
-    .form-section .form-label {
-      min-width: unset;
-    }
-
-    .form-label {
-      font-size: 14px;
-      font-weight: 500;
-      min-width: 120px;
-      color: var(--secondary-text-color);
-    }
-
-    .form-input {
-      flex: 1;
-    }
-
     .segment-grid-container {
       background: var(--card-background-color);
       border-radius: 8px;
@@ -211,33 +148,6 @@ export class PatternEditor extends LitElement {
       font-size: 12px;
       color: var(--secondary-text-color);
       margin-top: 8px;
-    }
-
-    .form-actions {
-      display: flex;
-      gap: 12px;
-      justify-content: flex-end;
-      margin-top: 24px;
-      padding-top: 16px;
-      border-top: 1px solid var(--divider-color);
-    }
-
-    .preview-warning {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      background: var(--secondary-background-color);
-      color: var(--secondary-text-color);
-      border: 1px solid var(--divider-color);
-      border-left: 4px solid var(--warning-color, #ffc107);
-      border-radius: 4px;
-      font-size: 13px;
-    }
-
-    .preview-warning ha-icon {
-      flex-shrink: 0;
-      --mdc-icon-size: 18px;
     }
 
     /* Sub-tabs for pattern modes */
@@ -347,21 +257,6 @@ export class PatternEditor extends LitElement {
     }
 
     @media (max-width: 600px) {
-      .form-row {
-        flex-direction: column;
-        align-items: stretch;
-      }
-
-      .form-row-pair,
-      .form-row-triple {
-        grid-template-columns: 1fr;
-      }
-
-      .form-label {
-        min-width: unset;
-        margin-bottom: 4px;
-      }
-
       .grid-controls {
         flex-direction: column;
       }
@@ -691,25 +586,7 @@ export class PatternEditor extends LitElement {
   // - _renderBlocksMode() - blocks color configuration
 
   private _localize(key: string, replacements?: Record<string, string>): string {
-    const keys = key.split('.');
-    let value: any = this.translations;
-    for (const k of keys) {
-      if (value && typeof value === 'object' && k in value) {
-        value = value[k];
-      } else {
-        return key;
-      }
-    }
-    let result = typeof value === 'string' ? value : key;
-
-    // Replace placeholders if provided
-    if (replacements) {
-      Object.entries(replacements).forEach(([placeholder, replacement]) => {
-        result = result.replace(`{${placeholder}}`, replacement);
-      });
-    }
-
-    return result;
+    return localize(this.translations, key, replacements);
   }
 
   protected render() {

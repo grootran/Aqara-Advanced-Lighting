@@ -2,6 +2,7 @@ import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, CCTSequenceStep, UserCCTSequencePreset, DeviceContext, CCTEditorDraft } from './types';
 import { ReorderableStepsMixin, reorderableStepStyles } from './reorderable-steps-mixin';
+import { ALL_DEVICE_LABELS, editorFormStyles, localize } from './editor-constants';
 
 interface EditableStep extends CCTSequenceStep {
   id: string;
@@ -46,68 +47,10 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
 
   private get _deviceTypeLabel(): string {
     if (!this.deviceContext?.deviceType) return '';
-    const labels: Record<string, string> = {
-      t2_bulb: 'T2 Bulb',
-      t2_cct: 'T2 CCT',
-      t1m: 'T1M',
-      t1_strip: 'T1 Strip',
-      t1: 'T1',
-    };
-    return labels[this.deviceContext.deviceType] || this.deviceContext.deviceType;
+    return ALL_DEVICE_LABELS[this.deviceContext.deviceType] || this.deviceContext.deviceType;
   }
 
-  static styles = [reorderableStepStyles, css`
-    :host {
-      display: block;
-    }
-
-    .editor-content {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .form-row {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .form-row-pair {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 16px;
-    }
-
-    .form-row-pair .form-field {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .form-section {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-bottom: 16px;
-    }
-
-    .form-section .form-label {
-      min-width: unset;
-    }
-
-    .form-label {
-      font-size: 14px;
-      font-weight: 500;
-      min-width: 120px;
-      color: var(--secondary-text-color);
-    }
-
-    .form-input {
-      flex: 1;
-    }
-
+  static styles = [reorderableStepStyles, editorFormStyles, css`
     .step-list {
       display: flex;
       flex-direction: column;
@@ -187,33 +130,6 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
       cursor: not-allowed;
     }
 
-    .form-actions {
-      display: flex;
-      gap: 12px;
-      justify-content: flex-end;
-      margin-top: 24px;
-      padding-top: 16px;
-      border-top: 1px solid var(--divider-color);
-    }
-
-    .preview-warning {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      background: var(--secondary-background-color);
-      color: var(--secondary-text-color);
-      border: 1px solid var(--divider-color);
-      border-left: 4px solid var(--warning-color, #ffc107);
-      border-radius: 4px;
-      font-size: 13px;
-    }
-
-    .preview-warning ha-icon {
-      flex-shrink: 0;
-      --mdc-icon-size: 18px;
-    }
-
     .error-warning {
       display: flex;
       align-items: center;
@@ -242,20 +158,6 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
     }
 
     @media (max-width: 600px) {
-      .form-row {
-        flex-direction: column;
-        align-items: stretch;
-      }
-
-      .form-row-pair {
-        grid-template-columns: 1fr;
-      }
-
-      .form-label {
-        min-width: unset;
-        margin-bottom: 4px;
-      }
-
       .step-fields {
         grid-template-columns: 1fr;
       }
@@ -654,25 +556,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
   }
 
   private _localize(key: string, replacements?: Record<string, string>): string {
-    const keys = key.split('.');
-    let value: any = this.translations;
-    for (const k of keys) {
-      if (value && typeof value === 'object' && k in value) {
-        value = value[k];
-      } else {
-        return key;
-      }
-    }
-    let result = typeof value === 'string' ? value : key;
-
-    // Replace placeholders if provided
-    if (replacements) {
-      Object.entries(replacements).forEach(([placeholder, replacement]) => {
-        result = result.replace(`{${placeholder}}`, replacement);
-      });
-    }
-
-    return result;
+    return localize(this.translations, key, replacements);
   }
 
   protected render() {
