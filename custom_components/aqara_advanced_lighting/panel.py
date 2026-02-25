@@ -2037,7 +2037,7 @@ class ThumbnailView(HomeAssistantView):
 
     url = f"/api/{DOMAIN}/thumbnails/{{thumbnail_id}}"
     name = f"api:{DOMAIN}:thumbnail"
-    requires_auth = True
+    requires_auth = False
 
     async def get(self, request: web.Request, thumbnail_id: str) -> web.Response:
         """Serve a thumbnail image by ID.
