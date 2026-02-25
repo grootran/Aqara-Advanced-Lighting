@@ -36,7 +36,11 @@ from .const import (
     MUSIC_SYNC_SENSITIVITY_ENUM,
     T1M_MODELS,
 )
-from .transition_utils import apply_cct_step, make_service_apply_callback, turn_off_light
+from .transition_utils import (
+    apply_cct_step,
+    make_service_apply_callback,
+    turn_off_light,
+)
 from .models import AqaraDevice, DynamicEffect, RGBColor, SegmentColor
 from .mqtt_backend import SUPPORTED_MODELS
 from .payload_builder import (
@@ -201,14 +205,30 @@ def _parse_segment_spec(spec: int | str, max_segments: int) -> list[int]:
         parts = spec_str.split("-", 1)
         try:
             start, end = int(parts[0]), int(parts[1])
+            if start < 1 or end > max_segments or end < start:
+                _LOGGER.warning(
+                    "Segment range %d-%d out of bounds (max %d)",
+                    start,
+                    end,
+                    max_segments,
+                )
+                return []
             return list(range(start, end + 1))
         except ValueError:
             pass
 
-    # Comma-separated like "1,3,5"
+    # Comma-separated like "1,3,5" (cap at max_segments entries)
     if "," in spec_str:
         try:
-            return [int(s.strip()) for s in spec_str.split(",")]
+            parts = spec_str.split(",")
+            if len(parts) > max_segments:
+                _LOGGER.warning(
+                    "Segment list has %d entries, capping at %d",
+                    len(parts),
+                    max_segments,
+                )
+                parts = parts[:max_segments]
+            return [int(s.strip()) for s in parts]
         except ValueError:
             pass
 
@@ -346,9 +366,9 @@ class ZHABackend:
                     DOMAIN in self.hass.data
                     and "entity_routing" in self.hass.data[DOMAIN]
                 ):
-                    self.hass.data[DOMAIN]["entity_routing"][
-                        entity_entry.entity_id
-                    ] = self.entry.entry_id
+                    self.hass.data[DOMAIN]["entity_routing"][entity_entry.entity_id] = (
+                        self.entry.entry_id
+                    )
 
                 mapped_count += 1
                 _LOGGER.debug(
@@ -383,9 +403,7 @@ class ZHABackend:
             await asyncio.sleep(5)
             self._update_entity_mapping()
             if self.entry.runtime_data.entity_mapping_ready:
-                _LOGGER.info(
-                    "Entity mapping succeeded on retry %d", attempt
-                )
+                _LOGGER.info("Entity mapping succeeded on retry %d", attempt)
                 return
 
         _LOGGER.warning(
@@ -480,7 +498,8 @@ class ZHABackend:
                     count = int(raw_length)
                     _LOGGER.debug(
                         "T1 Strip %s segment count from cluster: %d",
-                        ieee_str, count,
+                        ieee_str,
+                        count,
                     )
                     return count
             except (ValueError, TypeError, KeyError):
@@ -521,7 +540,9 @@ class ZHABackend:
                 "Wrote attribute 0x%04X to %s: %s",
                 attribute,
                 ieee_str,
-                value if not isinstance(value, (bytes, bytearray)) else f"<{len(value)} bytes>",
+                value
+                if not isinstance(value, (bytes, bytearray))
+                else f"<{len(value)} bytes>",
             )
             return True
         except Exception:
@@ -558,34 +579,38 @@ class ZHABackend:
 
         cluster = self._get_aqara_cluster(ieee_str)
         if not cluster:
-            _LOGGER.error(
-                "Aqara cluster not found for effect write: %s", ieee_str
-            )
+            _LOGGER.error("Aqara cluster not found for effect write: %s", ieee_str)
             return
 
         try:
             if device_model and device_model in T2_RGB_MODELS:
                 # T2: type+speed combined, then colors separately
-                await cluster.write_attributes({
-                    ATTR_EFFECT_TYPE: effect_type_value,
-                    ATTR_EFFECT_SPEED: speed,
-                })
-                await cluster.write_attributes({
-                    ATTR_EFFECT_COLORS: colors_payload,
-                })
+                await cluster.write_attributes(
+                    {
+                        ATTR_EFFECT_TYPE: effect_type_value,
+                        ATTR_EFFECT_SPEED: speed,
+                    }
+                )
+                await cluster.write_attributes(
+                    {
+                        ATTR_EFFECT_COLORS: colors_payload,
+                    }
+                )
             else:
                 # T1M/T1 Strip: type first, then colors+speed combined
-                await cluster.write_attributes({
-                    ATTR_EFFECT_TYPE: effect_type_value,
-                })
-                await cluster.write_attributes({
-                    ATTR_EFFECT_COLORS: colors_payload,
-                    ATTR_EFFECT_SPEED: speed,
-                })
+                await cluster.write_attributes(
+                    {
+                        ATTR_EFFECT_TYPE: effect_type_value,
+                    }
+                )
+                await cluster.write_attributes(
+                    {
+                        ATTR_EFFECT_COLORS: colors_payload,
+                        ATTR_EFFECT_SPEED: speed,
+                    }
+                )
         except Exception:
-            _LOGGER.exception(
-                "Failed to write effect attributes to %s", ieee_str
-            )
+            _LOGGER.exception("Failed to write effect attributes to %s", ieee_str)
 
     # --- Effects ---
 
@@ -602,9 +627,7 @@ class ZHABackend:
 
         device = self.entry.runtime_data.aqara_devices.get(ieee_str)
         if not device:
-            _LOGGER.warning(
-                "Cannot send effect: device not found for %s", entity_id
-            )
+            _LOGGER.warning("Cannot send effect: device not found for %s", entity_id)
             return
 
         device_family = _get_device_family(device.model_id)
@@ -701,16 +724,12 @@ class ZHABackend:
         """
         ieee_str = self._entity_to_ieee.get(entity_id)
         if not ieee_str:
-            _LOGGER.warning(
-                "Cannot send segments: entity %s not mapped", entity_id
-            )
+            _LOGGER.warning("Cannot send segments: entity %s not mapped", entity_id)
             return
 
         device = self.entry.runtime_data.aqara_devices.get(ieee_str)
         if not device:
-            _LOGGER.warning(
-                "Cannot send segments: device not found for %s", entity_id
-            )
+            _LOGGER.warning("Cannot send segments: device not found for %s", entity_id)
             return
 
         device_family = _get_device_family(device.model_id)
@@ -736,9 +755,7 @@ class ZHABackend:
             key = (sc.color.r, sc.color.g, sc.color.b, sc.brightness or 254)
             groups.setdefault(key, []).extend(seg_nums)
 
-        attr_id = (
-            ATTR_T1M_SEGMENT if device_family == "t1m" else ATTR_STRIP_SEGMENT
-        )
+        attr_id = ATTR_T1M_SEGMENT if device_family == "t1m" else ATTR_STRIP_SEGMENT
 
         for (r, g, b, brightness), seg_nums in groups.items():
             color = RGBColor(r=r, g=g, b=b)
@@ -778,9 +795,7 @@ class ZHABackend:
         stop_event: asyncio.Event | None = None,
     ) -> bool:
         """Apply a CCT step using the shared transition algorithm."""
-        callback = make_service_apply_callback(
-            self.hass, self._entity_controller
-        )
+        callback = make_service_apply_callback(self.hass, self._entity_controller)
         return await apply_cct_step(
             self.hass,
             self,
@@ -819,9 +834,7 @@ class ZHABackend:
         """
         ieee_str = self._entity_to_ieee.get(entity_id)
         if not ieee_str:
-            _LOGGER.warning(
-                "Cannot send music sync: entity %s not mapped", entity_id
-            )
+            _LOGGER.warning("Cannot send music sync: entity %s not mapped", entity_id)
             return
 
         await self._write_cluster_attribute(
@@ -855,14 +868,10 @@ class ZHABackend:
         """
         ieee_str = self._entity_to_ieee.get(entity_id)
         if not ieee_str:
-            _LOGGER.warning(
-                "Cannot stop music sync: entity %s not mapped", entity_id
-            )
+            _LOGGER.warning("Cannot stop music sync: entity %s not mapped", entity_id)
             return
 
-        await self._write_cluster_attribute(
-            ieee_str, ATTR_AUDIO_ENABLE, 0
-        )
+        await self._write_cluster_attribute(ieee_str, ATTR_AUDIO_ENABLE, 0)
 
         _LOGGER.debug("Stopped music sync on %s", entity_id)
 
@@ -885,9 +894,7 @@ class ZHABackend:
             )
             return
 
-        await self._write_cluster_attribute(
-            ieee_str, ATTR_TRANSITION_CURVE, curvature
-        )
+        await self._write_cluster_attribute(ieee_str, ATTR_TRANSITION_CURVE, curvature)
 
         _LOGGER.debug(
             "Set transition curve curvature for %s: %.1f", entity_id, curvature

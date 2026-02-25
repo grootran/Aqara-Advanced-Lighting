@@ -30,6 +30,62 @@ _LOGGER = logging.getLogger(__name__)
 STORAGE_KEY = f"{DOMAIN}.presets"
 STORAGE_VERSION = 1
 MIGRATION_FLAG_KEY = "_migrated_to_xy_v1"
+MAX_PRESETS_PER_TYPE = 250
+MAX_PRESET_NAME_LENGTH = 200
+
+# Allowed data fields per preset type (excludes managed fields: id, created_at, modified_at)
+_ALLOWED_FIELDS: dict[str, set[str]] = {
+    PRESET_TYPE_EFFECT: {
+        "name",
+        "icon",
+        "device_type",
+        "effect",
+        "effect_speed",
+        "effect_brightness",
+        "effect_colors",
+        "effect_segments",
+        "thumbnail",
+    },
+    PRESET_TYPE_SEGMENT_PATTERN: {
+        "name",
+        "icon",
+        "device_type",
+        "segments",
+        "thumbnail",
+    },
+    PRESET_TYPE_CCT_SEQUENCE: {
+        "name",
+        "icon",
+        "steps",
+        "loop_mode",
+        "loop_count",
+        "end_behavior",
+    },
+    PRESET_TYPE_SEGMENT_SEQUENCE: {
+        "name",
+        "icon",
+        "device_type",
+        "steps",
+        "loop_mode",
+        "loop_count",
+        "end_behavior",
+        "clear_segments",
+    },
+    PRESET_TYPE_DYNAMIC_SCENE: {
+        "name",
+        "icon",
+        "colors",
+        "transition_time",
+        "hold_time",
+        "distribution_mode",
+        "offset_delay",
+        "random_order",
+        "loop_mode",
+        "loop_count",
+        "end_behavior",
+        "thumbnail",
+    },
+}
 
 
 def _migrate_rgb_colors_to_xy(colors: list[dict[str, Any]]) -> list[dict[str, float]]:
@@ -83,7 +139,10 @@ def _migrate_effect_preset(preset: dict[str, Any]) -> dict[str, Any]:
     if "effect_colors" in preset and preset["effect_colors"]:
         preset["effect_colors"] = _migrate_rgb_colors_to_xy(preset["effect_colors"])
         preset[MIGRATION_FLAG_KEY] = True
-        _LOGGER.debug("Migrated effect preset '%s' to XY color space", preset.get("name", "unknown"))
+        _LOGGER.debug(
+            "Migrated effect preset '%s' to XY color space",
+            preset.get("name", "unknown"),
+        )
 
     return preset
 
@@ -108,7 +167,9 @@ def _migrate_segment_sequence_preset(preset: dict[str, Any]) -> dict[str, Any]:
                 # Convert [[r,g,b], ...] format to [{"x":x, "y":y}, ...] format
                 if isinstance(step["colors"][0], list):
                     # Old format: [[r, g, b], [r, g, b]]
-                    rgb_dicts = [{"r": c[0], "g": c[1], "b": c[2]} for c in step["colors"]]
+                    rgb_dicts = [
+                        {"r": c[0], "g": c[1], "b": c[2]} for c in step["colors"]
+                    ]
                     step["colors"] = _migrate_rgb_colors_to_xy(rgb_dicts)
                 elif isinstance(step["colors"][0], dict):
                     # Already dict format, migrate if needed
@@ -224,9 +285,7 @@ class PresetStore(BaseStore[PresetsData]):
 
     def __init__(self, hass: HomeAssistant) -> None:
         """Initialize the preset store."""
-        super().__init__(
-            hass, STORAGE_VERSION, STORAGE_KEY, {**_DEFAULT_PRESETS_DATA}
-        )
+        super().__init__(hass, STORAGE_VERSION, STORAGE_KEY, {**_DEFAULT_PRESETS_DATA})
         self._update_callbacks: list[Callable[[], Awaitable[None]]] = []
         self._suppress_callbacks: bool = False
 
@@ -355,9 +414,7 @@ class PresetStore(BaseStore[PresetsData]):
                 return preset
         return None
 
-    def get_preset_by_name(
-        self, preset_type: str, name: str
-    ) -> dict[str, Any] | None:
+    def get_preset_by_name(self, preset_type: str, name: str) -> dict[str, Any] | None:
         """Get a preset by type and name.
 
         Args:
@@ -377,6 +434,16 @@ class PresetStore(BaseStore[PresetsData]):
                 return preset
         return None
 
+    @staticmethod
+    def _filter_preset_fields(
+        preset_data: dict[str, Any], preset_type: str
+    ) -> dict[str, Any]:
+        """Filter preset data to only include allowed fields for the type."""
+        allowed = _ALLOWED_FIELDS.get(preset_type)
+        if not allowed:
+            return preset_data
+        return {k: v for k, v in preset_data.items() if k in allowed}
+
     async def add_preset(
         self, preset_type: str, preset_data: dict[str, Any]
     ) -> dict[str, Any] | None:
@@ -393,11 +460,30 @@ class PresetStore(BaseStore[PresetsData]):
             return None
 
         key = self._get_storage_key(preset_type)
+
+        # Enforce per-type count limit
+        if len(self._data[key]) >= MAX_PRESETS_PER_TYPE:
+            raise ServiceValidationError(
+                f"Maximum of {MAX_PRESETS_PER_TYPE} {preset_type} presets reached",
+                translation_domain=DOMAIN,
+                translation_key="preset_limit_reached",
+            )
+
+        # Enforce name length limit
+        name = preset_data.get("name", "")
+        if isinstance(name, str) and len(name) > MAX_PRESET_NAME_LENGTH:
+            raise ServiceValidationError(
+                f"Preset name exceeds {MAX_PRESET_NAME_LENGTH} characters",
+                translation_domain=DOMAIN,
+                translation_key="preset_name_too_long",
+            )
+
+        filtered_data = self._filter_preset_fields(preset_data, preset_type)
         timestamp = self._get_timestamp()
 
         preset = {
             "id": str(uuid.uuid4()),
-            **preset_data,
+            **filtered_data,
             "created_at": timestamp,
             "modified_at": timestamp,
         }
@@ -439,8 +525,10 @@ class PresetStore(BaseStore[PresetsData]):
 
         for i, preset in enumerate(presets):
             if preset["id"] == preset_id:
+                filtered_data = self._filter_preset_fields(preset_data, preset_type)
+
                 old_thumb = preset.get("thumbnail")
-                new_thumb = preset_data.get("thumbnail")
+                new_thumb = filtered_data.get("thumbnail")
 
                 # Persist pending thumbnail to disk if a new one is provided
                 if new_thumb and new_thumb != old_thumb:
@@ -453,7 +541,7 @@ class PresetStore(BaseStore[PresetsData]):
                 # Preserve id and created_at, update modified_at
                 updated_preset = {
                     **preset,
-                    **preset_data,
+                    **filtered_data,
                     "id": preset_id,
                     "created_at": preset["created_at"],
                     "modified_at": self._get_timestamp(),
@@ -524,9 +612,7 @@ class PresetStore(BaseStore[PresetsData]):
                     thumb_path.unlink()
                     _LOGGER.debug("Deleted thumbnail %s", thumbnail_id)
             except OSError as ex:
-                _LOGGER.warning(
-                    "Failed to delete thumbnail %s: %s", thumbnail_id, ex
-                )
+                _LOGGER.warning("Failed to delete thumbnail %s: %s", thumbnail_id, ex)
 
         await self.hass.async_add_executor_job(delete_file)
 
@@ -536,8 +622,8 @@ class PresetStore(BaseStore[PresetsData]):
         Called when a preset with a thumbnail is saved. The thumbnail bytes
         are held in memory until this point to avoid orphaned files.
         """
-        pending: dict[str, bytes] = (
-            self.hass.data.get(DOMAIN, {}).get("pending_thumbnails", {})
+        pending: dict[str, bytes] = self.hass.data.get(DOMAIN, {}).get(
+            "pending_thumbnails", {}
         )
         thumb_bytes = pending.pop(thumbnail_id, None)
         if thumb_bytes is None:
@@ -547,9 +633,7 @@ class PresetStore(BaseStore[PresetsData]):
             )
             return
 
-        thumb_dir = Path(
-            self.hass.config.path(f".storage/{THUMBNAIL_STORAGE_DIR}")
-        )
+        thumb_dir = Path(self.hass.config.path(f".storage/{THUMBNAIL_STORAGE_DIR}"))
         thumb_path = thumb_dir / f"{thumbnail_id}.jpg"
 
         def write_file() -> None:
@@ -565,9 +649,7 @@ class PresetStore(BaseStore[PresetsData]):
         Runs at startup to clean up thumbnails orphaned by browser tab
         closures, HA restarts during extraction, or other edge cases.
         """
-        thumb_dir = Path(
-            self.hass.config.path(f".storage/{THUMBNAIL_STORAGE_DIR}")
-        )
+        thumb_dir = Path(self.hass.config.path(f".storage/{THUMBNAIL_STORAGE_DIR}"))
 
         def find_orphans() -> list[Path]:
             if not thumb_dir.is_dir():
@@ -603,9 +685,7 @@ class PresetStore(BaseStore[PresetsData]):
                 deleted = await self.hass.async_add_executor_job(
                     delete_orphans, orphans
                 )
-                _LOGGER.info(
-                    "Cleaned up %d orphaned thumbnail(s)", deleted
-                )
+                _LOGGER.info("Cleaned up %d orphaned thumbnail(s)", deleted)
         except Exception:
             _LOGGER.debug("Thumbnail cleanup skipped", exc_info=True)
 
@@ -699,12 +779,13 @@ class PresetStore(BaseStore[PresetsData]):
         if base_name not in existing_names:
             return base_name
 
-        counter = 2
-        while True:
+        for counter in range(2, 1002):
             new_name = f"{base_name} ({counter})"
             if new_name not in existing_names:
                 return new_name
-            counter += 1
+
+        # Fallback with UUID suffix if all counters are taken
+        return f"{base_name} ({uuid.uuid4().hex[:8]})"
 
     def _validate_preset_structure(
         self, preset_data: dict[str, Any], preset_type: str
@@ -910,9 +991,7 @@ class PresetStore(BaseStore[PresetsData]):
                     p["name"] for p in current_presets["segment_pattern_presets"]
                 }
                 for preset in data["segment_pattern_presets"]:
-                    self._validate_preset_structure(
-                        preset, PRESET_TYPE_SEGMENT_PATTERN
-                    )
+                    self._validate_preset_structure(preset, PRESET_TYPE_SEGMENT_PATTERN)
 
                     original_name = preset["name"]
                     unique_name = self._generate_unique_name(
@@ -926,9 +1005,7 @@ class PresetStore(BaseStore[PresetsData]):
                         "segments": preset["segments"],
                     }
 
-                    await self.add_preset(
-                        PRESET_TYPE_SEGMENT_PATTERN, new_preset_data
-                    )
+                    await self.add_preset(PRESET_TYPE_SEGMENT_PATTERN, new_preset_data)
                     existing_names.add(unique_name)
                     imported_counts["segment_pattern_presets"] += 1
 
@@ -938,9 +1015,7 @@ class PresetStore(BaseStore[PresetsData]):
                     p["name"] for p in current_presets["cct_sequence_presets"]
                 }
                 for preset in data["cct_sequence_presets"]:
-                    self._validate_preset_structure(
-                        preset, PRESET_TYPE_CCT_SEQUENCE
-                    )
+                    self._validate_preset_structure(preset, PRESET_TYPE_CCT_SEQUENCE)
 
                     original_name = preset["name"]
                     unique_name = self._generate_unique_name(
@@ -956,17 +1031,14 @@ class PresetStore(BaseStore[PresetsData]):
                         "end_behavior": preset["end_behavior"],
                     }
 
-                    await self.add_preset(
-                        PRESET_TYPE_CCT_SEQUENCE, new_preset_data
-                    )
+                    await self.add_preset(PRESET_TYPE_CCT_SEQUENCE, new_preset_data)
                     existing_names.add(unique_name)
                     imported_counts["cct_sequence_presets"] += 1
 
             # Import segment sequence presets
             if "segment_sequence_presets" in data:
                 existing_names = {
-                    p["name"]
-                    for p in current_presets["segment_sequence_presets"]
+                    p["name"] for p in current_presets["segment_sequence_presets"]
                 }
                 for preset in data["segment_sequence_presets"]:
                     self._validate_preset_structure(
@@ -990,26 +1062,19 @@ class PresetStore(BaseStore[PresetsData]):
 
                     # Include clear_segments if present
                     if "clear_segments" in preset:
-                        new_preset_data["clear_segments"] = (
-                            preset["clear_segments"]
-                        )
+                        new_preset_data["clear_segments"] = preset["clear_segments"]
 
-                    await self.add_preset(
-                        PRESET_TYPE_SEGMENT_SEQUENCE, new_preset_data
-                    )
+                    await self.add_preset(PRESET_TYPE_SEGMENT_SEQUENCE, new_preset_data)
                     existing_names.add(unique_name)
                     imported_counts["segment_sequence_presets"] += 1
 
             # Import dynamic scene presets
             if "dynamic_scene_presets" in data:
                 existing_names = {
-                    p["name"]
-                    for p in current_presets.get("dynamic_scene_presets", [])
+                    p["name"] for p in current_presets.get("dynamic_scene_presets", [])
                 }
                 for preset in data["dynamic_scene_presets"]:
-                    self._validate_preset_structure(
-                        preset, PRESET_TYPE_DYNAMIC_SCENE
-                    )
+                    self._validate_preset_structure(preset, PRESET_TYPE_DYNAMIC_SCENE)
 
                     original_name = preset["name"]
                     unique_name = self._generate_unique_name(
@@ -1030,9 +1095,7 @@ class PresetStore(BaseStore[PresetsData]):
                         "end_behavior": preset["end_behavior"],
                     }
 
-                    await self.add_preset(
-                        PRESET_TYPE_DYNAMIC_SCENE, new_preset_data
-                    )
+                    await self.add_preset(PRESET_TYPE_DYNAMIC_SCENE, new_preset_data)
                     existing_names.add(unique_name)
                     imported_counts["dynamic_scene_presets"] += 1
         finally:

@@ -8,6 +8,7 @@ import ipaddress
 import json
 import logging
 from pathlib import Path
+import re
 import socket
 from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote, urlparse
@@ -438,7 +439,19 @@ class FavoritesView(HomeAssistantView):
         if not entities or not isinstance(entities, list):
             return web.Response(status=400, text="entities list is required")
 
+        if len(entities) > 250:
+            return web.Response(status=400, text="entities list exceeds 250 items")
+        for entity in entities:
+            if not isinstance(entity, str) or not entity:
+                return web.Response(
+                    status=400, text="Each entity must be a non-empty string"
+                )
+
         name = data.get("name")  # Optional custom name
+        if name is not None and (not isinstance(name, str) or len(name) > 200):
+            return web.Response(
+                status=400, text="name must be a string of 200 characters or fewer"
+            )
 
         favorite = await favorites_store.add_favorite(user.id, entities, name)
         return web.json_response({"favorite": favorite}, status=201)
@@ -1107,9 +1120,9 @@ class ExportPresetsView(HomeAssistantView):
                 },
             )
 
-        except Exception as ex:
-            _LOGGER.exception("Failed to export presets: %s", ex)
-            return web.Response(status=500, text=f"Failed to export presets: {ex}")
+        except Exception:
+            _LOGGER.exception("Failed to export presets")
+            return web.Response(status=500, text="Failed to export presets")
 
 
 class ImportPresetsView(HomeAssistantView):
@@ -1182,10 +1195,11 @@ class ImportPresetsView(HomeAssistantView):
                 status=200,
             )
 
-        except Exception as ex:
-            _LOGGER.exception("Failed to import presets: %s", ex)
-            # Return the error message to the frontend
+        except ServiceValidationError as ex:
             return web.Response(status=400, text=str(ex))
+        except Exception:
+            _LOGGER.exception("Failed to import presets")
+            return web.Response(status=400, text="Failed to import presets")
 
 
 class SupportedEntitiesView(HomeAssistantView):
@@ -1426,6 +1440,9 @@ def _get_segment_zone_store(hass: HomeAssistant) -> SegmentZoneStore | None:
     return hass.data[DOMAIN].get(DATA_SEGMENT_ZONE_STORE)
 
 
+_IEEE_ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{16}$")
+
+
 class SegmentZonesView(HomeAssistantView):
     """View to get and set segment zones for a device."""
 
@@ -1435,6 +1452,9 @@ class SegmentZonesView(HomeAssistantView):
 
     async def get(self, request: web.Request, ieee_address: str) -> web.Response:
         """Get all zones for a device."""
+        if not _IEEE_ADDRESS_RE.match(ieee_address):
+            return web.Response(status=400, text="Invalid IEEE address format")
+
         hass = request.app["hass"]
 
         zone_store = _get_segment_zone_store(hass)
@@ -1446,6 +1466,9 @@ class SegmentZonesView(HomeAssistantView):
 
     async def put(self, request: web.Request, ieee_address: str) -> web.Response:
         """Replace all zones for a device."""
+        if not _IEEE_ADDRESS_RE.match(ieee_address):
+            return web.Response(status=400, text="Invalid IEEE address format")
+
         hass = request.app["hass"]
 
         zone_store = _get_segment_zone_store(hass)
@@ -1490,6 +1513,9 @@ class SegmentZoneView(HomeAssistantView):
         self, request: web.Request, ieee_address: str, zone_name: str
     ) -> web.Response:
         """Delete a single zone from a device."""
+        if not _IEEE_ADDRESS_RE.match(ieee_address):
+            return web.Response(status=400, text="Invalid IEEE address format")
+
         hass = request.app["hass"]
         zone_name = unquote(zone_name)
 
@@ -1573,12 +1599,22 @@ class TriggerView(HomeAssistantView):
                 status=400,
             )
 
-        # Verify the entity exists
+        # Verify the entity exists and is managed by this integration
         state = hass.states.get(entity_id)
         if not state:
             return web.json_response(
                 {"success": False, "error": f"Entity `{entity_id}` not found"},
                 status=404,
+            )
+
+        entity_routing = hass.data.get(DOMAIN, {}).get("entity_routing", {})
+        if entity_id not in entity_routing:
+            return web.json_response(
+                {
+                    "success": False,
+                    "error": f"Entity `{entity_id}` is not managed by this integration",
+                },
+                status=400,
             )
 
         action = data.get("action")
