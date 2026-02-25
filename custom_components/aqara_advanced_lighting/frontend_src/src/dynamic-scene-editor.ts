@@ -200,11 +200,6 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
       border-style: dashed;
     }
 
-    .extractor-modal {
-      max-width: 420px;
-      width: 90vw;
-    }
-
     /* Timing sliders */
     .timing-section {
       display: grid;
@@ -742,23 +737,18 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
         </div>
 
         <!-- Image Color Extractor Dialog -->
-        ${this._showExtractor ? html`
-          <div class="color-picker-modal-overlay" @click=${() => { this._showExtractor = false; }}>
-            <div class="color-picker-modal extractor-modal" @click=${(e: Event) => e.stopPropagation()}>
-              <div class="color-picker-modal-header">
-                <span class="color-picker-modal-title">
-                  ${this._localize('dynamic_scene.extract_from_image') || 'Extract from image'}
-                </span>
-              </div>
-              <image-color-extractor
-                .hass=${this.hass}
-                .translations=${this.translations}
-                @colors-extracted=${this._handleColorsExtracted}
-                @extractor-cancelled=${() => { this._showExtractor = false; }}
-              ></image-color-extractor>
-            </div>
-          </div>
-        ` : ''}
+        <ha-dialog
+          .open=${this._showExtractor}
+          @closed=${() => { this._showExtractor = false; }}
+          .heading=${this._localize('dynamic_scene.extract_from_image') || 'Extract from image'}
+        >
+          <image-color-extractor
+            .hass=${this.hass}
+            .translations=${this.translations}
+            @colors-extracted=${this._handleColorsExtracted}
+            @extractor-cancelled=${() => { this._showExtractor = false; }}
+          ></image-color-extractor>
+        </ha-dialog>
 
         <!-- Timing Section -->
         <div class="form-section">
@@ -908,37 +898,40 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
         ` : ''}
 
         <!-- Color Picker Modal -->
-        ${this._editingColorIndex !== null && this._editingColor !== null ? html`
-          <div class="color-picker-modal-overlay" @click=${this._closeColorPicker}>
-            <div class="color-picker-modal" @click=${(e: Event) => e.stopPropagation()}>
-              <div class="color-picker-modal-header">
-                <span class="color-picker-modal-title">${this._localize('editors.color_picker_title')}</span>
-                <div
-                  class="color-picker-modal-preview"
-                  style="background-color: ${xyToHex(this._editingColor, 255)}"
-                ></div>
-              </div>
-              <xy-color-picker
-                .color=${this._editingColor}
-                .size=${220}
-                .showRgbInputs=${true}
-                @color-changed=${this._handleColorPickerChange}
-              ></xy-color-picker>
-              <color-history-swatches
-                .colorHistory=${this.colorHistory}
-                .translations=${this.translations}
-                @color-selected=${this._handleHistoryColorSelected}
-              ></color-history-swatches>
-              <div class="color-picker-modal-actions">
-                <ha-button @click=${this._closeColorPicker}>${this._localize('editors.cancel_button')}</ha-button>
-                <ha-button @click=${this._confirmColorPicker}>
-                  <ha-icon icon="mdi:check"></ha-icon>
-                  ${this._localize('editors.apply_button')}
-                </ha-button>
-              </div>
-            </div>
+        <ha-dialog
+          .open=${this._editingColorIndex !== null && this._editingColor !== null}
+          @closed=${this._closeColorPicker}
+        >
+          <div class="color-picker-modal-header">
+            <span class="color-picker-modal-title">${this._localize('editors.color_picker_title')}</span>
+            ${this._editingColor ? html`
+              <div
+                class="color-picker-modal-preview"
+                style="background-color: ${xyToHex(this._editingColor, 255)}"
+              ></div>
+            ` : ''}
           </div>
-        ` : ''}
+          ${this._editingColor ? html`
+            <xy-color-picker
+              .color=${this._editingColor}
+              .size=${220}
+              .showRgbInputs=${true}
+              @color-changed=${this._handleColorPickerChange}
+            ></xy-color-picker>
+            <color-history-swatches
+              .colorHistory=${this.colorHistory}
+              .translations=${this.translations}
+              @color-selected=${this._handleHistoryColorSelected}
+            ></color-history-swatches>
+          ` : ''}
+          <ha-button slot="secondaryAction" @click=${this._closeColorPicker}>
+            ${this._localize('editors.cancel_button')}
+          </ha-button>
+          <ha-button slot="primaryAction" @click=${this._confirmColorPicker}>
+            <ha-icon icon="mdi:check"></ha-icon>
+            ${this._localize('editors.apply_button')}
+          </ha-button>
+        </ha-dialog>
 
         <!-- Preview Warning -->
         ${!this.hasSelectedEntities ? html`

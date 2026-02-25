@@ -17,6 +17,9 @@ export const panelStyles = css`
     line-height: var(--ha-line-height-normal, 1.5);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Prevent layout shift when ha-dialog hides the scrollbar */
+    overflow-y: scroll;
+    scrollbar-gutter: stable;
   }
 
   /* Fix ha-svg-icon vertical misalignment within ha-icon */
@@ -957,7 +960,7 @@ export const panelStyles = css`
 
   .color-remove:hover {
     background: var(--error-color);
-    color: white;
+    color: var(--text-primary-color);
   }
 
   .color-remove ha-icon {
@@ -1070,27 +1073,13 @@ export const panelStyles = css`
     color: var(--text-primary-color);
   }
 
-  /* Color picker modal overlay */
-  .color-picker-modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  }
-
-  .color-picker-modal {
-    background: var(--card-background-color);
-    border-radius: 8px;
-    padding: 24px;
-    width: 298px;
-    max-width: calc(100vw - 80px);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  /* Color picker ha-dialog styling
+   * Fixed width sized for 8 color history swatches:
+   * 8 x 32px swatches + 7 x 6px gaps = 298px content + 48px padding = 346px
+   */
+  ha-dialog {
+    --mdc-dialog-min-width: min(346px, calc(100vw - 32px));
+    --mdc-dialog-max-width: min(346px, calc(100vw - 32px));
   }
 
   .color-picker-modal-header {
@@ -1111,13 +1100,6 @@ export const panelStyles = css`
     height: 48px;
     border-radius: 8px;
     border: 2px solid var(--divider-color);
-  }
-
-  .color-picker-modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    margin-top: 20px;
   }
 
   /* Step list styles - follows HA list patterns */
@@ -1512,7 +1494,7 @@ export const panelStyles = css`
     gap: 2px;
     opacity: 0;
     transition: opacity 0.15s ease-in-out;
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(var(--rgb-primary-text-color, 0, 0, 0), 0.6);
     border-radius: var(--ha-border-radius-sm, 4px);
     padding: 2px;
     z-index: 1;
@@ -1529,7 +1511,7 @@ export const panelStyles = css`
   .preset-card-actions .favorite-star {
     --mdc-icon-button-size: 28px;
     --mdc-icon-size: 16px;
-    color: white;
+    color: var(--text-primary-color);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1548,7 +1530,7 @@ export const panelStyles = css`
 
   .preset-card-actions ha-icon-button:hover,
   .preset-card-actions .favorite-star:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(var(--rgb-text-primary-color, 255, 255, 255), 0.2);
     border-radius: var(--ha-border-radius-sm, 4px);
   }
 
@@ -1654,7 +1636,7 @@ export const panelStyles = css`
 
   .preset-button.music-sync-active {
     border-color: var(--primary-color);
-    background: rgba(var(--rgb-primary-color, 3, 169, 244), 0.12);
+    background: rgba(var(--rgb-primary-color), 0.12);
   }
 
   .preset-button.music-sync-active .preset-name {
@@ -2308,7 +2290,7 @@ export const colorPickerStyles = css`
 
   .color-remove:hover {
     background: var(--error-color);
-    color: white;
+    color: var(--text-primary-color);
   }
 
   .color-remove ha-icon {
@@ -2421,27 +2403,13 @@ export const colorPickerStyles = css`
     color: var(--text-primary-color);
   }
 
-  /* Color picker modal overlay */
-  .color-picker-modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  }
-
-  .color-picker-modal {
-    background: var(--card-background-color);
-    border-radius: 8px;
-    padding: 24px;
-    width: 298px;
-    max-width: calc(100vw - 80px);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  /* Color picker ha-dialog styling
+   * Fixed width sized for 8 color history swatches:
+   * 8 x 32px swatches + 7 x 6px gaps = 298px content + 48px padding = 346px
+   */
+  ha-dialog {
+    --mdc-dialog-min-width: min(346px, calc(100vw - 32px));
+    --mdc-dialog-max-width: min(346px, calc(100vw - 32px));
   }
 
   .color-picker-modal-header {
@@ -2474,13 +2442,6 @@ export const colorPickerStyles = css`
     background: var(--secondary-background-color);
     border-radius: var(--ha-border-radius-sm, 4px);
     letter-spacing: 0.5px;
-  }
-
-  .color-picker-modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    margin-top: 20px;
   }
 
   /* Segment selector zone buttons */

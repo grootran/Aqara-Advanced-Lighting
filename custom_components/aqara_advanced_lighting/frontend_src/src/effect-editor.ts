@@ -529,39 +529,40 @@ export class EffectEditor extends LitElement {
           </div>
         </div>
 
-        ${this._editingColorIndex !== null && this._editingColor !== null
-          ? html`
-              <div class="color-picker-modal-overlay" @click=${this._closeColorPicker}>
-                <div class="color-picker-modal" @click=${(e: Event) => e.stopPropagation()}>
-                  <div class="color-picker-modal-header">
-                    <span class="color-picker-modal-title">${this._localize('editors.color_picker_title')}</span>
-                    <div
-                      class="color-picker-modal-preview"
-                      style="background-color: ${this._colorToHex(this._editingColor)}"
-                    ></div>
-                  </div>
-                  <xy-color-picker
-                    .color=${this._editingColor}
-                    .size=${220}
-                    .showRgbInputs=${true}
-                    @color-changed=${this._handleColorPickerChange}
-                  ></xy-color-picker>
-                  <color-history-swatches
-                    .colorHistory=${this.colorHistory}
-                    .translations=${this.translations}
-                    @color-selected=${this._handleHistoryColorSelected}
-                  ></color-history-swatches>
-                  <div class="color-picker-modal-actions">
-                    <ha-button @click=${this._closeColorPicker}>${this._localize('editors.cancel_button')}</ha-button>
-                    <ha-button @click=${this._confirmColorPicker}>
-                      <ha-icon icon="mdi:check"></ha-icon>
-                      ${this._localize('editors.apply_button')}
-                    </ha-button>
-                  </div>
-                </div>
-              </div>
-            `
-          : ''}
+        <ha-dialog
+          .open=${this._editingColorIndex !== null && this._editingColor !== null}
+          @closed=${this._closeColorPicker}
+        >
+          <div class="color-picker-modal-header">
+            <span class="color-picker-modal-title">${this._localize('editors.color_picker_title')}</span>
+            ${this._editingColor ? html`
+              <div
+                class="color-picker-modal-preview"
+                style="background-color: ${this._colorToHex(this._editingColor)}"
+              ></div>
+            ` : ''}
+          </div>
+          ${this._editingColor ? html`
+            <xy-color-picker
+              .color=${this._editingColor}
+              .size=${220}
+              .showRgbInputs=${true}
+              @color-changed=${this._handleColorPickerChange}
+            ></xy-color-picker>
+            <color-history-swatches
+              .colorHistory=${this.colorHistory}
+              .translations=${this.translations}
+              @color-selected=${this._handleHistoryColorSelected}
+            ></color-history-swatches>
+          ` : ''}
+          <ha-button slot="secondaryAction" @click=${this._closeColorPicker}>
+            ${this._localize('editors.cancel_button')}
+          </ha-button>
+          <ha-button slot="primaryAction" @click=${this._confirmColorPicker}>
+            <ha-icon icon="mdi:check"></ha-icon>
+            ${this._localize('editors.apply_button')}
+          </ha-button>
+        </ha-dialog>
 
         ${!this.hasSelectedEntities
           ? html`

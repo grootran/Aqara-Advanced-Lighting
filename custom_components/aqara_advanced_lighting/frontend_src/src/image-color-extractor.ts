@@ -381,8 +381,8 @@ export class ImageColorExtractor extends LitElement {
       align-items: center;
       justify-content: center;
       gap: 4px;
-      background: rgba(0,0,0,0.5);
-      color: white;
+      background: rgba(var(--rgb-primary-text-color, 0, 0, 0), 0.5);
+      color: var(--text-primary-color);
       opacity: 0;
       transition: opacity 0.2s;
       font-size: 13px;

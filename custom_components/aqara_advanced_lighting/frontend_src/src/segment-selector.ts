@@ -421,7 +421,7 @@ export class SegmentSelector extends LitElement {
 
       .color-remove:hover {
         background: var(--error-color);
-        color: white;
+        color: var(--text-primary-color);
       }
 
       .color-remove ha-icon {
@@ -511,27 +511,13 @@ export class SegmentSelector extends LitElement {
         font-size: 13px;
       }
 
-      /* Color picker modal */
-      .color-picker-modal-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.7);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 1000;
-      }
-
-      .color-picker-modal {
-        background: var(--card-background-color);
-        border-radius: 8px;
-        padding: 24px;
-        width: 298px;
-        max-width: calc(100vw - 80px);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      /* Color picker ha-dialog styling
+       * Fixed width sized for 8 color history swatches:
+       * 8 x 32px swatches + 7 x 6px gaps = 298px content + 48px padding = 346px
+       */
+      ha-dialog {
+        --mdc-dialog-min-width: min(346px, calc(100vw - 32px));
+        --mdc-dialog-max-width: min(346px, calc(100vw - 32px));
       }
 
       .color-picker-modal-header {
@@ -596,13 +582,6 @@ export class SegmentSelector extends LitElement {
       .rgb-input-field:focus {
         outline: none;
         border-color: var(--primary-color);
-      }
-
-      .color-picker-modal-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 8px;
-        margin-top: 20px;
       }
 
       @media (max-width: 600px) {
@@ -2018,67 +1997,68 @@ export class SegmentSelector extends LitElement {
     const accurateHex = rgbToHex(accurateRgb);
 
     return html`
-      <div class="color-picker-modal-overlay" @click=${this._closeColorPicker}>
-        <div class="color-picker-modal" @click=${(e: Event) => e.stopPropagation()}>
-          <div class="color-picker-modal-header">
-            <span class="color-picker-modal-title">${this._localize('editors.color_picker_title')}</span>
-            <div
-              class="color-picker-modal-preview"
-              style="background-color: ${accurateHex}"
-            ></div>
-          </div>
-          <div class="color-picker-canvas-container">
-            ${this._renderColorWheel()}
-          </div>
-          <div class="color-picker-rgb-inputs">
-            <label class="rgb-input-label">
-              <span class="rgb-input-channel">R</span>
-              <input
-                type="number"
-                class="rgb-input-field"
-                min="0"
-                max="255"
-                .value=${String(accurateRgb.r)}
-                @input=${(e: Event) => this._handleRgbInput(e, 'r')}
-              />
-            </label>
-            <label class="rgb-input-label">
-              <span class="rgb-input-channel">G</span>
-              <input
-                type="number"
-                class="rgb-input-field"
-                min="0"
-                max="255"
-                .value=${String(accurateRgb.g)}
-                @input=${(e: Event) => this._handleRgbInput(e, 'g')}
-              />
-            </label>
-            <label class="rgb-input-label">
-              <span class="rgb-input-channel">B</span>
-              <input
-                type="number"
-                class="rgb-input-field"
-                min="0"
-                max="255"
-                .value=${String(accurateRgb.b)}
-                @input=${(e: Event) => this._handleRgbInput(e, 'b')}
-              />
-            </label>
-          </div>
-          <color-history-swatches
-            .colorHistory=${this.colorHistory}
-            .translations=${this.translations}
-            @color-selected=${this._handleHistoryColorSelected}
-          ></color-history-swatches>
-          <div class="color-picker-modal-actions">
-            <ha-button @click=${this._closeColorPicker}>${this._localize('editors.cancel_button')}</ha-button>
-            <ha-button @click=${this._confirmColorPicker}>
-              <ha-icon icon="mdi:check"></ha-icon>
-              ${this._localize('editors.apply_button')}
-            </ha-button>
-          </div>
+      <ha-dialog
+        open
+        @closed=${this._closeColorPicker}
+      >
+        <div class="color-picker-modal-header">
+          <span class="color-picker-modal-title">${this._localize('editors.color_picker_title')}</span>
+          <div
+            class="color-picker-modal-preview"
+            style="background-color: ${accurateHex}"
+          ></div>
         </div>
-      </div>
+        <div class="color-picker-canvas-container">
+          ${this._renderColorWheel()}
+        </div>
+        <div class="color-picker-rgb-inputs">
+          <label class="rgb-input-label">
+            <span class="rgb-input-channel">R</span>
+            <input
+              type="number"
+              class="rgb-input-field"
+              min="0"
+              max="255"
+              .value=${String(accurateRgb.r)}
+              @input=${(e: Event) => this._handleRgbInput(e, 'r')}
+            />
+          </label>
+          <label class="rgb-input-label">
+            <span class="rgb-input-channel">G</span>
+            <input
+              type="number"
+              class="rgb-input-field"
+              min="0"
+              max="255"
+              .value=${String(accurateRgb.g)}
+              @input=${(e: Event) => this._handleRgbInput(e, 'g')}
+            />
+          </label>
+          <label class="rgb-input-label">
+            <span class="rgb-input-channel">B</span>
+            <input
+              type="number"
+              class="rgb-input-field"
+              min="0"
+              max="255"
+              .value=${String(accurateRgb.b)}
+              @input=${(e: Event) => this._handleRgbInput(e, 'b')}
+            />
+          </label>
+        </div>
+        <color-history-swatches
+          .colorHistory=${this.colorHistory}
+          .translations=${this.translations}
+          @color-selected=${this._handleHistoryColorSelected}
+        ></color-history-swatches>
+        <ha-button slot="secondaryAction" @click=${this._closeColorPicker}>
+          ${this._localize('editors.cancel_button')}
+        </ha-button>
+        <ha-button slot="primaryAction" @click=${this._confirmColorPicker}>
+          <ha-icon icon="mdi:check"></ha-icon>
+          ${this._localize('editors.apply_button')}
+        </ha-button>
+      </ha-dialog>
     `;
   }
 
