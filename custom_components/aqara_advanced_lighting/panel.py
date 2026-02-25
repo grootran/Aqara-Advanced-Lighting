@@ -198,7 +198,7 @@ class PresetsDataView(HomeAssistantView):
 
     url = f"/api/{DOMAIN}/presets"
     name = f"api:{DOMAIN}:presets"
-    requires_auth = False
+    requires_auth = True
 
     async def get(self, request: web.Request) -> web.Response:
         """Serve presets data as JSON."""
@@ -1016,7 +1016,7 @@ class VersionView(HomeAssistantView):
 
     url = f"/api/{DOMAIN}/version"
     name = f"api:{DOMAIN}:version"
-    requires_auth = False
+    requires_auth = True
 
     async def get(self, request: web.Request) -> web.Response:
         """Get the integration version and setup status from manifest.json."""
@@ -1119,6 +1119,8 @@ class ImportPresetsView(HomeAssistantView):
     name = f"api:{DOMAIN}:presets_import"
     requires_auth = True
 
+    MAX_IMPORT_PRESETS_TOTAL = 500
+
     async def post(self, request: web.Request) -> web.Response:
         """Import presets from uploaded JSON file.
 
@@ -1140,6 +1142,29 @@ class ImportPresetsView(HomeAssistantView):
         except (json.JSONDecodeError, ValueError) as ex:
             _LOGGER.warning("Invalid JSON in import request: %s", ex)
             return web.Response(status=400, text="Invalid JSON format")
+
+        # Guard against oversized imports
+        if isinstance(import_data, dict):
+            preset_keys = (
+                "effect_presets",
+                "segment_pattern_presets",
+                "cct_sequence_presets",
+                "segment_sequence_presets",
+                "dynamic_scene_presets",
+            )
+            total_presets = sum(
+                len(import_data.get(k, []))
+                for k in preset_keys
+                if isinstance(import_data.get(k), list)
+            )
+            if total_presets > self.MAX_IMPORT_PRESETS_TOTAL:
+                return web.Response(
+                    status=400,
+                    text=(
+                        f"Import contains {total_presets} presets,"
+                        f" maximum is {self.MAX_IMPORT_PRESETS_TOTAL}"
+                    ),
+                )
 
         try:
             # Import presets with validation and conflict resolution
@@ -1769,12 +1794,24 @@ def _get_thumbnail_dir(hass: HomeAssistant) -> Path:
     return path
 
 
+MAX_PENDING_THUMBNAILS = 20
+
+
 def _get_pending_thumbnails(hass: HomeAssistant) -> dict[str, bytes]:
-    """Get the in-memory pending thumbnails dict, creating it if needed."""
+    """Get the in-memory pending thumbnails dict, creating it if needed.
+
+    Evicts the oldest entries when the limit is reached to prevent
+    unbounded memory growth.
+    """
     domain_data = hass.data.setdefault(DOMAIN, {})
     if "pending_thumbnails" not in domain_data:
         domain_data["pending_thumbnails"] = {}
-    return domain_data["pending_thumbnails"]
+    pending = domain_data["pending_thumbnails"]
+    # Evict oldest entries if at capacity
+    while len(pending) >= MAX_PENDING_THUMBNAILS:
+        oldest_key = next(iter(pending))
+        del pending[oldest_key]
+    return pending
 
 
 def _validate_image_url(url: str) -> str | None:
@@ -1964,7 +2001,7 @@ class ThumbnailView(HomeAssistantView):
 
     url = f"/api/{DOMAIN}/thumbnails/{{thumbnail_id}}"
     name = f"api:{DOMAIN}:thumbnail"
-    requires_auth = False
+    requires_auth = True
 
     async def get(self, request: web.Request, thumbnail_id: str) -> web.Response:
         """Serve a thumbnail image by ID.

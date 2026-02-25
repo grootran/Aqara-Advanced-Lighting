@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components import mqtt
@@ -32,7 +33,11 @@ from .const import (
     PAYLOAD_SEGMENT_COLORS,
     TOPIC_Z2M_BRIDGE_DEVICES,
 )
-from .transition_utils import apply_cct_step, make_service_apply_callback, turn_off_light
+from .transition_utils import (
+    apply_cct_step,
+    make_service_apply_callback,
+    turn_off_light,
+)
 from .models import AqaraDevice, DynamicEffect, SegmentColor, Z2MDevice
 
 if TYPE_CHECKING:
@@ -42,6 +47,9 @@ if TYPE_CHECKING:
     from .models import AqaraLightingConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
+
+# Characters unsafe for MQTT topic construction (wildcards, separator, null)
+_UNSAFE_TOPIC_NAME = re.compile(r"[/#+\x00]|\.\.")
 
 
 # Supported Aqara light models
@@ -126,6 +134,16 @@ class MQTTBackend:
                 manufacturer = device_data.get("manufacturer")
 
                 if not all([ieee_address, friendly_name, model_id]):
+                    continue
+
+                # Reject friendly names with MQTT-unsafe characters
+                if _UNSAFE_TOPIC_NAME.search(friendly_name):
+                    _LOGGER.warning(
+                        "Skipping device %s: friendly name %r contains"
+                        " characters unsafe for MQTT topics",
+                        ieee_address,
+                        friendly_name,
+                    )
                     continue
 
                 # Only store supported Aqara light models
@@ -228,7 +246,10 @@ class MQTTBackend:
         4. Entity ID pattern matching friendly name
         """
         from homeassistant.helpers import device_registry as dr
-        from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, format_mac
+        from homeassistant.helpers.device_registry import (
+            CONNECTION_NETWORK_MAC,
+            format_mac,
+        )
 
         ent_reg = er.async_get(self.hass)
         dev_reg = dr.async_get(self.hass)
@@ -351,11 +372,18 @@ class MQTTBackend:
                     matched_device.friendly_name
                 )
                 # Store the mapping method for diagnostics
-                runtime_data.entity_mapping_methods[entity_entry.entity_id] = match_method
+                runtime_data.entity_mapping_methods[entity_entry.entity_id] = (
+                    match_method
+                )
                 # Also update the global entity routing map for fast instance lookup
                 # Must access the actual dict in hass.data, not a copy
-                if DOMAIN in self.hass.data and "entity_routing" in self.hass.data[DOMAIN]:
-                    self.hass.data[DOMAIN]["entity_routing"][entity_entry.entity_id] = self.entry.entry_id
+                if (
+                    DOMAIN in self.hass.data
+                    and "entity_routing" in self.hass.data[DOMAIN]
+                ):
+                    self.hass.data[DOMAIN]["entity_routing"][entity_entry.entity_id] = (
+                        self.entry.entry_id
+                    )
                 mapped_count += 1
                 _LOGGER.debug(
                     "Mapped entity %s to Z2M device %s (via %s)",
@@ -431,7 +459,9 @@ class MQTTBackend:
         Returns:
             The Z2M base topic to use
         """
-        return z2m_base_topic if z2m_base_topic else self.entry.runtime_data.z2m_base_topic
+        return (
+            z2m_base_topic if z2m_base_topic else self.entry.runtime_data.z2m_base_topic
+        )
 
     async def async_publish_dynamic_effect(
         self,
@@ -460,9 +490,7 @@ class MQTTBackend:
         device_model = device.model_id if device else None
         payload = effect.to_mqtt_payload(device_model)
 
-        _LOGGER.debug(
-            "Publishing dynamic effect to %s: %s", z2m_friendly_name, payload
-        )
+        _LOGGER.debug("Publishing dynamic effect to %s: %s", z2m_friendly_name, payload)
 
         # Send effect command
         await mqtt.async_publish(self.hass, topic, json.dumps(payload))
@@ -520,7 +548,9 @@ class MQTTBackend:
         # Using warm white (255, 200, 150) as a neutral default
         payload = {"color": {"r": 255, "g": 200, "b": 150}}
 
-        _LOGGER.debug("Stopping effect on %s by setting solid RGB color", z2m_friendly_name)
+        _LOGGER.debug(
+            "Stopping effect on %s by setting solid RGB color", z2m_friendly_name
+        )
 
         await mqtt.async_publish(self.hass, topic, json.dumps(payload))
 
@@ -579,9 +609,7 @@ class MQTTBackend:
         z2m_base_topic: str | None = None,  # noqa: ARG002 - kept for API compatibility
     ) -> bool:
         """Apply CCT step using the shared transition algorithm."""
-        callback = make_service_apply_callback(
-            self.hass, self._entity_controller
-        )
+        callback = make_service_apply_callback(self.hass, self._entity_controller)
         return await apply_cct_step(
             self.hass,
             self,
@@ -703,9 +731,7 @@ class MQTTBackend:
         if not z2m_device:
             return None
 
-        return self.entry.runtime_data.aqara_devices.get(
-            z2m_device.ieee_address
-        )
+        return self.entry.runtime_data.aqara_devices.get(z2m_device.ieee_address)
 
     def get_all_devices(self) -> dict[str, AqaraDevice]:
         """Get all discovered Aqara devices.
@@ -751,9 +777,7 @@ class MQTTBackend:
             if z2m_name:
                 z2m_effects.append((z2m_name, effect))
             else:
-                _LOGGER.warning(
-                    "Skipping effect for unmapped entity %s", entity_id
-                )
+                _LOGGER.warning("Skipping effect for unmapped entity %s", entity_id)
         if z2m_effects:
             await self.async_publish_batch_effects(z2m_effects)
 
@@ -784,9 +808,7 @@ class MQTTBackend:
         """
         z2m_name = self.get_z2m_friendly_name(entity_id)
         if not z2m_name:
-            _LOGGER.warning(
-                "Cannot send segments: entity %s not mapped", entity_id
-            )
+            _LOGGER.warning("Cannot send segments: entity %s not mapped", entity_id)
             return
         await self.async_publish_segment_pattern(z2m_name, segments)
 
@@ -807,9 +829,7 @@ class MQTTBackend:
             if z2m_name:
                 z2m_segments.append((z2m_name, segs))
             else:
-                _LOGGER.warning(
-                    "Skipping segments for unmapped entity %s", entity_id
-                )
+                _LOGGER.warning("Skipping segments for unmapped entity %s", entity_id)
         if z2m_segments:
             await self.async_publish_batch_segments(z2m_segments)
 
@@ -859,9 +879,7 @@ class MQTTBackend:
             payload[PAYLOAD_AUDIO_SENSITIVITY] = sensitivity
             payload[PAYLOAD_AUDIO_EFFECT] = effect
 
-        _LOGGER.debug(
-            "Publishing music sync to %s: %s", z2m_friendly_name, payload
-        )
+        _LOGGER.debug("Publishing music sync to %s: %s", z2m_friendly_name, payload)
 
         await mqtt.async_publish(self.hass, topic, json.dumps(payload))
 
@@ -882,9 +900,7 @@ class MQTTBackend:
         """
         z2m_name = self.get_z2m_friendly_name(entity_id)
         if not z2m_name:
-            _LOGGER.warning(
-                "Cannot send music sync: entity %s not mapped", entity_id
-            )
+            _LOGGER.warning("Cannot send music sync: entity %s not mapped", entity_id)
             return
         await self.async_publish_music_sync(z2m_name, enabled, sensitivity, effect)
 
@@ -896,9 +912,8 @@ class MQTTBackend:
         """
         z2m_name = self.get_z2m_friendly_name(entity_id)
         if not z2m_name:
-            _LOGGER.warning(
-                "Cannot stop music sync: entity %s not mapped", entity_id
-            )
+            _LOGGER.warning("Cannot stop music sync: entity %s not mapped", entity_id)
             return
-        await self.async_publish_music_sync(z2m_name, enabled=False, sensitivity="low", effect="random")
-
+        await self.async_publish_music_sync(
+            z2m_name, enabled=False, sensitivity="low", effect="random"
+        )
