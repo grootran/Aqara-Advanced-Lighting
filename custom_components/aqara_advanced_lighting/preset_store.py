@@ -6,14 +6,13 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 import logging
 import uuid
+from pathlib import Path
 from typing import Any, NotRequired, TypedDict
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
-from homeassistant.helpers.storage import Store
 
-from pathlib import Path
-
+from .base_store import BaseStore
 from .const import (
     DOMAIN,
     PRESET_TYPE_CCT_SEQUENCE,
@@ -211,22 +210,23 @@ class PresetsData(TypedDict):
     dynamic_scene_presets: list[UserDynamicScenePreset]
 
 
-class PresetStore:
+_DEFAULT_PRESETS_DATA: PresetsData = {
+    "effect_presets": [],
+    "segment_pattern_presets": [],
+    "cct_sequence_presets": [],
+    "segment_sequence_presets": [],
+    "dynamic_scene_presets": [],
+}
+
+
+class PresetStore(BaseStore[PresetsData]):
     """Manages global user presets storage."""
 
     def __init__(self, hass: HomeAssistant) -> None:
         """Initialize the preset store."""
-        self.hass = hass
-        self._store: Store[PresetsData] = Store(
-            hass, STORAGE_VERSION, STORAGE_KEY
+        super().__init__(
+            hass, STORAGE_VERSION, STORAGE_KEY, {**_DEFAULT_PRESETS_DATA}
         )
-        self._data: PresetsData = {
-            "effect_presets": [],
-            "segment_pattern_presets": [],
-            "cct_sequence_presets": [],
-            "segment_sequence_presets": [],
-            "dynamic_scene_presets": [],
-        }
         self._update_callbacks: list[Callable[[], Awaitable[None]]] = []
         self._suppress_callbacks: bool = False
 

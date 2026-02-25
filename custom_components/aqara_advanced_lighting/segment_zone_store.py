@@ -6,8 +6,8 @@ import logging
 import re
 
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.storage import Store
 
+from .base_store import BaseStore
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -95,7 +95,7 @@ def validate_segment_range(segment_range: str) -> str | None:
     return None
 
 
-class SegmentZoneStore:
+class SegmentZoneStore(BaseStore[dict[str, dict[str, str]]]):
     """Manages per-device segment zone definitions.
 
     Zones are keyed by device IEEE address, with each device having
@@ -104,28 +104,7 @@ class SegmentZoneStore:
 
     def __init__(self, hass: HomeAssistant) -> None:
         """Initialize the segment zone store."""
-        self.hass = hass
-        self._store: Store[dict[str, dict[str, str]]] = Store(
-            hass, STORAGE_VERSION, STORAGE_KEY
-        )
-        # Structure: {ieee_address: {zone_name: segment_range_str}}
-        self._data: dict[str, dict[str, str]] = {}
-
-    async def async_load(self) -> None:
-        """Load zones from storage."""
-        data = await self._store.async_load()
-        if data is not None:
-            self._data = data
-        else:
-            self._data = {}
-        _LOGGER.debug(
-            "Loaded segment zones for %d devices", len(self._data)
-        )
-
-    async def async_save(self) -> None:
-        """Save zones to storage."""
-        await self._store.async_save(self._data)
-        _LOGGER.debug("Saved segment zones")
+        super().__init__(hass, STORAGE_VERSION, STORAGE_KEY, {})
 
     def get_zones(self, ieee_address: str) -> dict[str, str]:
         """Get all zones for a device.

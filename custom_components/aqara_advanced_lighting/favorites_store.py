@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Any, TypedDict
+from typing import TypedDict
 
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.storage import Store
 
+from .base_store import BaseStore
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -25,30 +25,12 @@ class Favorite(TypedDict):
     entities: list[str]
 
 
-class FavoritesStore:
+class FavoritesStore(BaseStore[dict[str, list[Favorite]]]):
     """Manages per-user favorite entities storage."""
 
     def __init__(self, hass: HomeAssistant) -> None:
         """Initialize the favorites store."""
-        self.hass = hass
-        self._store: Store[dict[str, list[dict[str, Any]]]] = Store(
-            hass, STORAGE_VERSION, STORAGE_KEY
-        )
-        self._data: dict[str, list[Favorite]] = {}
-
-    async def async_load(self) -> None:
-        """Load favorites from storage."""
-        data = await self._store.async_load()
-        if data is not None:
-            self._data = data
-        else:
-            self._data = {}
-        _LOGGER.debug("Loaded favorites for %d users", len(self._data))
-
-    async def async_save(self) -> None:
-        """Save favorites to storage."""
-        await self._store.async_save(self._data)
-        _LOGGER.debug("Saved favorites")
+        super().__init__(hass, STORAGE_VERSION, STORAGE_KEY, {})
 
     def get_favorites(self, user_id: str) -> list[Favorite]:
         """Get favorites for a user.
