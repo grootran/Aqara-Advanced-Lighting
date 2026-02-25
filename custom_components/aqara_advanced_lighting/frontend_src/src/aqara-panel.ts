@@ -2002,8 +2002,8 @@ export class AqaraPanel extends LitElement {
       serviceData.offset_delay = preset.offset_delay;
     }
 
-    // Add loop_count only if loop_mode is 'loop'
-    if (preset.loop_mode === 'loop' && preset.loop_count !== undefined) {
+    // Add loop_count only if loop_mode is 'count'
+    if (preset.loop_mode === 'count' && preset.loop_count !== undefined) {
       serviceData.loop_count = preset.loop_count;
     }
 
@@ -2517,8 +2517,8 @@ export class AqaraPanel extends LitElement {
       serviceData.offset_delay = preset.offset_delay;
     }
 
-    // Add loop_count only if loop_mode is 'loop'
-    if (preset.loop_mode === 'loop' && preset.loop_count !== undefined) {
+    // Add loop_count only if loop_mode is 'count'
+    if (preset.loop_mode === 'count' && preset.loop_count !== undefined) {
       serviceData.loop_count = preset.loop_count;
     }
 
@@ -3515,8 +3515,8 @@ export class AqaraPanel extends LitElement {
       serviceData.offset_delay = data.offset_delay;
     }
 
-    // Add loop_count only if loop_mode is 'loop'
-    if (data.loop_mode === 'loop' && data.loop_count !== undefined) {
+    // Add loop_count only if loop_mode is 'count'
+    if (data.loop_mode === 'count' && data.loop_count !== undefined) {
       serviceData.loop_count = data.loop_count;
     }
 

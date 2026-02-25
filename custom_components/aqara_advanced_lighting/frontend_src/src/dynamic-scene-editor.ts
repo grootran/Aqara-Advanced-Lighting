@@ -63,7 +63,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   private get _loopModeOptions() {
     return [
       { value: 'once', label: this._localize('options.loop_mode_once') },
-      { value: 'loop', label: this._localize('options.loop_mode_count') },
+      { value: 'count', label: this._localize('options.loop_mode_count') },
       { value: 'continuous', label: this._localize('options.loop_mode_continuous') },
     ];
   }

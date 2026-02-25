@@ -30,6 +30,7 @@ _LOGGER = logging.getLogger(__name__)
 STORAGE_KEY = f"{DOMAIN}.presets"
 STORAGE_VERSION = 1
 MIGRATION_FLAG_KEY = "_migrated_to_xy_v1"
+LOOP_MODE_MIGRATION_FLAG = "_migrated_loop_mode_v1"
 MAX_PRESETS_PER_TYPE = 250
 MAX_PRESET_NAME_LENGTH = 200
 
@@ -178,6 +179,26 @@ def _migrate_segment_sequence_preset(preset: dict[str, Any]) -> dict[str, Any]:
         preset[MIGRATION_FLAG_KEY] = True
         _LOGGER.debug(
             "Migrated segment sequence preset '%s' to XY color space",
+            preset.get("name", "unknown"),
+        )
+
+    return preset
+
+
+def _migrate_loop_mode(preset: dict[str, Any]) -> dict[str, Any]:
+    """Migrate loop_mode value from 'loop' to 'count'.
+
+    Earlier frontend versions used 'loop' as the dropdown value for counted
+    loop mode, but the backend schema expects 'count'.
+    """
+    if preset.get(LOOP_MODE_MIGRATION_FLAG):
+        return preset
+
+    if preset.get("loop_mode") == "loop":
+        preset["loop_mode"] = "count"
+        preset[LOOP_MODE_MIGRATION_FLAG] = True
+        _LOGGER.debug(
+            "Migrated preset '%s' loop_mode from 'loop' to 'count'",
             preset.get("name", "unknown"),
         )
 
@@ -350,9 +371,22 @@ class PresetStore(BaseStore[PresetsData]):
                         self._data["segment_sequence_presets"][i] = migrated
                         needs_save = True
 
+            # Migrate loop_mode 'loop' -> 'count' in preset types that have it
+            for key in (
+                "cct_sequence_presets",
+                "segment_sequence_presets",
+                "dynamic_scene_presets",
+            ):
+                if self._data[key]:
+                    for i, preset in enumerate(self._data[key]):
+                        migrated = _migrate_loop_mode(preset)
+                        if migrated.get(LOOP_MODE_MIGRATION_FLAG):
+                            self._data[key][i] = migrated
+                            needs_save = True
+
             # Save migrated presets
             if needs_save:
-                _LOGGER.info("Migrated user presets from RGB to XY color space")
+                _LOGGER.info("Migrated user presets")
                 await self.async_save()
 
         _LOGGER.debug(
