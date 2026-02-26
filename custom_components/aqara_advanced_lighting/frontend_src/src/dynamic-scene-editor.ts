@@ -643,9 +643,13 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
         <span class="color-slot-number">${index + 1}</span>
         <div
           class="color-preview"
+          role="button"
+          tabindex="0"
           style="background-color: ${hexColor}"
           @click=${() => this._openColorPicker(index)}
+          @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._openColorPicker(index); } }}
           title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_edit')}"
+          aria-label="${this._localize('editors.color_label') || 'Color'} ${index + 1}: ${hexColor}"
         ></div>
         <div class="brightness-control">
           <ha-selector

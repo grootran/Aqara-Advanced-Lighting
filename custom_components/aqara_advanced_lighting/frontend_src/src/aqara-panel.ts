@@ -3864,6 +3864,7 @@ export class AqaraPanel extends LitElement {
       <div
         class="user-preset-card"
         title="${preset.name}"
+        aria-label="${preset.name}"
       >
         <div class="preset-card-actions">
           <ha-icon-button
@@ -4179,7 +4180,7 @@ export class AqaraPanel extends LitElement {
         </div>
         <div class="section-content">
           ${sortedFavorites.map(({ ref, preset, isUser }) => html`
-            <div class="preset-button ${isUser ? 'user-preset' : 'builtin-preset'}" @click=${() => this._activateFavoritePreset(ref, preset, isUser)}>
+            <div class="preset-button ${isUser ? 'user-preset' : 'builtin-preset'}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateFavoritePreset(ref, preset, isUser)}>
               <div class="preset-card-actions">
                 ${this._renderFavoriteStar(ref.type, ref.id)}
               </div>
@@ -4223,7 +4224,7 @@ export class AqaraPanel extends LitElement {
         <div class="section-content">
           ${sortedUserPresets.map(
             (preset) => html`
-              <div class="preset-button user-preset" @click=${() => this._activateUserEffectPreset(preset)}>
+              <div class="preset-button user-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateUserEffectPreset(preset)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('effect', preset.id)}
                 </div>
@@ -4236,7 +4237,7 @@ export class AqaraPanel extends LitElement {
           )}
           ${sortedBuiltinPresets.map(
             (preset) => html`
-              <div class="preset-button builtin-preset" @click=${() => this._activateDynamicEffect(preset)}>
+              <div class="preset-button builtin-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateDynamicEffect(preset)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('effect', preset.id)}
                   <ha-icon-button
@@ -4316,6 +4317,10 @@ export class AqaraPanel extends LitElement {
               ${effects.map(effect => html`
                 <div
                   class="preset-button ${this._musicSyncEffect === effect.id ? 'music-sync-active' : ''} ${!this._musicSyncEnabled ? 'disabled' : ''}"
+                  role="button"
+                  tabindex="0"
+                  aria-label="${this._localize(`music_sync.effect_${effect.id}`)}"
+                  aria-disabled="${!this._musicSyncEnabled ? 'true' : 'false'}"
                   @click=${() => this._musicSyncEnabled ? this._handleMusicSyncEffectSelect(effect.id) : null}
                 >
                   <div class="preset-icon">
@@ -4451,7 +4456,7 @@ export class AqaraPanel extends LitElement {
         <div class="section-content">
           ${sortedUserPresets.map(
             (preset) => html`
-              <div class="preset-button user-preset" @click=${() => this._activateUserPatternPreset(preset)}>
+              <div class="preset-button user-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateUserPatternPreset(preset)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('segment_pattern', preset.id)}
                 </div>
@@ -4464,7 +4469,7 @@ export class AqaraPanel extends LitElement {
           )}
           ${sortedBuiltinPresets.map(
             (preset) => html`
-              <div class="preset-button builtin-preset" @click=${() => this._activateSegmentPattern(preset)}>
+              <div class="preset-button builtin-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateSegmentPattern(preset)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('segment_pattern', preset.id)}
                   <ha-icon-button
@@ -4581,7 +4586,7 @@ export class AqaraPanel extends LitElement {
         <div class="section-content">
           ${sortedUserPresets.map(
             (preset) => html`
-              <div class="preset-button user-preset" @click=${() => this._activateUserCCTSequencePreset(preset)}>
+              <div class="preset-button user-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateUserCCTSequencePreset(preset)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('cct_sequence', preset.id)}
                 </div>
@@ -4594,7 +4599,7 @@ export class AqaraPanel extends LitElement {
           )}
           ${sortedBuiltinPresets.map(
             (preset) => html`
-              <div class="preset-button builtin-preset" @click=${() => this._activateCCTSequence(preset)}>
+              <div class="preset-button builtin-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateCCTSequence(preset)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('cct_sequence', preset.id)}
                   <ha-icon-button
@@ -4645,7 +4650,7 @@ export class AqaraPanel extends LitElement {
         <div class="section-content">
           ${sortedUserPresets.map(
             (preset) => html`
-              <div class="preset-button user-preset" @click=${() => this._activateUserSegmentSequencePreset(preset)}>
+              <div class="preset-button user-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateUserSegmentSequencePreset(preset)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('segment_sequence', preset.id)}
                 </div>
@@ -4658,7 +4663,7 @@ export class AqaraPanel extends LitElement {
           )}
           ${sortedBuiltinPresets.map(
             (preset) => html`
-              <div class="preset-button builtin-preset" @click=${() => this._activateSegmentSequence(preset)}>
+              <div class="preset-button builtin-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateSegmentSequence(preset)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('segment_sequence', preset.id)}
                   <ha-icon-button
@@ -4710,7 +4715,7 @@ export class AqaraPanel extends LitElement {
         <div class="section-content">
           ${sortedUserPresets.map(
             (preset) => html`
-              <div class="preset-button user-preset" @click=${() => this._activateUserDynamicScenePreset(preset)}>
+              <div class="preset-button user-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateUserDynamicScenePreset(preset)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('dynamic_scene', preset.id)}
                 </div>
@@ -4723,7 +4728,7 @@ export class AqaraPanel extends LitElement {
           )}
           ${sortedBuiltinPresets.map(
             (preset) => html`
-              <div class="preset-button builtin-preset" @click=${() => this._activateDynamicScene(preset)}>
+              <div class="preset-button builtin-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateDynamicScene(preset)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('dynamic_scene', preset.id)}
                   <ha-icon-button

@@ -128,6 +128,7 @@ export class ColorHistorySwatches extends LitElement {
               class="color-history-swatch"
               style="background-color: ${xyToHex(color, 255)}"
               @click=${() => this._handleColorClick(color)}
+              aria-label="${this._localize('color_history.swatch_label') || 'Color'} ${xyToHex(color, 255)}"
             ></button>
           `)}
         </div>

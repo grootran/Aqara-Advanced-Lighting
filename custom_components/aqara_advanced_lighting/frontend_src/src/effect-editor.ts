@@ -498,9 +498,13 @@ export class EffectEditor extends LitElement {
                 <div class="color-item">
                   <div
                     class="color-swatch"
+                    role="button"
+                    tabindex="0"
                     style="background-color: ${this._colorToHex(color)}"
                     @click=${() => this._openColorPicker(index)}
+                    @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._openColorPicker(index); } }}
                     title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_edit')}"
+                    aria-label="${this._localize('editors.color_label') || 'Color'} ${index + 1}: ${this._colorToHex(color)}"
                   ></div>
                   ${this._colors.length > 1
                     ? html`

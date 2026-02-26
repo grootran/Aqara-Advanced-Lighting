@@ -1627,9 +1627,14 @@ export class SegmentSelector extends LitElement {
       cells.push(html`
         <div
           class="segment-cell ${cellClasses.join(' ')}"
+          role="button"
+          tabindex="0"
           style="${cellStyle}"
           @click=${(e: MouseEvent) => this._handleSegmentClick(i, e)}
+          @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._handleSegmentClick(i, e as unknown as MouseEvent); } }}
           title="Segment ${i + 1}${isSelected ? ' (selected)' : ''}${isColored ? ' (colored)' : ''}"
+          aria-label="Segment ${i + 1}"
+          aria-pressed="${isSelected ? 'true' : 'false'}"
         >
           ${i + 1}
         </div>
@@ -1638,7 +1643,11 @@ export class SegmentSelector extends LitElement {
 
     return html`
       <div class="segment-grid-container ${this.hideControls ? 'compact' : ''}">
-        <div class="segment-grid ${this._clearMode ? 'clear-mode' : ''} ${this._selectMode ? 'select-mode' : ''}">
+        <div
+          class="segment-grid ${this._clearMode ? 'clear-mode' : ''} ${this._selectMode ? 'select-mode' : ''}"
+          role="group"
+          aria-label="${this._localize('editors.segment_grid_label') || 'Segment grid'}"
+        >
           ${cells}
         </div>
         ${this.hideControls ? '' : this._renderControls()}
@@ -1754,21 +1763,27 @@ export class SegmentSelector extends LitElement {
 
   private _renderModeTabs(): TemplateResult {
     return html`
-      <div class="mode-tabs">
+      <div class="mode-tabs" role="tablist">
         <button
           class="mode-tab ${this._patternMode === 'individual' ? 'active' : ''}"
+          role="tab"
+          aria-selected="${this._patternMode === 'individual' ? 'true' : 'false'}"
           @click=${() => this._setPatternMode('individual')}
         >
           ${this._localize('editors.individual_tab')}
         </button>
         <button
           class="mode-tab ${this._patternMode === 'gradient' ? 'active' : ''}"
+          role="tab"
+          aria-selected="${this._patternMode === 'gradient' ? 'true' : 'false'}"
           @click=${() => this._setPatternMode('gradient')}
         >
           ${this._localize('editors.gradient_tab')}
         </button>
         <button
           class="mode-tab ${this._patternMode === 'blocks' ? 'active' : ''}"
+          role="tab"
+          aria-selected="${this._patternMode === 'blocks' ? 'true' : 'false'}"
           @click=${() => this._setPatternMode('blocks')}
         >
           ${this._localize('editors.blocks_tab')}
@@ -1798,8 +1813,13 @@ export class SegmentSelector extends LitElement {
           <div class="palette-color-wrapper">
             <div
               class="palette-color ${this._selectedPaletteIndex === index ? 'selected' : ''}"
+              role="button"
+              tabindex="0"
               style="background-color: ${xyToHex(color)}"
               @click=${() => this._selectPaletteColor(index)}
+              @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._selectPaletteColor(index); } }}
+              aria-label="${this._localize('editors.color_label') || 'Color'} ${index + 1}: ${xyToHex(color)}"
+              aria-pressed="${this._selectedPaletteIndex === index ? 'true' : 'false'}"
             ></div>
             <button
               class="palette-edit-btn"
@@ -1832,8 +1852,12 @@ export class SegmentSelector extends LitElement {
           <div class="color-item">
             <div
               class="color-swatch"
+              role="button"
+              tabindex="0"
               style="background-color: ${xyToHex(color)}"
               @click=${() => this._openColorPicker('gradient', index)}
+              @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._openColorPicker('gradient', index); } }}
+              aria-label="${this._localize('editors.color_label') || 'Color'} ${index + 1}: ${xyToHex(color)}"
             ></div>
             ${this.gradientColors.length > 2 ? html`
               <button class="color-remove" @click=${() => this._removeGradientColor(index)}>
@@ -1941,8 +1965,12 @@ export class SegmentSelector extends LitElement {
           <div class="color-item">
             <div
               class="color-swatch"
+              role="button"
+              tabindex="0"
               style="background-color: ${xyToHex(color)}"
               @click=${() => this._openColorPicker('blocks', index)}
+              @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._openColorPicker('blocks', index); } }}
+              aria-label="${this._localize('editors.color_label') || 'Color'} ${index + 1}: ${xyToHex(color)}"
             ></div>
             ${this.blockColors.length > 1 ? html`
               <button class="color-remove" @click=${() => this._removeBlockColor(index)}>

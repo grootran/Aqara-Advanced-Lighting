@@ -2663,6 +2663,7 @@
               class="color-history-swatch"
               style="background-color: ${Ie(e,255)}"
               @click=${()=>this._handleColorClick(e)}
+              aria-label="${this._localize("color_history.swatch_label")||"Color"} ${Ie(e,255)}"
             ></button>
           `)}
         </div>
@@ -2828,9 +2829,13 @@
                 <div class="color-item">
                   <div
                     class="color-swatch"
+                    role="button"
+                    tabindex="0"
                     style="background-color: ${this._colorToHex(e)}"
                     @click=${()=>this._openColorPicker(t)}
+                    @keydown=${e=>{"Enter"!==e.key&&" "!==e.key||(e.preventDefault(),this._openColorPicker(t))}}
                     title="${this.hass.localize("component.aqara_advanced_lighting.panel.tooltips.color_edit")}"
+                    aria-label="${this._localize("editors.color_label")||"Color"} ${t+1}: ${this._colorToHex(e)}"
                   ></div>
                   ${this._colors.length>1?j`
                         <button
@@ -3314,6 +3319,8 @@
 `;function $t(t){class i extends t{constructor(){super(...arguments),this._dragState={...yt},this._boundMove=this._onPointerMove.bind(this),this._boundEnd=this._onPointerEnd.bind(this),this._scrollContainer=null,this._cachedStepList=null,this._autoScrollRaf=0,this._lastClientY=0}disconnectedCallback(){super.disconnectedCallback(),this._cleanupDrag()}_onDragHandlePointerDown(e,t){if(this._steps.length<=1)return;e.preventDefault(),e.stopPropagation();const i=this.shadowRoot?.querySelector(".step-list");if(!i)return;this._cachedStepList=i,this._scrollContainer=this._findScrollContainer(i),this._dragState={draggingIndex:t,dropTargetIndex:null};const s=i.querySelectorAll(".step-item");s[t]?.classList.add("dragging"),i.classList.add("is-dragging"),this._lastClientY=e.clientY,window.addEventListener("pointermove",this._boundMove),window.addEventListener("pointerup",this._boundEnd),window.addEventListener("pointercancel",this._boundEnd),this.requestUpdate()}_onPointerMove(e){null!==this._dragState.draggingIndex&&(e.preventDefault(),this._lastClientY=e.clientY,this._updateDropTarget(e.clientY),this._startAutoScroll())}_onPointerEnd(e){if(null===this._dragState.draggingIndex)return;e.preventDefault();const{draggingIndex:t,dropTargetIndex:i}=this._dragState;null!==i&&i!==t&&i!==t+1&&this._reorderStep(t,i),this._cleanupDrag()}_cleanupDrag(){window.removeEventListener("pointermove",this._boundMove),window.removeEventListener("pointerup",this._boundEnd),window.removeEventListener("pointercancel",this._boundEnd),this._autoScrollRaf&&(cancelAnimationFrame(this._autoScrollRaf),this._autoScrollRaf=0);const e=this._cachedStepList;e&&(e.classList.remove("is-dragging"),e.querySelectorAll(".step-item.dragging").forEach(e=>e.classList.remove("dragging"))),this._cachedStepList=null,this._scrollContainer=null,this._dragState={...yt},this.requestUpdate()}_updateDropTarget(e){const t=this._calcDropTarget(e);t!==this._dragState.dropTargetIndex&&(this._dragState={...this._dragState,dropTargetIndex:t})}_calcDropTarget(e){if(null===this._dragState.draggingIndex)return null;const t=this._cachedStepList;if(!t)return null;const i=t.querySelectorAll(".step-item");if(0===i.length)return null;for(let t=0;t<i.length;t++){const s=i[t].getBoundingClientRect();if(e<s.top+s.height/2)return t}return i.length}_findScrollContainer(e){let t=e;for(;t;){if(!t.parentElement&&t.getRootNode()instanceof ShadowRoot){t=t.getRootNode().host;continue}if(t=t.parentElement,!t)break;const e=getComputedStyle(t).overflowY;if(("auto"===e||"scroll"===e)&&t.scrollHeight>t.clientHeight)return t}return null}_startAutoScroll(){if(this._autoScrollRaf)return;const e=()=>{if(null===this._dragState.draggingIndex)return void(this._autoScrollRaf=0);const t=this._scrollContainer;if(t){{const e=t.getBoundingClientRect(),i=this._lastClientY;if(i<e.top+40&&t.scrollTop>0)t.scrollTop-=8,this._updateDropTarget(this._lastClientY);else{if(!(i>e.bottom-40&&t.scrollTop<t.scrollHeight-t.clientHeight))return void(this._autoScrollRaf=0);t.scrollTop+=8,this._updateDropTarget(this._lastClientY)}}this._autoScrollRaf=requestAnimationFrame(e)}else this._autoScrollRaf=0};this._autoScrollRaf=requestAnimationFrame(e)}_reorderStep(e,t){const i=[...this._steps],[s]=i.splice(e,1),o=e<t?t-1:t;i.splice(o,0,s),this._steps=i}_renderDragHandle(e){return j`
         <div
           class="drag-handle"
+          role="button"
+          aria-label="Reorder item ${e+1}"
           @pointerdown=${t=>this._onDragHandlePointerDown(t,e)}
         >
           <ha-icon icon="mdi:drag"></ha-icon>
@@ -4298,9 +4305,13 @@
         <span class="color-slot-number">${t+1}</span>
         <div
           class="color-preview"
+          role="button"
+          tabindex="0"
           style="background-color: ${i}"
           @click=${()=>this._openColorPicker(t)}
+          @keydown=${e=>{"Enter"!==e.key&&" "!==e.key||(e.preventDefault(),this._openColorPicker(t))}}
           title="${this.hass.localize("component.aqara_advanced_lighting.panel.tooltips.color_edit")}"
+          aria-label="${this._localize("editors.color_label")||"Color"} ${t+1}: ${i}"
         ></div>
         <div class="brightness-control">
           <ha-selector
@@ -5509,6 +5520,7 @@
       <div
         class="user-preset-card"
         title="${e.name}"
+        aria-label="${e.name}"
       >
         <div class="preset-card-actions">
           <ha-icon-button
@@ -5567,7 +5579,7 @@
         </div>
         <div class="section-content">
           ${a.map(({ref:e,preset:t,isUser:i})=>j`
-            <div class="preset-button ${i?"user-preset":"builtin-preset"}" @click=${()=>this._activateFavoritePreset(e,t,i)}>
+            <div class="preset-button ${i?"user-preset":"builtin-preset"}" role="button" tabindex="0" aria-label="${t.name}" @click=${()=>this._activateFavoritePreset(e,t,i)}>
               <div class="preset-card-actions">
                 ${this._renderFavoriteStar(e.type,e.id)}
               </div>
@@ -5596,7 +5608,7 @@
         </div>
         <div class="section-content">
           ${l.map(e=>j`
-              <div class="preset-button user-preset" @click=${()=>this._activateUserEffectPreset(e)}>
+              <div class="preset-button user-preset" role="button" tabindex="0" aria-label="${e.name}" @click=${()=>this._activateUserEffectPreset(e)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar("effect",e.id)}
                 </div>
@@ -5607,7 +5619,7 @@
               </div>
             `)}
           ${c.map(e=>j`
-              <div class="preset-button builtin-preset" @click=${()=>this._activateDynamicEffect(e)}>
+              <div class="preset-button builtin-preset" role="button" tabindex="0" aria-label="${e.name}" @click=${()=>this._activateDynamicEffect(e)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar("effect",e.id)}
                   <ha-icon-button
@@ -5672,6 +5684,10 @@
               ${[{id:"random",icon:"random.svg"},{id:"blink",icon:"blink.svg"},{id:"rainbow",icon:"rainbow.svg"},{id:"wave",icon:"wave.svg"}].map(e=>j`
                 <div
                   class="preset-button ${this._musicSyncEffect===e.id?"music-sync-active":""} ${this._musicSyncEnabled?"":"disabled"}"
+                  role="button"
+                  tabindex="0"
+                  aria-label="${this._localize(`music_sync.effect_${e.id}`)}"
+                  aria-disabled="${this._musicSyncEnabled?"false":"true"}"
                   @click=${()=>this._musicSyncEnabled?this._handleMusicSyncEffectSelect(e.id):null}
                 >
                   <div class="preset-icon">
@@ -5725,7 +5741,7 @@
         </div>
         <div class="section-content">
           ${l.map(e=>j`
-              <div class="preset-button user-preset" @click=${()=>this._activateUserPatternPreset(e)}>
+              <div class="preset-button user-preset" role="button" tabindex="0" aria-label="${e.name}" @click=${()=>this._activateUserPatternPreset(e)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar("segment_pattern",e.id)}
                 </div>
@@ -5736,7 +5752,7 @@
               </div>
             `)}
           ${c.map(e=>j`
-              <div class="preset-button builtin-preset" @click=${()=>this._activateSegmentPattern(e)}>
+              <div class="preset-button builtin-preset" role="button" tabindex="0" aria-label="${e.name}" @click=${()=>this._activateSegmentPattern(e)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar("segment_pattern",e.id)}
                   <ha-icon-button
@@ -5771,7 +5787,7 @@
         </div>
         <div class="section-content">
           ${r.map(e=>j`
-              <div class="preset-button user-preset" @click=${()=>this._activateUserCCTSequencePreset(e)}>
+              <div class="preset-button user-preset" role="button" tabindex="0" aria-label="${e.name}" @click=${()=>this._activateUserCCTSequencePreset(e)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar("cct_sequence",e.id)}
                 </div>
@@ -5782,7 +5798,7 @@
               </div>
             `)}
           ${a.map(e=>j`
-              <div class="preset-button builtin-preset" @click=${()=>this._activateCCTSequence(e)}>
+              <div class="preset-button builtin-preset" role="button" tabindex="0" aria-label="${e.name}" @click=${()=>this._activateCCTSequence(e)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar("cct_sequence",e.id)}
                   <ha-icon-button
@@ -5817,7 +5833,7 @@
         </div>
         <div class="section-content">
           ${l.map(e=>j`
-              <div class="preset-button user-preset" @click=${()=>this._activateUserSegmentSequencePreset(e)}>
+              <div class="preset-button user-preset" role="button" tabindex="0" aria-label="${e.name}" @click=${()=>this._activateUserSegmentSequencePreset(e)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar("segment_sequence",e.id)}
                 </div>
@@ -5828,7 +5844,7 @@
               </div>
             `)}
           ${c.map(e=>j`
-              <div class="preset-button builtin-preset" @click=${()=>this._activateSegmentSequence(e)}>
+              <div class="preset-button builtin-preset" role="button" tabindex="0" aria-label="${e.name}" @click=${()=>this._activateSegmentSequence(e)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar("segment_sequence",e.id)}
                   <ha-icon-button
@@ -5863,7 +5879,7 @@
         </div>
         <div class="section-content">
           ${r.map(e=>j`
-              <div class="preset-button user-preset" @click=${()=>this._activateUserDynamicScenePreset(e)}>
+              <div class="preset-button user-preset" role="button" tabindex="0" aria-label="${e.name}" @click=${()=>this._activateUserDynamicScenePreset(e)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar("dynamic_scene",e.id)}
                 </div>
@@ -5874,7 +5890,7 @@
               </div>
             `)}
           ${a.map(e=>j`
-              <div class="preset-button builtin-preset" @click=${()=>this._activateDynamicScene(e)}>
+              <div class="preset-button builtin-preset" role="button" tabindex="0" aria-label="${e.name}" @click=${()=>this._activateDynamicScene(e)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar("dynamic_scene",e.id)}
                   <ha-icon-button
@@ -6749,15 +6765,24 @@
     `}disconnectedCallback(){super.disconnectedCallback(),this._wheelPointerMoveBound&&(window.removeEventListener("mousemove",this._wheelPointerMoveBound),window.removeEventListener("touchmove",this._wheelPointerMoveBound),this._wheelPointerMoveBound=null),this._wheelPointerUpBound&&(window.removeEventListener("mouseup",this._wheelPointerUpBound),window.removeEventListener("touchend",this._wheelPointerUpBound),this._wheelPointerUpBound=null)}updated(e){!e.has("value")||e.get("value")===this.value||"selection"!==this.mode&&"sequence"!==this.mode||this._parseValue(),!e.has("colorValue")||e.get("colorValue")===this.colorValue||"color"!==this.mode&&"sequence"!==this.mode||this._parseColorValue(),this.initialPatternMode&&!this._initialPatternApplied&&"individual"!==this.initialPatternMode&&this.maxSegments>0&&(this._initialPatternApplied=!0,0===this._coloredSegments.size&&(this._patternMode=this.initialPatternMode,this._applyToGrid())),e.has("maxSegments")&&this._validateSelection()}_parseValue(){const e=new Set;if(!this.value||""===this.value.trim())return void(this._selectedSegments=e);const t=this.value.trim().toLowerCase();if("all"===t){for(let t=0;t<this.maxSegments;t++)e.add(t);return void(this._selectedSegments=e)}const i=t.split(",");for(const t of i){const i=t.trim();if(i)if(i.includes("-")){const t=i.split("-").map(e=>e.trim()),s=t[0]??"",o=t[1]??"",n=parseInt(s,10),r=parseInt(o,10);if(!isNaN(n)&&!isNaN(r)){const t=Math.max(0,n-1),i=Math.min(this.maxSegments-1,r-1);for(let s=t;s<=i;s++)e.add(s)}}else{const t=parseInt(i,10);if(!isNaN(t)){const i=t-1;i>=0&&i<this.maxSegments&&e.add(i)}}}this._selectedSegments=e}_parseColorValue(){this.colorValue instanceof Map?this._coloredSegments=new Map(this.colorValue):this._coloredSegments=new Map}_validateSelection(){const e=new Set;for(const t of this._selectedSegments)t<this.maxSegments&&e.add(t);e.size!==this._selectedSegments.size&&(this._selectedSegments=e,"selection"!==this.mode&&"sequence"!==this.mode||this._fireValueChanged());const t=new Map;for(const[e,i]of this._coloredSegments)e<this.maxSegments&&t.set(e,i);t.size!==this._coloredSegments.size&&(this._coloredSegments=t,"color"!==this.mode&&"sequence"!==this.mode||this._fireColorValueChanged())}_segmentsToString(){if(0===this._selectedSegments.size)return"";if(this._selectedSegments.size===this.maxSegments)return"all";const e=Array.from(this._selectedSegments).sort((e,t)=>e-t),t=[];if(0===e.length)return"";let i=e[0],s=e[0];for(let o=1;o<e.length;o++){const n=e[o];n===s+1?s=n:(t.push(i===s?`${i+1}`:`${i+1}-${s+1}`),i=s=n)}return t.push(i===s?`${i+1}`:`${i+1}-${s+1}`),t.join(",")}_handleSegmentClick(e,t){this.disabled||(t.preventDefault(),"selection"===this.mode?this._handleSelectionClick(e,t):"color"!==this.mode&&"sequence"!==this.mode||this._handleColorClick(e,t))}_handleSelectionClick(e,t){const i=new Set(this._selectedSegments);if(t.shiftKey&&null!==this._lastSelectedIndex){const t=Math.min(this._lastSelectedIndex,e),s=Math.max(this._lastSelectedIndex,e);for(let e=t;e<=s;e++)i.add(e)}else t.ctrlKey||t.metaKey,i.has(e)?i.delete(e):i.add(e);this._lastSelectedIndex=e,this._selectedSegments=i,this._fireValueChanged()}_handleColorClick(e,t){if(this._clearMode){const t=new Map(this._coloredSegments);return t.delete(e),this._coloredSegments=t,void this._fireColorValueChanged()}if(this._selectMode||t.shiftKey){const t=new Set(this._selectedSegments);t.has(e)?t.delete(e):t.add(e),this._selectedSegments=t}else if(t.ctrlKey||t.metaKey)this._selectedSegments=new Set([...this._selectedSegments,e]);else{const t=this.colorPalette[this._selectedPaletteIndex];if(!t)return;const i=new Map(this._coloredSegments);i.set(e,{...t}),this._coloredSegments=i,this._fireColorValueChanged()}}_localize(e,t){const i=e.split(".");let s=this.translations;for(const t of i){if(!s||"object"!=typeof s||!(t in s))return e;s=s[t]}let o="string"==typeof s?s:e;return t&&Object.entries(t).forEach(([e,t])=>{o=o.replace(`{${e}}`,String(t))}),o}_selectAll(){if(this.disabled)return;const e=new Set;for(let t=0;t<this.maxSegments;t++)e.add(t);this._selectedSegments=e,this._lastSelectedIndex=null,"selection"!==this.mode&&"sequence"!==this.mode||this._fireValueChanged()}_clearAll(){this.disabled||(this._selectedSegments=new Set,this._coloredSegments=new Map,this._lastSelectedIndex=null,"selection"!==this.mode&&"sequence"!==this.mode||this._fireValueChanged(),"color"!==this.mode&&"sequence"!==this.mode||this._fireColorValueChanged())}_getBuiltInZoneIndices(e){const t=Math.floor(this.maxSegments/2);switch(e){case"__all":return Array.from({length:this.maxSegments},(e,t)=>t);case"__first-half":return Array.from({length:t},(e,t)=>t);case"__second-half":return Array.from({length:this.maxSegments-t},(e,i)=>t+i);case"__odd":return Array.from({length:this.maxSegments},(e,t)=>t).filter(e=>e%2==0);case"__even":return Array.from({length:this.maxSegments},(e,t)=>t).filter(e=>e%2==1);default:return null}}_renderZoneListItems(){const e=[];if(this.zones.length>0)for(const t of this.zones)e.push(j`<mwc-list-item value=${t.name}>${t.name}</mwc-list-item>`);return e.push(j`<mwc-list-item value="__all">${this._localize("editors.select_all_button")}</mwc-list-item>`),e.push(j`<mwc-list-item value="__first-half">${this._localize("editors.first_half_button")}</mwc-list-item>`),e.push(j`<mwc-list-item value="__second-half">${this._localize("editors.second_half_button")}</mwc-list-item>`),e.push(j`<mwc-list-item value="__odd">${this._localize("editors.odd_button")}</mwc-list-item>`),e.push(j`<mwc-list-item value="__even">${this._localize("editors.even_button")}</mwc-list-item>`),e}_handleZoneSelected(e){const t=e.target.value;if(!t||this.disabled)return;const i=this._getBuiltInZoneIndices(t);let s;if(i)s=new Set(i);else{const e=this.zones.find(e=>e.name===t);if(!e)return;s=new Set(e.segmentIndices)}this._selectedSegments=s,this._lastSelectedIndex=null,"selection"!==this.mode&&"sequence"!==this.mode||this._fireValueChanged()}_handleZoneMenuClosed(e){e.stopPropagation(),this._selectedZone=""}_clearSelected(){if(!this.disabled&&0!==this._selectedSegments.size){if("color"===this.mode||"sequence"===this.mode){const e=new Map(this._coloredSegments);for(const t of this._selectedSegments)e.delete(t);this._coloredSegments=e,this._fireColorValueChanged()}this._selectedSegments=new Set}}_toggleClearMode(){this._clearMode=!this._clearMode,this._clearMode&&(this._selectMode=!1)}_toggleSelectMode(){this._selectMode=!this._selectMode,this._selectMode&&(this._clearMode=!1)}_selectPaletteColor(e){this._selectedPaletteIndex=e}_applyToSelected(){if(0===this._selectedSegments.size)return;const e=this.colorPalette[this._selectedPaletteIndex];if(!e)return;const t=new Map(this._coloredSegments);for(const i of this._selectedSegments)t.set(i,{...e});this._coloredSegments=t,this._selectedSegments=new Set,this._fireColorValueChanged()}_setPatternMode(e){this._patternMode=e,this._clearMode=!1,this._selectMode=!1}_addGradientColor(){if(this.gradientColors.length>=6||0===this.gradientColors.length)return;const e=this.gradientColors[this.gradientColors.length-1];if(!e)return;const t=Be(e);this.gradientColors=[...this.gradientColors,t],this._fireGradientColorsChanged()}_removeGradientColor(e){this.gradientColors.length<=2||(this.gradientColors=this.gradientColors.filter((t,i)=>i!==e),this._fireGradientColorsChanged())}_addBlockColor(){if(this.blockColors.length>=6||0===this.blockColors.length)return;const e=this.blockColors[this.blockColors.length-1];if(!e)return;const t=Be(e);this.blockColors=[...this.blockColors,t],this._fireBlockColorsChanged()}_removeBlockColor(e){this.blockColors.length<=1||(this.blockColors=this.blockColors.filter((t,i)=>i!==e),this._fireBlockColorsChanged())}_handleExpandBlocksChange(e){this.expandBlocks=e.target.checked}_handleGradientReverseChange(e){this.gradientReverse=e.target.checked}_handleGradientMirrorChange(e){this.gradientMirror=e.target.checked}_handleGradientWaveChange(e){this.gradientWave=e.target.checked}_handleGradientRepeatChange(e){this.gradientRepeat=Math.max(1,Math.min(10,parseInt(e.target.value)||1))}_handleGradientWaveCyclesChange(e){this.gradientWaveCycles=Math.max(1,Math.min(5,parseInt(e.target.value)||1))}_handleGradientInterpolationChange(e){const t=e.target;t.value&&(this.gradientInterpolation=t.value)}_handleInterpolationMenuClosed(e){e.stopPropagation()}_interpolateHue(e,t,i){let s=t-e;s>180?s-=360:s<-180&&(s+=360);let o=e+s*i;return o<0&&(o+=360),o>=360&&(o-=360),o}_interpolateHueLongest(e,t,i){let s=t-e;s>0&&s<=180?s-=360:s<0&&s>=-180&&(s+=360);let o=e+s*i;return o<0&&(o+=360),o>=360&&(o-=360),o}_interpolateColorPair(e,t,i,s,o){if("rgb"===this.gradientInterpolation){const e=Me(i.x,i.y,255),t=Me(s.x,s.y,255);return De(Math.round(e.r+(t.r-e.r)*o),Math.round(e.g+(t.g-e.g)*o),Math.round(e.b+(t.b-e.b)*o))}const n="longest"===this.gradientInterpolation?this._interpolateHueLongest(e.h,t.h,o):this._interpolateHue(e.h,t.h,o);return Re({h:Math.round(n),s:Math.round(e.s+(t.s-e.s)*o)})}_applyWaveTransform(e){return.5-.5*Math.cos(e*Math.PI*2*this.gradientWaveCycles)}_generateGradientColorArray(e){if(0===e||this.gradientColors.length<2)return[];const t=this.gradientReverse?[...this.gradientColors].reverse():[...this.gradientColors],i=t.length,s=t.map(e=>Ue(e)),o=this.gradientMirror?Math.ceil(e/2):e,n=this.gradientRepeat>1?Math.max(2,Math.ceil(o/this.gradientRepeat)):o,r=[];for(let e=0;e<n;e++){let o=n>1?e/(n-1):0;this.gradientWave&&(o=this._applyWaveTransform(o));const a=o*(i-1),l=Math.floor(a),c=a-l,d=Math.min(l,i-1),h=Math.min(l+1,i-1),p=s[d],_=s[h],g=t[d],u=t[h];p&&_&&g&&u&&r.push(this._interpolateColorPair(p,_,g,u,c))}const a=[];for(let e=0;e<o;e++){const t=r[e%n];t&&a.push(t)}if(this.gradientMirror){const t=[...a],i=[...a].reverse();for(let s=e%2!=0&&a.length>1?1:0;s<i.length;s++){const e=i[s];e&&t.push(e)}return t.slice(0,e)}return a}_generateGradientPattern(){if(this.gradientColors.length<2||0===this.maxSegments)return new Map;const e=this._generateGradientColorArray(this.maxSegments),t=new Map;return e.forEach((e,i)=>t.set(i,e)),t}_generateBlocksPattern(){const e=this.blockColors,t=e.length,i=new Map;if(0===t||0===this.maxSegments)return i;if(this.expandBlocks){const s=this.maxSegments/t;for(let o=0;o<this.maxSegments;o++){const n=e[Math.min(Math.floor(o/s),t-1)];i.set(o,{x:n.x,y:n.y})}}else for(let s=0;s<this.maxSegments;s++){const o=e[s%t];i.set(s,{x:o.x,y:o.y})}return i}_applyToGrid(){let e;if("gradient"===this._patternMode)e=this._generateGradientPattern();else{if("blocks"!==this._patternMode)return;e=this._generateBlocksPattern()}this._coloredSegments=e,this._fireColorValueChanged()}_applyToSelectedSegments(){if(0===this._selectedSegments.size)return;const e=Array.from(this._selectedSegments).sort((e,t)=>e-t),t=e.length;let i=[];if("gradient"===this._patternMode)i=this.gradientColors;else{if("blocks"!==this._patternMode)return;i=this.blockColors}const s=i.length,o=new Map(this._coloredSegments);if("gradient"===this._patternMode){const i=this._generateGradientColorArray(t);for(let s=0;s<t;s++){const t=e[s],n=i[s];void 0!==t&&n&&o.set(t,n)}}else if("blocks"===this._patternMode)if(this.expandBlocks){const n=Math.ceil(t/s);for(let r=0;r<t;r++){const t=e[r];if(void 0===t)continue;const a=i[Math.min(Math.floor(r/n),s-1)];a&&o.set(t,{x:a.x,y:a.y})}}else for(let n=0;n<t;n++){const t=e[n];if(void 0===t)continue;const r=i[n%s];r&&o.set(t,{x:r.x,y:r.y})}this._coloredSegments=o,this._selectedSegments=new Set,this._fireColorValueChanged()}_openColorPicker(e,t){let i;if("palette"===e?i=this.colorPalette[t]:"gradient"===e?i=this.gradientColors[t]:"blocks"===e&&(i=this.blockColors[t]),!i)return;this._editingColorSource=e,this._editingColorIndex=t;const s=`${i.x.toFixed(4)},${i.y.toFixed(4)}`,o=this._hsColorCache.get(s);this._editingColor=o||Ue(i)}_confirmColorPicker(){if(null===this._editingColorIndex||null===this._editingColor||!this._editingColorSource)return void this._closeColorPicker();const e=Re(this._editingColor),t=lt(this.colorHistory,e);this.dispatchEvent(new CustomEvent("color-history-changed",{detail:{colorHistory:t},bubbles:!0,composed:!0}));const i=`${e.x.toFixed(4)},${e.y.toFixed(4)}`;this._hsColorCache.set(i,{h:this._editingColor.h,s:this._editingColor.s}),"palette"===this._editingColorSource?(this.colorPalette=this.colorPalette.map((t,i)=>i===this._editingColorIndex?e:t),this._fireColorPaletteChanged()):"gradient"===this._editingColorSource?(this.gradientColors=this.gradientColors.map((t,i)=>i===this._editingColorIndex?e:t),this._fireGradientColorsChanged()):"blocks"===this._editingColorSource&&(this.blockColors=this.blockColors.map((t,i)=>i===this._editingColorIndex?e:t),this._fireBlockColorsChanged()),this._closeColorPicker()}_closeColorPicker(){this._editingColorSource=null,this._editingColorIndex=null,this._editingColor=null}_handleHistoryColorSelected(e){const t=e.detail.color,i=Ue(t);this._editingColor={h:i.h,s:i.s};this._updateMarkerPosition("color-wheel-canvas","color-wheel-marker",220);const s=Me(t.x,t.y,255),o=this.shadowRoot?.querySelectorAll(".color-picker-rgb-inputs .rgb-input-field");o&&3===o.length&&(o[0].value=String(s.r),o[1].value=String(s.g),o[2].value=String(s.b));const n=this.shadowRoot?.querySelector(".color-picker-modal-preview");n&&(n.style.backgroundColor=Ae(s))}_handleRgbInput(e,t){const i=e.target;let s=parseInt(i.value,10);if(isNaN(s)||""===i.value)return;if(s=Math.max(0,Math.min(255,s)),!this._editingColor)return;const o=Re(this._editingColor),n=Me(o.x,o.y,255),r={r:"r"===t?s:n.r,g:"g"===t?s:n.g,b:"b"===t?s:n.b},a=De(r.r,r.g,r.b),l=Ue(a);this._editingColor={h:l.h,s:l.s};this._updateMarkerPosition("color-wheel-canvas","color-wheel-marker",220);const c=this.shadowRoot?.querySelector(".color-picker-modal-preview");if(c){const e=Ae(Me(a.x,a.y,255));c.style.backgroundColor=e}const d=this.shadowRoot?.querySelectorAll(".rgb-input-field");if(d&&3===d.length){const e=Me(a.x,a.y,255),i="r"===t?0:"g"===t?1:2,o=d[0],n=d[1],r=d[2];o&&(o.value=String(e.r)),n&&(n.value=String(e.g)),r&&(r.value=String(e.b));if(("r"===t?e.r:"g"===t?e.g:e.b)!==s){const e=d[i];if(e){const t=e.style.borderColor;e.style.borderColor="var(--warning-color, #ff9800)",setTimeout(()=>{e.style.borderColor=t},500)}}}}_fireValueChanged(){const e=this._segmentsToString();this.dispatchEvent(new CustomEvent("value-changed",{detail:{value:e},bubbles:!0,composed:!0}))}_fireColorValueChanged(){this.dispatchEvent(new CustomEvent("color-value-changed",{detail:{value:this._coloredSegments,segments:this._segmentsToString()},bubbles:!0,composed:!0}))}_fireColorPaletteChanged(){this.dispatchEvent(new CustomEvent("color-palette-changed",{detail:{colors:this.colorPalette},bubbles:!0,composed:!0}))}_fireGradientColorsChanged(){this.dispatchEvent(new CustomEvent("gradient-colors-changed",{detail:{colors:this.gradientColors},bubbles:!0,composed:!0}))}_handleTurnOffUnspecifiedChange(e){this.turnOffUnspecified=e.target.checked,this.dispatchEvent(new CustomEvent("turn-off-unspecified-changed",{detail:{value:this.turnOffUnspecified},bubbles:!0,composed:!0}))}_fireBlockColorsChanged(){this.dispatchEvent(new CustomEvent("block-colors-changed",{detail:{colors:this.blockColors},bubbles:!0,composed:!0}))}_renderGrid(){const e=[];for(let t=0;t<this.maxSegments;t++){const i=this._selectedSegments.has(t),s=this._coloredSegments.get(t),o=void 0!==s,n=[];i&&n.push("selected"),!o||"color"!==this.mode&&"sequence"!==this.mode||n.push("colored"),this.disabled&&n.push("disabled");const r=!o||"color"!==this.mode&&"sequence"!==this.mode?"":`background-color: ${Rt(s)}`;e.push(j`
         <div
           class="segment-cell ${n.join(" ")}"
+          role="button"
+          tabindex="0"
           style="${r}"
           @click=${e=>this._handleSegmentClick(t,e)}
+          @keydown=${e=>{"Enter"!==e.key&&" "!==e.key||(e.preventDefault(),this._handleSegmentClick(t,e))}}
           title="Segment ${t+1}${i?" (selected)":""}${o?" (colored)":""}"
+          aria-label="Segment ${t+1}"
+          aria-pressed="${i?"true":"false"}"
         >
           ${t+1}
         </div>
       `)}return j`
       <div class="segment-grid-container ${this.hideControls?"compact":""}">
-        <div class="segment-grid ${this._clearMode?"clear-mode":""} ${this._selectMode?"select-mode":""}">
+        <div
+          class="segment-grid ${this._clearMode?"clear-mode":""} ${this._selectMode?"select-mode":""}"
+          role="group"
+          aria-label="${this._localize("editors.segment_grid_label")||"Segment grid"}"
+        >
           ${e}
         </div>
         ${this.hideControls?"":this._renderControls()}
@@ -6849,21 +6874,27 @@
         ${this._renderModeContent()}
       </div>
     `}_renderModeTabs(){return j`
-      <div class="mode-tabs">
+      <div class="mode-tabs" role="tablist">
         <button
           class="mode-tab ${"individual"===this._patternMode?"active":""}"
+          role="tab"
+          aria-selected="${"individual"===this._patternMode?"true":"false"}"
           @click=${()=>this._setPatternMode("individual")}
         >
           ${this._localize("editors.individual_tab")}
         </button>
         <button
           class="mode-tab ${"gradient"===this._patternMode?"active":""}"
+          role="tab"
+          aria-selected="${"gradient"===this._patternMode?"true":"false"}"
           @click=${()=>this._setPatternMode("gradient")}
         >
           ${this._localize("editors.gradient_tab")}
         </button>
         <button
           class="mode-tab ${"blocks"===this._patternMode?"active":""}"
+          role="tab"
+          aria-selected="${"blocks"===this._patternMode?"true":"false"}"
           @click=${()=>this._setPatternMode("blocks")}
         >
           ${this._localize("editors.blocks_tab")}
@@ -6878,8 +6909,13 @@
           <div class="palette-color-wrapper">
             <div
               class="palette-color ${this._selectedPaletteIndex===t?"selected":""}"
+              role="button"
+              tabindex="0"
               style="background-color: ${Rt(e)}"
               @click=${()=>this._selectPaletteColor(t)}
+              @keydown=${e=>{"Enter"!==e.key&&" "!==e.key||(e.preventDefault(),this._selectPaletteColor(t))}}
+              aria-label="${this._localize("editors.color_label")||"Color"} ${t+1}: ${Rt(e)}"
+              aria-pressed="${this._selectedPaletteIndex===t?"true":"false"}"
             ></div>
             <button
               class="palette-edit-btn"
@@ -6908,8 +6944,12 @@
           <div class="color-item">
             <div
               class="color-swatch"
+              role="button"
+              tabindex="0"
               style="background-color: ${Rt(e)}"
               @click=${()=>this._openColorPicker("gradient",t)}
+              @keydown=${e=>{"Enter"!==e.key&&" "!==e.key||(e.preventDefault(),this._openColorPicker("gradient",t))}}
+              aria-label="${this._localize("editors.color_label")||"Color"} ${t+1}: ${Rt(e)}"
             ></div>
             ${this.gradientColors.length>2?j`
               <button class="color-remove" @click=${()=>this._removeGradientColor(t)}>
@@ -7013,8 +7053,12 @@
           <div class="color-item">
             <div
               class="color-swatch"
+              role="button"
+              tabindex="0"
               style="background-color: ${Rt(e)}"
               @click=${()=>this._openColorPicker("blocks",t)}
+              @keydown=${e=>{"Enter"!==e.key&&" "!==e.key||(e.preventDefault(),this._openColorPicker("blocks",t))}}
+              aria-label="${this._localize("editors.color_label")||"Color"} ${t+1}: ${Rt(e)}"
             ></div>
             ${this.blockColors.length>1?j`
               <button class="color-remove" @click=${()=>this._removeBlockColor(t)}>

@@ -276,6 +276,8 @@ export function ReorderableStepsMixin<T extends Constructor<LitElement>>(
       return html`
         <div
           class="drag-handle"
+          role="button"
+          aria-label="Reorder item ${index + 1}"
           @pointerdown=${(e: PointerEvent) => this._onDragHandlePointerDown(e, index)}
         >
           <ha-icon icon="mdi:drag"></ha-icon>
