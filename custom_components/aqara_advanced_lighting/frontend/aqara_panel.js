@@ -971,33 +971,6 @@
     border-color: transparent;
   }
 
-  .preset-type-tabs {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  .preset-type-tab {
-    padding: 8px 16px;
-    border: 1px solid var(--divider-color);
-    border-radius: 20px;
-    background: transparent;
-    cursor: pointer;
-    font-size: var(--ha-font-size-s, 13px);
-    color: var(--secondary-text-color);
-    transition: all 0.15s ease-in-out;
-  }
-
-  .preset-type-tab:hover {
-    background: var(--secondary-background-color);
-  }
-
-  .preset-type-tab.active {
-    background: var(--primary-color);
-    color: var(--text-primary-color);
-    border-color: var(--primary-color);
-  }
-
   .preset-list {
     display: flex;
     flex-direction: column;
@@ -1750,7 +1723,7 @@
   .z2m-instance-card {
     background: var(--card-background-color, var(--ha-card-background));
     border: 1px solid var(--divider-color);
-    border-radius: 8px;
+    border-radius: var(--ha-card-border-radius, 12px);
     padding: 16px;
     display: flex;
     flex-direction: column;
