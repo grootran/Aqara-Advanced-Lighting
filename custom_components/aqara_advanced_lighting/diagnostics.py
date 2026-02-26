@@ -9,7 +9,18 @@ from homeassistant.const import CONF_API_KEY, CONF_PASSWORD, CONF_TOKEN, CONF_US
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 
-from .const import DATA_CCT_SEQUENCE_MANAGER, DATA_DYNAMIC_SCENE_MANAGER, DOMAIN
+from .const import (
+    DATA_ACTIVE_MUSIC_SYNC,
+    DATA_CCT_SEQUENCE_MANAGER,
+    DATA_DYNAMIC_SCENE_MANAGER,
+    DATA_ENTITY_CONTROLLER,
+    DATA_FAVORITES_STORE,
+    DATA_PRESET_STORE,
+    DATA_SEGMENT_SEQUENCE_MANAGER,
+    DATA_SEGMENT_ZONE_STORE,
+    DATA_USER_PREFERENCES_STORE,
+    DOMAIN,
+)
 from .device_automation_helpers import get_entity_ids_for_device
 from .models import AqaraLightingConfigEntry
 
@@ -92,13 +103,21 @@ async def async_get_config_entry_diagnostics(
 
     # Get CCT sequence manager data for this specific entry
     cct_manager = entry_data.get(DATA_CCT_SEQUENCE_MANAGER)
-    active_sequences = []
+    active_cct_sequences = []
     if cct_manager:
         for entity_id in cct_manager.get_active_sequence_entities():
-            active_sequences.append({
-                "entity_id": entity_id,
-                "running": True,
-            })
+            status = cct_manager.get_sequence_status(entity_id)
+            if status:
+                active_cct_sequences.append(status)
+
+    # Get segment sequence manager data for this specific entry
+    segment_manager = entry_data.get(DATA_SEGMENT_SEQUENCE_MANAGER)
+    active_segment_sequences = []
+    if segment_manager:
+        for entity_id in segment_manager.get_active_sequence_entities():
+            status = segment_manager.get_sequence_status(entity_id)
+            if status:
+                active_segment_sequences.append(status)
 
     # Get dynamic scene manager data for this specific entry
     dynamic_scene_manager = entry_data.get(DATA_DYNAMIC_SCENE_MANAGER)
@@ -112,7 +131,55 @@ async def async_get_config_entry_diagnostics(
                 "preset_name": scene_info.preset_name,
                 "paused": scene_info.paused,
                 "loop_iteration": scene_info.loop_iteration,
+                "current_color_index": scene_info.current_color_index,
             })
+
+    # Get active music sync entities for this entry
+    active_music_sync = entry_data.get(DATA_ACTIVE_MUSIC_SYNC, {})
+    music_sync_entities = [
+        {"entity_id": eid, **sync_data}
+        for eid, sync_data in active_music_sync.items()
+    ]
+
+    # Entity controller state (integration-level singleton)
+    entity_controller_info: dict[str, Any] = {}
+    entity_controller = hass.data.get(DOMAIN, {}).get(DATA_ENTITY_CONTROLLER)
+    if entity_controller:
+        entity_controller_info = {
+            "externally_paused_entities": sorted(
+                entity_controller._externally_paused
+            ),
+            "pending_restore_entities": sorted(
+                entity_controller._pending_restore
+            ),
+            "tracked_command_entities": sorted(
+                entity_controller._last_command_time.keys()
+            ),
+        }
+
+    # Store statistics (integration-level singletons)
+    store_stats: dict[str, Any] = {}
+    domain_data = hass.data.get(DOMAIN, {})
+
+    preset_store = domain_data.get(DATA_PRESET_STORE)
+    if preset_store:
+        all_presets = preset_store.get_all_presets()
+        store_stats["presets"] = {
+            preset_type: len(presets)
+            for preset_type, presets in all_presets.items()
+        }
+
+    favorites_store = domain_data.get(DATA_FAVORITES_STORE)
+    if favorites_store:
+        store_stats["favorites_users"] = len(favorites_store._data)
+
+    user_prefs_store = domain_data.get(DATA_USER_PREFERENCES_STORE)
+    if user_prefs_store:
+        store_stats["user_preferences_users"] = len(user_prefs_store._data)
+
+    zone_store = domain_data.get(DATA_SEGMENT_ZONE_STORE)
+    if zone_store:
+        store_stats["segment_zone_devices"] = len(zone_store._data)
 
     # Device trigger readiness - shows which devices can resolve entity IDs
     device_registry = dr.async_get(hass)
@@ -182,8 +249,12 @@ async def async_get_config_entry_diagnostics(
         "discovered_devices": discovered_devices,
         "entity_mappings": entity_mappings,
         "active_effects": active_effects,
-        "active_cct_sequences": active_sequences,
+        "active_cct_sequences": active_cct_sequences,
+        "active_segment_sequences": active_segment_sequences,
         "active_dynamic_scenes": active_dynamic_scenes,
+        "active_music_sync": music_sync_entities,
+        "entity_controller": entity_controller_info,
+        "stores": store_stats,
         "device_triggers": device_trigger_info,
     }
 
