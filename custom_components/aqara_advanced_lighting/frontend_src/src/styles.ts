@@ -22,9 +22,14 @@ export const panelStyles = css`
     scrollbar-gutter: stable;
   }
 
-  /* Fix ha-svg-icon vertical misalignment within ha-icon */
-  ha-svg-icon {
-    vertical-align: top;
+  /* Fix ha-svg-icon vertical misalignment inside ha-icon-button.
+   * ha-svg-icon sets vertical-align: middle on its :host inside ha-icon's
+   * shadow DOM which we can't reach. Making ha-icon a flex container
+   * neutralizes the vertical-align on its shadow child. */
+  ha-icon-button > ha-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   /* Fixed header - follows HA developer-tools pattern */
@@ -601,15 +606,11 @@ export const panelStyles = css`
     gap: 8px;
   }
 
-  /* Sort dropdown - uses HA select styling patterns */
+  /* Sort dropdown - compact inline select
+   * Height is fixed at 56px by HA's ha-select internal shadow DOM */
   .sort-select {
-    --mdc-menu-min-width: 110px;
-    --mdc-select-fill-color: transparent;
-    --mdc-select-label-ink-color: var(--secondary-text-color);
-    --mdc-select-dropdown-icon-color: var(--secondary-text-color);
-    --mdc-select-hover-line-color: var(--primary-color);
-    --mdc-typography-subtitle1-font-size: var(--ha-font-size-s, 12px);
-    min-width: 110px;
+    min-width: 100px;
+    max-width: 150px;
   }
 
   /* Preset grid - uses HA layout patterns */
@@ -1075,7 +1076,7 @@ export const panelStyles = css`
   }
 
   .toolbar-actions ha-button {
-    --mdc-typography-button-font-size: var(--ha-font-size-s, 13px);
+    font-size: var(--ha-font-size-s, 13px);
   }
 
   /* No presets empty state - follows HA empty state patterns */
@@ -1314,7 +1315,7 @@ export const panelStyles = css`
   }
 
   .music-sync-sensitivity ha-button {
-    --mdc-typography-button-font-size: var(--ha-font-size-s, 13px);
+    font-size: var(--ha-font-size-s, 13px);
   }
 
   .music-sync-sensitivity ha-button[appearance="outlined"]::part(base) {
@@ -1436,8 +1437,7 @@ export const panelStyles = css`
 
     /* Sort dropdown mobile styles */
     .sort-select {
-      min-width: 90px;
-      --mdc-typography-subtitle1-font-size: var(--ha-font-size-xs, 11px);
+      min-width: 80px;
     }
 
     .section-header-controls {
@@ -1476,10 +1476,10 @@ export const panelStyles = css`
   /* HA dialog fullscreen on mobile - follows haStyleDialog */
   @media all and (max-width: 450px), all and (max-height: 500px) {
     ha-dialog {
-      --mdc-dialog-min-width: calc(100vw - env(safe-area-inset-right) - env(safe-area-inset-left));
-      --mdc-dialog-max-width: calc(100vw - env(safe-area-inset-right) - env(safe-area-inset-left));
-      --mdc-dialog-min-height: 100%;
-      --mdc-dialog-max-height: 100%;
+      --ha-dialog-width-md: calc(100vw - env(safe-area-inset-right) - env(safe-area-inset-left));
+      --ha-dialog-max-width: calc(100vw - env(safe-area-inset-right) - env(safe-area-inset-left));
+      --ha-dialog-min-height: 100%;
+      --ha-dialog-max-height: 100%;
       --vertical-align-dialog: flex-end;
       --ha-dialog-border-radius: 0;
     }
@@ -2100,8 +2100,8 @@ export const colorPickerStyles = css`
    * 8 x 32px swatches + 7 x 6px gaps = 298px content + 48px padding = 346px
    */
   ha-dialog {
-    --mdc-dialog-min-width: min(346px, calc(100vw - 32px));
-    --mdc-dialog-max-width: min(346px, calc(100vw - 32px));
+    --ha-dialog-width-md: min(346px, calc(100vw - 32px));
+    --ha-dialog-max-width: min(346px, calc(100vw - 32px));
   }
 
   .color-picker-modal-header {

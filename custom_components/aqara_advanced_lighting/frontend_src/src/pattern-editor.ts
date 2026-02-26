@@ -231,13 +231,11 @@ export class PatternEditor extends LitElement {
 
     /* Clear mode toggle button */
     .clear-mode-toggle.active {
-      --mdc-theme-primary: var(--error-color);
       color: var(--error-color);
     }
 
     /* Select mode toggle button */
     .select-mode-toggle.active {
-      --mdc-theme-primary: var(--info-color, #2196f3);
       color: var(--info-color, #2196f3);
     }
 

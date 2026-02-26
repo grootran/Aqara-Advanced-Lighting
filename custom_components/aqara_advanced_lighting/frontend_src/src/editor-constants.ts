@@ -66,6 +66,15 @@ export const editorFormStyles = css`
     display: block;
   }
 
+  /* Fix ha-svg-icon vertical misalignment inside ha-icon-button.
+   * ha-svg-icon sets vertical-align: middle in its shadow DOM.
+   * Making ha-icon a flex container neutralizes this. */
+  ha-icon-button > ha-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   .editor-content {
     display: flex;
     flex-direction: column;

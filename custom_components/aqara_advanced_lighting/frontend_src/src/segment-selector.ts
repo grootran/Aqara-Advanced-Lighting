@@ -220,7 +220,7 @@ export class SegmentSelector extends LitElement {
       }
 
       .controls ha-button {
-        --mdc-theme-primary: var(--primary-color);
+        color: var(--primary-color);
       }
 
       .selection-info {
@@ -240,13 +240,11 @@ export class SegmentSelector extends LitElement {
 
       /* Clear mode toggle button */
       .clear-mode-toggle.active {
-        --mdc-theme-primary: var(--error-color);
         color: var(--error-color);
       }
 
       /* Select mode toggle button */
       .select-mode-toggle.active {
-        --mdc-theme-primary: var(--info-color, #2196f3);
         color: var(--info-color, #2196f3);
       }
 
@@ -493,11 +491,11 @@ export class SegmentSelector extends LitElement {
 
       .option-number-input {
         width: 60px;
-        --mdc-typography-subtitle1-font-size: 13px;
+        font-size: 13px;
       }
 
       .option-select {
-        --mdc-typography-subtitle1-font-size: 13px;
+        font-size: 13px;
       }
 
       /* Color picker ha-dialog styling
@@ -505,8 +503,8 @@ export class SegmentSelector extends LitElement {
        * 8 x 32px swatches + 7 x 6px gaps = 298px content + 48px padding = 346px
        */
       ha-dialog {
-        --mdc-dialog-min-width: min(346px, calc(100vw - 32px));
-        --mdc-dialog-max-width: min(346px, calc(100vw - 32px));
+        --ha-dialog-width-md: min(346px, calc(100vw - 32px));
+        --ha-dialog-max-width: min(346px, calc(100vw - 32px));
       }
 
       .color-picker-modal-header {
@@ -1681,8 +1679,6 @@ export class SegmentSelector extends LitElement {
             .label=${this._localize('editors.zone_select_label')}
             .value=${this._selectedZone}
             .disabled=${this.disabled}
-            fixedMenuPosition
-            naturalMenuWidth
             @selected=${this._handleZoneSelected}
             @closed=${this._handleZoneMenuClosed}
           >
@@ -1728,8 +1724,6 @@ export class SegmentSelector extends LitElement {
             .label=${this._localize('editors.zone_select_label')}
             .value=${this._selectedZone}
             .disabled=${this.disabled}
-            fixedMenuPosition
-            naturalMenuWidth
             @selected=${this._handleZoneSelected}
             @closed=${this._handleZoneMenuClosed}
           >
@@ -1915,8 +1909,6 @@ export class SegmentSelector extends LitElement {
           <ha-select
             class="option-select"
             .value=${this.gradientInterpolation}
-            fixedMenuPosition
-            naturalMenuWidth
             @selected=${this._handleGradientInterpolationChange}
             @closed=${this._handleInterpolationMenuClosed}
           >
