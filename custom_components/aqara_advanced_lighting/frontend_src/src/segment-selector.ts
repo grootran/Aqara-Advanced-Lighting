@@ -492,23 +492,12 @@ export class SegmentSelector extends LitElement {
       }
 
       .option-number-input {
-        width: 50px;
-        padding: 4px 8px;
-        border: 1px solid var(--divider-color);
-        border-radius: 4px;
-        background: var(--card-background-color);
-        color: var(--primary-text-color);
-        font-size: 13px;
-        text-align: center;
+        width: 60px;
+        --mdc-typography-subtitle1-font-size: 13px;
       }
 
       .option-select {
-        padding: 4px 8px;
-        border: 1px solid var(--divider-color);
-        border-radius: 4px;
-        background: var(--card-background-color);
-        color: var(--primary-text-color);
-        font-size: 13px;
+        --mdc-typography-subtitle1-font-size: 13px;
       }
 
       /* Color picker ha-dialog styling
@@ -1083,7 +1072,14 @@ export class SegmentSelector extends LitElement {
   }
 
   private _handleGradientInterpolationChange(e: Event): void {
-    this.gradientInterpolation = (e.target as HTMLSelectElement).value as InterpolationMode;
+    const target = e.target as HTMLElement & { value: string };
+    if (target.value) {
+      this.gradientInterpolation = target.value as InterpolationMode;
+    }
+  }
+
+  private _handleInterpolationMenuClosed(e: Event): void {
+    e.stopPropagation();
   }
 
   /**
@@ -1881,38 +1877,41 @@ export class SegmentSelector extends LitElement {
       <div class="options-row">
         <label class="option-item">
           <span class="option-label">${this._localize('editors.gradient_repeat_label')}</span>
-          <input
+          <ha-textfield
             type="number"
             class="option-number-input"
             min="1"
             max="10"
             .value=${String(this.gradientRepeat)}
             @change=${this._handleGradientRepeatChange}
-          />
+          ></ha-textfield>
         </label>
         <label class="option-item">
           <span class="option-label">${this._localize('editors.gradient_interpolation_label')}</span>
-          <select
+          <ha-select
             class="option-select"
             .value=${this.gradientInterpolation}
-            @change=${this._handleGradientInterpolationChange}
+            fixedMenuPosition
+            naturalMenuWidth
+            @selected=${this._handleGradientInterpolationChange}
+            @closed=${this._handleInterpolationMenuClosed}
           >
-            <option value="shortest">${this._localize('editors.gradient_interp_shortest')}</option>
-            <option value="longest">${this._localize('editors.gradient_interp_longest')}</option>
-            <option value="rgb">${this._localize('editors.gradient_interp_rgb')}</option>
-          </select>
+            <mwc-list-item value="shortest">${this._localize('editors.gradient_interp_shortest')}</mwc-list-item>
+            <mwc-list-item value="longest">${this._localize('editors.gradient_interp_longest')}</mwc-list-item>
+            <mwc-list-item value="rgb">${this._localize('editors.gradient_interp_rgb')}</mwc-list-item>
+          </ha-select>
         </label>
         ${this.gradientWave ? html`
           <label class="option-item">
             <span class="option-label">${this._localize('editors.gradient_wave_cycles_label')}</span>
-            <input
+            <ha-textfield
               type="number"
               class="option-number-input"
               min="1"
               max="5"
               .value=${String(this.gradientWaveCycles)}
               @change=${this._handleGradientWaveCyclesChange}
-            />
+            ></ha-textfield>
           </label>
         ` : ''}
       </div>

@@ -4105,20 +4105,26 @@ export class AqaraPanel extends LitElement {
   private _renderSortDropdown(sectionId: string) {
     const currentSort = this._getSortPreference(sectionId);
     return html`
-      <select
+      <ha-select
         class="sort-select"
         .value=${currentSort}
-        @change=${(e: Event) => {
+        fixedMenuPosition
+        naturalMenuWidth
+        @selected=${(e: Event) => {
           e.stopPropagation();
-          this._setSortPreference(sectionId, (e.target as HTMLSelectElement).value as PresetSortOption);
+          const target = e.target as any;
+          if (target.value) {
+            this._setSortPreference(sectionId, target.value as PresetSortOption);
+          }
         }}
+        @closed=${(e: Event) => e.stopPropagation()}
         @click=${(e: Event) => e.stopPropagation()}
       >
-        <option value="name-asc">${this._localize('presets.sort_name_asc')}</option>
-        <option value="name-desc">${this._localize('presets.sort_name_desc')}</option>
-        <option value="date-new">${this._localize('presets.sort_date_new')}</option>
-        <option value="date-old">${this._localize('presets.sort_date_old')}</option>
-      </select>
+        <mwc-list-item value="name-asc">${this._localize('presets.sort_name_asc')}</mwc-list-item>
+        <mwc-list-item value="name-desc">${this._localize('presets.sort_name_desc')}</mwc-list-item>
+        <mwc-list-item value="date-new">${this._localize('presets.sort_date_new')}</mwc-list-item>
+        <mwc-list-item value="date-old">${this._localize('presets.sort_date_old')}</mwc-list-item>
+      </ha-select>
     `;
   }
 
@@ -4290,16 +4296,16 @@ export class AqaraPanel extends LitElement {
             <div class="music-sync-sensitivity-group ${!this._musicSyncEnabled ? 'disabled' : ''}">
               <span class="control-label">${this._localize('music_sync.sensitivity_label')}</span>
               <div class="music-sync-sensitivity">
-                <button
-                  class="sensitivity-btn ${this._musicSyncSensitivity === 'low' ? 'active' : ''}"
-                  ?disabled=${!this._musicSyncEnabled}
+                <ha-button
+                  .disabled=${!this._musicSyncEnabled}
                   @click=${() => this._handleMusicSyncSensitivity('low')}
-                >${this._localize('music_sync.sensitivity_low')}</button>
-                <button
-                  class="sensitivity-btn ${this._musicSyncSensitivity === 'high' ? 'active' : ''}"
-                  ?disabled=${!this._musicSyncEnabled}
+                  .appearance=${this._musicSyncSensitivity === 'low' ? 'filled' : 'outlined'}
+                >${this._localize('music_sync.sensitivity_low')}</ha-button>
+                <ha-button
+                  .disabled=${!this._musicSyncEnabled}
                   @click=${() => this._handleMusicSyncSensitivity('high')}
-                >${this._localize('music_sync.sensitivity_high')}</button>
+                  .appearance=${this._musicSyncSensitivity === 'high' ? 'filled' : 'outlined'}
+                >${this._localize('music_sync.sensitivity_high')}</ha-button>
               </div>
             </div>
           </div>

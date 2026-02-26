@@ -603,33 +603,13 @@ export const panelStyles = css`
 
   /* Sort dropdown - uses HA select styling patterns */
   .sort-select {
-    padding: 6px 10px;
-    font-size: var(--ha-font-size-s, 12px);
-    border: 1px solid var(--divider-color);
-    border-radius: var(--ha-border-radius-sm, 4px);
-    background: var(--card-background-color);
-    color: var(--primary-text-color);
-    cursor: pointer;
+    --mdc-menu-min-width: 110px;
+    --mdc-select-fill-color: transparent;
+    --mdc-select-label-ink-color: var(--secondary-text-color);
+    --mdc-select-dropdown-icon-color: var(--secondary-text-color);
+    --mdc-select-hover-line-color: var(--primary-color);
+    --mdc-typography-subtitle1-font-size: var(--ha-font-size-s, 12px);
     min-width: 110px;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23666'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
-    background-repeat: no-repeat;
-    background-position: right 4px center;
-    background-size: 18px;
-    padding-right: 24px;
-    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-  }
-
-  .sort-select:hover {
-    border-color: var(--primary-color);
-  }
-
-  .sort-select:focus {
-    outline: none;
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 1px var(--primary-color);
   }
 
   /* Preset grid - uses HA layout patterns */
@@ -1603,29 +1583,12 @@ export const panelStyles = css`
     gap: 8px;
   }
 
-  .sensitivity-btn {
-    padding: 6px 16px;
-    border: 1px solid var(--divider-color);
-    border-radius: var(--ha-border-radius-sm, 8px);
-    background: var(--card-background-color);
-    color: var(--primary-text-color);
-    font-size: var(--ha-font-size-s, 13px);
-    cursor: pointer;
-    transition: all 0.15s ease;
+  .music-sync-sensitivity ha-button {
+    --mdc-typography-button-font-size: var(--ha-font-size-s, 13px);
   }
 
-  .sensitivity-btn:hover {
-    border-color: var(--primary-color);
-  }
-
-  .sensitivity-btn.active {
-    background: var(--primary-color);
-    color: var(--text-primary-color);
-    border-color: var(--primary-color);
-  }
-
-  .sensitivity-btn:disabled {
-    cursor: not-allowed;
+  .music-sync-sensitivity ha-button[appearance="outlined"]::part(base) {
+    border-color: var(--divider-color);
   }
 
   .music-sync-effects {
@@ -1744,8 +1707,7 @@ export const panelStyles = css`
     /* Sort dropdown mobile styles */
     .sort-select {
       min-width: 90px;
-      font-size: var(--ha-font-size-xs, 11px);
-      padding: 4px 20px 4px 6px;
+      --mdc-typography-subtitle1-font-size: var(--ha-font-size-xs, 11px);
     }
 
     .section-header-controls {
