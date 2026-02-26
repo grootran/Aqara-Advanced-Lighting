@@ -318,8 +318,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
   }
 
   private _handleStepColorTempChange(stepId: string, e: CustomEvent): void {
-    const mireds = e.detail.value;
-    const kelvin = Math.round(1000000 / mireds / 100) * 100;
+    const kelvin = Math.round(e.detail.value / 100) * 100;
     this._steps = this._steps.map((step) =>
       step.id === stepId ? { ...step, color_temp: kelvin } : step
     );
@@ -492,11 +491,12 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
               .hass=${this.hass}
               .selector=${{
                 color_temp: {
-                  min_mireds: 153,
-                  max_mireds: 370,
+                  unit: 'kelvin',
+                  min: 2700,
+                  max: 6500,
                 },
               }}
-              .value=${Math.round(1000000 / step.color_temp)}
+              .value=${step.color_temp}
               @value-changed=${(e: CustomEvent) => this._handleStepColorTempChange(step.id, e)}
             ></ha-selector>
           </div>

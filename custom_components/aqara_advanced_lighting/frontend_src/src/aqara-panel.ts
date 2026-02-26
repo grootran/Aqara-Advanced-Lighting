@@ -1670,7 +1670,7 @@ export class AqaraPanel extends LitElement {
       if (effectList.includes('flow1') || effectList.includes('flow2') || effectList.includes('rolling')) return 't1m';
       if (effectList.includes('rainbow1') || effectList.includes('rainbow2') || effectList.includes('chasing') || effectList.includes('flicker') || effectList.includes('dash')) return 't1_strip';
       if (effectList.includes('candlelight')) return 't2_bulb';
-    } else if (!effectList && entity.attributes.color_temp !== undefined) {
+    } else if (!effectList && entity.attributes.color_temp_kelvin !== undefined) {
       return 't2_cct';
     }
 
@@ -1704,8 +1704,7 @@ export class AqaraPanel extends LitElement {
     return this._selectedEntities.some(entityId => {
       const entity = this.hass!.states[entityId];
       if (!entity) return false;
-      const hasCCT = entity.attributes.color_temp !== undefined ||
-             entity.attributes.color_temp_kelvin !== undefined ||
+      const hasCCT = entity.attributes.color_temp_kelvin !== undefined ||
              entity.attributes.min_color_temp_kelvin !== undefined;
       if (!hasCCT) return false;
       // T1M RGB endpoint has color_temp but doesn't support CCT sequences
@@ -1751,8 +1750,7 @@ export class AqaraPanel extends LitElement {
     return this._selectedEntities.filter(entityId => {
       const entity = this.hass!.states[entityId];
       if (!entity) return false;
-      const hasCCT = entity.attributes.color_temp !== undefined ||
-             entity.attributes.color_temp_kelvin !== undefined ||
+      const hasCCT = entity.attributes.color_temp_kelvin !== undefined ||
              entity.attributes.min_color_temp_kelvin !== undefined;
       if (!hasCCT) return false;
       // T1M RGB endpoint has color_temp but doesn't support CCT sequences
