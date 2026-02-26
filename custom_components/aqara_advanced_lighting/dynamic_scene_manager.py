@@ -1159,7 +1159,7 @@ class DynamicSceneManager:
                     )
                     return
                 except TimeoutError:
-                    pass
+                    pass  # Normal - step interval elapsed
 
         _LOGGER.debug(
             "Software color transition complete for %s", entity_id

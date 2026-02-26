@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from .segment_zone_store import SegmentZoneStore
     from .user_preferences_store import UserPreferencesStore
 
+from .preset_store import get_preset_store
 from .user_preferences_store import _UNSET
 
 from .const import (
@@ -41,7 +42,6 @@ from .const import (
     DATA_ACTIVE_MUSIC_SYNC,
     DATA_ENTITY_CONTROLLER,
     DATA_FAVORITES_STORE,
-    DATA_PRESET_STORE,
     DATA_SEGMENT_SEQUENCE_MANAGER,
     DATA_SEGMENT_ZONE_STORE,
     DATA_STATE_MANAGER,
@@ -513,23 +513,6 @@ class FavoriteView(HomeAssistantView):
         return web.Response(status=204)
 
 
-def _get_preset_store(hass: HomeAssistant) -> PresetStore | None:
-    """Get the preset store from hass.data."""
-    if DOMAIN not in hass.data:
-        _LOGGER.error(
-            "Integration domain not found in hass.data - integration may not be set up"
-        )
-        return None
-    preset_store = hass.data[DOMAIN].get(DATA_PRESET_STORE)
-    if preset_store is None:
-        _LOGGER.error(
-            "Preset store not found in hass.data[%s] - this should not happen. "
-            "Available keys: %s",
-            DOMAIN,
-            list(hass.data[DOMAIN].keys()),
-        )
-    return preset_store
-
 
 class UserPresetsView(HomeAssistantView):
     """View to list and create user presets."""
@@ -547,7 +530,7 @@ class UserPresetsView(HomeAssistantView):
         """
         hass = request.app["hass"]
 
-        preset_store = _get_preset_store(hass)
+        preset_store = get_preset_store(hass)
         if not preset_store:
             return web.Response(status=503, text="Preset store not initialized")
 
@@ -570,7 +553,7 @@ class UserPresetsView(HomeAssistantView):
         """
         hass = request.app["hass"]
 
-        preset_store = _get_preset_store(hass)
+        preset_store = get_preset_store(hass)
         if not preset_store:
             return web.Response(status=503, text="Preset store not initialized")
 
@@ -614,7 +597,7 @@ class UserPresetView(HomeAssistantView):
         """Get a single user preset."""
         hass = request.app["hass"]
 
-        preset_store = _get_preset_store(hass)
+        preset_store = get_preset_store(hass)
         if not preset_store:
             return web.Response(status=503, text="Preset store not initialized")
 
@@ -636,7 +619,7 @@ class UserPresetView(HomeAssistantView):
         """Update a user preset."""
         hass = request.app["hass"]
 
-        preset_store = _get_preset_store(hass)
+        preset_store = get_preset_store(hass)
         if not preset_store:
             return web.Response(status=503, text="Preset store not initialized")
 
@@ -666,7 +649,7 @@ class UserPresetView(HomeAssistantView):
         """Delete a user preset."""
         hass = request.app["hass"]
 
-        preset_store = _get_preset_store(hass)
+        preset_store = get_preset_store(hass)
         if not preset_store:
             return web.Response(status=503, text="Preset store not initialized")
 
@@ -700,7 +683,7 @@ class UserPresetDuplicateView(HomeAssistantView):
         """
         hass = request.app["hass"]
 
-        preset_store = _get_preset_store(hass)
+        preset_store = get_preset_store(hass)
         if not preset_store:
             return web.Response(status=503, text="Preset store not initialized")
 
@@ -1099,7 +1082,7 @@ class ExportPresetsView(HomeAssistantView):
         """
         hass = request.app["hass"]
 
-        preset_store = _get_preset_store(hass)
+        preset_store = get_preset_store(hass)
         if not preset_store:
             return web.Response(status=503, text="Preset store not initialized")
 
@@ -1145,7 +1128,7 @@ class ImportPresetsView(HomeAssistantView):
         """
         hass = request.app["hass"]
 
-        preset_store = _get_preset_store(hass)
+        preset_store = get_preset_store(hass)
         if not preset_store:
             return web.Response(status=503, text="Preset store not initialized")
 

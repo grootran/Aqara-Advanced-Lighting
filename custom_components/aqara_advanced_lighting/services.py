@@ -158,6 +158,7 @@ from .models import (
     XYColor,
 )
 from .backend_protocol import DeviceBackend
+from .preset_store import get_preset_store
 from .segment_utils import (
     expand_segment_colors,
     generate_block_colors,
@@ -666,22 +667,6 @@ def _get_instance_for_entity(
     return None, None
 
 
-def _get_any_instance(hass: HomeAssistant) -> tuple[str | None, dict | None]:
-    """Get any available instance (for backward compatibility).
-
-    Returns the first available instance or (None, None) if none exist.
-    """
-    if DOMAIN not in hass.data:
-        return None, None
-
-    entries = hass.data[DOMAIN].get("entries", {})
-    if entries:
-        entry_id = next(iter(entries))
-        return entry_id, entries[entry_id]
-
-    return None, None
-
-
 def _get_backend_for_entity(
     hass: HomeAssistant, entity_id: str
 ) -> DeviceBackend | None:
@@ -698,40 +683,6 @@ def _get_backend_for_entity(
     if instance_data:
         return instance_data.get("backend")
     return None
-
-
-def _get_backend_and_state_manager(
-    hass: HomeAssistant,
-) -> tuple[DeviceBackend, StateManager]:
-    """Get any backend and state manager from hass.data.
-
-    This is used for validation that doesn't require entity-specific routing.
-    For entity-specific operations, use _get_instance_for_entity instead.
-    """
-    if DOMAIN not in hass.data:
-        raise ServiceValidationError(
-            translation_domain=DOMAIN,
-            translation_key="integration_not_initialized",
-        )
-
-    # Get any instance (for backward compatibility and general validation)
-    _, instance_data = _get_any_instance(hass)
-    if not instance_data:
-        raise ServiceValidationError(
-            translation_domain=DOMAIN,
-            translation_key="components_not_initialized",
-        )
-
-    backend = instance_data.get("backend")
-    state_manager = instance_data.get("state_manager")
-
-    if not backend or not state_manager:
-        raise ServiceValidationError(
-            translation_domain=DOMAIN,
-            translation_key="components_not_initialized",
-        )
-
-    return backend, state_manager
 
 
 def _get_instance_components_for_entity(
@@ -787,28 +738,6 @@ def _get_instance_components_for_entity(
         )
 
     return backend, state_manager, entry_id
-
-
-def _get_preset_store(hass: HomeAssistant):
-    """Get the preset store from hass.data.
-
-    Returns:
-        PresetStore instance or None if not initialized.
-    """
-    if DOMAIN not in hass.data:
-        _LOGGER.error(
-            "Integration domain not found in hass.data - integration may not be set up"
-        )
-        return None
-    preset_store = hass.data[DOMAIN].get(DATA_PRESET_STORE)
-    if preset_store is None:
-        _LOGGER.error(
-            "Preset store not found in hass.data[%s] - this should not happen. "
-            "Available keys: %s",
-            DOMAIN,
-            list(hass.data[DOMAIN].keys()),
-        )
-    return preset_store
 
 
 def _get_zones_for_device(
@@ -1224,7 +1153,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         is_user_preset = False
         if preset:
             # Check user presets first
-            preset_store = _get_preset_store(hass)
+            preset_store = get_preset_store(hass)
             user_preset = None
             if preset_store:
                 user_preset = preset_store.get_preset_by_name(
@@ -1695,7 +1624,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         user_preset = None
         if preset:
             # Check user presets first
-            preset_store = _get_preset_store(hass)
+            preset_store = get_preset_store(hass)
             if preset_store:
                 user_preset = preset_store.get_preset_by_name(
                     PRESET_TYPE_SEGMENT_PATTERN, preset
@@ -2310,7 +2239,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         # Handle preset or manual configuration
         if preset:
             # Check user presets first
-            preset_store = _get_preset_store(hass)
+            preset_store = get_preset_store(hass)
             user_preset = None
             if preset_store:
                 user_preset = preset_store.get_preset_by_name(
@@ -2660,7 +2589,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         # Handle preset or manual configuration
         if preset:
             # Check user presets first
-            preset_store = _get_preset_store(hass)
+            preset_store = get_preset_store(hass)
             user_preset = None
             if preset_store:
                 user_preset = preset_store.get_preset_by_name(

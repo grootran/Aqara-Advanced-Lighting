@@ -14,6 +14,7 @@ from homeassistant.exceptions import ServiceValidationError
 
 from .base_store import BaseStore
 from .const import (
+    DATA_PRESET_STORE,
     DOMAIN,
     PRESET_TYPE_CCT_SEQUENCE,
     PRESET_TYPE_DYNAMIC_SCENE,
@@ -26,6 +27,25 @@ from .const import (
 from .models import RGBColor, XYColor
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def get_preset_store(hass: HomeAssistant) -> PresetStore | None:
+    """Get the preset store from hass.data."""
+    if DOMAIN not in hass.data:
+        _LOGGER.error(
+            "Integration domain not found in hass.data - integration may not be set up"
+        )
+        return None
+    preset_store = hass.data[DOMAIN].get(DATA_PRESET_STORE)
+    if preset_store is None:
+        _LOGGER.error(
+            "Preset store not found in hass.data[%s] - this should not happen. "
+            "Available keys: %s",
+            DOMAIN,
+            list(hass.data[DOMAIN].keys()),
+        )
+    return preset_store
+
 
 STORAGE_KEY = f"{DOMAIN}.presets"
 STORAGE_VERSION = 1
