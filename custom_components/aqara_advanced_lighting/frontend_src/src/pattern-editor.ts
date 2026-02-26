@@ -183,7 +183,7 @@ export class PatternEditor extends LitElement {
 
     /* Color picker, palette, color-array, color-item, color-swatch,
        color-picker-modal, color-remove, add-color-btn styles
-       are inherited from panelStyles (styles.ts) */
+       are inherited from colorPickerStyles (styles.ts) */
 
     .palette-label {
       font-size: 13px;

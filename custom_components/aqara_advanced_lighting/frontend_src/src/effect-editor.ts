@@ -103,7 +103,7 @@ export class EffectEditor extends LitElement {
       text-align: center;
     }
 
-    /* .color-remove and .add-color-btn inherited from panelStyles (styles.ts) */
+    /* .color-remove and .add-color-btn inherited from colorPickerStyles (styles.ts) */
   `];
 
   protected updated(changedProps: PropertyValues): void {

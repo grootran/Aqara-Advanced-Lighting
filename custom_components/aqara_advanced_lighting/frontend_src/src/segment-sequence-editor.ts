@@ -191,7 +191,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
 
     /* Color picker styles (color-picker-grid, color-item, color-swatch,
        color-picker-modal, color-remove, add-color-btn) are inherited
-       from panelStyles (styles.ts) */
+       from colorPickerStyles (styles.ts) */
 
     .add-step-btn {
       display: flex;
