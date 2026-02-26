@@ -131,6 +131,7 @@ from .const import (
 )
 from .presets import (
     CCT_SEQUENCE_PRESETS,
+    DYNAMIC_SCENE_PRESETS,
     EFFECT_PRESETS,
     SEGMENT_PATTERN_PRESETS,
     SEGMENT_SEQUENCE_PRESETS,
@@ -3109,16 +3110,25 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
         # Build scene from preset or manual parameters
         if preset_name:
-            # Look up preset
-            preset_store = hass.data[DOMAIN].get(DATA_PRESET_STORE)
-            if not preset_store:
-                raise HomeAssistantError("Preset store not initialized")
+            preset: dict[str, Any] | None = None
 
-            preset = preset_store.get_preset_by_name(
-                PRESET_TYPE_DYNAMIC_SCENE, preset_name
-            )
-            if not preset:
-                preset = preset_store.get_preset(PRESET_TYPE_DYNAMIC_SCENE, preset_name)
+            # Check built-in presets first (by key)
+            if preset_name in DYNAMIC_SCENE_PRESETS:
+                preset = DYNAMIC_SCENE_PRESETS[preset_name]
+            else:
+                # Check user-created presets (by name, then by ID)
+                preset_store = hass.data[DOMAIN].get(DATA_PRESET_STORE)
+                if not preset_store:
+                    raise HomeAssistantError("Preset store not initialized")
+
+                preset = preset_store.get_preset_by_name(
+                    PRESET_TYPE_DYNAMIC_SCENE, preset_name
+                )
+                if not preset:
+                    preset = preset_store.get_preset(
+                        PRESET_TYPE_DYNAMIC_SCENE, preset_name
+                    )
+
             if not preset:
                 raise ServiceValidationError(
                     f"Dynamic scene preset '{preset_name}' not found",
