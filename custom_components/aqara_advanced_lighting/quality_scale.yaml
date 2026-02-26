@@ -16,8 +16,8 @@ rules:
     comment: Not a polling-based integration - uses MQTT local_push
 
   brands:
-    status: todo
-    comment: Branding assets not yet created
+    status: done
+    comment: Brand icons and logos in brand/ directory (light/dark, 1x/2x)
 
   common-modules:
     status: done
@@ -220,8 +220,8 @@ rules:
     comment: All dependencies use asyncio (aiomqtt via MQTT integration)
 
   inject-websession:
-    status: exempt
-    comment: No HTTP client dependencies requiring websession injection
+    status: done
+    comment: Image download in panel.py uses async_get_clientsession(hass)
 
   strict-typing:
     status: done

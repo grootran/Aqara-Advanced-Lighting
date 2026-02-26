@@ -22,6 +22,7 @@ from homeassistant.components.http import HomeAssistantView
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 if TYPE_CHECKING:
     from .favorites_store import FavoritesStore
@@ -1943,37 +1944,37 @@ class ColorExtractView(HomeAssistantView):
 
             # Download the image with size-capped streaming read
             try:
-                async with aiohttp.ClientSession() as session:
-                    async with asyncio.timeout(15):
-                        async with session.get(url) as resp:
-                            if resp.status != 200:
-                                return web.Response(
-                                    status=400,
-                                    text=f"Failed to download image: HTTP {resp.status}",
-                                )
-                            # Reject before downloading if Content-Length exceeds limit
-                            content_length = resp.headers.get("Content-Length")
-                            if (
-                                content_length
-                                and int(content_length) > MAX_IMAGE_SIZE_BYTES
-                            ):
+                session = async_get_clientsession(hass)
+                async with asyncio.timeout(15):
+                    async with session.get(url) as resp:
+                        if resp.status != 200:
+                            return web.Response(
+                                status=400,
+                                text=f"Failed to download image: HTTP {resp.status}",
+                            )
+                        # Reject before downloading if Content-Length exceeds limit
+                        content_length = resp.headers.get("Content-Length")
+                        if (
+                            content_length
+                            and int(content_length) > MAX_IMAGE_SIZE_BYTES
+                        ):
+                            return web.Response(
+                                status=413,
+                                text="Image exceeds 10 MB size limit",
+                            )
+                        # Stream with enforced size cap (protects against
+                        # missing/lying Content-Length headers)
+                        chunks: list[bytes] = []
+                        total = 0
+                        async for chunk in resp.content.iter_chunked(64 * 1024):
+                            total += len(chunk)
+                            if total > MAX_IMAGE_SIZE_BYTES:
                                 return web.Response(
                                     status=413,
                                     text="Image exceeds 10 MB size limit",
                                 )
-                            # Stream with enforced size cap (protects against
-                            # missing/lying Content-Length headers)
-                            chunks: list[bytes] = []
-                            total = 0
-                            async for chunk in resp.content.iter_chunked(64 * 1024):
-                                total += len(chunk)
-                                if total > MAX_IMAGE_SIZE_BYTES:
-                                    return web.Response(
-                                        status=413,
-                                        text="Image exceeds 10 MB size limit",
-                                    )
-                                chunks.append(chunk)
-                            image_bytes = b"".join(chunks)
+                            chunks.append(chunk)
+                        image_bytes = b"".join(chunks)
             except TimeoutError:
                 return web.Response(status=408, text="Image download timed out")
             except aiohttp.ClientError:
