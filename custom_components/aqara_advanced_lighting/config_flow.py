@@ -146,7 +146,7 @@ class AqaraAdvancedLightingConfigFlow(ConfigFlow, domain=DOMAIN):
 
             if not errors:
                 return self.async_create_entry(
-                    title=f"Aqara Lighting ({z2m_base_topic})",
+                    title=z2m_base_topic,
                     data={
                         CONF_BACKEND_TYPE: BACKEND_Z2M,
                         CONF_Z2M_BASE_TOPIC: z2m_base_topic,
@@ -204,7 +204,7 @@ class AqaraAdvancedLightingConfigFlow(ConfigFlow, domain=DOMAIN):
                 self._abort_if_unique_id_configured()
 
                 return self.async_create_entry(
-                    title="Aqara Lighting (ZHA)",
+                    title="ZHA",
                     data={
                         CONF_BACKEND_TYPE: BACKEND_ZHA,
                     },
@@ -256,7 +256,7 @@ class AqaraAdvancedLightingConfigFlow(ConfigFlow, domain=DOMAIN):
             if not errors:
                 return self.async_update_reload_and_abort(
                     entry,
-                    title=f"Aqara Lighting ({z2m_base_topic})",
+                    title=z2m_base_topic,
                     unique_id=z2m_base_topic,
                     data={
                         CONF_BACKEND_TYPE: BACKEND_Z2M,

@@ -171,7 +171,7 @@
     "curve_legend_slow_fast": "1-6: Slow then fast"
   },
   "instances": {
-    "section_title": "Zigbee2MQTT instances",
+    "section_title": "Zigbee integrations",
     "subtitle_single": "{count} instance, {devices} device",
     "subtitle_plural": "{count} instances, {devices} devices",
     "no_instances": "No Z2M instances found. Make sure the integration is properly configured.",
