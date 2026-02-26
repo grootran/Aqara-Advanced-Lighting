@@ -1101,22 +1101,8 @@ export const panelStyles = css`
     margin: 16px 0;
   }
 
-  .toolbar-actions mwc-button {
-    --mdc-button-disabled-fill-color: var(--disabled-color);
-    --mdc-theme-primary: var(--secondary-text-color);
-    transition: all 0.2s ease;
-  }
-
-  .toolbar-actions mwc-button:not([disabled]):hover {
-    --mdc-theme-primary: var(--primary-color);
-  }
-
-  .toolbar-actions mwc-button:not([disabled]):hover ha-icon {
-    color: var(--primary-color);
-  }
-
-  .toolbar-actions mwc-button:not([disabled]):active {
-    opacity: 0.9;
+  .toolbar-actions ha-button {
+    --mdc-typography-button-font-size: var(--ha-font-size-s, 13px);
   }
 
   /* No presets empty state - follows HA empty state patterns */

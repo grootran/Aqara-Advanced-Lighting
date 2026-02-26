@@ -3680,8 +3680,7 @@ export class AqaraPanel extends LitElement {
         </div>
         <div class="section-content preset-management-content">
           <div class="toolbar-actions">
-            <mwc-button
-              raised
+            <ha-button
               @click=${this._handleExportPresets}
               .disabled=${this._isExporting || this._isImporting}
             >
@@ -3689,10 +3688,9 @@ export class AqaraPanel extends LitElement {
               ${this._isExporting
                 ? this._localize('presets.export_progress')
                 : this._localize('presets.export_button')}
-            </mwc-button>
+            </ha-button>
 
-            <mwc-button
-              raised
+            <ha-button
               @click=${this._handleImportClick}
               .disabled=${this._isExporting || this._isImporting}
             >
@@ -3700,7 +3698,7 @@ export class AqaraPanel extends LitElement {
               ${this._isImporting
                 ? this._localize('presets.import_progress')
                 : this._localize('presets.import_button')}
-            </mwc-button>
+            </ha-button>
           </div>
         </div>
       </ha-expansion-panel>
