@@ -981,6 +981,13 @@ stop_cct_sequence:
     entity:
       domain: light
   fields:
+    restore_state:
+      name: Restore state
+      description: Restore lights to their pre-sequence state. If disabled, lights maintain their current color and brightness.
+      required: false
+      default: true
+      selector:
+        boolean:
     z2m_base_topic:
       name: Z2M base topic (deprecated)
       description: "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
@@ -2127,6 +2134,13 @@ stop_segment_sequence:
     entity:
       domain: light
   fields:
+    restore_state:
+      name: Restore state
+      description: Restore lights to their pre-sequence state. If disabled, lights maintain their current color and brightness.
+      required: false
+      default: true
+      selector:
+        boolean:
     z2m_base_topic:
       name: Z2M base topic (deprecated)
       description: "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."

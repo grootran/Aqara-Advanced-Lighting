@@ -82,6 +82,7 @@ export class AqaraPanel extends LitElement {
   @state() private _userPresets?: UserPresetsData;
   @state() private _editingPreset?: { type: string; preset: UserEffectPreset | UserSegmentPatternPreset | UserCCTSequencePreset | UserSegmentSequencePreset | UserDynamicScenePreset; isDuplicate?: boolean };
   @state() private _effectPreviewActive = false;
+  @state() private _patternPreviewActive = false;
   @state() private _cctPreviewActive = false;
   @state() private _segmentSequencePreviewActive = false;
   @state() private _scenePreviewActive = false;
@@ -3047,11 +3048,32 @@ export class AqaraPanel extends LitElement {
     this._setActiveTab('presets');
   }
 
-  private _handleEditorCancel(): void {
+  private async _handleEditorCancel(): Promise<void> {
+    await this._stopActivePreview();
     this._clearEditorDraft(this._activeTab);
     this._resetCurrentEditor();
     this._editingPreset = undefined;
     this._setActiveTab('activate');
+  }
+
+  private async _stopActivePreview(): Promise<void> {
+    switch (this._activeTab) {
+      case 'effects':
+        if (this._effectPreviewActive) await this._handleEffectStopPreview();
+        break;
+      case 'patterns':
+        if (this._patternPreviewActive) await this._handlePatternStopPreview();
+        break;
+      case 'cct':
+        if (this._cctPreviewActive) await this._handleCCTStopPreview();
+        break;
+      case 'segments':
+        if (this._segmentSequencePreviewActive) await this._handleSegmentSequenceStopPreview();
+        break;
+      case 'scenes':
+        if (this._scenePreviewActive) await this._handleSceneStopPreview();
+        break;
+    }
   }
 
   private _resetCurrentEditor(): void {
@@ -3159,8 +3181,10 @@ export class AqaraPanel extends LitElement {
           .stripSegmentCount=${this._getT1StripSegmentCount()}
           .deviceContext=${this._getDeviceContextForEditor('pattern')}
           .colorHistory=${this._colorHistory}
+          .previewActive=${this._patternPreviewActive}
           @save=${this._handlePatternSave}
           @preview=${this._handlePatternPreview}
+          @stop-preview=${this._handlePatternStopPreview}
           @cancel=${this._handleEditorCancel}
         ></pattern-editor>
       </ha-card>
@@ -3206,9 +3230,21 @@ export class AqaraPanel extends LitElement {
         turn_off_unspecified: data.turn_off_unspecified ?? true,
         sync: true,
       });
+      this._patternPreviewActive = true;
     } catch (err) {
       console.error('Pattern preview service call failed:', err);
     }
+  }
+
+  private async _handlePatternStopPreview(): Promise<void> {
+    const compatibleEntities = this._getPatternsCompatibleEntities();
+    if (!compatibleEntities.length) return;
+
+    await this.hass.callService('aqara_advanced_lighting', 'stop_effect', {
+      entity_id: compatibleEntities,
+      restore_state: true,
+    });
+    this._patternPreviewActive = false;
   }
 
   private _renderCCTTab() {
@@ -3303,6 +3339,7 @@ export class AqaraPanel extends LitElement {
 
     await this.hass.callService('aqara_advanced_lighting', 'stop_cct_sequence', {
       entity_id: compatibleEntities,
+      restore_state: true,
     });
     this._cctPreviewActive = false;
   }
@@ -3417,6 +3454,7 @@ export class AqaraPanel extends LitElement {
 
     await this.hass.callService('aqara_advanced_lighting', 'stop_segment_sequence', {
       entity_id: compatibleEntities,
+      restore_state: true,
     });
     this._segmentSequencePreviewActive = false;
   }
@@ -3537,6 +3575,7 @@ export class AqaraPanel extends LitElement {
 
     await this.hass.callService('aqara_advanced_lighting', 'stop_dynamic_scene', {
       entity_id: compatibleEntities,
+      restore_state: true,
     });
     this._scenePreviewActive = false;
   }

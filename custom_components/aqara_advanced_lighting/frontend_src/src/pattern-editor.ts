@@ -34,6 +34,7 @@ export class PatternEditor extends LitElement {
   @property({ type: Number }) public stripSegmentCount = 10; // Default 2 meters (out-of-box T1 Strip length)
   @property({ type: Object }) public deviceContext?: DeviceContext;
   @property({ type: Array }) public colorHistory: XYColor[] = [];
+  @property({ type: Boolean }) public previewActive = false;
   @property({ type: Object }) public draft?: PatternEditorDraft;
 
   @state() private _name = '';
@@ -565,6 +566,15 @@ export class PatternEditor extends LitElement {
     );
   }
 
+  private _stopPreview(): void {
+    this.dispatchEvent(
+      new CustomEvent('stop-preview', {
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
   private _canPreview(): boolean {
     const pattern = this._getCurrentPattern();
     return pattern.size > 0;
@@ -683,14 +693,23 @@ export class PatternEditor extends LitElement {
 
         <div class="form-actions">
           <ha-button @click=${this._cancel}>${this._localize('editors.cancel_button')}</ha-button>
-          <ha-button
-            @click=${this._preview}
-            .disabled=${!this._canPreview() || this._previewing || !this.hasSelectedEntities || !this.isCompatible}
-            title=${!this.hasSelectedEntities ? this._localize('editors.tooltip_select_lights_first') : !this.isCompatible ? this._localize('editors.tooltip_light_not_compatible') : ''}
-          >
-            <ha-icon icon="mdi:play"></ha-icon>
-            ${this._localize('editors.preview_button')}
-          </ha-button>
+          ${this.previewActive
+            ? html`
+                <ha-button @click=${this._stopPreview}>
+                  <ha-icon icon="mdi:stop"></ha-icon>
+                  ${this._localize('editors.stop_button')}
+                </ha-button>
+              `
+            : html`
+                <ha-button
+                  @click=${this._preview}
+                  .disabled=${!this._canPreview() || this._previewing || !this.hasSelectedEntities || !this.isCompatible}
+                  title=${!this.hasSelectedEntities ? this._localize('editors.tooltip_select_lights_first') : !this.isCompatible ? this._localize('editors.tooltip_light_not_compatible') : ''}
+                >
+                  <ha-icon icon="mdi:play"></ha-icon>
+                  ${this._localize('editors.preview_button')}
+                </ha-button>
+              `}
           <ha-button
             @click=${this._save}
             .disabled=${!this._canSave() || this._saving}

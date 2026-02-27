@@ -431,6 +431,7 @@ SERVICE_START_CCT_SEQUENCE_SCHEMA = vol.Schema(_cct_sequence_schema_dict)
 SERVICE_STOP_CCT_SEQUENCE_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+        vol.Optional(ATTR_RESTORE_STATE, default=True): cv.boolean,
         vol.Optional(ATTR_Z2M_BASE_TOPIC): cv.string,
     }
 )
@@ -484,6 +485,7 @@ SERVICE_START_SEGMENT_SEQUENCE_SCHEMA = vol.Schema(_segment_sequence_schema_dict
 SERVICE_STOP_SEGMENT_SEQUENCE_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+        vol.Optional(ATTR_RESTORE_STATE, default=True): cv.boolean,
         vol.Optional(ATTR_Z2M_BASE_TOPIC): cv.string,
     }
 )
@@ -550,6 +552,7 @@ SERVICE_START_DYNAMIC_SCENE_SCHEMA = vol.Schema(
 SERVICE_STOP_DYNAMIC_SCENE_SCHEMA = vol.Schema(
     {
         vol.Optional(ATTR_ENTITY_ID): cv.entity_ids,
+        vol.Optional(ATTR_RESTORE_STATE): cv.boolean,
     }
 )
 
@@ -2447,6 +2450,29 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     "is configured."
                 )
 
+        # Capture state for all entities before starting sequence
+        for entity_id in aqara_entity_ids:
+            try:
+                _, entity_state_manager, _ = (
+                    _get_instance_components_for_entity(hass, entity_id)
+                )
+                entity_state_manager.capture_state(
+                    entity_id, entity_id.split(".")[-1]
+                )
+            except Exception:
+                _LOGGER.debug(
+                    "Could not capture state for %s before CCT sequence", entity_id
+                )
+
+        if generic_entity_ids:
+            generic_pair = _get_any_cct_manager(hass)
+            if generic_pair:
+                _, generic_state_manager = generic_pair
+                for entity_id in generic_entity_ids:
+                    generic_state_manager.capture_state(
+                        entity_id, entity_id.split(".")[-1]
+                    )
+
         # Turn on all lights in parallel if requested
         if turn_on:
             turn_on_tasks = []
@@ -2514,6 +2540,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     async def handle_stop_cct_sequence(call: ServiceCall) -> None:
         """Handle stop_cct_sequence service call."""
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+        restore_state: bool = call.data.get(ATTR_RESTORE_STATE, True)
 
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
@@ -2535,6 +2562,34 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     translation_key="stop_sequence_failed",
                     translation_placeholders={"entity": entity_id},
                 ) from ex
+
+        # Restore light states if requested
+        if restore_state:
+            for entity_id in resolved_entity_ids:
+                try:
+                    _, entity_state_manager, _ = (
+                        _get_instance_components_for_entity(hass, entity_id)
+                    )
+                    restored = await entity_state_manager.async_restore_entity_state(
+                        entity_id, blocking=False
+                    )
+                    if restored:
+                        _LOGGER.debug("Restored state for %s after CCT sequence", entity_id)
+                except ServiceValidationError:
+                    # Generic (non-Aqara) entity - try any available state manager
+                    generic_pair = _get_any_cct_manager(hass)
+                    if generic_pair:
+                        _, generic_sm = generic_pair
+                        try:
+                            await generic_sm.async_restore_entity_state(
+                                entity_id, blocking=False
+                            )
+                        except Exception:
+                            _LOGGER.debug(
+                                "No stored state to restore for %s", entity_id
+                            )
+                except Exception:
+                    _LOGGER.debug("No stored state to restore for %s", entity_id)
 
     async def handle_pause_cct_sequence(call: ServiceCall) -> None:
         """Handle pause_cct_sequence service call."""
@@ -2843,6 +2898,21 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             instance_groups[entry_id]["entities"].append(entity_id)
             instance_groups[entry_id]["turn_on_data"].append(entity_id)
 
+        # Capture state for all entities before starting sequence
+        for entity_id in resolved_entity_ids:
+            try:
+                _, entity_state_manager, _ = (
+                    _get_instance_components_for_entity(hass, entity_id)
+                )
+                entity_state_manager.capture_state(
+                    entity_id, entity_id.split(".")[-1]
+                )
+            except Exception:
+                _LOGGER.debug(
+                    "Could not capture state for %s before segment sequence",
+                    entity_id,
+                )
+
         # Turn on all lights in parallel if requested
         if turn_on:
             turn_on_tasks = []
@@ -2886,6 +2956,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     async def handle_stop_segment_sequence(call: ServiceCall) -> None:
         """Handle stop_segment_sequence service call."""
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+        restore_state: bool = call.data.get(ATTR_RESTORE_STATE, True)
 
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
@@ -2916,6 +2987,23 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 _LOGGER.warning(
                     "Failed to stop segment sequence for %s: %s", entity_id, ex
                 )
+
+        # Restore light states if requested
+        if restore_state:
+            for entity_id in resolved_entity_ids:
+                try:
+                    _, entity_state_manager, _ = (
+                        _get_instance_components_for_entity(hass, entity_id)
+                    )
+                    restored = await entity_state_manager.async_restore_entity_state(
+                        entity_id, blocking=False
+                    )
+                    if restored:
+                        _LOGGER.debug(
+                            "Restored state for %s after segment sequence", entity_id
+                        )
+                except Exception:
+                    _LOGGER.debug("No stored state to restore for %s", entity_id)
 
     async def handle_pause_segment_sequence(call: ServiceCall) -> None:
         """Handle pause_segment_sequence service call."""
@@ -3135,8 +3223,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     async def handle_stop_dynamic_scene(call: ServiceCall) -> None:
         """Handle stop_dynamic_scene service call."""
         entity_ids: list[str] | None = call.data.get(ATTR_ENTITY_ID)
+        restore_state: bool | None = call.data.get(ATTR_RESTORE_STATE)
         manager = _get_dynamic_scene_manager(hass)
-        await manager.stop_scene(entity_ids=entity_ids)
+        await manager.stop_scene(
+            entity_ids=entity_ids, restore_override=restore_state
+        )
 
     async def handle_pause_dynamic_scene(call: ServiceCall) -> None:
         """Handle pause_dynamic_scene service call."""
