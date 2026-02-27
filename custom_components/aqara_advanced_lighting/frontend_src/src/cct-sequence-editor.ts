@@ -2,7 +2,7 @@ import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, CCTSequenceStep, UserCCTSequencePreset, DeviceContext, CCTEditorDraft, Translations } from './types';
 import { ReorderableStepsMixin, reorderableStepStyles } from './reorderable-steps-mixin';
-import { ALL_DEVICE_LABELS, editorFormStyles, localize } from './editor-constants';
+import { editorFormStyles, localize } from './editor-constants';
 
 interface EditableStep extends CCTSequenceStep {
   id: string;
@@ -29,6 +29,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
   @state() private _endBehavior = 'maintain';
   @state() private _saving = false;
   @state() private _previewing = false;
+  @state() private _hasUserInteraction = false;
 
   private get _loopModeOptions() {
     return [
@@ -43,11 +44,6 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
       { value: 'maintain', label: this._localize('options.end_behavior_maintain') },
       { value: 'turn_off', label: this._localize('options.end_behavior_turn_off') },
     ];
-  }
-
-  private get _deviceTypeLabel(): string {
-    if (!this.deviceContext?.deviceType) return '';
-    return ALL_DEVICE_LABELS[this.deviceContext.deviceType] || this.deviceContext.deviceType;
   }
 
   static styles = [reorderableStepStyles, editorFormStyles, css`
@@ -86,6 +82,15 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
     .step-actions ha-icon-button {
       --ha-icon-button-size: 32px;
       --mdc-icon-size: 18px;
+    }
+
+    .step-actions .step-delete {
+      color: var(--secondary-text-color);
+      transition: color 0.2s ease;
+    }
+
+    .step-actions .step-delete:hover:not([disabled]) {
+      color: var(--error-color);
     }
 
     .step-fields {
@@ -163,24 +168,6 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
       }
     }
 
-    .device-context-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 12px;
-      background: var(--secondary-background-color);
-      border: 1px solid var(--divider-color);
-      border-radius: 16px;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--secondary-text-color);
-      margin-bottom: 8px;
-    }
-
-    .device-context-badge ha-icon {
-      --mdc-icon-size: 16px;
-    }
-
     .form-hint {
       font-size: var(--ha-font-size-s, 12px);
       color: var(--secondary-text-color);
@@ -202,6 +189,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
     if (changedProps.has('draft') && this.draft) {
       this._restoreDraft(this.draft);
     } else if (changedProps.has('preset') && this.preset) {
+      this._hasUserInteraction = true;
       this._loadPreset(this.preset);
     }
   }
@@ -231,6 +219,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
       loopMode: this._loopMode,
       loopCount: this._loopCount,
       endBehavior: this._endBehavior,
+      hasUserInteraction: this._hasUserInteraction,
     };
   }
 
@@ -240,6 +229,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
     this._loopMode = 'once';
     this._loopCount = 3;
     this._endBehavior = 'maintain';
+    this._hasUserInteraction = false;
     this._addDefaultStep();
   }
 
@@ -253,6 +243,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
       ...step,
       id: `step-${index}-${Date.now()}`,
     }));
+    this._hasUserInteraction = draft.hasUserInteraction ?? false;
   }
 
   private _addDefaultStep(): void {
@@ -273,22 +264,27 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
 
   private _handleNameChange(e: CustomEvent): void {
     this._name = e.detail.value || '';
+    this._hasUserInteraction = true;
   }
 
   private _handleIconChange(e: CustomEvent): void {
     this._icon = e.detail.value || '';
+    this._hasUserInteraction = true;
   }
 
   private _handleLoopModeChange(e: CustomEvent): void {
     this._loopMode = e.detail.value || 'once';
+    this._hasUserInteraction = true;
   }
 
   private _handleLoopCountChange(e: CustomEvent): void {
     this._loopCount = e.detail.value ?? 3;
+    this._hasUserInteraction = true;
   }
 
   private _handleEndBehaviorChange(e: CustomEvent): void {
     this._endBehavior = e.detail.value || 'maintain';
+    this._hasUserInteraction = true;
   }
 
   private _hasIncompatibleEndpoints(): boolean {
@@ -315,6 +311,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
     this._steps = this._steps.map((step) =>
       step.id === stepId ? { ...step, [field]: e.detail.value } : step
     );
+    this._hasUserInteraction = true;
   }
 
   private _handleStepColorTempChange(stepId: string, e: CustomEvent): void {
@@ -322,6 +319,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
     this._steps = this._steps.map((step) =>
       step.id === stepId ? { ...step, color_temp: kelvin } : step
     );
+    this._hasUserInteraction = true;
   }
 
   private _addStep(): void {
@@ -338,11 +336,13 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
     };
 
     this._steps = [...this._steps, newStep];
+    this._hasUserInteraction = true;
   }
 
   private _removeStep(stepId: string): void {
     if (this._steps.length <= 1) return;
     this._steps = this._steps.filter((s) => s.id !== stepId);
+    this._hasUserInteraction = true;
   }
 
   private _moveStepUp(index: number): void {
@@ -352,6 +352,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
     newSteps[index - 1] = newSteps[index]!;
     newSteps[index] = temp;
     this._steps = newSteps;
+    this._hasUserInteraction = true;
   }
 
   private _moveStepDown(index: number): void {
@@ -361,6 +362,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
     newSteps[index] = newSteps[index + 1]!;
     newSteps[index + 1] = temp;
     this._steps = newSteps;
+    this._hasUserInteraction = true;
   }
 
   private _duplicateStep(step: EditableStep): void {
@@ -375,6 +377,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
     const newSteps = [...this._steps];
     newSteps.splice(index + 1, 0, newStep);
     this._steps = newSteps;
+    this._hasUserInteraction = true;
   }
 
   private _getPresetData(): Record<string, unknown> {
@@ -439,6 +442,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
   }
 
   private _cancel(): void {
+    this._hasUserInteraction = false;
     this.dispatchEvent(
       new CustomEvent('cancel', {
         bubbles: true,
@@ -476,6 +480,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
               <ha-icon icon="mdi:content-copy"></ha-icon>
             </ha-icon-button>
             <ha-icon-button
+              class="step-delete"
               @click=${() => this._removeStep(step.id)}
               .disabled=${this._steps.length <= 1}
               title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.step_remove')}"
@@ -562,12 +567,6 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
   protected render() {
     return html`
       <div class="editor-content">
-        ${this.deviceContext?.deviceType ? html`
-          <div class="device-context-badge">
-            <ha-icon icon="mdi:lightbulb-outline"></ha-icon>
-            <span>${this._localize('editors.selected_device_type')}: ${this._deviceTypeLabel}</span>
-          </div>
-        ` : ''}
         <div class="form-row-pair">
           <div class="form-field">
             <span class="form-label">${this._localize('editors.name_label')}</span>
@@ -590,7 +589,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
               ${this._icon ? html`
                 <ha-icon-button
                   class="icon-clear-btn"
-                  @click=${() => { this._icon = ''; }}
+                  @click=${() => { this._icon = ''; this._hasUserInteraction = true; }}
                   title=${this._localize('editors.icon_clear_tooltip')}
                 >
                   <ha-icon icon="mdi:close"></ha-icon>
@@ -699,12 +698,20 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
           : ''}
 
         <div class="form-actions">
-          <ha-button @click=${this._cancel}>${this._localize('editors.cancel_button')}</ha-button>
+          <div class="form-actions-left">
+            <ha-button @click=${this._cancel}>${this._localize('editors.cancel_button')}</ha-button>
+            ${this._hasUserInteraction ? html`
+              <span class="unsaved-indicator">
+                <span class="unsaved-dot"></span>
+                ${this._localize('editors.unsaved_changes')}
+              </span>
+            ` : ''}
+          </div>
           ${this.previewActive
             ? html`
                 <ha-button @click=${this._stopPreview}>
                   <ha-icon icon="mdi:stop"></ha-icon>
-                  ${this._localize('editors.stop_button')}
+                  <span class="btn-text">${this._localize('editors.stop_button')}</span>
                 </ha-button>
               `
             : html`
@@ -714,7 +721,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
                   title=${!this.hasSelectedEntities ? this._localize('editors.tooltip_select_lights_first') : !this.isCompatible ? this._localize('editors.tooltip_light_not_compatible') : this._hasIncompatibleEndpoints() ? this._localize('editors.tooltip_light_no_cct') : ''}
                 >
                   <ha-icon icon="mdi:play"></ha-icon>
-                  ${this._localize('editors.preview_button')}
+                  <span class="btn-text">${this._localize('editors.preview_button')}</span>
                 </ha-button>
               `}
           <ha-button
@@ -722,7 +729,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
             .disabled=${!this._name.trim() || this._steps.length === 0 || this._saving}
           >
             <ha-icon icon="mdi:content-save"></ha-icon>
-            ${this.editMode ? this._localize('editors.update_button') : this._localize('editors.save_button')}
+            <span class="btn-text">${this.editMode ? this._localize('editors.update_button') : this._localize('editors.save_button')}</span>
           </ha-button>
         </div>
       </div>

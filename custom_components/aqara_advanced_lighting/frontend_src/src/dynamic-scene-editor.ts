@@ -46,9 +46,11 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   @state() private _endBehavior = 'restore';
   @state() private _saving = false;
   @state() private _previewing = false;
+  @state() private _hasUserInteraction = false;
   @state() private _editingColorIndex: number | null = null;
   @state() private _editingColor: XYColor | null = null;
   @state() private _showExtractor = false;
+  @state() private _extractorMode: 'upload' | 'url' = 'upload';
   @state() private _thumbnail?: string;
 
   // Alias for cleaner code
@@ -297,6 +299,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     if (changedProps.has('draft') && this.draft) {
       this._restoreDraft(this.draft);
     } else if (changedProps.has('preset') && this.preset) {
+      this._hasUserInteraction = true;
       this._loadPreset(this.preset);
     }
   }
@@ -337,6 +340,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
       loopMode: this._loopMode,
       loopCount: this._loopCount,
       endBehavior: this._endBehavior,
+      hasUserInteraction: this._hasUserInteraction,
     };
   }
 
@@ -352,6 +356,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._loopMode = 'continuous';
     this._loopCount = 3;
     this._endBehavior = 'restore';
+    this._hasUserInteraction = false;
     this._addDefaultColors();
   }
 
@@ -371,6 +376,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
       ...color,
       id: `color-${index}-${Date.now()}`,
     }));
+    this._hasUserInteraction = draft.hasUserInteraction ?? false;
   }
 
   private _addDefaultColors(): void {
@@ -389,43 +395,52 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
 
   private _handleNameChange(e: CustomEvent): void {
     this._name = e.detail.value || '';
+    this._hasUserInteraction = true;
   }
 
   private _handleIconChange(e: CustomEvent): void {
     this._icon = e.detail.value || '';
+    this._hasUserInteraction = true;
   }
 
   private _handleTransitionTimeChange(e: CustomEvent): void {
     this._transitionTime = e.detail.value ?? 120;
+    this._hasUserInteraction = true;
   }
 
   private _handleHoldTimeChange(e: CustomEvent): void {
     this._holdTime = e.detail.value ?? 0;
+    this._hasUserInteraction = true;
   }
 
   private _handleDistributionModeChange(e: CustomEvent): void {
     this._distributionMode = e.detail.value || 'shuffle_rotate';
+    this._hasUserInteraction = true;
   }
 
   private _handleOffsetDelayChange(e: CustomEvent): void {
     this._offsetDelay = e.detail.value ?? 0;
+    this._hasUserInteraction = true;
   }
 
   private _handleRandomOrderChange(e: CustomEvent): void {
     this._randomOrder = e.detail.value ?? false;
+    this._hasUserInteraction = true;
   }
-
 
   private _handleLoopModeChange(e: CustomEvent): void {
     this._loopMode = e.detail.value || 'continuous';
+    this._hasUserInteraction = true;
   }
 
   private _handleLoopCountChange(e: CustomEvent): void {
     this._loopCount = e.detail.value ?? 3;
+    this._hasUserInteraction = true;
   }
 
   private _handleEndBehaviorChange(e: CustomEvent): void {
     this._endBehavior = e.detail.value || 'restore';
+    this._hasUserInteraction = true;
   }
 
   private _handleColorBrightnessChange(colorId: string, e: CustomEvent): void {
@@ -433,6 +448,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._colors = this._colors.map(c =>
       c.id === colorId ? { ...c, brightness_pct: brightness } : c
     );
+    this._hasUserInteraction = true;
   }
 
   private _openColorPicker(index: number): void {
@@ -462,6 +478,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
           ? { ...c, x: this._editingColor!.x, y: this._editingColor!.y }
           : c
       );
+      this._hasUserInteraction = true;
     }
     this._closeColorPicker();
   }
@@ -492,6 +509,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
       y: newColor.y,
       brightness_pct: lastColor?.brightness_pct ?? 100,
     }];
+    this._hasUserInteraction = true;
   }
 
   private _handleColorsExtracted(e: CustomEvent<ColorsExtractedDetail>): void {
@@ -515,11 +533,13 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     }
 
     this._showExtractor = false;
+    this._hasUserInteraction = true;
   }
 
   private _removeColor(colorId: string): void {
     if (this._colors.length <= 1) return;
     this._colors = this._colors.filter(c => c.id !== colorId);
+    this._hasUserInteraction = true;
   }
 
   private _getPresetData(): Record<string, unknown> {
@@ -592,6 +612,8 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   }
 
   private _cancel(): void {
+    this._hasUserInteraction = false;
+
     // Clean up unsaved thumbnail (one that was extracted but not yet persisted to a preset)
     const originalThumb = this.preset?.thumbnail;
     if (this._thumbnail && this._thumbnail !== originalThumb) {
@@ -710,7 +732,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
               ${this._icon ? html`
                 <ha-icon-button
                   class="icon-clear-btn"
-                  @click=${() => { this._icon = ''; }}
+                  @click=${() => { this._icon = ''; this._hasUserInteraction = true; }}
                   title=${this._localize('editors.icon_clear_tooltip')}
                 >
                   <ha-icon icon="mdi:close"></ha-icon>
@@ -753,16 +775,46 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
 
         <!-- Image Color Extractor Dialog -->
         <ha-dialog
+          class="extractor-dialog"
           .open=${this._showExtractor}
           @closed=${() => { this._showExtractor = false; }}
-          .heading=${this._localize('dynamic_scene.extract_from_image') || 'Extract from image'}
+          .headerTitle=${this._localize('dynamic_scene.extract_from_image') || 'Extract from image'}
         >
+          <span slot="headerNavigationIcon"></span>
+          <div slot="headerActionItems" class="extractor-mode-toggle">
+            <button
+              class="mode-btn ${this._extractorMode === 'upload' ? 'active' : ''}"
+              @click=${() => { this._extractorMode = 'upload'; }}
+            >
+              <ha-icon icon="mdi:upload"></ha-icon>
+              ${this._localize('image_extractor.upload_tab')}
+            </button>
+            <button
+              class="mode-btn ${this._extractorMode === 'url' ? 'active' : ''}"
+              @click=${() => { this._extractorMode = 'url'; }}
+            >
+              <ha-icon icon="mdi:link"></ha-icon>
+              ${this._localize('image_extractor.url_tab')}
+            </button>
+          </div>
           <image-color-extractor
             .hass=${this.hass}
             .translations=${this.translations}
+            .mode=${this._extractorMode}
             @colors-extracted=${this._handleColorsExtracted}
             @extractor-cancelled=${() => { this._showExtractor = false; }}
           ></image-color-extractor>
+          <div slot="footer">
+            <ha-button @click=${() => { this._showExtractor = false; }}>
+              ${this._localize('image_extractor.cancel_button')}
+            </ha-button>
+            <ha-button
+              @click=${() => { (this.shadowRoot!.querySelector('image-color-extractor') as any)?.extract(); }}
+            >
+              <ha-icon icon="mdi:palette-swatch"></ha-icon>
+              ${this._localize('image_extractor.extract_button')}
+            </ha-button>
+          </div>
         </ha-dialog>
 
         <!-- Timing Section -->
@@ -916,16 +968,16 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
         <ha-dialog
           .open=${this._editingColorIndex !== null && this._editingColor !== null}
           @closed=${this._closeColorPicker}
+          .headerTitle=${this._localize('editors.color_picker_title')}
         >
-          <div class="color-picker-modal-header">
-            <span class="color-picker-modal-title">${this._localize('editors.color_picker_title')}</span>
-            ${this._editingColor ? html`
-              <div
-                class="color-picker-modal-preview"
-                style="background-color: ${xyToHex(this._editingColor, 255)}"
-              ></div>
-            ` : ''}
-          </div>
+          <span slot="headerNavigationIcon"></span>
+          ${this._editingColor ? html`
+            <div
+              slot="headerActionItems"
+              class="color-picker-modal-preview"
+              style="background-color: ${xyToHex(this._editingColor, 255)}"
+            ></div>
+          ` : ''}
           ${this._editingColor ? html`
             <xy-color-picker
               .color=${this._editingColor}
@@ -939,13 +991,15 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
               @color-selected=${this._handleHistoryColorSelected}
             ></color-history-swatches>
           ` : ''}
-          <ha-button slot="secondaryAction" @click=${this._closeColorPicker}>
-            ${this._localize('editors.cancel_button')}
-          </ha-button>
-          <ha-button slot="primaryAction" @click=${this._confirmColorPicker}>
-            <ha-icon icon="mdi:check"></ha-icon>
-            ${this._localize('editors.apply_button')}
-          </ha-button>
+          <div slot="footer">
+            <ha-button @click=${this._closeColorPicker}>
+              ${this._localize('editors.cancel_button')}
+            </ha-button>
+            <ha-button @click=${this._confirmColorPicker}>
+              <ha-icon icon="mdi:check"></ha-icon>
+              ${this._localize('editors.apply_button')}
+            </ha-button>
+          </div>
         </ha-dialog>
 
         <!-- Preview Warning -->
@@ -958,11 +1012,19 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
 
         <!-- Form Actions -->
         <div class="form-actions">
-          <ha-button @click=${this._cancel}>${this._localize('editors.cancel_button')}</ha-button>
+          <div class="form-actions-left">
+            <ha-button @click=${this._cancel}>${this._localize('editors.cancel_button')}</ha-button>
+            ${this._hasUserInteraction ? html`
+              <span class="unsaved-indicator">
+                <span class="unsaved-dot"></span>
+                ${this._localize('editors.unsaved_changes')}
+              </span>
+            ` : ''}
+          </div>
           ${this.previewActive ? html`
             <ha-button @click=${this._stopPreview}>
               <ha-icon icon="mdi:stop"></ha-icon>
-              ${this._localize('editors.stop_button')}
+              <span class="btn-text">${this._localize('editors.stop_button')}</span>
             </ha-button>
           ` : html`
             <ha-button
@@ -971,7 +1033,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
               title=${!this.hasSelectedEntities ? this._localize('editors.tooltip_select_lights_first') : !this.isCompatible ? this._localize('editors.tooltip_light_not_compatible') : ''}
             >
               <ha-icon icon="mdi:play"></ha-icon>
-              ${this._localize('editors.preview_button')}
+              <span class="btn-text">${this._localize('editors.preview_button')}</span>
             </ha-button>
           `}
           <ha-button
@@ -979,7 +1041,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
             .disabled=${!this._name.trim() || this._colors.length === 0 || this._saving}
           >
             <ha-icon icon="mdi:content-save"></ha-icon>
-            ${this.editMode ? this._localize('editors.update_button') : this._localize('editors.save_button')}
+            <span class="btn-text">${this.editMode ? this._localize('editors.update_button') : this._localize('editors.save_button')}</span>
           </ha-button>
         </div>
       </div>

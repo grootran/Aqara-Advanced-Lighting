@@ -71,7 +71,7 @@ export class AqaraPanel extends LitElement {
   @state() private _ignoreExternalChanges = false;
   @state() private _useDistributionModeOverride = false;
   @state() private _distributionModeOverride = 'shuffle_rotate';
-  @state() private _collapsed: Record<string, boolean> = {};
+  @state() private _collapsed: Record<string, boolean> = { instances: true };
   @state() private _hasIncompatibleLights = false;
   @state() private _includeAllLights = false;
   @state() private _favorites: Favorite[] = [];
@@ -97,10 +97,12 @@ export class AqaraPanel extends LitElement {
   @state() private _z2mInstances: Array<{
     entry_id: string;
     title: string;
-    z2m_base_topic: string;
+    backend_type: string;
+    z2m_base_topic: string | null;
     device_counts: { t2_rgb: number; t2_cct: number; t1m: number; t1_strip: number; other: number; total: number };
     devices: string[];
   }> = [];
+  @state() private _instanceDevicesExpanded: Set<string> = new Set();
   @state() private _localCurvature = 1.0;
   @state() private _applyingCurvature = false;
   @state() private _isExporting = false;
@@ -1919,6 +1921,16 @@ export class AqaraPanel extends LitElement {
       [sectionId]: !expanded,
     };
     this._saveUserPreferences();
+  }
+
+  private _toggleInstanceDevices(entryId: string): void {
+    const next = new Set(this._instanceDevicesExpanded);
+    if (next.has(entryId)) {
+      next.delete(entryId);
+    } else {
+      next.add(entryId);
+    }
+    this._instanceDevicesExpanded = next;
   }
 
   private async _activateDynamicEffect(preset: DynamicEffectPreset): Promise<void> {
@@ -4841,10 +4853,11 @@ export class AqaraPanel extends LitElement {
     const hasDimmingEntities = onOffDurationEntity || offOnDurationEntity || dimmingRangeMinEntity || dimmingRangeMaxEntity;
 
     return html`
-      <!-- Z2M Instances Info Section -->
+      <!-- Zigbee Instances Info Section -->
       <ha-expansion-panel
         outlined
-        .expanded=${false}
+        .expanded=${!this._collapsed['instances']}
+        @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange('instances', e)}
       >
         <div slot="header" class="section-header">
           <div>
@@ -4866,68 +4879,67 @@ export class AqaraPanel extends LitElement {
                 </div>
               `
             : html`
-                <div class="z2m-instances-grid">
-                  ${this._z2mInstances.map(instance => html`
-                    <div class="z2m-instance-card">
-                      <div class="z2m-instance-header">
-                        <ha-icon icon="mdi:zigbee" style="color: var(--primary-color);"></ha-icon>
-                        <div class="z2m-instance-info">
-                          <span class="z2m-instance-name">${instance.title}</span>
-                          ${instance.title !== instance.z2m_base_topic ? html`
-                            <span class="z2m-instance-topic">${instance.z2m_base_topic}</span>
-                          ` : ''}
+                <div class="instance-grid">
+                  ${this._z2mInstances.map(instance => {
+                    const isExpanded = this._instanceDevicesExpanded.has(instance.entry_id);
+                    const maxVisible = 5;
+                    const visibleDevices = isExpanded ? instance.devices : instance.devices.slice(0, maxVisible);
+                    const hiddenCount = instance.devices.length - maxVisible;
+                    const isZ2M = instance.backend_type === 'z2m';
+
+                    const typeCounts: Array<{ key: string; count: number }> = [];
+                    if (instance.device_counts.t2_rgb > 0) typeCounts.push({ key: 't2_rgb', count: instance.device_counts.t2_rgb });
+                    if (instance.device_counts.t2_cct > 0) typeCounts.push({ key: 't2_cct', count: instance.device_counts.t2_cct });
+                    if (instance.device_counts.t1m > 0) typeCounts.push({ key: 't1m', count: instance.device_counts.t1m });
+                    if (instance.device_counts.t1_strip > 0) typeCounts.push({ key: 't1_strip', count: instance.device_counts.t1_strip });
+                    if (instance.device_counts.other > 0) typeCounts.push({ key: 'other', count: instance.device_counts.other });
+
+                    return html`
+                      <div class="instance-card">
+                        <div class="instance-header">
+                          <span class="instance-badge ${isZ2M ? 'instance-badge--z2m' : 'instance-badge--zha'}">
+                            ${isZ2M ? 'Z2M' : 'ZHA'}
+                          </span>
+                          <div class="instance-info">
+                            <span class="instance-name">${instance.title}</span>
+                            ${isZ2M && instance.z2m_base_topic && instance.title !== instance.z2m_base_topic ? html`
+                              <span class="instance-topic">${instance.z2m_base_topic}</span>
+                            ` : ''}
+                          </div>
                         </div>
+                        ${typeCounts.length > 0 ? html`
+                          <div class="instance-type-chips">
+                            ${typeCounts.map(tc => html`
+                              <span class="instance-type-chip">${this._localize('instances.' + tc.key)} x${tc.count}</span>
+                            `)}
+                          </div>
+                        ` : ''}
+                        ${instance.devices.length > 0 ? html`
+                          <div class="instance-device-chips">
+                            ${visibleDevices.map(device => html`
+                              <span class="instance-device-chip">${device}</span>
+                            `)}
+                            ${!isExpanded && hiddenCount > 0 ? html`
+                              <span
+                                class="instance-device-chip instance-device-chip--more"
+                                @click=${() => this._toggleInstanceDevices(instance.entry_id)}
+                              >
+                                ${this._localize('instances.more_devices', { count: String(hiddenCount) })}
+                              </span>
+                            ` : ''}
+                            ${isExpanded && hiddenCount > 0 ? html`
+                              <span
+                                class="instance-device-chip instance-device-chip--more"
+                                @click=${() => this._toggleInstanceDevices(instance.entry_id)}
+                              >
+                                ${this._localize('instances.show_less')}
+                              </span>
+                            ` : ''}
+                          </div>
+                        ` : ''}
                       </div>
-                      <div class="z2m-instance-stats">
-                        <div class="z2m-stat">
-                          <span class="z2m-stat-value">${instance.device_counts.total}</span>
-                          <span class="z2m-stat-label">${this._localize('instances.total')}</span>
-                        </div>
-                        ${instance.device_counts.t2_rgb > 0 ? html`
-                          <div class="z2m-stat">
-                            <span class="z2m-stat-value">${instance.device_counts.t2_rgb}</span>
-                            <span class="z2m-stat-label">${this._localize('instances.t2_rgb')}</span>
-                          </div>
-                        ` : ''}
-                        ${instance.device_counts.t2_cct > 0 ? html`
-                          <div class="z2m-stat">
-                            <span class="z2m-stat-value">${instance.device_counts.t2_cct}</span>
-                            <span class="z2m-stat-label">${this._localize('instances.t2_cct')}</span>
-                          </div>
-                        ` : ''}
-                        ${instance.device_counts.t1m > 0 ? html`
-                          <div class="z2m-stat">
-                            <span class="z2m-stat-value">${instance.device_counts.t1m}</span>
-                            <span class="z2m-stat-label">${this._localize('instances.t1m')}</span>
-                          </div>
-                        ` : ''}
-                        ${instance.device_counts.t1_strip > 0 ? html`
-                          <div class="z2m-stat">
-                            <span class="z2m-stat-value">${instance.device_counts.t1_strip}</span>
-                            <span class="z2m-stat-label">${this._localize('instances.t1_strip')}</span>
-                          </div>
-                        ` : ''}
-                        ${instance.device_counts.other > 0 ? html`
-                          <div class="z2m-stat">
-                            <span class="z2m-stat-value">${instance.device_counts.other}</span>
-                            <span class="z2m-stat-label">${this._localize('instances.other')}</span>
-                          </div>
-                        ` : ''}
-                      </div>
-                      ${instance.devices.length > 0 ? html`
-                        <div class="z2m-devices-list">
-                          <details>
-                            <summary style="cursor: pointer; color: var(--secondary-text-color); font-size: var(--ha-font-size-s, 12px);">
-                              ${this._localize(instance.devices.length === 1 ? 'instances.show_devices_single' : 'instances.show_devices_plural', { count: String(instance.devices.length) })}
-                            </summary>
-                            <ul style="margin: 8px 0 0 0; padding-left: 20px; font-size: var(--ha-font-size-s, 12px); color: var(--secondary-text-color);">
-                              ${instance.devices.map(device => html`<li>${device}</li>`)}
-                            </ul>
-                          </details>
-                        </div>
-                      ` : ''}
-                    </div>
-                  `)}
+                    `;
+                  })}
                 </div>
               `}
         </div>
@@ -5239,12 +5251,26 @@ export class AqaraPanel extends LitElement {
       return '';
     }
 
+    // Count total zones across all devices for the subtitle
+    const totalZones = Array.from(segmentDevices.keys()).reduce(
+      (sum, ieee) => sum + (this._zoneEditing.get(ieee) || []).length, 0,
+    );
+    const deviceCount = segmentDevices.size;
+    const zoneSectionId = 'segment_zones';
+    const isZonesExpanded = this._collapsed[zoneSectionId] === undefined ? true : !this._collapsed[zoneSectionId];
+
     return html`
-      <ha-expansion-panel outlined .expanded=${true}>
+      <ha-expansion-panel
+        outlined
+        .expanded=${isZonesExpanded}
+        @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange(zoneSectionId, e)}
+      >
         <div slot="header" class="section-header">
           <div>
             <div class="section-title">${this._localize('config.segment_zones_title')}</div>
-            <div class="section-subtitle">${this._localize('config.segment_zones_subtitle')}</div>
+            <div class="section-subtitle">${totalZones > 0
+              ? this._localize('config.segment_zones_subtitle_count', { zones: totalZones.toString(), devices: deviceCount.toString() })
+              : this._localize('config.segment_zones_subtitle')}</div>
           </div>
         </div>
         <div class="section-content" style="display: block; padding: 0;">
@@ -5258,8 +5284,33 @@ export class AqaraPanel extends LitElement {
                   <span>${device.z2m_friendly_name}</span>
                   <span class="zone-device-segments">${this._localize('config.segment_count', { count: device.segment_count.toString() })}</span>
                 </div>
+                <div class="zone-device-toolbar">
+                  <ha-button @click=${() => this._addZoneRow(ieee)}>
+                    <ha-icon icon="mdi:plus"></ha-icon>
+                    ${this._localize('config.zone_add_button')}
+                  </ha-button>
+                  <div class="toolbar-spacer"></div>
+                  ${modified ? html`
+                    <span class="zone-unsaved-indicator">
+                      <span class="zone-unsaved-dot"></span>
+                      ${this._localize('config.zone_unsaved_changes')}
+                    </span>
+                  ` : ''}
+                  <ha-button
+                    @click=${() => this._saveZones(ieee, device.segment_count)}
+                    ?disabled=${!modified || this._zoneSaving}
+                  >
+                    <ha-icon icon="mdi:content-save-outline"></ha-icon>
+                    ${this._localize('config.zone_save_button')}
+                  </ha-button>
+                </div>
                 ${editZones.length === 0
-                  ? html`<div class="zone-empty-message">${this._localize('config.zone_no_zones')}</div>`
+                  ? html`
+                    <div class="zone-empty-state">
+                      <ha-icon icon="mdi:vector-square-plus"></ha-icon>
+                      <span class="zone-empty-title">${this._localize('config.zone_no_zones')}</span>
+                      <span class="zone-empty-hint">${this._localize('config.zone_empty_hint')}</span>
+                    </div>`
                   : html`
                     <div class="zone-list">
                       ${editZones.map((zone, index) => html`
@@ -5291,19 +5342,6 @@ export class AqaraPanel extends LitElement {
                       `)}
                     </div>
                   `}
-                <div class="zone-actions">
-                  <ha-button @click=${() => this._addZoneRow(ieee)}>
-                    <ha-icon icon="mdi:plus"></ha-icon>
-                    ${this._localize('config.zone_add_button')}
-                  </ha-button>
-                  <ha-button
-                    @click=${() => this._saveZones(ieee, device.segment_count)}
-                    ?disabled=${!modified || this._zoneSaving}
-                  >
-                    <ha-icon icon="mdi:content-save-outline"></ha-icon>
-                    ${this._localize('config.zone_save_button')}
-                  </ha-button>
-                </div>
               </div>
             `;
           })}

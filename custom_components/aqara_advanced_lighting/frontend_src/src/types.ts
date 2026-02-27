@@ -362,6 +362,7 @@ export interface EffectEditorDraft {
   brightness: number;
   colors: XYColor[];
   segments: string;
+  hasUserInteraction: boolean;
 }
 
 export interface PatternEditorDraft {
@@ -380,6 +381,7 @@ export interface PatternEditorDraft {
   gradientWave: boolean;
   gradientWaveCycles: number;
   turnOffUnspecified: boolean;
+  hasUserInteraction: boolean;
 }
 
 export interface CCTEditorDraft {
@@ -389,6 +391,7 @@ export interface CCTEditorDraft {
   loopMode: string;
   loopCount: number;
   endBehavior: string;
+  hasUserInteraction: boolean;
 }
 
 export interface SegmentSequenceEditorDraft {
@@ -420,6 +423,7 @@ export interface SegmentSequenceEditorDraft {
   endBehavior: string;
   clearSegments: boolean;
   skipFirstInLoop: boolean;
+  hasUserInteraction: boolean;
 }
 
 export interface DynamicSceneEditorDraft {
@@ -435,6 +439,7 @@ export interface DynamicSceneEditorDraft {
   loopMode: string;
   loopCount: number;
   endBehavior: string;
+  hasUserInteraction: boolean;
 }
 
 export interface EditorDraftCache {

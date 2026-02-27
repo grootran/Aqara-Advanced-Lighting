@@ -1718,107 +1718,141 @@ export const panelStyles = css`
     }
   }
 
-  /* Z2M Instances Grid Styles */
-  .z2m-instances-grid {
+  /* Instance card grid styles */
+  .instance-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 16px;
     padding: 16px;
   }
 
-  .z2m-instance-card {
+  .instance-card {
     background: var(--card-background-color, var(--ha-card-background));
     border: 1px solid var(--divider-color);
     border-radius: var(--ha-card-border-radius, 12px);
     padding: 16px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
   }
 
-  .z2m-instance-header {
+  .instance-header {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
   }
 
-  .z2m-instance-info {
+  .instance-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: var(--ha-font-size-xs, 11px);
+    font-weight: var(--ha-font-weight-bold, 600);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .instance-badge--z2m {
+    background: #e1a700;
+    color: #1a1400;
+  }
+
+  .instance-badge--zha {
+    background: #db4437;
+    color: #fff;
+  }
+
+  .instance-info {
     display: flex;
     flex-direction: column;
     gap: 2px;
     min-width: 0;
   }
 
-  .z2m-instance-name {
+  .instance-name {
     font-size: var(--ha-font-size-l, 16px);
     font-weight: var(--ha-font-weight-medium, 500);
     color: var(--primary-text-color);
     word-break: break-word;
   }
 
-  .z2m-instance-topic {
+  .instance-topic {
     font-size: var(--ha-font-size-s, 12px);
     color: var(--secondary-text-color);
     word-break: break-word;
   }
 
-  .z2m-instance-stats {
+  .instance-type-chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 6px;
   }
 
-  .z2m-stat {
-    display: flex;
-    flex-direction: column;
+  .instance-type-chip {
+    display: inline-flex;
     align-items: center;
-    padding: 8px 12px;
-    min-width: 60px;
-  }
-
-  .z2m-stat-value {
-    font-size: var(--ha-font-size-xl, 20px);
-    font-weight: var(--ha-font-weight-bold, 600);
-    color: var(--primary-color);
-  }
-
-  .z2m-stat-label {
+    padding: 2px 8px;
+    border-radius: 8px;
     font-size: var(--ha-font-size-xs, 11px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    background: var(--secondary-background-color);
     color: var(--secondary-text-color);
-    text-align: center;
     white-space: nowrap;
   }
 
-  .z2m-devices-list {
-    margin-top: 4px;
-    padding-top: 8px;
+  .instance-device-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding-top: 6px;
     border-top: 1px solid var(--divider-color);
   }
 
-  .z2m-devices-list details summary {
-    user-select: none;
+  .instance-device-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 14px;
+    font-size: var(--ha-font-size-s, 12px);
+    background: var(--secondary-background-color);
+    color: var(--primary-text-color);
+    white-space: nowrap;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  .z2m-devices-list details[open] summary {
-    margin-bottom: 4px;
+  .instance-device-chip--more {
+    cursor: pointer;
+    color: var(--primary-color);
+    background: transparent;
+    border: 1px solid var(--primary-color);
+    max-width: none;
   }
 
-  /* Mobile adjustments for Z2M instances */
+  .instance-device-chip--more:hover {
+    background: var(--primary-color);
+    color: var(--text-primary-color, #fff);
+  }
+
+  /* Mobile adjustments for instance cards */
   @media (max-width: 480px) {
-    .z2m-instances-grid {
+    .instance-grid {
       grid-template-columns: 1fr;
       padding: 12px;
       gap: 12px;
     }
 
-    .z2m-instance-stats {
-      gap: 8px;
+    .instance-type-chips {
+      gap: 4px;
     }
 
-    .z2m-stat {
-      flex: 1;
-      min-width: 50px;
-      padding: 6px 8px;
+    .instance-device-chips {
+      gap: 4px;
     }
   }
 
@@ -1836,7 +1870,6 @@ export const panelStyles = css`
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 12px;
     font-weight: var(--ha-font-weight-medium, 500);
     color: var(--primary-text-color);
   }
@@ -1848,25 +1881,71 @@ export const panelStyles = css`
     margin-left: auto;
   }
 
-  .zone-empty-message {
+  .zone-device-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .zone-device-toolbar .toolbar-spacer {
+    flex: 1;
+  }
+
+  .zone-unsaved-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     font-size: var(--ha-font-size-s, 12px);
+    color: var(--warning-color);
+  }
+
+  .zone-unsaved-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--warning-color);
+  }
+
+  .zone-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 24px 16px;
     color: var(--secondary-text-color);
-    padding: 8px 0;
+  }
+
+  .zone-empty-state ha-icon {
+    --mdc-icon-size: 40px;
+    opacity: 0.5;
+  }
+
+  .zone-empty-state .zone-empty-title {
+    font-size: var(--ha-font-size-m, 14px);
+    font-weight: var(--ha-font-weight-medium, 500);
+  }
+
+  .zone-empty-state .zone-empty-hint {
+    font-size: var(--ha-font-size-s, 12px);
+    text-align: center;
+    max-width: 280px;
   }
 
   .zone-list {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    margin-bottom: 12px;
+    margin-top: 12px;
   }
 
   .zone-row {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    padding: 8px;
+    padding: 12px;
     border: 1px solid var(--divider-color);
+    border-left: 3px solid var(--primary-color);
     border-radius: var(--ha-border-radius-sm, 4px);
     background: var(--secondary-background-color);
   }
@@ -1882,10 +1961,13 @@ export const panelStyles = css`
     min-width: 0;
   }
 
-  .zone-actions {
-    display: flex;
-    gap: 8px;
-    align-items: center;
+  .zone-row-header ha-icon-button {
+    color: var(--secondary-text-color);
+    transition: color 0.2s ease;
+  }
+
+  .zone-row-header ha-icon-button:hover {
+    color: var(--error-color);
   }
 `;
 
@@ -2103,24 +2185,62 @@ export const colorPickerStyles = css`
     --ha-dialog-max-width: min(346px, calc(100vw - 32px));
   }
 
-  .color-picker-modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
+  ha-dialog [slot="headerActionItems"] {
+    margin-right: 12px;
   }
 
-  .color-picker-modal-title {
-    font-size: 18px;
-    font-weight: 500;
-    color: var(--primary-text-color);
+  ha-dialog [slot="footer"] {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
   }
 
   .color-picker-modal-preview {
-    width: 48px;
-    height: 48px;
-    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
     border: 2px solid var(--divider-color);
+  }
+
+  ha-dialog.extractor-dialog {
+    --ha-dialog-width-md: min(420px, calc(100vw - 32px));
+    --ha-dialog-max-width: min(420px, calc(100vw - 32px));
+  }
+
+  ha-dialog.extractor-dialog image-color-extractor {
+    min-height: 200px;
+  }
+
+  .extractor-mode-toggle {
+    display: flex;
+    gap: 4px;
+    background: var(--secondary-background-color, #f5f5f5);
+    border-radius: 8px;
+    padding: 3px;
+    margin: 0 auto;
+  }
+
+  .extractor-mode-toggle .mode-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--primary-text-color);
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .extractor-mode-toggle .mode-btn.active {
+    background: var(--card-background-color, #fff);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  }
+
+  .extractor-mode-toggle .mode-btn ha-icon {
+    --mdc-icon-size: 16px;
   }
 
 `;

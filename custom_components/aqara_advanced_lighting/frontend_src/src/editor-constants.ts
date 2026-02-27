@@ -140,9 +140,35 @@ export const editorFormStyles = css`
     display: flex;
     gap: 12px;
     justify-content: flex-end;
+    align-items: center;
     margin-top: 24px;
     padding-top: 16px;
     border-top: 1px solid var(--divider-color);
+  }
+
+  .form-actions-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-right: auto;
+  }
+
+  .unsaved-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--ha-font-size-s, 12px);
+    color: var(--warning-color);
+    max-width: 100px;
+    line-height: 1.3;
+  }
+
+  .unsaved-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--warning-color);
+    flex-shrink: 0;
   }
 
   .preview-warning {
@@ -199,6 +225,14 @@ export const editorFormStyles = css`
     .form-label {
       min-width: unset;
       margin-bottom: 4px;
+    }
+
+    .form-actions .btn-text {
+      display: none;
+    }
+
+    .form-actions {
+      gap: 8px;
     }
   }
 `;

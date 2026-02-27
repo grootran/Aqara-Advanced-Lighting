@@ -372,6 +372,7 @@ export class PatternEditor extends LitElement {
       gradientWave: this._gradientWave,
       gradientWaveCycles: this._gradientWaveCycles,
       turnOffUnspecified: this._turnOffUnspecified,
+      hasUserInteraction: this._hasUserInteraction,
     };
   }
 
@@ -417,15 +418,17 @@ export class PatternEditor extends LitElement {
     this._gradientWave = draft.gradientWave;
     this._gradientWaveCycles = draft.gradientWaveCycles;
     this._turnOffUnspecified = draft.turnOffUnspecified;
-    this._hasUserInteraction = true;
+    this._hasUserInteraction = draft.hasUserInteraction ?? false;
   }
 
   private _handleNameChange(e: CustomEvent): void {
     this._name = e.detail.value || '';
+    this._hasUserInteraction = true;
   }
 
   private _handleIconChange(e: CustomEvent): void {
     this._icon = e.detail.value || '';
+    this._hasUserInteraction = true;
   }
 
   private _handleDeviceTypeChange(e: CustomEvent): void {
@@ -448,6 +451,7 @@ export class PatternEditor extends LitElement {
     const { value } = e.detail;
     if (value instanceof Map) {
       this._segments = value;
+      this._hasUserInteraction = true;
     }
   }
 
@@ -456,6 +460,7 @@ export class PatternEditor extends LitElement {
     const { colors } = e.detail;
     if (Array.isArray(colors)) {
       this._gradientColors = colors;
+      this._hasUserInteraction = true;
     }
   }
 
@@ -464,6 +469,7 @@ export class PatternEditor extends LitElement {
     const { colors } = e.detail;
     if (Array.isArray(colors)) {
       this._blockColors = colors;
+      this._hasUserInteraction = true;
     }
   }
 
@@ -472,11 +478,13 @@ export class PatternEditor extends LitElement {
     const { colors } = e.detail;
     if (Array.isArray(colors)) {
       this._colorPalette = colors;
+      this._hasUserInteraction = true;
     }
   }
 
   private _handleTurnOffUnspecifiedChange(e: CustomEvent): void {
     this._turnOffUnspecified = e.detail.value;
+    this._hasUserInteraction = true;
   }
 
   // Note: All pattern generation, color management, selection, and UI rendering
@@ -558,6 +566,7 @@ export class PatternEditor extends LitElement {
   }
 
   private _cancel(): void {
+    this._hasUserInteraction = false;
     this.dispatchEvent(
       new CustomEvent('cancel', {
         bubbles: true,
@@ -628,7 +637,7 @@ export class PatternEditor extends LitElement {
               ${this._icon ? html`
                 <ha-icon-button
                   class="icon-clear-btn"
-                  @click=${() => { this._icon = ''; }}
+                  @click=${() => { this._icon = ''; this._hasUserInteraction = true; }}
                   title=${this._localize('editors.icon_clear_tooltip')}
                 >
                   <ha-icon icon="mdi:close"></ha-icon>
@@ -692,12 +701,20 @@ export class PatternEditor extends LitElement {
           : ''}
 
         <div class="form-actions">
-          <ha-button @click=${this._cancel}>${this._localize('editors.cancel_button')}</ha-button>
+          <div class="form-actions-left">
+            <ha-button @click=${this._cancel}>${this._localize('editors.cancel_button')}</ha-button>
+            ${this._hasUserInteraction ? html`
+              <span class="unsaved-indicator">
+                <span class="unsaved-dot"></span>
+                ${this._localize('editors.unsaved_changes')}
+              </span>
+            ` : ''}
+          </div>
           ${this.previewActive
             ? html`
                 <ha-button @click=${this._stopPreview}>
                   <ha-icon icon="mdi:stop"></ha-icon>
-                  ${this._localize('editors.stop_button')}
+                  <span class="btn-text">${this._localize('editors.stop_button')}</span>
                 </ha-button>
               `
             : html`
@@ -707,7 +724,7 @@ export class PatternEditor extends LitElement {
                   title=${!this.hasSelectedEntities ? this._localize('editors.tooltip_select_lights_first') : !this.isCompatible ? this._localize('editors.tooltip_light_not_compatible') : ''}
                 >
                   <ha-icon icon="mdi:play"></ha-icon>
-                  ${this._localize('editors.preview_button')}
+                  <span class="btn-text">${this._localize('editors.preview_button')}</span>
                 </ha-button>
               `}
           <ha-button
@@ -715,7 +732,7 @@ export class PatternEditor extends LitElement {
             .disabled=${!this._canSave() || this._saving}
           >
             <ha-icon icon="mdi:content-save"></ha-icon>
-            ${this.editMode ? this._localize('editors.update_button') : this._localize('editors.save_button')}
+            <span class="btn-text">${this.editMode ? this._localize('editors.update_button') : this._localize('editors.save_button')}</span>
           </ha-button>
         </div>
       </div>

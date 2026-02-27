@@ -163,6 +163,15 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
       --mdc-icon-size: 18px;
     }
 
+    .step-actions .step-delete {
+      color: var(--secondary-text-color);
+      transition: color 0.2s ease;
+    }
+
+    .step-actions .step-delete:hover:not([disabled]) {
+      color: var(--error-color);
+    }
+
     .step-segment-selector {
       width: 100%;
       margin-bottom: 16px;
@@ -402,6 +411,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
       endBehavior: this._endBehavior,
       clearSegments: this._clearSegments,
       skipFirstInLoop: this._skipFirstInLoop,
+      hasUserInteraction: this._hasUserInteraction,
     };
   }
 
@@ -452,7 +462,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
       gradientWaveCycles: s.gradientWaveCycles,
       turnOffUnspecified: s.turnOffUnspecified,
     }));
-    this._hasUserInteraction = true;
+    this._hasUserInteraction = draft.hasUserInteraction ?? false;
   }
 
   private _addDefaultStep(): void {
@@ -489,10 +499,12 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
 
   private _handleNameChange(e: CustomEvent): void {
     this._name = e.detail.value || '';
+    this._hasUserInteraction = true;
   }
 
   private _handleIconChange(e: CustomEvent): void {
     this._icon = e.detail.value || '';
+    this._hasUserInteraction = true;
   }
 
   private _handleDeviceTypeChange(e: CustomEvent): void {
@@ -502,22 +514,27 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
 
   private _handleLoopModeChange(e: CustomEvent): void {
     this._loopMode = e.detail.value || 'once';
+    this._hasUserInteraction = true;
   }
 
   private _handleLoopCountChange(e: CustomEvent): void {
     this._loopCount = e.detail.value ?? 3;
+    this._hasUserInteraction = true;
   }
 
   private _handleEndBehaviorChange(e: CustomEvent): void {
     this._endBehavior = e.detail.value || 'maintain';
+    this._hasUserInteraction = true;
   }
 
   private _handleClearSegmentsChange(e: Event): void {
     this._clearSegments = (e.target as HTMLInputElement).checked;
+    this._hasUserInteraction = true;
   }
 
   private _handleSkipFirstInLoopChange(e: Event): void {
     this._skipFirstInLoop = (e.target as HTMLInputElement).checked;
+    this._hasUserInteraction = true;
   }
 
   private _hasInvalidGradientSteps(): boolean {
@@ -529,6 +546,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
     this._steps = this._steps.map((step) =>
       step.id === stepId ? { ...step, [field]: e.detail.value } : step
     );
+    this._hasUserInteraction = true;
   }
 
   // Note: Color picker and color management methods removed - now handled by segment-selector component
@@ -565,6 +583,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
 
       return step;
     });
+    this._hasUserInteraction = true;
   }
 
   private _handleStepGradientColorsChange(stepId: string, e: CustomEvent): void {
@@ -574,6 +593,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
     this._steps = this._steps.map((step) =>
       step.id === stepId ? { ...step, gradientColors: colors } : step
     );
+    this._hasUserInteraction = true;
   }
 
   private _handleStepBlockColorsChange(stepId: string, e: CustomEvent): void {
@@ -583,6 +603,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
     this._steps = this._steps.map((step) =>
       step.id === stepId ? { ...step, blockColors: colors } : step
     );
+    this._hasUserInteraction = true;
   }
 
   private _handleStepColorPaletteChange(stepId: string, e: CustomEvent): void {
@@ -592,12 +613,14 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
     this._steps = this._steps.map((step) =>
       step.id === stepId ? { ...step, colorPalette: colors } : step
     );
+    this._hasUserInteraction = true;
   }
 
   private _handleStepTurnOffUnspecifiedChange(stepId: string, e: CustomEvent): void {
     this._steps = this._steps.map((step) =>
       step.id === stepId ? { ...step, turnOffUnspecified: e.detail.value } : step
     );
+    this._hasUserInteraction = true;
   }
 
   private _addStep(): void {
@@ -631,11 +654,13 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
     };
 
     this._steps = [...this._steps, newStep];
+    this._hasUserInteraction = true;
   }
 
   private _removeStep(stepId: string): void {
     if (this._steps.length <= 1) return;
     this._steps = this._steps.filter((s) => s.id !== stepId);
+    this._hasUserInteraction = true;
   }
 
   private _moveStepUp(index: number): void {
@@ -645,6 +670,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
     newSteps[index - 1] = newSteps[index]!;
     newSteps[index] = temp;
     this._steps = newSteps;
+    this._hasUserInteraction = true;
   }
 
   private _moveStepDown(index: number): void {
@@ -654,6 +680,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
     newSteps[index] = newSteps[index + 1]!;
     newSteps[index + 1] = temp;
     this._steps = newSteps;
+    this._hasUserInteraction = true;
   }
 
   private _duplicateStep(step: EditableStep): void {
@@ -674,6 +701,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
     const newSteps = [...this._steps];
     newSteps.splice(index + 1, 0, newStep);
     this._steps = newSteps;
+    this._hasUserInteraction = true;
   }
 
 
@@ -787,6 +815,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
   }
 
   private _cancel(): void {
+    this._hasUserInteraction = false;
     this.dispatchEvent(
       new CustomEvent('cancel', {
         bubbles: true,
@@ -824,6 +853,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
               <ha-icon icon="mdi:content-copy"></ha-icon>
             </ha-icon-button>
             <ha-icon-button
+              class="step-delete"
               @click=${() => this._removeStep(step.id)}
               .disabled=${this._steps.length <= 1}
               title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.step_remove')}"
@@ -949,7 +979,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
               ${this._icon ? html`
                 <ha-icon-button
                   class="icon-clear-btn"
-                  @click=${() => { this._icon = ''; }}
+                  @click=${() => { this._icon = ''; this._hasUserInteraction = true; }}
                   title=${this._localize('editors.icon_clear_tooltip')}
                 >
                   <ha-icon icon="mdi:close"></ha-icon>
@@ -1089,12 +1119,20 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
           : ''}
 
         <div class="form-actions">
-          <ha-button @click=${this._cancel}>${this._localize('editors.cancel_button')}</ha-button>
+          <div class="form-actions-left">
+            <ha-button @click=${this._cancel}>${this._localize('editors.cancel_button')}</ha-button>
+            ${this._hasUserInteraction ? html`
+              <span class="unsaved-indicator">
+                <span class="unsaved-dot"></span>
+                ${this._localize('editors.unsaved_changes')}
+              </span>
+            ` : ''}
+          </div>
           ${this.previewActive
             ? html`
                 <ha-button @click=${this._stopPreview}>
                   <ha-icon icon="mdi:stop"></ha-icon>
-                  ${this._localize('editors.stop_button')}
+                  <span class="btn-text">${this._localize('editors.stop_button')}</span>
                 </ha-button>
               `
             : html`
@@ -1104,7 +1142,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
                   title=${!this.hasSelectedEntities ? this._localize('editors.tooltip_select_lights_first') : !this.isCompatible ? this._localize('editors.tooltip_light_not_compatible') : this._hasInvalidGradientSteps() ? this._localize('editors.tooltip_fix_gradient_errors') : ''}
                 >
                   <ha-icon icon="mdi:play"></ha-icon>
-                  ${this._localize('editors.preview_button')}
+                  <span class="btn-text">${this._localize('editors.preview_button')}</span>
                 </ha-button>
               `}
           <ha-button
@@ -1112,7 +1150,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
             .disabled=${!this._name.trim() || this._steps.length === 0 || this._saving || this._hasInvalidGradientSteps()}
           >
             <ha-icon icon="mdi:content-save"></ha-icon>
-            ${this.editMode ? this._localize('editors.update_button') : this._localize('editors.save_button')}
+            <span class="btn-text">${this.editMode ? this._localize('editors.update_button') : this._localize('editors.save_button')}</span>
           </ha-button>
         </div>
       </div>

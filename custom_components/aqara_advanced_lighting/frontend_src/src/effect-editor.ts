@@ -168,6 +168,7 @@ export class EffectEditor extends LitElement {
       brightness: this._brightness,
       colors: [...this._colors],
       segments: this._segments,
+      hasUserInteraction: this._hasUserInteraction,
     };
   }
 
@@ -192,15 +193,17 @@ export class EffectEditor extends LitElement {
     this._brightness = draft.brightness;
     this._colors = [...draft.colors];
     this._segments = draft.segments;
-    this._hasUserInteraction = true;
+    this._hasUserInteraction = draft.hasUserInteraction ?? false;
   }
 
   private _handleNameChange(e: CustomEvent): void {
     this._name = e.detail.value || '';
+    this._hasUserInteraction = true;
   }
 
   private _handleIconChange(e: CustomEvent): void {
     this._icon = e.detail.value || '';
+    this._hasUserInteraction = true;
   }
 
   private _handleDeviceTypeChange(e: CustomEvent): void {
@@ -216,14 +219,17 @@ export class EffectEditor extends LitElement {
 
   private _handleSpeedChange(e: CustomEvent): void {
     this._speed = e.detail.value ?? 50;
+    this._hasUserInteraction = true;
   }
 
   private _handleBrightnessChange(e: CustomEvent): void {
     this._brightness = e.detail.value ?? 100;
+    this._hasUserInteraction = true;
   }
 
   private _handleSegmentsChange(e: CustomEvent): void {
     this._segments = e.detail.value || '';
+    this._hasUserInteraction = true;
   }
 
   private _openColorPicker(index: number): void {
@@ -249,6 +255,7 @@ export class EffectEditor extends LitElement {
       this._colors = this._colors.map((c, i) =>
         i === this._editingColorIndex ? this._editingColor! : c
       );
+      this._hasUserInteraction = true;
     }
     this._closeColorPicker();
   }
@@ -269,12 +276,14 @@ export class EffectEditor extends LitElement {
       const lastColor = this._colors[this._colors.length - 1] || { x: 0.6800, y: 0.3100 }; // Default to red if undefined
       const newColor = getComplementaryColor(lastColor);
       this._colors = [...this._colors, newColor];
+      this._hasUserInteraction = true;
     }
   }
 
   private _removeColor(index: number): void {
     if (this._colors.length > 1) {
       this._colors = this._colors.filter((_, i) => i !== index);
+      this._hasUserInteraction = true;
     }
   }
 
@@ -356,6 +365,7 @@ export class EffectEditor extends LitElement {
   }
 
   private _cancel(): void {
+    this._hasUserInteraction = false;
     this.dispatchEvent(
       new CustomEvent('cancel', {
         bubbles: true,
@@ -401,7 +411,7 @@ export class EffectEditor extends LitElement {
               ${this._icon ? html`
                 <ha-icon-button
                   class="icon-clear-btn"
-                  @click=${() => { this._icon = ''; }}
+                  @click=${() => { this._icon = ''; this._hasUserInteraction = true; }}
                   title=${this._localize('editors.icon_clear_tooltip')}
                 >
                   <ha-icon icon="mdi:close"></ha-icon>
@@ -547,16 +557,16 @@ export class EffectEditor extends LitElement {
         <ha-dialog
           .open=${this._editingColorIndex !== null && this._editingColor !== null}
           @closed=${this._closeColorPicker}
+          .headerTitle=${this._localize('editors.color_picker_title')}
         >
-          <div class="color-picker-modal-header">
-            <span class="color-picker-modal-title">${this._localize('editors.color_picker_title')}</span>
-            ${this._editingColor ? html`
-              <div
-                class="color-picker-modal-preview"
-                style="background-color: ${this._colorToHex(this._editingColor)}"
-              ></div>
-            ` : ''}
-          </div>
+          <span slot="headerNavigationIcon"></span>
+          ${this._editingColor ? html`
+            <div
+              slot="headerActionItems"
+              class="color-picker-modal-preview"
+              style="background-color: ${this._colorToHex(this._editingColor)}"
+            ></div>
+          ` : ''}
           ${this._editingColor ? html`
             <xy-color-picker
               .color=${this._editingColor}
@@ -570,13 +580,15 @@ export class EffectEditor extends LitElement {
               @color-selected=${this._handleHistoryColorSelected}
             ></color-history-swatches>
           ` : ''}
-          <ha-button slot="secondaryAction" @click=${this._closeColorPicker}>
-            ${this._localize('editors.cancel_button')}
-          </ha-button>
-          <ha-button slot="primaryAction" @click=${this._confirmColorPicker}>
-            <ha-icon icon="mdi:check"></ha-icon>
-            ${this._localize('editors.apply_button')}
-          </ha-button>
+          <div slot="footer">
+            <ha-button @click=${this._closeColorPicker}>
+              ${this._localize('editors.cancel_button')}
+            </ha-button>
+            <ha-button @click=${this._confirmColorPicker}>
+              <ha-icon icon="mdi:check"></ha-icon>
+              ${this._localize('editors.apply_button')}
+            </ha-button>
+          </div>
         </ha-dialog>
 
         ${!this.hasSelectedEntities
@@ -589,12 +601,20 @@ export class EffectEditor extends LitElement {
           : ''}
 
         <div class="form-actions">
-          <ha-button @click=${this._cancel}>${this._localize('editors.cancel_button')}</ha-button>
+          <div class="form-actions-left">
+            <ha-button @click=${this._cancel}>${this._localize('editors.cancel_button')}</ha-button>
+            ${this._hasUserInteraction ? html`
+              <span class="unsaved-indicator">
+                <span class="unsaved-dot"></span>
+                ${this._localize('editors.unsaved_changes')}
+              </span>
+            ` : ''}
+          </div>
           ${this.previewActive
             ? html`
                 <ha-button @click=${this._stopPreview}>
                   <ha-icon icon="mdi:stop"></ha-icon>
-                  ${this._localize('editors.stop_button')}
+                  <span class="btn-text">${this._localize('editors.stop_button')}</span>
                 </ha-button>
               `
             : html`
@@ -604,12 +624,12 @@ export class EffectEditor extends LitElement {
                   title=${!this.hasSelectedEntities ? this._localize('editors.tooltip_select_lights_first') : !this.isCompatible ? this._localize('editors.tooltip_light_not_compatible') : ''}
                 >
                   <ha-icon icon="mdi:play"></ha-icon>
-                  ${this._localize('editors.preview_button')}
+                  <span class="btn-text">${this._localize('editors.preview_button')}</span>
                 </ha-button>
               `}
           <ha-button @click=${this._save} .disabled=${!this._name.trim() || !this._effect || this._saving}>
             <ha-icon icon="mdi:content-save"></ha-icon>
-            ${this.editMode ? this._localize('editors.update_button') : this._localize('editors.save_button')}
+            <span class="btn-text">${this.editMode ? this._localize('editors.update_button') : this._localize('editors.save_button')}</span>
           </ha-button>
         </div>
       </div>

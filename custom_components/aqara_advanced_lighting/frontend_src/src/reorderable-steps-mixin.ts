@@ -35,7 +35,6 @@ export const reorderableStepStyles = css`
     align-items: center;
     color: var(--secondary-text-color);
     padding: 4px;
-    margin-right: 4px;
     touch-action: none;
     transition: color 0.2s ease;
     -webkit-user-select: none;
