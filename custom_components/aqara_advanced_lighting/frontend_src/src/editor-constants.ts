@@ -163,6 +163,22 @@ export const editorFormStyles = css`
     --mdc-icon-size: 18px;
   }
 
+  .icon-field-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .icon-field-row ha-selector {
+    flex: 1;
+  }
+
+  .icon-clear-btn {
+    --ha-icon-button-size: 32px;
+    --mdc-icon-size: 18px;
+    color: var(--secondary-text-color);
+  }
+
   .form-hint {
     font-size: var(--ha-font-size-s, 12px);
     color: var(--secondary-text-color);

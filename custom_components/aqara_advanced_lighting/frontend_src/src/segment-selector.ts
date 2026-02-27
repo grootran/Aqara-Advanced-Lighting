@@ -914,24 +914,23 @@ export class SegmentSelector extends LitElement {
     }
   }
 
-  private _renderZoneListItems(): TemplateResult[] {
-    const items: TemplateResult[] = [];
+  private get _zoneOptions() {
+    const options: Array<{ value: string; label: string }> = [];
     if (this.zones.length > 0) {
       for (const z of this.zones) {
-        items.push(html`<mwc-list-item value=${z.name}>${z.name}</mwc-list-item>`);
+        options.push({ value: z.name, label: z.name });
       }
     }
-    items.push(html`<mwc-list-item value="__all">${this._localize('editors.select_all_button')}</mwc-list-item>`);
-    items.push(html`<mwc-list-item value="__first-half">${this._localize('editors.first_half_button')}</mwc-list-item>`);
-    items.push(html`<mwc-list-item value="__second-half">${this._localize('editors.second_half_button')}</mwc-list-item>`);
-    items.push(html`<mwc-list-item value="__odd">${this._localize('editors.odd_button')}</mwc-list-item>`);
-    items.push(html`<mwc-list-item value="__even">${this._localize('editors.even_button')}</mwc-list-item>`);
-    return items;
+    options.push({ value: '__all', label: this._localize('editors.select_all_button') });
+    options.push({ value: '__first-half', label: this._localize('editors.first_half_button') });
+    options.push({ value: '__second-half', label: this._localize('editors.second_half_button') });
+    options.push({ value: '__odd', label: this._localize('editors.odd_button') });
+    options.push({ value: '__even', label: this._localize('editors.even_button') });
+    return options;
   }
 
-  private _handleZoneSelected(e: Event): void {
-    const select = e.target as HTMLElement & { value: string };
-    const zoneName = select.value;
+  private _handleZoneSelected(e: CustomEvent): void {
+    const zoneName = e.detail.value as string;
     if (!zoneName || this.disabled) return;
 
     // Check built-in zones first
@@ -950,11 +949,7 @@ export class SegmentSelector extends LitElement {
     if (this.mode === 'selection' || this.mode === 'sequence') {
       this._fireValueChanged();
     }
-  }
-
-  private _handleZoneMenuClosed(e: Event): void {
-    e.stopPropagation();
-    // Reset to empty after menu closes so the same zone can be re-selected
+    // Reset so the same zone can be re-selected
     this._selectedZone = '';
   }
 
@@ -1069,15 +1064,10 @@ export class SegmentSelector extends LitElement {
     this.gradientWaveCycles = Math.max(1, Math.min(5, parseInt((e.target as HTMLInputElement).value) || 1));
   }
 
-  private _handleGradientInterpolationChange(e: Event): void {
-    const target = e.target as HTMLElement & { value: string };
-    if (target.value) {
-      this.gradientInterpolation = target.value as InterpolationMode;
+  private _handleGradientInterpolationChange(e: CustomEvent): void {
+    if (e.detail.value) {
+      this.gradientInterpolation = e.detail.value as InterpolationMode;
     }
-  }
-
-  private _handleInterpolationMenuClosed(e: Event): void {
-    e.stopPropagation();
   }
 
   /**
@@ -1674,16 +1664,20 @@ export class SegmentSelector extends LitElement {
           </div>
         </div>
         <div class="options-row">
-          <ha-select
+          <ha-selector
             class="zone-select"
+            .hass=${this.hass}
+            .selector=${{
+              select: {
+                options: this._zoneOptions,
+                mode: 'dropdown',
+              },
+            }}
             .label=${this._localize('editors.zone_select_label')}
             .value=${this._selectedZone}
             .disabled=${this.disabled}
-            @selected=${this._handleZoneSelected}
-            @closed=${this._handleZoneMenuClosed}
-          >
-            ${this._renderZoneListItems()}
-          </ha-select>
+            @value-changed=${this._handleZoneSelected}
+          ></ha-selector>
         </div>
       `;
     } else if (this.mode === 'color' || this.mode === 'sequence') {
@@ -1719,16 +1713,20 @@ export class SegmentSelector extends LitElement {
           </div>
         </div>
         <div class="options-row">
-          <ha-select
+          <ha-selector
             class="zone-select"
+            .hass=${this.hass}
+            .selector=${{
+              select: {
+                options: this._zoneOptions,
+                mode: 'dropdown',
+              },
+            }}
             .label=${this._localize('editors.zone_select_label')}
             .value=${this._selectedZone}
             .disabled=${this.disabled}
-            @selected=${this._handleZoneSelected}
-            @closed=${this._handleZoneMenuClosed}
-          >
-            ${this._renderZoneListItems()}
-          </ha-select>
+            @value-changed=${this._handleZoneSelected}
+          ></ha-selector>
           <label class="option-item">
             <ha-switch
               .checked=${this.turnOffUnspecified}
@@ -1906,16 +1904,22 @@ export class SegmentSelector extends LitElement {
         </label>
         <label class="option-item">
           <span class="option-label">${this._localize('editors.gradient_interpolation_label')}</span>
-          <ha-select
+          <ha-selector
             class="option-select"
+            .hass=${this.hass}
+            .selector=${{
+              select: {
+                options: [
+                  { value: 'shortest', label: this._localize('editors.gradient_interp_shortest') },
+                  { value: 'longest', label: this._localize('editors.gradient_interp_longest') },
+                  { value: 'rgb', label: this._localize('editors.gradient_interp_rgb') },
+                ],
+                mode: 'dropdown',
+              },
+            }}
             .value=${this.gradientInterpolation}
-            @selected=${this._handleGradientInterpolationChange}
-            @closed=${this._handleInterpolationMenuClosed}
-          >
-            <mwc-list-item value="shortest">${this._localize('editors.gradient_interp_shortest')}</mwc-list-item>
-            <mwc-list-item value="longest">${this._localize('editors.gradient_interp_longest')}</mwc-list-item>
-            <mwc-list-item value="rgb">${this._localize('editors.gradient_interp_rgb')}</mwc-list-item>
-          </ha-select>
+            @value-changed=${this._handleGradientInterpolationChange}
+          ></ha-selector>
         </label>
         ${this.gradientWave ? html`
           <label class="option-item">

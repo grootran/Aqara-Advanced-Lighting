@@ -159,7 +159,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
     }
 
     .step-actions ha-icon-button {
-      --mdc-icon-button-size: 32px;
+      --ha-icon-button-size: 32px;
       --mdc-icon-size: 18px;
     }
 
@@ -939,12 +939,23 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
           </div>
           <div class="form-field">
             <span class="form-label">${this._localize('editors.icon_label')}</span>
-            <ha-selector
-              .hass=${this.hass}
-              .selector=${{ icon: {} }}
-              .value=${this._icon}
-              @value-changed=${this._handleIconChange}
-            ></ha-selector>
+            <div class="icon-field-row">
+              <ha-selector
+                .hass=${this.hass}
+                .selector=${{ icon: {} }}
+                .value=${this._icon}
+                @value-changed=${this._handleIconChange}
+              ></ha-selector>
+              ${this._icon ? html`
+                <ha-icon-button
+                  class="icon-clear-btn"
+                  @click=${() => { this._icon = ''; }}
+                  title=${this._localize('editors.icon_clear_tooltip')}
+                >
+                  <ha-icon icon="mdi:close"></ha-icon>
+                </ha-icon-button>
+              ` : ''}
+            </div>
             ${!this._icon ? html`<span class="form-hint">${this._localize('editors.icon_auto_hint')}</span>` : ''}
           </div>
           <div class="form-field">

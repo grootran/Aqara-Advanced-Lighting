@@ -4099,29 +4099,36 @@ export class AqaraPanel extends LitElement {
     this._setActiveTab('scenes');
   }
 
+  private get _sortOptions() {
+    return [
+      { value: 'name-asc', label: this._localize('presets.sort_name_asc') },
+      { value: 'name-desc', label: this._localize('presets.sort_name_desc') },
+      { value: 'date-new', label: this._localize('presets.sort_date_new') },
+      { value: 'date-old', label: this._localize('presets.sort_date_old') },
+    ];
+  }
+
   private _renderSortDropdown(sectionId: string) {
     const currentSort = this._getSortPreference(sectionId);
     return html`
-      <ha-select
+      <ha-selector
         class="sort-select"
+        .hass=${this.hass}
+        .selector=${{
+          select: {
+            options: this._sortOptions,
+            mode: 'dropdown',
+          },
+        }}
         .value=${currentSort}
-        fixedMenuPosition
-        naturalMenuWidth
-        @selected=${(e: Event) => {
+        @value-changed=${(e: CustomEvent) => {
           e.stopPropagation();
-          const target = e.target as any;
-          if (target.value) {
-            this._setSortPreference(sectionId, target.value as PresetSortOption);
+          if (e.detail.value) {
+            this._setSortPreference(sectionId, e.detail.value as PresetSortOption);
           }
         }}
-        @closed=${(e: Event) => e.stopPropagation()}
         @click=${(e: Event) => e.stopPropagation()}
-      >
-        <mwc-list-item value="name-asc">${this._localize('presets.sort_name_asc')}</mwc-list-item>
-        <mwc-list-item value="name-desc">${this._localize('presets.sort_name_desc')}</mwc-list-item>
-        <mwc-list-item value="date-new">${this._localize('presets.sort_date_new')}</mwc-list-item>
-        <mwc-list-item value="date-old">${this._localize('presets.sort_date_old')}</mwc-list-item>
-      </ha-select>
+      ></ha-selector>
     `;
   }
 

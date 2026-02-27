@@ -224,6 +224,7 @@
     "name_label": "Name",
     "icon_label": "Icon",
     "icon_auto_hint": "Auto-generated from colors when not set",
+    "icon_clear_tooltip": "Clear icon and use auto-generated",
     "cancel_button": "Cancel",
     "save_button": "Save",
     "select_all_button": "Select all",
