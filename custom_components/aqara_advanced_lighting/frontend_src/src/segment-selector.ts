@@ -25,6 +25,7 @@ import {
   getComplementaryColor,
 } from './color-utils';
 import { addColorToHistory } from './color-history';
+import { hasNewHaDialog, dialogHeadingLegacy, dialogActions } from './editor-constants';
 import './color-history-swatches';
 
 // Component mode types
@@ -539,10 +540,13 @@ export class SegmentSelector extends LitElement {
       /* Color picker ha-dialog styling
        * Fixed width sized for 8 color history swatches:
        * 8 x 32px swatches + 7 x 6px gaps = 298px content + 48px padding = 346px
+       * Supports both new (2026.3+) and old (2026.2) ha-dialog CSS variables.
        */
       ha-dialog {
         --ha-dialog-width-md: min(346px, calc(100vw - 32px));
         --ha-dialog-max-width: min(346px, calc(100vw - 32px));
+        --mdc-dialog-min-width: min(346px, calc(100vw - 32px));
+        --mdc-dialog-max-width: min(346px, calc(100vw - 32px));
       }
 
       ha-dialog [slot="headerActionItems"] {
@@ -553,6 +557,25 @@ export class SegmentSelector extends LitElement {
         display: flex;
         gap: 8px;
         justify-content: flex-end;
+      }
+
+      /* Old ha-dialog heading layout */
+      ha-dialog .header_title {
+        display: flex;
+        align-items: center;
+      }
+      ha-dialog .header_title span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        display: block;
+        padding-left: 4px;
+        padding-right: 4px;
+        flex: 1;
+      }
+      ha-dialog .header_title .header_button {
+        text-decoration: none;
+        color: inherit;
       }
 
       .color-picker-modal-preview {
@@ -2082,14 +2105,25 @@ export class SegmentSelector extends LitElement {
       <ha-dialog
         open
         @closed=${this._closeColorPicker}
-        .headerTitle=${this._localize('editors.color_picker_title')}
+        .headerTitle=${hasNewHaDialog() ? this._localize('editors.color_picker_title') : undefined}
+        .heading=${!hasNewHaDialog() ? dialogHeadingLegacy(
+          this._localize('editors.color_picker_title'),
+          html`
+            <div
+              class="color-picker-modal-preview"
+              style="background-color: ${accurateHex}"
+            ></div>
+          `,
+        ) : undefined}
       >
-        <span slot="headerNavigationIcon"></span>
-        <div
-          slot="headerActionItems"
-          class="color-picker-modal-preview"
-          style="background-color: ${accurateHex}"
-        ></div>
+        ${hasNewHaDialog() ? html`
+          <span slot="headerNavigationIcon"></span>
+          <div
+            slot="headerActionItems"
+            class="color-picker-modal-preview"
+            style="background-color: ${accurateHex}"
+          ></div>
+        ` : ''}
         <div class="color-picker-canvas-container">
           ${this._renderColorWheel()}
         </div>
@@ -2133,15 +2167,13 @@ export class SegmentSelector extends LitElement {
           .translations=${this.translations}
           @color-selected=${this._handleHistoryColorSelected}
         ></color-history-swatches>
-        <div slot="footer">
-          <ha-button @click=${this._closeColorPicker}>
-            ${this._localize('editors.cancel_button')}
-          </ha-button>
-          <ha-button @click=${this._confirmColorPicker}>
-            <ha-icon icon="mdi:check"></ha-icon>
-            ${this._localize('editors.apply_button')}
-          </ha-button>
-        </div>
+        ${dialogActions(
+          this._localize('editors.cancel_button'),
+          this._localize('editors.apply_button'),
+          () => this._closeColorPicker(),
+          () => this._confirmColorPicker(),
+          'mdi:check',
+        )}
       </ha-dialog>
     `;
   }

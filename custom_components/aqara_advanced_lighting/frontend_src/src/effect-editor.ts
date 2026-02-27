@@ -4,7 +4,7 @@ import { HomeAssistant, RGBColor, XYColor, UserEffectPreset, DeviceContext, Effe
 import { xyToHex, rgbToXy, getComplementaryColor } from './color-utils';
 import { colorPickerStyles } from './styles';
 import { addColorToHistory } from './color-history';
-import { ALL_DEVICE_LABELS, editorFormStyles, localize } from './editor-constants';
+import { ALL_DEVICE_LABELS, editorFormStyles, localize, hasNewHaDialog, dialogHeadingLegacy, dialogActions } from './editor-constants';
 import './xy-color-picker';
 import './color-history-swatches';
 
@@ -557,15 +557,26 @@ export class EffectEditor extends LitElement {
         <ha-dialog
           .open=${this._editingColorIndex !== null && this._editingColor !== null}
           @closed=${this._closeColorPicker}
-          .headerTitle=${this._localize('editors.color_picker_title')}
+          .headerTitle=${hasNewHaDialog() ? this._localize('editors.color_picker_title') : undefined}
+          .heading=${!hasNewHaDialog() ? dialogHeadingLegacy(
+            this._localize('editors.color_picker_title'),
+            this._editingColor ? html`
+              <div
+                class="color-picker-modal-preview"
+                style="background-color: ${this._colorToHex(this._editingColor)}"
+              ></div>
+            ` : undefined,
+          ) : undefined}
         >
-          <span slot="headerNavigationIcon"></span>
-          ${this._editingColor ? html`
-            <div
-              slot="headerActionItems"
-              class="color-picker-modal-preview"
-              style="background-color: ${this._colorToHex(this._editingColor)}"
-            ></div>
+          ${hasNewHaDialog() ? html`
+            <span slot="headerNavigationIcon"></span>
+            ${this._editingColor ? html`
+              <div
+                slot="headerActionItems"
+                class="color-picker-modal-preview"
+                style="background-color: ${this._colorToHex(this._editingColor)}"
+              ></div>
+            ` : ''}
           ` : ''}
           ${this._editingColor ? html`
             <xy-color-picker
@@ -580,15 +591,13 @@ export class EffectEditor extends LitElement {
               @color-selected=${this._handleHistoryColorSelected}
             ></color-history-swatches>
           ` : ''}
-          <div slot="footer">
-            <ha-button @click=${this._closeColorPicker}>
-              ${this._localize('editors.cancel_button')}
-            </ha-button>
-            <ha-button @click=${this._confirmColorPicker}>
-              <ha-icon icon="mdi:check"></ha-icon>
-              ${this._localize('editors.apply_button')}
-            </ha-button>
-          </div>
+          ${dialogActions(
+            this._localize('editors.cancel_button'),
+            this._localize('editors.apply_button'),
+            () => this._closeColorPicker(),
+            () => this._confirmColorPicker(),
+            'mdi:check',
+          )}
         </ha-dialog>
 
         ${!this.hasSelectedEntities

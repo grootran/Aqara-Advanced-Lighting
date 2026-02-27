@@ -1436,7 +1436,7 @@ export const panelStyles = css`
 
     /* Sort dropdown mobile styles */
     .sort-select {
-      min-width: 80px;
+      min-width: 120px;
     }
 
     .section-header-controls {
@@ -1472,7 +1472,8 @@ export const panelStyles = css`
     }
   }
 
-  /* HA dialog fullscreen on mobile - follows haStyleDialog */
+  /* HA dialog fullscreen on mobile - follows haStyleDialog.
+   * Includes both new (2026.3+) and old (2026.2) CSS variables. */
   @media all and (max-width: 450px), all and (max-height: 500px) {
     ha-dialog {
       --ha-dialog-width-md: calc(100vw - env(safe-area-inset-right) - env(safe-area-inset-left));
@@ -1481,6 +1482,10 @@ export const panelStyles = css`
       --ha-dialog-max-height: 100%;
       --vertical-align-dialog: flex-end;
       --ha-dialog-border-radius: 0;
+      --mdc-dialog-min-width: calc(100vw - env(safe-area-inset-right) - env(safe-area-inset-left));
+      --mdc-dialog-max-width: calc(100vw - env(safe-area-inset-right) - env(safe-area-inset-left));
+      --mdc-dialog-min-height: 100%;
+      --mdc-dialog-max-height: 100%;
     }
   }
 
@@ -2179,10 +2184,13 @@ export const colorPickerStyles = css`
   /* Color picker ha-dialog styling
    * Fixed width sized for 8 color history swatches:
    * 8 x 32px swatches + 7 x 6px gaps = 298px content + 48px padding = 346px
+   * Supports both new (2026.3+) and old (2026.2) ha-dialog CSS variables.
    */
   ha-dialog {
     --ha-dialog-width-md: min(346px, calc(100vw - 32px));
     --ha-dialog-max-width: min(346px, calc(100vw - 32px));
+    --mdc-dialog-min-width: min(346px, calc(100vw - 32px));
+    --mdc-dialog-max-width: min(346px, calc(100vw - 32px));
   }
 
   ha-dialog [slot="headerActionItems"] {
@@ -2195,6 +2203,25 @@ export const colorPickerStyles = css`
     justify-content: flex-end;
   }
 
+  /* Old ha-dialog heading layout */
+  ha-dialog .header_title {
+    display: flex;
+    align-items: center;
+  }
+  ha-dialog .header_title span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+    padding-left: 4px;
+    padding-right: 4px;
+    flex: 1;
+  }
+  ha-dialog .header_title .header_button {
+    text-decoration: none;
+    color: inherit;
+  }
+
   .color-picker-modal-preview {
     width: 32px;
     height: 32px;
@@ -2205,6 +2232,8 @@ export const colorPickerStyles = css`
   ha-dialog.extractor-dialog {
     --ha-dialog-width-md: min(420px, calc(100vw - 32px));
     --ha-dialog-max-width: min(420px, calc(100vw - 32px));
+    --mdc-dialog-min-width: min(420px, calc(100vw - 32px));
+    --mdc-dialog-max-width: min(420px, calc(100vw - 32px));
   }
 
   ha-dialog.extractor-dialog image-color-extractor {

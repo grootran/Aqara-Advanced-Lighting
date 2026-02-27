@@ -5,8 +5,90 @@
  * previously duplicated across every editor file.
  */
 
-import { css } from 'lit';
+import { css, html, nothing } from 'lit';
+import type { TemplateResult } from 'lit';
 import type { Translations } from './types';
+
+// mdi:close SVG path for ha-icon-button .path property (old ha-dialog heading)
+const mdiClose = 'M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z';
+
+/**
+ * Detect whether the current HA frontend uses the new WebAwesome-based
+ * ha-dialog (2026.3+) which has headerTitle/footer slots, or the old
+ * MDC-based ha-dialog (2026.2 and earlier) which uses .heading property
+ * and primaryAction/secondaryAction slots.
+ *
+ * Cached after first check for performance.
+ */
+let _newDialogApi: boolean | undefined;
+export function hasNewHaDialog(): boolean {
+  if (_newDialogApi !== undefined) return _newDialogApi;
+  const ctor = customElements.get('ha-dialog') as any;
+  if (!ctor) {
+    // Element not yet defined; don't cache, re-check next call
+    return false;
+  }
+  _newDialogApi = 'headerTitle' in (ctor.prototype ?? {});
+  return _newDialogApi;
+}
+
+/**
+ * Build a .heading TemplateResult for the old MDC-based ha-dialog.
+ * Includes a close button and title, with optional trailing content
+ * (e.g., color preview swatch) rendered inline in the header.
+ */
+export function dialogHeadingLegacy(
+  title: string,
+  trailingContent?: TemplateResult,
+): TemplateResult {
+  return html`
+    <div class="header_title">
+      <ha-icon-button
+        .label=${'Close'}
+        .path=${mdiClose}
+        dialogAction="close"
+        class="header_button"
+      ></ha-icon-button>
+      <span>${title}</span>
+      ${trailingContent ?? nothing}
+    </div>
+  `;
+}
+
+/**
+ * Render dialog action buttons that work on both old and new ha-dialog.
+ *
+ * Old ha-dialog: renders into primaryAction/secondaryAction slots.
+ * New ha-dialog: renders into a footer slot div.
+ */
+export function dialogActions(
+  cancelLabel: string,
+  confirmLabel: string,
+  onCancel: (e: Event) => void,
+  onConfirm: (e: Event) => void,
+  confirmIcon?: string,
+): TemplateResult {
+  if (hasNewHaDialog()) {
+    return html`
+      <div slot="footer">
+        <ha-button @click=${onCancel}>${cancelLabel}</ha-button>
+        <ha-button @click=${onConfirm}>
+          ${confirmIcon ? html`<ha-icon icon=${confirmIcon}></ha-icon>` : nothing}
+          ${confirmLabel}
+        </ha-button>
+      </div>
+    `;
+  }
+  return html`
+    <ha-button slot="secondaryAction" @click=${onCancel}>
+      ${cancelLabel}
+    </ha-button>
+    <ha-button slot="primaryAction" @click=${onConfirm}>
+      ${confirmIcon ? html`<ha-icon icon=${confirmIcon}></ha-icon>` : nothing}
+      ${confirmLabel}
+    </ha-button>
+  `;
+}
 
 /** Human-readable labels for segment device types. */
 export const DEVICE_LABELS: Record<string, string> = {

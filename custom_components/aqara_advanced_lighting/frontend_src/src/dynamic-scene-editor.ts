@@ -10,7 +10,7 @@ import { xyToHex, getAnalogousColor } from './color-utils';
 import { colorPickerStyles } from './styles';
 import { addColorToHistory } from './color-history';
 import { ReorderableStepsMixin, reorderableStepStyles, ReorderableStepItem } from './reorderable-steps-mixin';
-import { editorFormStyles, localize } from './editor-constants';
+import { editorFormStyles, localize, hasNewHaDialog, dialogHeadingLegacy, dialogActions } from './editor-constants';
 import './xy-color-picker';
 import './color-history-swatches';
 import './image-color-extractor';
@@ -778,25 +778,47 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
           class="extractor-dialog"
           .open=${this._showExtractor}
           @closed=${() => { this._showExtractor = false; }}
-          .headerTitle=${this._localize('dynamic_scene.extract_from_image') || 'Extract from image'}
+          .headerTitle=${hasNewHaDialog() ? (this._localize('dynamic_scene.extract_from_image') || 'Extract from image') : undefined}
+          .heading=${!hasNewHaDialog() ? dialogHeadingLegacy(
+            this._localize('dynamic_scene.extract_from_image') || 'Extract from image',
+          ) : undefined}
         >
-          <span slot="headerNavigationIcon"></span>
-          <div slot="headerActionItems" class="extractor-mode-toggle">
-            <button
-              class="mode-btn ${this._extractorMode === 'upload' ? 'active' : ''}"
-              @click=${() => { this._extractorMode = 'upload'; }}
-            >
-              <ha-icon icon="mdi:upload"></ha-icon>
-              ${this._localize('image_extractor.upload_tab')}
-            </button>
-            <button
-              class="mode-btn ${this._extractorMode === 'url' ? 'active' : ''}"
-              @click=${() => { this._extractorMode = 'url'; }}
-            >
-              <ha-icon icon="mdi:link"></ha-icon>
-              ${this._localize('image_extractor.url_tab')}
-            </button>
-          </div>
+          ${hasNewHaDialog() ? html`
+            <span slot="headerNavigationIcon"></span>
+            <div slot="headerActionItems" class="extractor-mode-toggle">
+              <button
+                class="mode-btn ${this._extractorMode === 'upload' ? 'active' : ''}"
+                @click=${() => { this._extractorMode = 'upload'; }}
+              >
+                <ha-icon icon="mdi:upload"></ha-icon>
+                ${this._localize('image_extractor.upload_tab')}
+              </button>
+              <button
+                class="mode-btn ${this._extractorMode === 'url' ? 'active' : ''}"
+                @click=${() => { this._extractorMode = 'url'; }}
+              >
+                <ha-icon icon="mdi:link"></ha-icon>
+                ${this._localize('image_extractor.url_tab')}
+              </button>
+            </div>
+          ` : html`
+            <div class="extractor-mode-toggle">
+              <button
+                class="mode-btn ${this._extractorMode === 'upload' ? 'active' : ''}"
+                @click=${() => { this._extractorMode = 'upload'; }}
+              >
+                <ha-icon icon="mdi:upload"></ha-icon>
+                ${this._localize('image_extractor.upload_tab')}
+              </button>
+              <button
+                class="mode-btn ${this._extractorMode === 'url' ? 'active' : ''}"
+                @click=${() => { this._extractorMode = 'url'; }}
+              >
+                <ha-icon icon="mdi:link"></ha-icon>
+                ${this._localize('image_extractor.url_tab')}
+              </button>
+            </div>
+          `}
           <image-color-extractor
             .hass=${this.hass}
             .translations=${this.translations}
@@ -804,17 +826,13 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
             @colors-extracted=${this._handleColorsExtracted}
             @extractor-cancelled=${() => { this._showExtractor = false; }}
           ></image-color-extractor>
-          <div slot="footer">
-            <ha-button @click=${() => { this._showExtractor = false; }}>
-              ${this._localize('image_extractor.cancel_button')}
-            </ha-button>
-            <ha-button
-              @click=${() => { (this.shadowRoot!.querySelector('image-color-extractor') as any)?.extract(); }}
-            >
-              <ha-icon icon="mdi:palette-swatch"></ha-icon>
-              ${this._localize('image_extractor.extract_button')}
-            </ha-button>
-          </div>
+          ${dialogActions(
+            this._localize('image_extractor.cancel_button'),
+            this._localize('image_extractor.extract_button'),
+            () => { this._showExtractor = false; },
+            () => { (this.shadowRoot!.querySelector('image-color-extractor') as any)?.extract(); },
+            'mdi:palette-swatch',
+          )}
         </ha-dialog>
 
         <!-- Timing Section -->
@@ -968,15 +986,26 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
         <ha-dialog
           .open=${this._editingColorIndex !== null && this._editingColor !== null}
           @closed=${this._closeColorPicker}
-          .headerTitle=${this._localize('editors.color_picker_title')}
+          .headerTitle=${hasNewHaDialog() ? this._localize('editors.color_picker_title') : undefined}
+          .heading=${!hasNewHaDialog() ? dialogHeadingLegacy(
+            this._localize('editors.color_picker_title'),
+            this._editingColor ? html`
+              <div
+                class="color-picker-modal-preview"
+                style="background-color: ${xyToHex(this._editingColor, 255)}"
+              ></div>
+            ` : undefined,
+          ) : undefined}
         >
-          <span slot="headerNavigationIcon"></span>
-          ${this._editingColor ? html`
-            <div
-              slot="headerActionItems"
-              class="color-picker-modal-preview"
-              style="background-color: ${xyToHex(this._editingColor, 255)}"
-            ></div>
+          ${hasNewHaDialog() ? html`
+            <span slot="headerNavigationIcon"></span>
+            ${this._editingColor ? html`
+              <div
+                slot="headerActionItems"
+                class="color-picker-modal-preview"
+                style="background-color: ${xyToHex(this._editingColor, 255)}"
+              ></div>
+            ` : ''}
           ` : ''}
           ${this._editingColor ? html`
             <xy-color-picker
@@ -991,15 +1020,13 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
               @color-selected=${this._handleHistoryColorSelected}
             ></color-history-swatches>
           ` : ''}
-          <div slot="footer">
-            <ha-button @click=${this._closeColorPicker}>
-              ${this._localize('editors.cancel_button')}
-            </ha-button>
-            <ha-button @click=${this._confirmColorPicker}>
-              <ha-icon icon="mdi:check"></ha-icon>
-              ${this._localize('editors.apply_button')}
-            </ha-button>
-          </div>
+          ${dialogActions(
+            this._localize('editors.cancel_button'),
+            this._localize('editors.apply_button'),
+            () => this._closeColorPicker(),
+            () => this._confirmColorPicker(),
+            'mdi:check',
+          )}
         </ha-dialog>
 
         <!-- Preview Warning -->
