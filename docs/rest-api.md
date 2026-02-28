@@ -2,15 +2,33 @@
 
 [Back to README](../README.md) | [Services reference](services.md) | [Automations](automations.md)
 
-The integration provides a REST API endpoint for triggering presets directly over HTTP. This is useful for external systems like Node-RED, iOS/Android shortcuts, voice assistant webhooks, or any HTTP client that can send POST requests.
+The integration provides a REST API for triggering presets, managing saved presets, querying device status, and more. This is useful for external systems like Node-RED, iOS/Android shortcuts, voice assistant webhooks, or any HTTP client that can send requests.
 
-## Endpoint
+**Authentication:** Most endpoints require a Home Assistant [long-lived access token](https://developers.home-assistant.io/docs/auth_api/#long-lived-access-token) passed as a Bearer token in the `Authorization` header. Public endpoints are noted below.
+
+**Base URL:** `http://homeassistant.local:8123/api/aqara_advanced_lighting`
+
+## Table of contents
+
+- [Trigger preset](#trigger-preset)
+- [Running operations](#running-operations)
+- [Supported entities](#supported-entities)
+- [Version](#version)
+- [Built-in presets](#built-in-presets)
+- [User presets](#user-presets)
+- [Favorites](#favorites)
+- [Segment zones](#segment-zones)
+- [Integration examples](#integration-examples)
+
+---
+
+## Trigger preset
 
 `POST /api/aqara_advanced_lighting/trigger`
 
-**Authentication:** Requires a Home Assistant [long-lived access token](https://developers.home-assistant.io/docs/auth_api/#long-lived-access-token) passed as a Bearer token in the `Authorization` header.
+Activate a preset or stop a running effect/sequence on a target entity.
 
-## Activating a preset
+### Activating a preset
 
 Send a POST request with the target entity, preset type, and preset name:
 
@@ -26,7 +44,7 @@ curl -X POST http://homeassistant.local:8123/api/aqara_advanced_lighting/trigger
   }'
 ```
 
-## Request fields
+### Request fields
 
 | Field         | Required       | Description                                                                                   |
 | --------------- | ---------------- | ----------------------------------------------------------------------------------------------- |
@@ -37,7 +55,7 @@ curl -X POST http://homeassistant.local:8123/api/aqara_advanced_lighting/trigger
 | `brightness`  | No             | Brightness percentage override (1-100)                                                        |
 | `segments`    | No             | Segment range override (e.g.`"1-10"`, `"odd"`)                                                |
 
-## Supported preset types and their actions
+### Supported preset types and their actions
 
 | Preset type        | Activate                  | Stop                       |
 | -------------------- | --------------------------- | ---------------------------- |
@@ -47,7 +65,7 @@ curl -X POST http://homeassistant.local:8123/api/aqara_advanced_lighting/trigger
 | `dynamic_scene`    | Starts a dynamic scene    | Stops the running scene    |
 | `segment_sequence` | Starts a segment sequence | Stops the running sequence |
 
-## Stopping an effect or sequence
+### Stopping an effect or sequence
 
 ```bash
 curl -X POST http://homeassistant.local:8123/api/aqara_advanced_lighting/trigger \
@@ -63,7 +81,7 @@ curl -X POST http://homeassistant.local:8123/api/aqara_advanced_lighting/trigger
 
 When stopping an effect, the optional `restore_state` field (default: `true`) controls whether the light returns to its previous state.
 
-## Activating with optional overrides
+### Activating with optional overrides
 
 ```bash
 curl -X POST http://homeassistant.local:8123/api/aqara_advanced_lighting/trigger \
@@ -78,7 +96,7 @@ curl -X POST http://homeassistant.local:8123/api/aqara_advanced_lighting/trigger
   }'
 ```
 
-## Response format
+### Response format
 
 **Success:**
 
@@ -92,7 +110,7 @@ curl -X POST http://homeassistant.local:8123/api/aqara_advanced_lighting/trigger
 {"success": false, "error": "Entity `light.nonexistent` not found"}
 ```
 
-## HTTP status codes
+### HTTP status codes
 
 | Code | Meaning                                                                  |
 | ------ | -------------------------------------------------------------------------- |
@@ -103,11 +121,9 @@ curl -X POST http://homeassistant.local:8123/api/aqara_advanced_lighting/trigger
 | 422  | Service validation error (unsupported device, invalid preset name, etc.) |
 | 500  | Internal error during service execution                                  |
 
-## Additional endpoints
+---
 
-The integration exposes additional read-only endpoints useful for dashboards and external systems.
-
-### Running operations
+## Running operations
 
 `GET /api/aqara_advanced_lighting/running_operations`
 
@@ -156,11 +172,13 @@ Returns all currently active effects, sequences, scenes, and music sync across a
 
 **Operation types:** `effect`, `cct_sequence`, `segment_sequence`, `dynamic_scene`, `music_sync`
 
-### Supported entities
+---
+
+## Supported entities
 
 `GET /api/aqara_advanced_lighting/supported_entities`
 
-Returns all supported entities with device types, backend info, and instance details. Useful for building external dashboards or determining which features a device supports.
+Returns all supported entities with device types, backend info, and instance details. Useful for building external dashboards or determining which features a device supports. Also includes light groups that contain supported entities.
 
 **Example response:**
 
@@ -171,8 +189,11 @@ Returns all supported entities with device types, backend info, and instance det
       "entity_id": "light.living_room",
       "device_type": "t1m",
       "device_name": "Living Room Light",
+      "model_id": "lumi.light.acn031",
       "backend_type": "z2m",
-      "entry_id": "abc123"
+      "entry_id": "abc123",
+      "ieee_address": "0x00158d0001234567",
+      "segment_count": 26
     }
   ],
   "instances": [
@@ -188,11 +209,226 @@ Returns all supported entities with device types, backend info, and instance det
         "t1_strip": 1,
         "other": 0,
         "total": 7
-      }
+      },
+      "devices": ["Living Room Light", "Bedroom Light", "LED Strip"]
+    }
+  ],
+  "light_groups": [
+    {
+      "entity_id": "light.all_aqara",
+      "friendly_name": "All Aqara Lights",
+      "is_group": true,
+      "device_type": "mixed",
+      "member_count": 3,
+      "member_ids": ["light.living_room", "light.bedroom", "light.led_strip"],
+      "member_device_types": ["t1m", "t2_bulb", "t1_strip"]
     }
   ]
 }
 ```
+
+---
+
+## Version
+
+`GET /api/aqara_advanced_lighting/version`
+
+**Authentication:** Not required.
+
+Returns the integration version and setup status. Useful for health checks and compatibility verification.
+
+**Example response:**
+
+```json
+{
+  "version": "1.0.0",
+  "setup_complete": true
+}
+```
+
+---
+
+## Built-in presets
+
+`GET /api/aqara_advanced_lighting/presets`
+
+**Authentication:** Not required.
+
+Returns all built-in preset data organized by type. This includes the Aqara app presets for effects and segment patterns, as well as built-in CCT sequences, segment sequences, and dynamic scenes.
+
+**Example response:**
+
+```json
+{
+  "dynamic_effects": {
+    "t2_bulb": [...],
+    "t1m": [...],
+    "t1_strip": [...]
+  },
+  "segment_patterns": [...],
+  "cct_sequences": [...],
+  "segment_sequences": [...],
+  "dynamic_scenes": [...]
+}
+```
+
+---
+
+## User presets
+
+Manage user-created presets. All user preset endpoints require authentication.
+
+### List presets
+
+`GET /api/aqara_advanced_lighting/user_presets`
+
+Returns all user presets, optionally filtered by type.
+
+**Query parameters:**
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `type` | No | Filter by preset type: `effect`, `segment_pattern`, `cct_sequence`, `segment_sequence`, or `dynamic_scene` |
+
+**Example:** `GET /api/aqara_advanced_lighting/user_presets?type=effect`
+
+### Create preset
+
+`POST /api/aqara_advanced_lighting/user_presets`
+
+**Request body:**
+
+```json
+{
+  "type": "effect",
+  "data": {
+    "name": "My Custom Effect",
+    "effect": "breathing",
+    "speed": 50,
+    "colors": [{"x": 0.68, "y": 0.32}]
+  }
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `type` | Yes | Preset type (`effect`, `segment_pattern`, `cct_sequence`, `segment_sequence`, `dynamic_scene`) |
+| `data` | Yes | Preset data object (must include `name`) |
+
+**Response:** Created preset object (status 201).
+
+### Get single preset
+
+`GET /api/aqara_advanced_lighting/user_presets/{preset_type}/{preset_id}`
+
+Returns a single preset by type and ID.
+
+### Update preset
+
+`PUT /api/aqara_advanced_lighting/user_presets/{preset_type}/{preset_id}`
+
+Update an existing preset. Send the updated data fields in the request body.
+
+**Response:** Updated preset object. Returns 404 if not found.
+
+### Delete preset
+
+`DELETE /api/aqara_advanced_lighting/user_presets/{preset_type}/{preset_id}`
+
+Delete a user preset. Returns 204 on success, 404 if not found.
+
+### Duplicate preset
+
+`POST /api/aqara_advanced_lighting/user_presets/{preset_type}/{preset_id}/duplicate`
+
+Create a copy of an existing preset with an optional custom name.
+
+**Request body (optional):**
+
+```json
+{
+  "name": "Copy of My Effect"
+}
+```
+
+**Response:** New preset object (status 201). Returns 404 if source preset not found.
+
+---
+
+## Favorites
+
+### List favorites
+
+`GET /api/aqara_advanced_lighting/favorites`
+
+Returns all saved entity favorites for the current user. Favorites are quick-access entity groupings used in the frontend panel.
+
+**Example response:**
+
+```json
+{
+  "favorites": [
+    {
+      "id": "abc123",
+      "entities": ["light.living_room", "light.bedroom"],
+      "name": "Upstairs Lights"
+    }
+  ]
+}
+```
+
+---
+
+## Segment zones
+
+Manage named segment zones for devices. Zones map a name to a segment range so you can use zone names in service calls instead of raw segment numbers. See [segment zones](device-configuration.md#segment-zones) for more details.
+
+### Get zones for a device
+
+`GET /api/aqara_advanced_lighting/segment_zones/{ieee_address}`
+
+**Path parameters:**
+
+| Parameter | Format | Description |
+|-----------|--------|-------------|
+| `ieee_address` | `0x` followed by 16 hex characters | IEEE address of the device |
+
+**Example response:**
+
+```json
+{
+  "zones": {
+    "left side": "1-10",
+    "right side": "11-20",
+    "accent": "1-5,15-20"
+  }
+}
+```
+
+### Replace all zones for a device
+
+`PUT /api/aqara_advanced_lighting/segment_zones/{ieee_address}`
+
+Replace the full set of zones for a device.
+
+**Request body:**
+
+```json
+{
+  "zones": {
+    "left side": "1-10",
+    "right side": "11-20"
+  }
+}
+```
+
+### Delete a single zone
+
+`DELETE /api/aqara_advanced_lighting/segment_zones/{ieee_address}/{zone_name}`
+
+Delete a single zone by name. Returns 204 on success, 404 if zone not found.
+
+---
 
 ## Integration examples
 
