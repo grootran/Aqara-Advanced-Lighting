@@ -266,6 +266,7 @@
 
   .running-op-actions ha-icon-button {
     --ha-icon-button-size: 36px;
+    --mdc-icon-button-size: 36px;
     --mdc-icon-size: 20px;
   }
 
@@ -305,6 +306,7 @@
 
   .add-favorite-btn {
     --ha-icon-button-size: 36px;
+    --mdc-icon-button-size: 36px;
     color: var(--primary-color);
     flex-shrink: 0;
   }
@@ -468,6 +470,7 @@
     top: 4px;
     right: 4px;
     --ha-icon-button-size: 28px;
+    --mdc-icon-button-size: 28px;
     --mdc-icon-size: 16px;
     opacity: 0;
     transition: opacity 0.2s ease-in-out;
@@ -911,6 +914,7 @@
 
   .step-actions ha-icon-button {
     --ha-icon-button-size: 32px;
+    --mdc-icon-button-size: 32px;
     --mdc-icon-size: 18px;
   }
 
@@ -1022,6 +1026,7 @@
 
   .preset-list-item-actions ha-icon-button {
     --ha-icon-button-size: 32px;
+    --mdc-icon-button-size: 32px;
     --mdc-icon-size: 18px;
   }
 
@@ -1213,6 +1218,7 @@
   .preset-card-actions ha-icon-button,
   .preset-card-actions .favorite-star {
     --ha-icon-button-size: 28px;
+    --mdc-icon-button-size: 28px;
     --mdc-icon-size: 16px;
     color: var(--text-primary-color);
     display: flex;
@@ -2430,6 +2436,7 @@
 
   .icon-clear-btn {
     --ha-icon-button-size: 32px;
+    --mdc-icon-button-size: 32px;
     --mdc-icon-size: 18px;
     color: var(--secondary-text-color);
   }
@@ -3561,6 +3568,7 @@
 
     .step-actions ha-icon-button {
       --ha-icon-button-size: 32px;
+      --mdc-icon-button-size: 32px;
       --mdc-icon-size: 18px;
     }
 
@@ -3969,6 +3977,7 @@
 
     .step-actions ha-icon-button {
       --ha-icon-button-size: 32px;
+      --mdc-icon-button-size: 32px;
       --mdc-icon-size: 18px;
     }
 
@@ -4653,6 +4662,7 @@
 
     .color-slot-actions ha-icon-button {
       --ha-icon-button-size: 32px;
+      --mdc-icon-button-size: 32px;
       --mdc-icon-size: 18px;
     }
 
@@ -4772,6 +4782,7 @@
 
       .color-slot-actions ha-icon-button {
         --ha-icon-button-size: 28px;
+        --mdc-icon-button-size: 28px;
         --mdc-icon-size: 16px;
       }
     }
@@ -6401,6 +6412,7 @@
 
       .grid-toolbar ha-icon-button {
         --ha-icon-button-size: 36px;
+        --mdc-icon-button-size: 36px;
         --mdc-icon-size: 20px;
       }
 

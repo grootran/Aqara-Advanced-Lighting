@@ -283,6 +283,7 @@ export const editorFormStyles = css`
 
   .icon-clear-btn {
     --ha-icon-button-size: 32px;
+    --mdc-icon-button-size: 32px;
     --mdc-icon-size: 18px;
     color: var(--secondary-text-color);
   }

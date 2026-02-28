@@ -273,6 +273,7 @@ export const panelStyles = css`
 
   .running-op-actions ha-icon-button {
     --ha-icon-button-size: 36px;
+    --mdc-icon-button-size: 36px;
     --mdc-icon-size: 20px;
   }
 
@@ -312,6 +313,7 @@ export const panelStyles = css`
 
   .add-favorite-btn {
     --ha-icon-button-size: 36px;
+    --mdc-icon-button-size: 36px;
     color: var(--primary-color);
     flex-shrink: 0;
   }
@@ -475,6 +477,7 @@ export const panelStyles = css`
     top: 4px;
     right: 4px;
     --ha-icon-button-size: 28px;
+    --mdc-icon-button-size: 28px;
     --mdc-icon-size: 16px;
     opacity: 0;
     transition: opacity 0.2s ease-in-out;
@@ -918,6 +921,7 @@ export const panelStyles = css`
 
   .step-actions ha-icon-button {
     --ha-icon-button-size: 32px;
+    --mdc-icon-button-size: 32px;
     --mdc-icon-size: 18px;
   }
 
@@ -1029,6 +1033,7 @@ export const panelStyles = css`
 
   .preset-list-item-actions ha-icon-button {
     --ha-icon-button-size: 32px;
+    --mdc-icon-button-size: 32px;
     --mdc-icon-size: 18px;
   }
 
@@ -1220,6 +1225,7 @@ export const panelStyles = css`
   .preset-card-actions ha-icon-button,
   .preset-card-actions .favorite-star {
     --ha-icon-button-size: 28px;
+    --mdc-icon-button-size: 28px;
     --mdc-icon-size: 16px;
     color: var(--text-primary-color);
     display: flex;

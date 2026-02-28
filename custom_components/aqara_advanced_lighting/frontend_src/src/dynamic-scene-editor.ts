@@ -161,6 +161,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
 
     .color-slot-actions ha-icon-button {
       --ha-icon-button-size: 32px;
+      --mdc-icon-button-size: 32px;
       --mdc-icon-size: 18px;
     }
 
@@ -280,6 +281,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
 
       .color-slot-actions ha-icon-button {
         --ha-icon-button-size: 28px;
+        --mdc-icon-button-size: 28px;
         --mdc-icon-size: 16px;
       }
     }
