@@ -2096,7 +2096,6 @@ export class AqaraPanel extends LitElement {
 
     return html`
       <div class="running-ops-container">
-        <span class="control-label">${this._localize('target.running_operations_label')}</span>
         <div class="running-ops-list">
           ${this._runningOperations.map(op => this._renderOperationCard(op))}
         </div>
@@ -2123,13 +2122,17 @@ export class AqaraPanel extends LitElement {
   private _renderEffectOp(op: RunningOperation) {
     const entityName = this._getEntityName(op.entity_id!);
     const preset = this._resolvePresetInfo(op.preset_id);
+    const typeLabel = this._localize('target.effect_button');
     return html`
       <div class="running-op-card">
         <div class="running-op-info">
           <ha-icon class="running-op-icon" icon="${preset.icon || 'mdi:palette'}"></ha-icon>
           <div class="running-op-details">
-            <span class="running-op-name">${preset.name || this._localize('target.effect_button')}</span>
-            <span class="running-op-entity"><span class="running-op-entity-name">${entityName}</span></span>
+            <span class="running-op-name">${preset.name || typeLabel}</span>
+            <span class="running-op-entity">
+              ${preset.name ? html`<span class="running-op-type">${typeLabel}</span>` : ''}
+              <span class="running-op-entity-name">${entityName}</span>
+            </span>
           </div>
         </div>
         <div class="running-op-actions">
@@ -2152,16 +2155,18 @@ export class AqaraPanel extends LitElement {
     const typeLabel = isCCT
       ? this._localize('target.cct_button')
       : this._localize('target.segment_button');
+    const isPaused = op.paused || op.externally_paused;
 
     return html`
-      <div class="running-op-card ${op.externally_paused ? 'externally-paused' : ''}">
+      <div class="running-op-card ${isPaused ? 'op-paused' : ''} ${op.externally_paused ? 'externally-paused' : ''}">
         <div class="running-op-info">
           <ha-icon class="running-op-icon" icon="${preset.icon || fallbackIcon}"></ha-icon>
           <div class="running-op-details">
             <span class="running-op-name">${preset.name || typeLabel}</span>
             <span class="running-op-entity">
+              ${preset.name ? html`<span class="running-op-type">${typeLabel}</span>` : ''}
               <span class="running-op-entity-name">${entityName}</span>
-              ${op.paused ? html`<span class="running-op-status">${this._localize('target.paused')}</span>` : ''}
+              ${op.paused ? html`<span class="running-op-status paused-text">${this._localize('target.paused')}</span>` : ''}
               ${op.externally_paused ? html`<span class="running-op-status externally-paused-text">${this._localize('target.externally_paused')}</span>` : ''}
             </span>
           </div>
@@ -2202,16 +2207,18 @@ export class AqaraPanel extends LitElement {
       .map(id => this._getEntityName(id))
       .join(', ');
     const extPausedEntities = op.externally_paused_entities || [];
+    const isPaused = op.paused || extPausedEntities.length > 0;
 
     return html`
-      <div class="running-op-card">
+      <div class="running-op-card ${isPaused ? 'op-paused' : ''}">
         <div class="running-op-info">
           <ha-icon class="running-op-icon" icon="${preset.icon || 'mdi:palette-swatch-variant'}"></ha-icon>
           <div class="running-op-details">
             <span class="running-op-name">${preset.name || this._localize('target.scene_button')}</span>
             <span class="running-op-entity">
+              ${preset.name ? html`<span class="running-op-type">${this._localize('target.scene_button')}</span>` : ''}
               <span class="running-op-entity-name">${entityNames}</span>
-              ${op.paused ? html`<span class="running-op-status">${this._localize('target.paused')}</span>` : ''}
+              ${op.paused ? html`<span class="running-op-status paused-text">${this._localize('target.paused')}</span>` : ''}
               ${extPausedEntities.length > 0
                 ? html`<span class="running-op-status externally-paused-text">
                     ${this._localize('target.entities_externally_paused', { count: String(extPausedEntities.length) })}
@@ -4459,7 +4466,10 @@ export class AqaraPanel extends LitElement {
           <ha-icon class="running-op-icon" icon="mdi:music-note"></ha-icon>
           <div class="running-op-details">
             <span class="running-op-name">${this._localize('music_sync.active_label')}</span>
-            <span class="running-op-entity"><span class="running-op-entity-name">${entityName}</span></span>
+            <span class="running-op-entity">
+              <span class="running-op-type">${this._localize('music_sync.title')}</span>
+              <span class="running-op-entity-name">${entityName}</span>
+            </span>
           </div>
         </div>
         <div class="running-op-actions">

@@ -185,7 +185,6 @@ export const panelStyles = css`
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: 8px;
-    margin-top: 8px;
   }
 
   .running-op-card {
@@ -195,13 +194,20 @@ export const panelStyles = css`
     padding: 8px 12px;
     background: var(--card-background-color, var(--ha-card-background, #fff));
     border: 1px solid var(--divider-color, #e0e0e0);
+    border-left: 3px solid var(--primary-color);
     border-radius: var(--ha-card-border-radius, 12px);
     gap: 8px;
   }
 
+  .running-op-card.op-paused {
+    border-left-color: var(--disabled-text-color, #999);
+    border-left-style: dashed;
+  }
+
   .running-op-card.externally-paused {
     border-color: var(--warning-color, #ff9800);
-    border-style: dashed;
+    border-left-width: 3px;
+    border-left-style: dashed;
   }
 
   .running-op-info {
@@ -217,6 +223,18 @@ export const panelStyles = css`
     color: var(--primary-color);
     flex-shrink: 0;
     --mdc-icon-size: 20px;
+    background: rgba(var(--rgb-primary-color), 0.1);
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .op-paused .running-op-icon {
+    color: var(--disabled-text-color, #999);
+    background: rgba(var(--rgb-disabled-color, 158, 158, 158), 0.1);
   }
 
   .running-op-details {
@@ -235,6 +253,14 @@ export const panelStyles = css`
     text-overflow: ellipsis;
   }
 
+  .running-op-type {
+    font-size: var(--ha-font-size-xs, 11px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    color: var(--secondary-text-color);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
   .running-op-entity {
     font-size: var(--ha-font-size-s, 12px);
     color: var(--secondary-text-color);
@@ -251,16 +277,15 @@ export const panelStyles = css`
     min-width: 0;
   }
 
-  .running-op-progress {
-    color: var(--primary-color);
+  .running-op-status {
     font-weight: var(--ha-font-weight-medium, 500);
   }
 
-  .running-op-status {
-    font-style: italic;
+  .running-op-status.paused-text {
+    color: var(--disabled-text-color, #999);
   }
 
-  .externally-paused-text {
+  .running-op-status.externally-paused-text {
     color: var(--warning-color, #ff9800);
   }
 
