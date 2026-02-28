@@ -5669,10 +5669,7 @@
         class="user-preset-card ${n?"edit-mode":""}"
         title="${e.name}"
         aria-label="${e.name}"
-        @click=${()=>{n&&(this._presetEditModeId=null)}}
-        @touchstart=${()=>this._handlePresetTouchStart(e.id)}
-        @touchend=${e=>this._handlePresetTouchEnd(e)}
-        @touchmove=${this._handlePresetTouchMove}
+        @click=${()=>{this._presetEditModeId=n?null:e.id}}
       >
         <div class="preset-card-actions">
           <ha-icon-button
