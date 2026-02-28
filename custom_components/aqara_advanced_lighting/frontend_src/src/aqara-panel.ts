@@ -2706,7 +2706,6 @@ export class AqaraPanel extends LitElement {
         <div class="section-content controls-content">
           <div class="target-favorites-grid">
             <div class="control-row">
-              <span class="control-label">${this._localize('target.lights_label')}</span>
               <div class="control-input target-input">
                 <div class="target-selector">
                   <ha-selector
