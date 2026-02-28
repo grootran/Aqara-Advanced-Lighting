@@ -993,9 +993,12 @@ class DynamicSceneManager:
                 )
             else:
                 # Hardware transition path (T2, generic, or initial instant)
-                # Record command timestamp to suppress state echo detection
+                # Record command with transition duration so the grace
+                # window covers the full hardware transition period.
                 if self._entity_controller:
-                    self._entity_controller.record_command(entity_id)
+                    self._entity_controller.record_command(
+                        entity_id, expected_duration=transition_time
+                    )
 
                 await self.hass.services.async_call(
                     "light",
@@ -1039,6 +1042,13 @@ class DynamicSceneManager:
                 )
             except TimeoutError:
                 pass  # Normal - transition time elapsed
+
+            # Refresh grace window after transition completes so the
+            # subsequent hold period is covered against late state reports.
+            if self._entity_controller:
+                for eid in light_order:
+                    if eid not in scene_state.externally_paused_entities:
+                        self._entity_controller.record_command(eid)
 
     async def _software_color_transition(
         self,

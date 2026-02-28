@@ -159,14 +159,28 @@ class EntityController:
         )
         _LOGGER.debug("Entity controller state listener registered")
 
-    def record_command(self, entity_id: str) -> None:
+    def record_command(
+        self, entity_id: str, expected_duration: float = 0
+    ) -> None:
         """Record that this integration just sent a command to an entity.
 
         Call this before any hass.services.async_call that targets a
         controlled entity. The timestamp suppresses state echo events
         within the grace window.
+
+        Args:
+            entity_id: The entity being commanded.
+            expected_duration: How long the device will be busy executing
+                this command (e.g. a hardware transition). The grace
+                window is anchored to the *end* of this duration so that
+                asynchronous Zigbee state reports arriving during or
+                shortly after a long transition are not mistaken for
+                external changes.
         """
-        self._last_command_time[entity_id] = time.monotonic()
+        effective_time = time.monotonic() + expected_duration
+        self._last_command_time[entity_id] = max(
+            self._last_command_time.get(entity_id, 0), effective_time
+        )
 
     def create_context(self) -> Context:
         """Create a Context tagged with the integration marker.
