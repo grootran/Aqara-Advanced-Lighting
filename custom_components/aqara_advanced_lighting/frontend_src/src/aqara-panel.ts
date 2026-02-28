@@ -76,8 +76,11 @@ export class AqaraPanel extends LitElement {
   @state() private _includeAllLights = false;
   @state() private _favorites: Favorite[] = [];
   @state() private _activeFavoriteId: string | null = null;
-  @state() private _showFavoriteInput = false;
-  @state() private _favoriteInputName = '';
+  @state() private _renamingFavoriteId: string | null = null;
+  @state() private _renamingFavoriteName = '';
+  @state() private _favoriteEditModeId: string | null = null;
+  @state() private _presetEditModeId: string | null = null;
+  private _longPressTimer: ReturnType<typeof setTimeout> | null = null;
   @state() private _activeTab: PanelTab = 'activate';
   @state() private _userPresets?: UserPresetsData;
   @state() private _editingPreset?: { type: string; preset: UserEffectPreset | UserSegmentPatternPreset | UserCCTSequencePreset | UserSegmentSequencePreset | UserDynamicScenePreset; isDuplicate?: boolean };
@@ -1334,54 +1337,22 @@ export class AqaraPanel extends LitElement {
     }
   }
 
-  private _addFavorite(): void {
-    if (!this._selectedEntities.length) return;
+  private async _addFavorite(): Promise<void> {
+    if (!this._selectedEntities.length || !this.hass) return;
 
-    // Set default name and show inline input
     const firstEntity = this._selectedEntities[0];
-    const defaultName = this._selectedEntities.length === 1 && firstEntity
+    const autoName = this._selectedEntities.length === 1 && firstEntity
       ? this._getEntityFriendlyName(firstEntity)
       : this._localize('target.lights_count', { count: this._selectedEntities.length.toString() });
-
-    this._favoriteInputName = defaultName;
-    this._showFavoriteInput = true;
-  }
-
-  private async _saveFavorite(): Promise<void> {
-    if (!this._selectedEntities.length || !this.hass) {
-      this._cancelFavoriteInput();
-      return;
-    }
 
     try {
       const data = await this.hass.callApi<{ favorite: Favorite }>('POST', 'aqara_advanced_lighting/favorites', {
         entities: this._selectedEntities,
-        name: this._favoriteInputName || undefined,
+        name: autoName,
       });
       this._favorites = [...this._favorites, data.favorite];
     } catch (err) {
       console.error('Failed to add favorite:', err);
-    }
-
-    this._cancelFavoriteInput();
-  }
-
-  private _cancelFavoriteInput(): void {
-    this._showFavoriteInput = false;
-    this._favoriteInputName = '';
-  }
-
-  private _handleFavoriteNameChange(e: CustomEvent): void {
-    this._favoriteInputName = e.detail.value || '';
-  }
-
-  private _handleFavoriteNameKeydown(e: KeyboardEvent): void {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      this._saveFavorite();
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      this._cancelFavoriteInput();
     }
   }
 
@@ -1396,9 +1367,127 @@ export class AqaraPanel extends LitElement {
     }
   }
 
+  private _startRenameFavorite(e: Event, favorite: Favorite): void {
+    e.stopPropagation();
+    this._favoriteEditModeId = null;
+    this._renamingFavoriteId = favorite.id;
+    this._renamingFavoriteName = favorite.name;
+    this.updateComplete.then(() => {
+      const input = this.shadowRoot?.querySelector('.favorite-rename-input') as HTMLInputElement | null;
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    });
+  }
+
+  private _handleRenameInput(e: InputEvent): void {
+    this._renamingFavoriteName = (e.target as HTMLInputElement).value;
+  }
+
+  private _handleRenameKeydown(e: KeyboardEvent): void {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      this._saveRenameFavorite();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      this._cancelRenameFavorite();
+    }
+  }
+
+  private async _saveRenameFavorite(): Promise<void> {
+    if (!this.hass || !this._renamingFavoriteId || !this._renamingFavoriteName.trim()) {
+      this._cancelRenameFavorite();
+      return;
+    }
+
+    try {
+      const data = await this.hass.callApi<{ favorite: Favorite }>(
+        'PUT',
+        `aqara_advanced_lighting/favorites/${this._renamingFavoriteId}`,
+        { name: this._renamingFavoriteName.trim() },
+      );
+      this._favorites = this._favorites.map((f) =>
+        f.id === this._renamingFavoriteId ? data.favorite : f,
+      );
+    } catch (err) {
+      console.error('Failed to rename favorite:', err);
+    }
+
+    this._cancelRenameFavorite();
+  }
+
+  private _handleRenameBlur(): void {
+    // Delay save so that tapping a button (e.g. cancel) can fire before blur commits
+    setTimeout(() => {
+      if (this._renamingFavoriteId) {
+        this._saveRenameFavorite();
+      }
+    }, 150);
+  }
+
+  private _cancelRenameFavorite(): void {
+    this._renamingFavoriteId = null;
+    this._renamingFavoriteName = '';
+  }
+
+  private _handleFavoriteTouchStart(favorite: Favorite): void {
+    this._longPressTimer = setTimeout(() => {
+      this._longPressTimer = null;
+      this._favoriteEditModeId = favorite.id;
+    }, 500);
+  }
+
+  private _handleFavoriteTouchEnd(e: TouchEvent): void {
+    if (this._longPressTimer) {
+      // Short tap -- timer didn't fire, treat as normal click
+      clearTimeout(this._longPressTimer);
+      this._longPressTimer = null;
+    } else {
+      // Long press fired -- prevent the click from also selecting
+      e.preventDefault();
+    }
+  }
+
+  private _handleFavoriteTouchMove(): void {
+    if (this._longPressTimer) {
+      clearTimeout(this._longPressTimer);
+      this._longPressTimer = null;
+    }
+  }
+
+  private _clearFavoriteEditMode(): void {
+    this._favoriteEditModeId = null;
+  }
+
+  private _handlePresetTouchStart(presetId: string): void {
+    this._longPressTimer = setTimeout(() => {
+      this._longPressTimer = null;
+      this._presetEditModeId = presetId;
+    }, 500);
+  }
+
+  private _handlePresetTouchEnd(e: TouchEvent): void {
+    if (this._longPressTimer) {
+      clearTimeout(this._longPressTimer);
+      this._longPressTimer = null;
+    } else {
+      // Long press fired -- prevent click from also activating preset
+      e.preventDefault();
+    }
+  }
+
+  private _handlePresetTouchMove(): void {
+    if (this._longPressTimer) {
+      clearTimeout(this._longPressTimer);
+      this._longPressTimer = null;
+    }
+  }
+
   private _selectFavorite(favorite: Favorite): void {
     this._selectedEntities = [...favorite.entities];
     this._activeFavoriteId = favorite.id;
+    this._favoriteEditModeId = null;
     // Load curvature from first T2 entity when favorite is selected
     this._loadCurvatureFromEntity();
     // Load zones for selected segment-capable devices
@@ -2706,7 +2795,7 @@ export class AqaraPanel extends LitElement {
         <div class="section-content controls-content">
           <div class="target-favorites-grid">
             <div class="control-row">
-              <div class="control-input target-input">
+              <div class="control-input target-input ${hasSelection ? 'has-selection' : ''}">
                 <div class="target-selector">
                   <ha-selector
                     .hass=${this.hass}
@@ -2723,29 +2812,26 @@ export class AqaraPanel extends LitElement {
                     .value=${this._selectedEntities}
                     @value-changed=${this._handleEntityChanged}
                   ></ha-selector>
-                  <div class="include-all-lights-toggle">
-                    <label class="toggle-label">
-                      <ha-switch
-                        .checked=${this._includeAllLights}
-                        @change=${this._handleIncludeAllLightsToggle}
-                        title="${this._localize('target.include_all_lights_hint')}"
-                      ></ha-switch>
-                      <span>${this._localize('target.include_all_lights_label')}</span>
-                    </label>
-                  </div>
                 </div>
-                ${hasSelection && !this._showFavoriteInput
-                  ? html`
-                      <ha-icon-button
-                        class="add-favorite-btn"
-                        @click=${this._addFavorite}
-                        title="${this._localize('tooltips.favorite_save')}"
-                      >
-                        <ha-icon icon="mdi:star-plus"></ha-icon>
-                      </ha-icon-button>
-                    `
-                  : ''}
+                <div class="include-all-lights-toggle">
+                  <label class="toggle-label">
+                    <ha-switch
+                      .checked=${this._includeAllLights}
+                      @change=${this._handleIncludeAllLightsToggle}
+                      title="${this._localize('target.include_all_lights_hint')}"
+                    ></ha-switch>
+                    <span>${this._localize('target.include_all_lights_label')}</span>
+                  </label>
+                </div>
               </div>
+              ${hasSelection
+                ? html`
+                    <button class="save-favorite-bar" @click=${this._addFavorite}>
+                      <ha-icon icon="mdi:star-plus-outline"></ha-icon>
+                      <span>${this._localize('target.save_as_favorite')}</span>
+                    </button>
+                  `
+                : ''}
             </div>
 
             ${this._favorites.length > 0
@@ -2776,62 +2862,72 @@ export class AqaraPanel extends LitElement {
                           }
                         }
 
+                        const isRenaming = this._renamingFavoriteId === favorite.id;
+                        const isEditMode = this._favoriteEditModeId === favorite.id;
+
                         return html`
-                          <div class="favorite-button ${isOn ? 'state-on' : 'state-off'} ${isUnavailable ? 'state-unavailable' : ''} ${isActive ? 'selected' : ''}" @click=${() => this._selectFavorite(favorite)}>
+                          <div
+                            class="favorite-button ${isOn ? 'state-on' : 'state-off'} ${isUnavailable ? 'state-unavailable' : ''} ${isActive ? 'selected' : ''} ${isRenaming ? 'renaming' : ''} ${isEditMode ? 'edit-mode' : ''}"
+                            @click=${() => { if (isEditMode) { this._clearFavoriteEditMode(); } else if (!isRenaming) { this._selectFavorite(favorite); } }}
+                            @touchstart=${() => this._handleFavoriteTouchStart(favorite)}
+                            @touchend=${(e: TouchEvent) => this._handleFavoriteTouchEnd(e)}
+                            @touchmove=${this._handleFavoriteTouchMove}
+                          >
                             <div class="favorite-button-icon" style="${iconBackgroundStyle}">
                               <ha-icon icon="${entityIcon}" style="${iconColorStyle}"></ha-icon>
                             </div>
                             <div class="favorite-button-content">
-                              <div class="favorite-button-name">${favorite.name}</div>
-                              ${entityCount > 1
+                              ${isRenaming
+                                ? html`
+                                    <input
+                                      class="favorite-rename-input"
+                                      type="text"
+                                      .value=${this._renamingFavoriteName}
+                                      @input=${this._handleRenameInput}
+                                      @keydown=${this._handleRenameKeydown}
+                                      @blur=${this._handleRenameBlur}
+                                      @click=${(e: Event) => e.stopPropagation()}
+                                    />
+                                  `
+                                : html`<div class="favorite-button-name">${favorite.name}</div>`}
+                              ${entityCount > 1 && !isRenaming
                                 ? html`<div class="favorite-button-count">${this._localize('target.favorite_lights_count', { count: entityCount.toString() })}</div>`
                                 : ''}
                             </div>
-                            <ha-icon-button
-                              class="favorite-button-remove"
-                              @click=${(e: Event) => {
-                                e.stopPropagation();
-                                this._removeFavorite(favorite.id);
-                              }}
-                              title="${this._localize('tooltips.favorite_remove')}"
-                            >
-                              <ha-icon icon="mdi:close"></ha-icon>
-                            </ha-icon-button>
+                            <div class="favorite-button-actions">
+                              <ha-icon-button
+                                class="favorite-button-action"
+                                @click=${(e: Event) => this._startRenameFavorite(e, favorite)}
+                                title="${this._localize('tooltips.favorite_rename')}"
+                              >
+                                <ha-icon icon="mdi:pencil"></ha-icon>
+                              </ha-icon-button>
+                              <ha-icon-button
+                                class="favorite-button-action"
+                                @click=${(e: Event) => {
+                                  e.stopPropagation();
+                                  this._removeFavorite(favorite.id);
+                                }}
+                                title="${this._localize('tooltips.favorite_remove')}"
+                              >
+                                <ha-icon icon="mdi:close"></ha-icon>
+                              </ha-icon-button>
+                            </div>
                           </div>
                         `;
                       })}
                     </div>
                   </div>
                 `
-              : ''}
-          </div>
-
-          ${this._showFavoriteInput
-            ? html`
-                <div class="control-row">
-                  <span class="control-label">${this._localize('target.favorite_name_label')}</span>
-                  <div class="control-input favorite-input-container">
-                    <ha-selector
-                      .hass=${this.hass}
-                      .selector=${{ text: {} }}
-                      .value=${this._favoriteInputName}
-                      @value-changed=${this._handleFavoriteNameChange}
-                      @keydown=${this._handleFavoriteNameKeydown}
-                    ></ha-selector>
-                    <div class="favorite-input-buttons">
-                      <ha-button @click=${this._saveFavorite}>
-                        <ha-icon icon="mdi:check"></ha-icon>
-                        ${this._localize('editors.save_button')}
-                      </ha-button>
-                      <ha-button @click=${this._cancelFavoriteInput}>
-                        <ha-icon icon="mdi:close"></ha-icon>
-                        ${this._localize('editors.cancel_button')}
-                      </ha-button>
+              : html`
+                  <div class="control-row">
+                    <div class="favorites-empty-state">
+                      <ha-icon icon="mdi:star-outline"></ha-icon>
+                      <span>${this._localize('target.favorites_empty')}</span>
                     </div>
                   </div>
-                </div>
-              `
-            : ''}
+                `}
+          </div>
 
           ${hasSelection
             ? html`
@@ -3913,11 +4009,16 @@ export class AqaraPanel extends LitElement {
     renderIcon: (preset: T) => unknown,
     onDuplicate: (preset: T) => void,
   ) {
+    const isEditMode = this._presetEditModeId === preset.id;
     return html`
       <div
-        class="user-preset-card"
+        class="user-preset-card ${isEditMode ? 'edit-mode' : ''}"
         title="${preset.name}"
         aria-label="${preset.name}"
+        @click=${() => { if (isEditMode) this._presetEditModeId = null; }}
+        @touchstart=${() => this._handlePresetTouchStart(preset.id)}
+        @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)}
+        @touchmove=${this._handlePresetTouchMove}
       >
         <div class="preset-card-actions">
           <ha-icon-button
@@ -4239,8 +4340,10 @@ export class AqaraPanel extends LitElement {
           </div>
         </div>
         <div class="section-content">
-          ${sortedFavorites.map(({ ref, preset, isUser }) => html`
-            <div class="preset-button ${isUser ? 'user-preset' : 'builtin-preset'}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateFavoritePreset(ref, preset, isUser)}>
+          ${sortedFavorites.map(({ ref, preset, isUser }) => {
+            const isEditMode = this._presetEditModeId === ref.id;
+            return html`
+            <div class="preset-button ${isUser ? 'user-preset' : 'builtin-preset'} ${isEditMode ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (isEditMode) { this._presetEditModeId = null; } else { this._activateFavoritePreset(ref, preset, isUser); } }} @touchstart=${() => this._handlePresetTouchStart(ref.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
               <div class="preset-card-actions">
                 ${this._renderFavoriteStar(ref.type, ref.id)}
               </div>
@@ -4249,7 +4352,7 @@ export class AqaraPanel extends LitElement {
               </div>
               <div class="preset-name">${preset.name}</div>
             </div>
-          `)}
+          `;})}
         </div>
       </ha-expansion-panel>
     `;
@@ -4284,7 +4387,7 @@ export class AqaraPanel extends LitElement {
         <div class="section-content">
           ${sortedUserPresets.map(
             (preset) => html`
-              <div class="preset-button user-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateUserEffectPreset(preset)}>
+              <div class="preset-button user-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateUserEffectPreset(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('effect', preset.id)}
                 </div>
@@ -4297,7 +4400,7 @@ export class AqaraPanel extends LitElement {
           )}
           ${sortedBuiltinPresets.map(
             (preset) => html`
-              <div class="preset-button builtin-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateDynamicEffect(preset)}>
+              <div class="preset-button builtin-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateDynamicEffect(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('effect', preset.id)}
                   <ha-icon-button
@@ -4519,7 +4622,7 @@ export class AqaraPanel extends LitElement {
         <div class="section-content">
           ${sortedUserPresets.map(
             (preset) => html`
-              <div class="preset-button user-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateUserPatternPreset(preset)}>
+              <div class="preset-button user-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateUserPatternPreset(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('segment_pattern', preset.id)}
                 </div>
@@ -4532,7 +4635,7 @@ export class AqaraPanel extends LitElement {
           )}
           ${sortedBuiltinPresets.map(
             (preset) => html`
-              <div class="preset-button builtin-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateSegmentPattern(preset)}>
+              <div class="preset-button builtin-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateSegmentPattern(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('segment_pattern', preset.id)}
                   <ha-icon-button
@@ -4649,7 +4752,7 @@ export class AqaraPanel extends LitElement {
         <div class="section-content">
           ${sortedUserPresets.map(
             (preset) => html`
-              <div class="preset-button user-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateUserCCTSequencePreset(preset)}>
+              <div class="preset-button user-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateUserCCTSequencePreset(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('cct_sequence', preset.id)}
                 </div>
@@ -4662,7 +4765,7 @@ export class AqaraPanel extends LitElement {
           )}
           ${sortedBuiltinPresets.map(
             (preset) => html`
-              <div class="preset-button builtin-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateCCTSequence(preset)}>
+              <div class="preset-button builtin-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateCCTSequence(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('cct_sequence', preset.id)}
                   <ha-icon-button
@@ -4713,7 +4816,7 @@ export class AqaraPanel extends LitElement {
         <div class="section-content">
           ${sortedUserPresets.map(
             (preset) => html`
-              <div class="preset-button user-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateUserSegmentSequencePreset(preset)}>
+              <div class="preset-button user-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateUserSegmentSequencePreset(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('segment_sequence', preset.id)}
                 </div>
@@ -4726,7 +4829,7 @@ export class AqaraPanel extends LitElement {
           )}
           ${sortedBuiltinPresets.map(
             (preset) => html`
-              <div class="preset-button builtin-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateSegmentSequence(preset)}>
+              <div class="preset-button builtin-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateSegmentSequence(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('segment_sequence', preset.id)}
                   <ha-icon-button
@@ -4778,7 +4881,7 @@ export class AqaraPanel extends LitElement {
         <div class="section-content">
           ${sortedUserPresets.map(
             (preset) => html`
-              <div class="preset-button user-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateUserDynamicScenePreset(preset)}>
+              <div class="preset-button user-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateUserDynamicScenePreset(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('dynamic_scene', preset.id)}
                 </div>
@@ -4791,7 +4894,7 @@ export class AqaraPanel extends LitElement {
           )}
           ${sortedBuiltinPresets.map(
             (preset) => html`
-              <div class="preset-button builtin-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateDynamicScene(preset)}>
+              <div class="preset-button builtin-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateDynamicScene(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('dynamic_scene', preset.id)}
                   <ha-icon-button
