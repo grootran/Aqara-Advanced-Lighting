@@ -4030,6 +4030,8 @@ export class AqaraPanel extends LitElement {
           >
             <ha-icon icon="mdi:content-copy"></ha-icon>
           </ha-icon-button>
+        </div>
+        <div class="preset-card-actions preset-card-actions-right">
           <ha-icon-button
             @click=${(e: Event) => { e.stopPropagation(); this._deleteUserPreset(deleteType, preset.id); }}
             title="${this._localize('tooltips.preset_delete')}"
