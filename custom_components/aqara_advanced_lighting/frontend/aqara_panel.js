@@ -1494,6 +1494,10 @@
     .music-sync-content {
       grid-template-columns: 1fr;
     }
+
+    .zone-btn-label {
+      display: none;
+    }
   }
 
   /* HA dialog fullscreen on mobile - follows haStyleDialog.
@@ -6268,7 +6272,7 @@
                 <div class="zone-device-toolbar">
                   <ha-button @click=${()=>this._addZoneRow(e)}>
                     <ha-icon icon="mdi:plus"></ha-icon>
-                    ${this._localize("config.zone_add_button")}
+                    <span class="zone-btn-label">${this._localize("config.zone_add_button")}</span>
                   </ha-button>
                   <div class="toolbar-spacer"></div>
                   ${s?j`
@@ -6282,7 +6286,7 @@
                     ?disabled=${!s||this._zoneSaving}
                   >
                     <ha-icon icon="mdi:content-save-outline"></ha-icon>
-                    ${this._localize("config.zone_save_button")}
+                    <span class="zone-btn-label">${this._localize("config.zone_save_button")}</span>
                   </ha-button>
                 </div>
                 ${0===i.length?j`

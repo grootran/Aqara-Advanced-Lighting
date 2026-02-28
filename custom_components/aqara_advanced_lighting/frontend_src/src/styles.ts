@@ -1501,6 +1501,10 @@ export const panelStyles = css`
     .music-sync-content {
       grid-template-columns: 1fr;
     }
+
+    .zone-btn-label {
+      display: none;
+    }
   }
 
   /* HA dialog fullscreen on mobile - follows haStyleDialog.

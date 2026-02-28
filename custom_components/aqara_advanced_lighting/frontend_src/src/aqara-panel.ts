@@ -5297,7 +5297,7 @@ export class AqaraPanel extends LitElement {
                 <div class="zone-device-toolbar">
                   <ha-button @click=${() => this._addZoneRow(ieee)}>
                     <ha-icon icon="mdi:plus"></ha-icon>
-                    ${this._localize('config.zone_add_button')}
+                    <span class="zone-btn-label">${this._localize('config.zone_add_button')}</span>
                   </ha-button>
                   <div class="toolbar-spacer"></div>
                   ${modified ? html`
@@ -5311,7 +5311,7 @@ export class AqaraPanel extends LitElement {
                     ?disabled=${!modified || this._zoneSaving}
                   >
                     <ha-icon icon="mdi:content-save-outline"></ha-icon>
-                    ${this._localize('config.zone_save_button')}
+                    <span class="zone-btn-label">${this._localize('config.zone_save_button')}</span>
                   </ha-button>
                 </div>
                 ${editZones.length === 0
