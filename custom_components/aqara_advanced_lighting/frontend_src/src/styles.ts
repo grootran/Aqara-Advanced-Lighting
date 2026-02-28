@@ -636,8 +636,8 @@ export const panelStyles = css`
 
   /* Sort dropdown - compact inline select using ha-selector */
   .sort-select {
-    min-width: 100px;
-    max-width: 150px;
+    min-width: 80px;
+    max-width: 110px;
   }
 
   /* Preset grid - uses HA layout patterns */
@@ -1467,7 +1467,7 @@ export const panelStyles = css`
 
     /* Sort dropdown mobile styles */
     .sort-select {
-      min-width: 120px;
+      min-width: 80px;
     }
 
     .section-header-controls {
