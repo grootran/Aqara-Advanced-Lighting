@@ -350,7 +350,7 @@ export const panelStyles = css`
     align-items: center;
     gap: 10px;
     padding: 10px 14px;
-    margin-top: 8px;
+    margin-top: 10px;
     background: rgba(var(--rgb-primary-color), 0.06);
     border: 1px dashed rgba(var(--rgb-primary-color), 0.3);
     border-radius: var(--ha-card-border-radius, 12px);
@@ -544,12 +544,8 @@ export const panelStyles = css`
   /* Hover devices: show actions on hover */
   @media (hover: hover) {
     .favorite-button:hover .favorite-button-actions {
-      opacity: 0.6;
+      opacity: 1;
       pointer-events: auto;
-    }
-
-    .favorite-button-actions:hover {
-      opacity: 1 !important;
     }
   }
 
@@ -567,6 +563,14 @@ export const panelStyles = css`
     --ha-icon-button-size: 28px;
     --mdc-icon-button-size: 28px;
     --mdc-icon-size: 16px;
+    opacity: 0.6;
+    transition: opacity 0.15s ease;
+  }
+
+  @media (hover: hover) {
+    .favorite-button-action:hover {
+      opacity: 1;
+    }
   }
 
   .favorite-button-action ha-icon {
@@ -1302,17 +1306,19 @@ export const panelStyles = css`
   /* Action buttons overlay */
   .preset-card-actions {
     position: absolute;
-    top: 4px;
-    right: 4px;
+    top: 2px;
+    right: 2px;
     display: flex;
-    gap: 2px;
+    gap: 0;
     opacity: 0;
-    transition: opacity 0.15s ease-in-out;
-    background: rgba(var(--rgb-primary-text-color, 0, 0, 0), 0.6);
-    border-radius: var(--ha-border-radius-sm, 4px);
-    padding: 2px;
-    z-index: 1;
+    transition: opacity 0.2s ease-in-out;
+    z-index: 2;
     pointer-events: none;
+  }
+
+  .preset-card-actions-right {
+    top: auto;
+    bottom: 2px;
   }
 
   /* Hover devices: show actions on hover */
@@ -1336,8 +1342,7 @@ export const panelStyles = css`
   .user-preset-card.edit-mode,
   .user-preset.edit-mode,
   .builtin-preset.edit-mode {
-    outline: 2px solid var(--primary-color);
-    outline-offset: -2px;
+    border-color: var(--primary-color);
   }
 
   .preset-card-actions ha-icon-button,
@@ -1345,29 +1350,24 @@ export const panelStyles = css`
     --ha-icon-button-size: 28px;
     --mdc-icon-button-size: 28px;
     --mdc-icon-size: 16px;
-    color: var(--text-primary-color);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .preset-card-actions .favorite-star.favorited {
-    color: var(--accent-color, #ffc107);
-  }
-
-  .preset-card-actions ha-icon-button ha-icon,
-  .preset-card-actions .favorite-star ha-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    opacity: 0.6;
+    transition: opacity 0.15s ease;
   }
 
   @media (hover: hover) {
     .preset-card-actions ha-icon-button:hover,
     .preset-card-actions .favorite-star:hover {
-      background: rgba(var(--rgb-text-primary-color, 255, 255, 255), 0.2);
-      border-radius: var(--ha-border-radius-sm, 4px);
+      opacity: 1;
     }
+  }
+
+  .preset-card-actions ha-icon-button ha-icon,
+  .preset-card-actions .favorite-star ha-icon {
+    color: var(--primary-text-color);
+  }
+
+  .preset-card-actions .favorite-star.favorited ha-icon {
+    color: var(--accent-color, #ffc107);
   }
 
   /* Music sync section */
