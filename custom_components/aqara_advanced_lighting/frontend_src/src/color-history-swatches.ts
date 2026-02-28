@@ -7,12 +7,12 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { xyToHex } from './color-utils';
-import { XYColor } from './types';
+import { XYColor, Translations } from './types';
 
 @customElement('color-history-swatches')
 export class ColorHistorySwatches extends LitElement {
   @property({ type: Array }) colorHistory: XYColor[] = [];
-  @property({ type: Object }) translations: Record<string, any> = {};
+  @property({ type: Object }) translations: Translations = {};
 
   static styles = css`
     :host {
@@ -128,6 +128,7 @@ export class ColorHistorySwatches extends LitElement {
               class="color-history-swatch"
               style="background-color: ${xyToHex(color, 255)}"
               @click=${() => this._handleColorClick(color)}
+              aria-label="${this._localize('color_history.swatch_label') || 'Color'} ${xyToHex(color, 255)}"
             ></button>
           `)}
         </div>

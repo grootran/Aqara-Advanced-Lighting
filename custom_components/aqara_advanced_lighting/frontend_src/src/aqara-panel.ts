@@ -36,6 +36,9 @@ import {
   SegmentZoneResolved,
   EditorDraftCache,
   FavoritePresetRef,
+  PresetType,
+  AnyPreset,
+  Translations,
   RunningOperation,
   RunningOperationsResponse,
 } from './types';
@@ -46,6 +49,12 @@ import './segment-sequence-editor';
 import './dynamic-scene-editor';
 import './transition-curve-editor';
 import './color-history-swatches';
+
+// HA tile card custom element interface (created via document.createElement)
+type HaTileCard = HTMLElement & {
+  setConfig: (config: Record<string, unknown>) => void;
+  hass: HomeAssistant;
+};
 
 @customElement('aqara-advanced-lighting-panel')
 export class AqaraPanel extends LitElement {
@@ -62,7 +71,7 @@ export class AqaraPanel extends LitElement {
   @state() private _ignoreExternalChanges = false;
   @state() private _useDistributionModeOverride = false;
   @state() private _distributionModeOverride = 'shuffle_rotate';
-  @state() private _collapsed: Record<string, boolean> = {};
+  @state() private _collapsed: Record<string, boolean> = { instances: true };
   @state() private _hasIncompatibleLights = false;
   @state() private _includeAllLights = false;
   @state() private _favorites: Favorite[] = [];
@@ -73,6 +82,7 @@ export class AqaraPanel extends LitElement {
   @state() private _userPresets?: UserPresetsData;
   @state() private _editingPreset?: { type: string; preset: UserEffectPreset | UserSegmentPatternPreset | UserCCTSequencePreset | UserSegmentSequencePreset | UserDynamicScenePreset; isDuplicate?: boolean };
   @state() private _effectPreviewActive = false;
+  @state() private _patternPreviewActive = false;
   @state() private _cctPreviewActive = false;
   @state() private _segmentSequencePreviewActive = false;
   @state() private _scenePreviewActive = false;
@@ -87,10 +97,12 @@ export class AqaraPanel extends LitElement {
   @state() private _z2mInstances: Array<{
     entry_id: string;
     title: string;
-    z2m_base_topic: string;
+    backend_type: string;
+    z2m_base_topic: string | null;
     device_counts: { t2_rgb: number; t2_cct: number; t1m: number; t1_strip: number; other: number; total: number };
     devices: string[];
   }> = [];
+  @state() private _instanceDevicesExpanded: Set<string> = new Set();
   @state() private _localCurvature = 1.0;
   @state() private _applyingCurvature = false;
   @state() private _isExporting = false;
@@ -102,12 +114,12 @@ export class AqaraPanel extends LitElement {
   @state() private _musicSyncEffect = 'random';
   @state() private _setupComplete = true;
   private _setupPollTimer?: ReturnType<typeof setTimeout>;
-  private _translations: Record<string, any> = PANEL_TRANSLATIONS;
+  private _translations: Translations = PANEL_TRANSLATIONS;
   private _fileInputRef: HTMLInputElement | null = null;
   private _eventUnsubscribers: Array<() => void> = [];
 
   private _tileCardRef: Ref<HTMLElement> = createRef();
-  private _tileCards: Map<string, any> = new Map();
+  private _tileCards: Map<string, HaTileCard> = new Map();
   private _preferencesSaveTimer?: ReturnType<typeof setTimeout>;
   private _editorDraftCache: EditorDraftCache = {};
 
@@ -120,15 +132,15 @@ export class AqaraPanel extends LitElement {
   private _localize(key: string, values?: Record<string, string>): string {
     // Navigate through nested translation keys
     const keys = key.split('.');
-    let translated: any = this._translations;
+    let translated: string | Translations = this._translations;
 
     for (const k of keys) {
-      if (translated && typeof translated === 'object' && k in translated) {
-        translated = translated[k];
-      } else {
-        // Fallback to key if translation not found
+      if (typeof translated !== 'object' || !(k in translated)) {
         return key;
       }
+      const next: string | Translations | undefined = translated[k];
+      if (next === undefined) return key;
+      translated = next;
     }
 
     // Ensure we got a string
@@ -138,12 +150,14 @@ export class AqaraPanel extends LitElement {
 
     // Replace placeholders like {count} with actual values
     if (values) {
+      let result = translated;
       Object.keys(values).forEach(placeholder => {
         const value = values[placeholder];
         if (value !== undefined) {
-          translated = translated.replace(`{${placeholder}}`, value);
+          result = result.replace(`{${placeholder}}`, value);
         }
       });
+      return result;
     }
 
     return translated;
@@ -240,7 +254,7 @@ export class AqaraPanel extends LitElement {
       // Check if card exists and is attached to the current container
       if (!card || card.parentElement !== container) {
         // Create new card for this entity
-        card = document.createElement('hui-tile-card');
+        card = document.createElement('hui-tile-card') as HaTileCard;
         container.appendChild(card);
         this._tileCards.set(entityId, card);
       }
@@ -456,12 +470,12 @@ export class AqaraPanel extends LitElement {
   };
 
   /** Check if a preset is in the favorites list. */
-  private _isPresetFavorited(type: string, id: string): boolean {
+  private _isPresetFavorited(type: PresetType, id: string): boolean {
     return this._favoritePresets.some(fav => fav.type === type && fav.id === id);
   }
 
   /** Toggle favorite status for a preset. Stops propagation to prevent activation. */
-  private _toggleFavoritePreset(type: string, id: string, event: Event): void {
+  private _toggleFavoritePreset(type: PresetType, id: string, event: Event): void {
     event.stopPropagation();
     const index = this._favoritePresets.findIndex(fav => fav.type === type && fav.id === id);
     if (index >= 0) {
@@ -476,7 +490,7 @@ export class AqaraPanel extends LitElement {
   }
 
   /** Render a star icon for favorite toggling on preset buttons. */
-  private _renderFavoriteStar(type: string, id: string) {
+  private _renderFavoriteStar(type: PresetType, id: string) {
     const isFav = this._isPresetFavorited(type, id);
     return html`
       <ha-icon-button
@@ -496,14 +510,14 @@ export class AqaraPanel extends LitElement {
    */
   private _getResolvedFavoritePresets(): Array<{
     ref: FavoritePresetRef;
-    preset: any;
+    preset: AnyPreset;
     isUser: boolean;
     deviceType?: string;
   }> {
-    const resolved: Array<{ ref: FavoritePresetRef; preset: any; isUser: boolean; deviceType?: string }> = [];
+    const resolved: Array<{ ref: FavoritePresetRef; preset: AnyPreset; isUser: boolean; deviceType?: string }> = [];
 
     for (const ref of this._favoritePresets) {
-      let preset: any = null;
+      let preset: AnyPreset | null = null;
       let isUser = false;
       let deviceType: string | undefined;
 
@@ -514,16 +528,16 @@ export class AqaraPanel extends LitElement {
             if (found) { preset = found; deviceType = key; break; }
           }
           if (!preset) {
-            preset = this._userPresets?.effect_presets?.find(p => p.id === ref.id) || null;
-            if (preset) { isUser = true; deviceType = preset.device_type; }
+            const userPreset = this._userPresets?.effect_presets?.find(p => p.id === ref.id);
+            if (userPreset) { preset = userPreset; isUser = true; deviceType = userPreset.device_type; }
           }
           break;
         }
         case 'segment_pattern': {
           preset = this._presets?.segment_patterns?.find(p => p.id === ref.id) || null;
           if (!preset) {
-            preset = this._userPresets?.segment_pattern_presets?.find(p => p.id === ref.id) || null;
-            if (preset) { isUser = true; deviceType = preset.device_type; }
+            const userPreset = this._userPresets?.segment_pattern_presets?.find(p => p.id === ref.id);
+            if (userPreset) { preset = userPreset; isUser = true; deviceType = userPreset.device_type; }
           }
           break;
         }
@@ -538,8 +552,8 @@ export class AqaraPanel extends LitElement {
         case 'segment_sequence': {
           preset = this._presets?.segment_sequences?.find(p => p.id === ref.id) || null;
           if (!preset) {
-            preset = this._userPresets?.segment_sequence_presets?.find(p => p.id === ref.id) || null;
-            if (preset) { isUser = true; deviceType = preset.device_type; }
+            const userPreset = this._userPresets?.segment_sequence_presets?.find(p => p.id === ref.id);
+            if (userPreset) { preset = userPreset; isUser = true; deviceType = userPreset.device_type; }
           }
           break;
         }
@@ -568,59 +582,59 @@ export class AqaraPanel extends LitElement {
   }
 
   /** Activate a favorite preset by dispatching to the appropriate activation method. */
-  private async _activateFavoritePreset(ref: FavoritePresetRef, preset: any, isUser: boolean): Promise<void> {
+  private async _activateFavoritePreset(ref: FavoritePresetRef, preset: AnyPreset, isUser: boolean): Promise<void> {
     switch (ref.type) {
       case 'effect':
         if (isUser) {
-          await this._activateUserEffectPreset(preset);
+          await this._activateUserEffectPreset(preset as UserEffectPreset);
         } else {
-          await this._activateDynamicEffect(preset);
+          await this._activateDynamicEffect(preset as DynamicEffectPreset);
         }
         break;
       case 'segment_pattern':
         if (isUser) {
-          await this._activateUserPatternPreset(preset);
+          await this._activateUserPatternPreset(preset as UserSegmentPatternPreset);
         } else {
-          await this._activateSegmentPattern(preset);
+          await this._activateSegmentPattern(preset as SegmentPatternPreset);
         }
         break;
       case 'cct_sequence':
         if (isUser) {
-          await this._activateUserCCTSequencePreset(preset);
+          await this._activateUserCCTSequencePreset(preset as UserCCTSequencePreset);
         } else {
-          await this._activateCCTSequence(preset);
+          await this._activateCCTSequence(preset as CCTSequencePreset);
         }
         break;
       case 'segment_sequence':
         if (isUser) {
-          await this._activateUserSegmentSequencePreset(preset);
+          await this._activateUserSegmentSequencePreset(preset as UserSegmentSequencePreset);
         } else {
-          await this._activateSegmentSequence(preset);
+          await this._activateSegmentSequence(preset as SegmentSequencePreset);
         }
         break;
       case 'dynamic_scene':
         if (isUser) {
-          await this._activateUserDynamicScenePreset(preset);
+          await this._activateUserDynamicScenePreset(preset as UserDynamicScenePreset);
         } else {
-          await this._activateDynamicScene(preset);
+          await this._activateDynamicScene(preset as DynamicScenePreset);
         }
         break;
     }
   }
 
   /** Render the icon/thumbnail for a favorite preset based on its type. */
-  private _renderFavoritePresetIcon(ref: FavoritePresetRef, preset: any, isUser: boolean) {
+  private _renderFavoritePresetIcon(ref: FavoritePresetRef, preset: AnyPreset, isUser: boolean) {
     switch (ref.type) {
       case 'effect':
-        return isUser ? this._renderUserEffectIcon(preset) : this._renderPresetIcon(preset.icon, 'mdi:lightbulb-on');
+        return isUser ? this._renderUserEffectIcon(preset as UserEffectPreset) : this._renderPresetIcon(preset.icon, 'mdi:lightbulb-on');
       case 'segment_pattern':
-        return isUser ? this._renderUserPatternIcon(preset) : this._renderPresetIcon(preset.icon, 'mdi:palette');
+        return isUser ? this._renderUserPatternIcon(preset as UserSegmentPatternPreset) : this._renderPresetIcon(preset.icon, 'mdi:palette');
       case 'cct_sequence':
-        return isUser ? this._renderUserCCTIcon(preset) : this._renderPresetIcon(preset.icon, 'mdi:temperature-kelvin');
+        return isUser ? this._renderUserCCTIcon(preset as UserCCTSequencePreset) : this._renderPresetIcon(preset.icon, 'mdi:temperature-kelvin');
       case 'segment_sequence':
-        return isUser ? this._renderUserSegmentSequenceIcon(preset) : this._renderPresetIcon(preset.icon, 'mdi:animation-play');
+        return isUser ? this._renderUserSegmentSequenceIcon(preset as UserSegmentSequencePreset) : this._renderPresetIcon(preset.icon, 'mdi:animation-play');
       case 'dynamic_scene':
-        return isUser ? this._renderUserDynamicSceneIcon(preset) : this._renderBuiltinDynamicSceneIcon(preset);
+        return isUser ? this._renderUserDynamicSceneIcon(preset as UserDynamicScenePreset) : this._renderBuiltinDynamicSceneIcon(preset as DynamicScenePreset);
       default:
         return html`<ha-icon icon="mdi:star"></ha-icon>`;
     }
@@ -1659,7 +1673,7 @@ export class AqaraPanel extends LitElement {
       if (effectList.includes('flow1') || effectList.includes('flow2') || effectList.includes('rolling')) return 't1m';
       if (effectList.includes('rainbow1') || effectList.includes('rainbow2') || effectList.includes('chasing') || effectList.includes('flicker') || effectList.includes('dash')) return 't1_strip';
       if (effectList.includes('candlelight')) return 't2_bulb';
-    } else if (!effectList && entity.attributes.color_temp !== undefined) {
+    } else if (!effectList && entity.attributes.color_temp_kelvin !== undefined) {
       return 't2_cct';
     }
 
@@ -1693,8 +1707,7 @@ export class AqaraPanel extends LitElement {
     return this._selectedEntities.some(entityId => {
       const entity = this.hass!.states[entityId];
       if (!entity) return false;
-      const hasCCT = entity.attributes.color_temp !== undefined ||
-             entity.attributes.color_temp_kelvin !== undefined ||
+      const hasCCT = entity.attributes.color_temp_kelvin !== undefined ||
              entity.attributes.min_color_temp_kelvin !== undefined;
       if (!hasCCT) return false;
       // T1M RGB endpoint has color_temp but doesn't support CCT sequences
@@ -1740,8 +1753,7 @@ export class AqaraPanel extends LitElement {
     return this._selectedEntities.filter(entityId => {
       const entity = this.hass!.states[entityId];
       if (!entity) return false;
-      const hasCCT = entity.attributes.color_temp !== undefined ||
-             entity.attributes.color_temp_kelvin !== undefined ||
+      const hasCCT = entity.attributes.color_temp_kelvin !== undefined ||
              entity.attributes.min_color_temp_kelvin !== undefined;
       if (!hasCCT) return false;
       // T1M RGB endpoint has color_temp but doesn't support CCT sequences
@@ -1911,6 +1923,16 @@ export class AqaraPanel extends LitElement {
     this._saveUserPreferences();
   }
 
+  private _toggleInstanceDevices(entryId: string): void {
+    const next = new Set(this._instanceDevicesExpanded);
+    if (next.has(entryId)) {
+      next.delete(entryId);
+    } else {
+      next.add(entryId);
+    }
+    this._instanceDevicesExpanded = next;
+  }
+
   private async _activateDynamicEffect(preset: DynamicEffectPreset): Promise<void> {
     if (!this._selectedEntities.length) return;
 
@@ -1991,8 +2013,8 @@ export class AqaraPanel extends LitElement {
       serviceData.offset_delay = preset.offset_delay;
     }
 
-    // Add loop_count only if loop_mode is 'loop'
-    if (preset.loop_mode === 'loop' && preset.loop_count !== undefined) {
+    // Add loop_count only if loop_mode is 'count'
+    if (preset.loop_mode === 'count' && preset.loop_count !== undefined) {
       serviceData.loop_count = preset.loop_count;
     }
 
@@ -2074,7 +2096,6 @@ export class AqaraPanel extends LitElement {
 
     return html`
       <div class="running-ops-container">
-        <span class="control-label">${this._localize('target.running_operations_label')}</span>
         <div class="running-ops-list">
           ${this._runningOperations.map(op => this._renderOperationCard(op))}
         </div>
@@ -2101,13 +2122,17 @@ export class AqaraPanel extends LitElement {
   private _renderEffectOp(op: RunningOperation) {
     const entityName = this._getEntityName(op.entity_id!);
     const preset = this._resolvePresetInfo(op.preset_id);
+    const typeLabel = this._localize('target.effect_button');
     return html`
       <div class="running-op-card">
         <div class="running-op-info">
           <ha-icon class="running-op-icon" icon="${preset.icon || 'mdi:palette'}"></ha-icon>
           <div class="running-op-details">
-            <span class="running-op-name">${preset.name || this._localize('target.effect_button')}</span>
-            <span class="running-op-entity"><span class="running-op-entity-name">${entityName}</span></span>
+            <span class="running-op-name">${preset.name || typeLabel}</span>
+            <span class="running-op-entity">
+              ${preset.name ? html`<span class="running-op-type">${typeLabel}</span>` : ''}
+              <span class="running-op-entity-name">${entityName}</span>
+            </span>
           </div>
         </div>
         <div class="running-op-actions">
@@ -2130,16 +2155,18 @@ export class AqaraPanel extends LitElement {
     const typeLabel = isCCT
       ? this._localize('target.cct_button')
       : this._localize('target.segment_button');
+    const isPaused = op.paused || op.externally_paused;
 
     return html`
-      <div class="running-op-card ${op.externally_paused ? 'externally-paused' : ''}">
+      <div class="running-op-card ${isPaused ? 'op-paused' : ''} ${op.externally_paused ? 'externally-paused' : ''}">
         <div class="running-op-info">
           <ha-icon class="running-op-icon" icon="${preset.icon || fallbackIcon}"></ha-icon>
           <div class="running-op-details">
             <span class="running-op-name">${preset.name || typeLabel}</span>
             <span class="running-op-entity">
+              ${preset.name ? html`<span class="running-op-type">${typeLabel}</span>` : ''}
               <span class="running-op-entity-name">${entityName}</span>
-              ${op.paused ? html`<span class="running-op-status">${this._localize('target.paused')}</span>` : ''}
+              ${op.paused ? html`<span class="running-op-status paused-text">${this._localize('target.paused')}</span>` : ''}
               ${op.externally_paused ? html`<span class="running-op-status externally-paused-text">${this._localize('target.externally_paused')}</span>` : ''}
             </span>
           </div>
@@ -2180,16 +2207,18 @@ export class AqaraPanel extends LitElement {
       .map(id => this._getEntityName(id))
       .join(', ');
     const extPausedEntities = op.externally_paused_entities || [];
+    const isPaused = op.paused || extPausedEntities.length > 0;
 
     return html`
-      <div class="running-op-card">
+      <div class="running-op-card ${isPaused ? 'op-paused' : ''}">
         <div class="running-op-info">
           <ha-icon class="running-op-icon" icon="${preset.icon || 'mdi:palette-swatch-variant'}"></ha-icon>
           <div class="running-op-details">
             <span class="running-op-name">${preset.name || this._localize('target.scene_button')}</span>
             <span class="running-op-entity">
+              ${preset.name ? html`<span class="running-op-type">${this._localize('target.scene_button')}</span>` : ''}
               <span class="running-op-entity-name">${entityNames}</span>
-              ${op.paused ? html`<span class="running-op-status">${this._localize('target.paused')}</span>` : ''}
+              ${op.paused ? html`<span class="running-op-status paused-text">${this._localize('target.paused')}</span>` : ''}
               ${extPausedEntities.length > 0
                 ? html`<span class="running-op-status externally-paused-text">
                     ${this._localize('target.entities_externally_paused', { count: String(extPausedEntities.length) })}
@@ -2506,8 +2535,8 @@ export class AqaraPanel extends LitElement {
       serviceData.offset_delay = preset.offset_delay;
     }
 
-    // Add loop_count only if loop_mode is 'loop'
-    if (preset.loop_mode === 'loop' && preset.loop_count !== undefined) {
+    // Add loop_count only if loop_mode is 'count'
+    if (preset.loop_mode === 'count' && preset.loop_count !== undefined) {
       serviceData.loop_count = preset.loop_count;
     }
 
@@ -3038,11 +3067,32 @@ export class AqaraPanel extends LitElement {
     this._setActiveTab('presets');
   }
 
-  private _handleEditorCancel(): void {
+  private async _handleEditorCancel(): Promise<void> {
+    await this._stopActivePreview();
     this._clearEditorDraft(this._activeTab);
     this._resetCurrentEditor();
     this._editingPreset = undefined;
     this._setActiveTab('activate');
+  }
+
+  private async _stopActivePreview(): Promise<void> {
+    switch (this._activeTab) {
+      case 'effects':
+        if (this._effectPreviewActive) await this._handleEffectStopPreview();
+        break;
+      case 'patterns':
+        if (this._patternPreviewActive) await this._handlePatternStopPreview();
+        break;
+      case 'cct':
+        if (this._cctPreviewActive) await this._handleCCTStopPreview();
+        break;
+      case 'segments':
+        if (this._segmentSequencePreviewActive) await this._handleSegmentSequenceStopPreview();
+        break;
+      case 'scenes':
+        if (this._scenePreviewActive) await this._handleSceneStopPreview();
+        break;
+    }
   }
 
   private _resetCurrentEditor(): void {
@@ -3150,8 +3200,10 @@ export class AqaraPanel extends LitElement {
           .stripSegmentCount=${this._getT1StripSegmentCount()}
           .deviceContext=${this._getDeviceContextForEditor('pattern')}
           .colorHistory=${this._colorHistory}
+          .previewActive=${this._patternPreviewActive}
           @save=${this._handlePatternSave}
           @preview=${this._handlePatternPreview}
+          @stop-preview=${this._handlePatternStopPreview}
           @cancel=${this._handleEditorCancel}
         ></pattern-editor>
       </ha-card>
@@ -3197,9 +3249,21 @@ export class AqaraPanel extends LitElement {
         turn_off_unspecified: data.turn_off_unspecified ?? true,
         sync: true,
       });
+      this._patternPreviewActive = true;
     } catch (err) {
       console.error('Pattern preview service call failed:', err);
     }
+  }
+
+  private async _handlePatternStopPreview(): Promise<void> {
+    const compatibleEntities = this._getPatternsCompatibleEntities();
+    if (!compatibleEntities.length) return;
+
+    await this.hass.callService('aqara_advanced_lighting', 'stop_effect', {
+      entity_id: compatibleEntities,
+      restore_state: true,
+    });
+    this._patternPreviewActive = false;
   }
 
   private _renderCCTTab() {
@@ -3294,6 +3358,7 @@ export class AqaraPanel extends LitElement {
 
     await this.hass.callService('aqara_advanced_lighting', 'stop_cct_sequence', {
       entity_id: compatibleEntities,
+      restore_state: true,
     });
     this._cctPreviewActive = false;
   }
@@ -3408,6 +3473,7 @@ export class AqaraPanel extends LitElement {
 
     await this.hass.callService('aqara_advanced_lighting', 'stop_segment_sequence', {
       entity_id: compatibleEntities,
+      restore_state: true,
     });
     this._segmentSequencePreviewActive = false;
   }
@@ -3504,8 +3570,8 @@ export class AqaraPanel extends LitElement {
       serviceData.offset_delay = data.offset_delay;
     }
 
-    // Add loop_count only if loop_mode is 'loop'
-    if (data.loop_mode === 'loop' && data.loop_count !== undefined) {
+    // Add loop_count only if loop_mode is 'count'
+    if (data.loop_mode === 'count' && data.loop_count !== undefined) {
       serviceData.loop_count = data.loop_count;
     }
 
@@ -3528,6 +3594,7 @@ export class AqaraPanel extends LitElement {
 
     await this.hass.callService('aqara_advanced_lighting', 'stop_dynamic_scene', {
       entity_id: compatibleEntities,
+      restore_state: true,
     });
     this._scenePreviewActive = false;
   }
@@ -3669,8 +3736,7 @@ export class AqaraPanel extends LitElement {
         </div>
         <div class="section-content preset-management-content">
           <div class="toolbar-actions">
-            <mwc-button
-              raised
+            <ha-button
               @click=${this._handleExportPresets}
               .disabled=${this._isExporting || this._isImporting}
             >
@@ -3678,10 +3744,9 @@ export class AqaraPanel extends LitElement {
               ${this._isExporting
                 ? this._localize('presets.export_progress')
                 : this._localize('presets.export_button')}
-            </mwc-button>
+            </ha-button>
 
-            <mwc-button
-              raised
+            <ha-button
               @click=${this._handleImportClick}
               .disabled=${this._isExporting || this._isImporting}
             >
@@ -3689,7 +3754,7 @@ export class AqaraPanel extends LitElement {
               ${this._isImporting
                 ? this._localize('presets.import_progress')
                 : this._localize('presets.import_button')}
-            </mwc-button>
+            </ha-button>
           </div>
         </div>
       </ha-expansion-panel>
@@ -3853,6 +3918,7 @@ export class AqaraPanel extends LitElement {
       <div
         class="user-preset-card"
         title="${preset.name}"
+        aria-label="${preset.name}"
       >
         <div class="preset-card-actions">
           <ha-icon-button
@@ -4091,23 +4157,36 @@ export class AqaraPanel extends LitElement {
     this._setActiveTab('scenes');
   }
 
+  private get _sortOptions() {
+    return [
+      { value: 'name-asc', label: this._localize('presets.sort_name_asc') },
+      { value: 'name-desc', label: this._localize('presets.sort_name_desc') },
+      { value: 'date-new', label: this._localize('presets.sort_date_new') },
+      { value: 'date-old', label: this._localize('presets.sort_date_old') },
+    ];
+  }
+
   private _renderSortDropdown(sectionId: string) {
     const currentSort = this._getSortPreference(sectionId);
     return html`
-      <select
+      <ha-selector
         class="sort-select"
+        .hass=${this.hass}
+        .selector=${{
+          select: {
+            options: this._sortOptions,
+            mode: 'dropdown',
+          },
+        }}
         .value=${currentSort}
-        @change=${(e: Event) => {
+        @value-changed=${(e: CustomEvent) => {
           e.stopPropagation();
-          this._setSortPreference(sectionId, (e.target as HTMLSelectElement).value as PresetSortOption);
+          if (e.detail.value) {
+            this._setSortPreference(sectionId, e.detail.value as PresetSortOption);
+          }
         }}
         @click=${(e: Event) => e.stopPropagation()}
-      >
-        <option value="name-asc">${this._localize('presets.sort_name_asc')}</option>
-        <option value="name-desc">${this._localize('presets.sort_name_desc')}</option>
-        <option value="date-new">${this._localize('presets.sort_date_new')}</option>
-        <option value="date-old">${this._localize('presets.sort_date_old')}</option>
-      </select>
+      ></ha-selector>
     `;
   }
 
@@ -4162,7 +4241,7 @@ export class AqaraPanel extends LitElement {
         </div>
         <div class="section-content">
           ${sortedFavorites.map(({ ref, preset, isUser }) => html`
-            <div class="preset-button ${isUser ? 'user-preset' : 'builtin-preset'}" @click=${() => this._activateFavoritePreset(ref, preset, isUser)}>
+            <div class="preset-button ${isUser ? 'user-preset' : 'builtin-preset'}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateFavoritePreset(ref, preset, isUser)}>
               <div class="preset-card-actions">
                 ${this._renderFavoriteStar(ref.type, ref.id)}
               </div>
@@ -4206,7 +4285,7 @@ export class AqaraPanel extends LitElement {
         <div class="section-content">
           ${sortedUserPresets.map(
             (preset) => html`
-              <div class="preset-button user-preset" @click=${() => this._activateUserEffectPreset(preset)}>
+              <div class="preset-button user-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateUserEffectPreset(preset)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('effect', preset.id)}
                 </div>
@@ -4219,7 +4298,7 @@ export class AqaraPanel extends LitElement {
           )}
           ${sortedBuiltinPresets.map(
             (preset) => html`
-              <div class="preset-button builtin-preset" @click=${() => this._activateDynamicEffect(preset)}>
+              <div class="preset-button builtin-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateDynamicEffect(preset)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('effect', preset.id)}
                   <ha-icon-button
@@ -4279,16 +4358,16 @@ export class AqaraPanel extends LitElement {
             <div class="music-sync-sensitivity-group ${!this._musicSyncEnabled ? 'disabled' : ''}">
               <span class="control-label">${this._localize('music_sync.sensitivity_label')}</span>
               <div class="music-sync-sensitivity">
-                <button
-                  class="sensitivity-btn ${this._musicSyncSensitivity === 'low' ? 'active' : ''}"
-                  ?disabled=${!this._musicSyncEnabled}
+                <ha-button
+                  .disabled=${!this._musicSyncEnabled}
                   @click=${() => this._handleMusicSyncSensitivity('low')}
-                >${this._localize('music_sync.sensitivity_low')}</button>
-                <button
-                  class="sensitivity-btn ${this._musicSyncSensitivity === 'high' ? 'active' : ''}"
-                  ?disabled=${!this._musicSyncEnabled}
+                  .appearance=${this._musicSyncSensitivity === 'low' ? 'filled' : 'outlined'}
+                >${this._localize('music_sync.sensitivity_low')}</ha-button>
+                <ha-button
+                  .disabled=${!this._musicSyncEnabled}
                   @click=${() => this._handleMusicSyncSensitivity('high')}
-                >${this._localize('music_sync.sensitivity_high')}</button>
+                  .appearance=${this._musicSyncSensitivity === 'high' ? 'filled' : 'outlined'}
+                >${this._localize('music_sync.sensitivity_high')}</ha-button>
               </div>
             </div>
           </div>
@@ -4299,6 +4378,10 @@ export class AqaraPanel extends LitElement {
               ${effects.map(effect => html`
                 <div
                   class="preset-button ${this._musicSyncEffect === effect.id ? 'music-sync-active' : ''} ${!this._musicSyncEnabled ? 'disabled' : ''}"
+                  role="button"
+                  tabindex="0"
+                  aria-label="${this._localize(`music_sync.effect_${effect.id}`)}"
+                  aria-disabled="${!this._musicSyncEnabled ? 'true' : 'false'}"
                   @click=${() => this._musicSyncEnabled ? this._handleMusicSyncEffectSelect(effect.id) : null}
                 >
                   <div class="preset-icon">
@@ -4383,7 +4466,10 @@ export class AqaraPanel extends LitElement {
           <ha-icon class="running-op-icon" icon="mdi:music-note"></ha-icon>
           <div class="running-op-details">
             <span class="running-op-name">${this._localize('music_sync.active_label')}</span>
-            <span class="running-op-entity"><span class="running-op-entity-name">${entityName}</span></span>
+            <span class="running-op-entity">
+              <span class="running-op-type">${this._localize('music_sync.title')}</span>
+              <span class="running-op-entity-name">${entityName}</span>
+            </span>
           </div>
         </div>
         <div class="running-op-actions">
@@ -4434,7 +4520,7 @@ export class AqaraPanel extends LitElement {
         <div class="section-content">
           ${sortedUserPresets.map(
             (preset) => html`
-              <div class="preset-button user-preset" @click=${() => this._activateUserPatternPreset(preset)}>
+              <div class="preset-button user-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateUserPatternPreset(preset)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('segment_pattern', preset.id)}
                 </div>
@@ -4447,7 +4533,7 @@ export class AqaraPanel extends LitElement {
           )}
           ${sortedBuiltinPresets.map(
             (preset) => html`
-              <div class="preset-button builtin-preset" @click=${() => this._activateSegmentPattern(preset)}>
+              <div class="preset-button builtin-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateSegmentPattern(preset)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('segment_pattern', preset.id)}
                   <ha-icon-button
@@ -4564,7 +4650,7 @@ export class AqaraPanel extends LitElement {
         <div class="section-content">
           ${sortedUserPresets.map(
             (preset) => html`
-              <div class="preset-button user-preset" @click=${() => this._activateUserCCTSequencePreset(preset)}>
+              <div class="preset-button user-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateUserCCTSequencePreset(preset)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('cct_sequence', preset.id)}
                 </div>
@@ -4577,7 +4663,7 @@ export class AqaraPanel extends LitElement {
           )}
           ${sortedBuiltinPresets.map(
             (preset) => html`
-              <div class="preset-button builtin-preset" @click=${() => this._activateCCTSequence(preset)}>
+              <div class="preset-button builtin-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateCCTSequence(preset)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('cct_sequence', preset.id)}
                   <ha-icon-button
@@ -4628,7 +4714,7 @@ export class AqaraPanel extends LitElement {
         <div class="section-content">
           ${sortedUserPresets.map(
             (preset) => html`
-              <div class="preset-button user-preset" @click=${() => this._activateUserSegmentSequencePreset(preset)}>
+              <div class="preset-button user-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateUserSegmentSequencePreset(preset)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('segment_sequence', preset.id)}
                 </div>
@@ -4641,7 +4727,7 @@ export class AqaraPanel extends LitElement {
           )}
           ${sortedBuiltinPresets.map(
             (preset) => html`
-              <div class="preset-button builtin-preset" @click=${() => this._activateSegmentSequence(preset)}>
+              <div class="preset-button builtin-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateSegmentSequence(preset)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('segment_sequence', preset.id)}
                   <ha-icon-button
@@ -4693,7 +4779,7 @@ export class AqaraPanel extends LitElement {
         <div class="section-content">
           ${sortedUserPresets.map(
             (preset) => html`
-              <div class="preset-button user-preset" @click=${() => this._activateUserDynamicScenePreset(preset)}>
+              <div class="preset-button user-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateUserDynamicScenePreset(preset)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('dynamic_scene', preset.id)}
                 </div>
@@ -4706,7 +4792,7 @@ export class AqaraPanel extends LitElement {
           )}
           ${sortedBuiltinPresets.map(
             (preset) => html`
-              <div class="preset-button builtin-preset" @click=${() => this._activateDynamicScene(preset)}>
+              <div class="preset-button builtin-preset" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => this._activateDynamicScene(preset)}>
                 <div class="preset-card-actions">
                   ${this._renderFavoriteStar('dynamic_scene', preset.id)}
                   <ha-icon-button
@@ -4777,10 +4863,11 @@ export class AqaraPanel extends LitElement {
     const hasDimmingEntities = onOffDurationEntity || offOnDurationEntity || dimmingRangeMinEntity || dimmingRangeMaxEntity;
 
     return html`
-      <!-- Z2M Instances Info Section -->
+      <!-- Zigbee Instances Info Section -->
       <ha-expansion-panel
         outlined
-        .expanded=${false}
+        .expanded=${!this._collapsed['instances']}
+        @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange('instances', e)}
       >
         <div slot="header" class="section-header">
           <div>
@@ -4802,68 +4889,67 @@ export class AqaraPanel extends LitElement {
                 </div>
               `
             : html`
-                <div class="z2m-instances-grid">
-                  ${this._z2mInstances.map(instance => html`
-                    <div class="z2m-instance-card">
-                      <div class="z2m-instance-header">
-                        <ha-icon icon="mdi:zigbee" style="color: var(--primary-color);"></ha-icon>
-                        <div class="z2m-instance-info">
-                          <span class="z2m-instance-name">${instance.title}</span>
-                          ${instance.title !== instance.z2m_base_topic ? html`
-                            <span class="z2m-instance-topic">${instance.z2m_base_topic}</span>
-                          ` : ''}
+                <div class="instance-grid">
+                  ${this._z2mInstances.map(instance => {
+                    const isExpanded = this._instanceDevicesExpanded.has(instance.entry_id);
+                    const maxVisible = 5;
+                    const visibleDevices = isExpanded ? instance.devices : instance.devices.slice(0, maxVisible);
+                    const hiddenCount = instance.devices.length - maxVisible;
+                    const isZ2M = instance.backend_type === 'z2m';
+
+                    const typeCounts: Array<{ key: string; count: number }> = [];
+                    if (instance.device_counts.t2_rgb > 0) typeCounts.push({ key: 't2_rgb', count: instance.device_counts.t2_rgb });
+                    if (instance.device_counts.t2_cct > 0) typeCounts.push({ key: 't2_cct', count: instance.device_counts.t2_cct });
+                    if (instance.device_counts.t1m > 0) typeCounts.push({ key: 't1m', count: instance.device_counts.t1m });
+                    if (instance.device_counts.t1_strip > 0) typeCounts.push({ key: 't1_strip', count: instance.device_counts.t1_strip });
+                    if (instance.device_counts.other > 0) typeCounts.push({ key: 'other', count: instance.device_counts.other });
+
+                    return html`
+                      <div class="instance-card">
+                        <div class="instance-header">
+                          <span class="instance-badge ${isZ2M ? 'instance-badge--z2m' : 'instance-badge--zha'}">
+                            ${isZ2M ? 'Z2M' : 'ZHA'}
+                          </span>
+                          <div class="instance-info">
+                            <span class="instance-name">${instance.title}</span>
+                            ${isZ2M && instance.z2m_base_topic && instance.title !== instance.z2m_base_topic ? html`
+                              <span class="instance-topic">${instance.z2m_base_topic}</span>
+                            ` : ''}
+                          </div>
                         </div>
+                        ${typeCounts.length > 0 ? html`
+                          <div class="instance-type-chips">
+                            ${typeCounts.map(tc => html`
+                              <span class="instance-type-chip">${this._localize('instances.' + tc.key)} x${tc.count}</span>
+                            `)}
+                          </div>
+                        ` : ''}
+                        ${instance.devices.length > 0 ? html`
+                          <div class="instance-device-chips">
+                            ${visibleDevices.map(device => html`
+                              <span class="instance-device-chip">${device}</span>
+                            `)}
+                            ${!isExpanded && hiddenCount > 0 ? html`
+                              <span
+                                class="instance-device-chip instance-device-chip--more"
+                                @click=${() => this._toggleInstanceDevices(instance.entry_id)}
+                              >
+                                ${this._localize('instances.more_devices', { count: String(hiddenCount) })}
+                              </span>
+                            ` : ''}
+                            ${isExpanded && hiddenCount > 0 ? html`
+                              <span
+                                class="instance-device-chip instance-device-chip--more"
+                                @click=${() => this._toggleInstanceDevices(instance.entry_id)}
+                              >
+                                ${this._localize('instances.show_less')}
+                              </span>
+                            ` : ''}
+                          </div>
+                        ` : ''}
                       </div>
-                      <div class="z2m-instance-stats">
-                        <div class="z2m-stat">
-                          <span class="z2m-stat-value">${instance.device_counts.total}</span>
-                          <span class="z2m-stat-label">${this._localize('instances.total')}</span>
-                        </div>
-                        ${instance.device_counts.t2_rgb > 0 ? html`
-                          <div class="z2m-stat">
-                            <span class="z2m-stat-value">${instance.device_counts.t2_rgb}</span>
-                            <span class="z2m-stat-label">${this._localize('instances.t2_rgb')}</span>
-                          </div>
-                        ` : ''}
-                        ${instance.device_counts.t2_cct > 0 ? html`
-                          <div class="z2m-stat">
-                            <span class="z2m-stat-value">${instance.device_counts.t2_cct}</span>
-                            <span class="z2m-stat-label">${this._localize('instances.t2_cct')}</span>
-                          </div>
-                        ` : ''}
-                        ${instance.device_counts.t1m > 0 ? html`
-                          <div class="z2m-stat">
-                            <span class="z2m-stat-value">${instance.device_counts.t1m}</span>
-                            <span class="z2m-stat-label">${this._localize('instances.t1m')}</span>
-                          </div>
-                        ` : ''}
-                        ${instance.device_counts.t1_strip > 0 ? html`
-                          <div class="z2m-stat">
-                            <span class="z2m-stat-value">${instance.device_counts.t1_strip}</span>
-                            <span class="z2m-stat-label">${this._localize('instances.t1_strip')}</span>
-                          </div>
-                        ` : ''}
-                        ${instance.device_counts.other > 0 ? html`
-                          <div class="z2m-stat">
-                            <span class="z2m-stat-value">${instance.device_counts.other}</span>
-                            <span class="z2m-stat-label">${this._localize('instances.other')}</span>
-                          </div>
-                        ` : ''}
-                      </div>
-                      ${instance.devices.length > 0 ? html`
-                        <div class="z2m-devices-list">
-                          <details>
-                            <summary style="cursor: pointer; color: var(--secondary-text-color); font-size: var(--ha-font-size-s, 12px);">
-                              ${this._localize(instance.devices.length === 1 ? 'instances.show_devices_single' : 'instances.show_devices_plural', { count: String(instance.devices.length) })}
-                            </summary>
-                            <ul style="margin: 8px 0 0 0; padding-left: 20px; font-size: var(--ha-font-size-s, 12px); color: var(--secondary-text-color);">
-                              ${instance.devices.map(device => html`<li>${device}</li>`)}
-                            </ul>
-                          </details>
-                        </div>
-                      ` : ''}
-                    </div>
-                  `)}
+                    `;
+                  })}
                 </div>
               `}
         </div>
@@ -5175,12 +5261,26 @@ export class AqaraPanel extends LitElement {
       return '';
     }
 
+    // Count total zones across all devices for the subtitle
+    const totalZones = Array.from(segmentDevices.keys()).reduce(
+      (sum, ieee) => sum + (this._zoneEditing.get(ieee) || []).length, 0,
+    );
+    const deviceCount = segmentDevices.size;
+    const zoneSectionId = 'segment_zones';
+    const isZonesExpanded = this._collapsed[zoneSectionId] === undefined ? true : !this._collapsed[zoneSectionId];
+
     return html`
-      <ha-expansion-panel outlined .expanded=${true}>
+      <ha-expansion-panel
+        outlined
+        .expanded=${isZonesExpanded}
+        @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange(zoneSectionId, e)}
+      >
         <div slot="header" class="section-header">
           <div>
             <div class="section-title">${this._localize('config.segment_zones_title')}</div>
-            <div class="section-subtitle">${this._localize('config.segment_zones_subtitle')}</div>
+            <div class="section-subtitle">${totalZones > 0
+              ? this._localize('config.segment_zones_subtitle_count', { zones: totalZones.toString(), devices: deviceCount.toString() })
+              : this._localize('config.segment_zones_subtitle')}</div>
           </div>
         </div>
         <div class="section-content" style="display: block; padding: 0;">
@@ -5194,8 +5294,33 @@ export class AqaraPanel extends LitElement {
                   <span>${device.z2m_friendly_name}</span>
                   <span class="zone-device-segments">${this._localize('config.segment_count', { count: device.segment_count.toString() })}</span>
                 </div>
+                <div class="zone-device-toolbar">
+                  <ha-button @click=${() => this._addZoneRow(ieee)}>
+                    <ha-icon icon="mdi:plus"></ha-icon>
+                    <span class="zone-btn-label">${this._localize('config.zone_add_button')}</span>
+                  </ha-button>
+                  <div class="toolbar-spacer"></div>
+                  ${modified ? html`
+                    <span class="zone-unsaved-indicator">
+                      <span class="zone-unsaved-dot"></span>
+                      ${this._localize('config.zone_unsaved_changes')}
+                    </span>
+                  ` : ''}
+                  <ha-button
+                    @click=${() => this._saveZones(ieee, device.segment_count)}
+                    ?disabled=${!modified || this._zoneSaving}
+                  >
+                    <ha-icon icon="mdi:content-save-outline"></ha-icon>
+                    <span class="zone-btn-label">${this._localize('config.zone_save_button')}</span>
+                  </ha-button>
+                </div>
                 ${editZones.length === 0
-                  ? html`<div class="zone-empty-message">${this._localize('config.zone_no_zones')}</div>`
+                  ? html`
+                    <div class="zone-empty-state">
+                      <ha-icon icon="mdi:vector-square-plus"></ha-icon>
+                      <span class="zone-empty-title">${this._localize('config.zone_no_zones')}</span>
+                      <span class="zone-empty-hint">${this._localize('config.zone_empty_hint')}</span>
+                    </div>`
                   : html`
                     <div class="zone-list">
                       ${editZones.map((zone, index) => html`
@@ -5227,19 +5352,6 @@ export class AqaraPanel extends LitElement {
                       `)}
                     </div>
                   `}
-                <div class="zone-actions">
-                  <ha-button @click=${() => this._addZoneRow(ieee)}>
-                    <ha-icon icon="mdi:plus"></ha-icon>
-                    ${this._localize('config.zone_add_button')}
-                  </ha-button>
-                  <ha-button
-                    @click=${() => this._saveZones(ieee, device.segment_count)}
-                    ?disabled=${!modified || this._zoneSaving}
-                  >
-                    <ha-icon icon="mdi:content-save-outline"></ha-icon>
-                    ${this._localize('config.zone_save_button')}
-                  </ha-button>
-                </div>
               </div>
             `;
           })}

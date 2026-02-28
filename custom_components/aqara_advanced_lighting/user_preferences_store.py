@@ -6,8 +6,8 @@ import logging
 from typing import Any, TypedDict
 
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.storage import Store
 
+from .base_store import BaseStore
 from .const import DOMAIN, MAX_COLOR_HISTORY_SIZE
 
 _LOGGER = logging.getLogger(__name__)
@@ -61,24 +61,19 @@ DEFAULT_GLOBAL_PREFERENCES: GlobalPreferences = {
 }
 
 
-class UserPreferencesStore:
+class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
     """Manages per-user preferences storage, keyed by HA user ID."""
 
     def __init__(self, hass: HomeAssistant) -> None:
         """Initialize the user preferences store."""
-        self.hass = hass
-        self._store: Store[dict[str, dict[str, Any]]] = Store(
-            hass, STORAGE_VERSION, STORAGE_KEY
-        )
-        self._data: dict[str, UserPreferences] = {}
+        super().__init__(hass, STORAGE_VERSION, STORAGE_KEY, {})
         self._global_data: GlobalPreferences = {**DEFAULT_GLOBAL_PREFERENCES}
 
     async def async_load(self) -> None:
-        """Load preferences from storage."""
+        """Load preferences from storage, extracting global prefs from reserved key."""
         data = await self._store.async_load()
         if data is not None:
             self._data = data
-            # Load global preferences from reserved key
             raw_global = self._data.pop(GLOBAL_PREFERENCES_KEY, None)
             if raw_global and isinstance(raw_global, dict):
                 self._global_data = {
@@ -94,7 +89,7 @@ class UserPreferencesStore:
         _LOGGER.debug("Loaded preferences for %d users", len(self._data))
 
     async def async_save(self) -> None:
-        """Save preferences to storage."""
+        """Save preferences to storage, merging global prefs into reserved key."""
         save_data = {**self._data, GLOBAL_PREFERENCES_KEY: self._global_data}
         await self._store.async_save(save_data)
         _LOGGER.debug("Saved user preferences")

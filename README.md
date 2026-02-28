@@ -36,7 +36,7 @@ _If you want to show your support please_
 
 **Lighting control** -- 13 dynamic RGB effects, per-segment colors and gradients, RGB segment sequences (up to 20 steps with 8 activation patterns), CCT sequences (up to 20 steps), dynamic scenes with slow color transitions across multiple lights, pause/resume/stop control, and flexible segment selection.
 
-**100+ presets** -- 20 effects, 12 segment patterns, 4 CCT sequences, 6 segment sequences, 58 dynamic scenes. Create unlimited custom presets with the visual editors, back them up, and reuse them everywhere.
+**100+ presets** -- 20 effects, 12 segment patterns, 4 CCT sequences, 6 segment sequences, 58 dynamic scenes. Create up to 250 custom presets per type (1,250 total) with the visual editors, back them up, and reuse them everywhere.
 
 **Frontend panel** -- Sidebar-accessible UI with visual editors for every feature type, favorite lights, active presets monitoring, activation overrides, T1 Strip music sync control, and per-device configuration.
 
@@ -86,7 +86,7 @@ See the [Getting started guide](docs/getting-started.md) for detailed installati
 - Home Assistant 2025.12.0 or newer
 - Supported Aqara light devices with Zigbee firmware (see table above)
 - **One or both** Zigbee backends:
-  - **Zigbee2MQTT**: MQTT integration + Zigbee2MQTT 2.7.2+
+  - **Zigbee2MQTT**: MQTT integration + Zigbee2MQTT 2.7.2+ (recommended 2.9.0+)
   - **ZHA**: ZHA integration installed and configured
 
 ## Contributing

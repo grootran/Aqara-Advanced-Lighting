@@ -57,12 +57,14 @@ from .const import (
     DEFAULT_DYNAMIC_SCENE_TRANSITION_TIME,
     DISTRIBUTION_SHUFFLE_ROTATE,
     DOMAIN,
+    MAX_SEQUENCE_STEPS,
     PRESET_TYPE_CCT_SEQUENCE,
     PRESET_TYPE_DYNAMIC_SCENE,
     PRESET_TYPE_EFFECT,
     PRESET_TYPE_SEGMENT_PATTERN,
     PRESET_TYPE_SEGMENT_SEQUENCE,
     END_BEHAVIOR_MAINTAIN,
+    END_BEHAVIOR_RESTORE,
     END_BEHAVIOR_TURN_OFF,
     EVENT_ATTR_AUDIO_EFFECT,
     EVENT_ATTR_EFFECT_TYPE,
@@ -124,10 +126,13 @@ from .const import (
     SERVICE_STOP_CCT_SEQUENCE,
     SERVICE_STOP_EFFECT,
     SERVICE_STOP_SEGMENT_SEQUENCE,
+    T1_STRIP_DEFAULT_SEGMENT_COUNT,
+    T1_STRIP_SEGMENTS_PER_METER,
     brightness_percent_to_device,
 )
 from .presets import (
     CCT_SEQUENCE_PRESETS,
+    DYNAMIC_SCENE_PRESETS,
     EFFECT_PRESETS,
     SEGMENT_PATTERN_PRESETS,
     SEGMENT_SEQUENCE_PRESETS,
@@ -154,6 +159,7 @@ from .models import (
     XYColor,
 )
 from .backend_protocol import DeviceBackend
+from .preset_store import get_preset_store
 from .segment_utils import (
     expand_segment_colors,
     generate_block_colors,
@@ -166,9 +172,7 @@ from .state_manager import StateManager
 _LOGGER = logging.getLogger(__name__)
 
 
-def _get_context_and_record(
-    hass: HomeAssistant, entity_id: str
-) -> Context | None:
+def _get_context_and_record(hass: HomeAssistant, entity_id: str) -> Context | None:
     """Get integration context and record command timestamp.
 
     Call before any hass.services.async_call targeting a controlled entity
@@ -184,9 +188,15 @@ def _get_context_and_record(
 # RGB color schema (for dict format - backward compatibility)
 RGB_COLOR_SCHEMA = vol.Schema(
     {
-        vol.Required("r"): vol.All(vol.Coerce(int), vol.Range(MIN_RGB_VALUE, MAX_RGB_VALUE)),
-        vol.Required("g"): vol.All(vol.Coerce(int), vol.Range(MIN_RGB_VALUE, MAX_RGB_VALUE)),
-        vol.Required("b"): vol.All(vol.Coerce(int), vol.Range(MIN_RGB_VALUE, MAX_RGB_VALUE)),
+        vol.Required("r"): vol.All(
+            vol.Coerce(int), vol.Range(MIN_RGB_VALUE, MAX_RGB_VALUE)
+        ),
+        vol.Required("g"): vol.All(
+            vol.Coerce(int), vol.Range(MIN_RGB_VALUE, MAX_RGB_VALUE)
+        ),
+        vol.Required("b"): vol.All(
+            vol.Coerce(int), vol.Range(MIN_RGB_VALUE, MAX_RGB_VALUE)
+        ),
     }
 )
 
@@ -234,9 +244,10 @@ SERVICE_SET_DYNAMIC_EFFECT_SCHEMA = vol.Schema(
         vol.Optional(ATTR_COLOR_6): COLOR_SCHEMA,
         vol.Optional(ATTR_COLOR_7): COLOR_SCHEMA,
         vol.Optional(ATTR_COLOR_8): COLOR_SCHEMA,
-        vol.Optional(ATTR_SEGMENTS): cv.string,
+        vol.Optional(ATTR_SEGMENTS): vol.All(cv.string, vol.Length(max=200)),
         vol.Optional(ATTR_BRIGHTNESS): vol.All(
-            vol.Coerce(int), vol.Range(min=MIN_BRIGHTNESS_PERCENT, max=MAX_BRIGHTNESS_PERCENT)
+            vol.Coerce(int),
+            vol.Range(min=MIN_BRIGHTNESS_PERCENT, max=MAX_BRIGHTNESS_PERCENT),
         ),
         vol.Optional(ATTR_TURN_ON, default=False): cv.boolean,
         vol.Optional(ATTR_SYNC, default=True): cv.boolean,
@@ -258,7 +269,8 @@ SERVICE_SET_SEGMENT_PATTERN_SCHEMA = vol.Schema(
         vol.Optional(ATTR_PRESET): cv.string,
         vol.Optional(ATTR_SEGMENT_COLORS): [SEGMENT_COLOR_SCHEMA],
         vol.Optional(ATTR_BRIGHTNESS): vol.All(
-            vol.Coerce(int), vol.Range(min=MIN_BRIGHTNESS_PERCENT, max=MAX_BRIGHTNESS_PERCENT)
+            vol.Coerce(int),
+            vol.Range(min=MIN_BRIGHTNESS_PERCENT, max=MAX_BRIGHTNESS_PERCENT),
         ),
         vol.Optional(ATTR_TURN_ON, default=False): cv.boolean,
         vol.Optional(ATTR_TURN_OFF_UNSPECIFIED, default=False): cv.boolean,
@@ -278,9 +290,10 @@ SERVICE_CREATE_GRADIENT_SCHEMA = vol.Schema(
         vol.Optional(ATTR_COLOR_4): COLOR_SCHEMA,
         vol.Optional(ATTR_COLOR_5): COLOR_SCHEMA,
         vol.Optional(ATTR_COLOR_6): COLOR_SCHEMA,
-        vol.Optional(ATTR_SEGMENTS): cv.string,
+        vol.Optional(ATTR_SEGMENTS): vol.All(cv.string, vol.Length(max=200)),
         vol.Optional(ATTR_BRIGHTNESS): vol.All(
-            vol.Coerce(int), vol.Range(min=MIN_BRIGHTNESS_PERCENT, max=MAX_BRIGHTNESS_PERCENT)
+            vol.Coerce(int),
+            vol.Range(min=MIN_BRIGHTNESS_PERCENT, max=MAX_BRIGHTNESS_PERCENT),
         ),
         vol.Optional(ATTR_TURN_ON, default=False): cv.boolean,
         vol.Optional(ATTR_TURN_OFF_UNSPECIFIED, default=False): cv.boolean,
@@ -300,9 +313,10 @@ SERVICE_CREATE_BLOCKS_SCHEMA = vol.Schema(
         vol.Optional(ATTR_COLOR_4): COLOR_SCHEMA,
         vol.Optional(ATTR_COLOR_5): COLOR_SCHEMA,
         vol.Optional(ATTR_COLOR_6): COLOR_SCHEMA,
-        vol.Optional(ATTR_SEGMENTS): cv.string,
+        vol.Optional(ATTR_SEGMENTS): vol.All(cv.string, vol.Length(max=200)),
         vol.Optional(ATTR_BRIGHTNESS): vol.All(
-            vol.Coerce(int), vol.Range(min=MIN_BRIGHTNESS_PERCENT, max=MAX_BRIGHTNESS_PERCENT)
+            vol.Coerce(int),
+            vol.Range(min=MIN_BRIGHTNESS_PERCENT, max=MAX_BRIGHTNESS_PERCENT),
         ),
         vol.Optional(ATTR_TURN_ON, default=False): cv.boolean,
         vol.Optional(ATTR_EXPAND, default=False): cv.boolean,
@@ -312,6 +326,83 @@ SERVICE_CREATE_BLOCKS_SCHEMA = vol.Schema(
     }
 )
 
+
+def _add_cct_step_fields(schema_dict: dict, step_num: int) -> None:
+    """Add CCT sequence step fields to a schema dict."""
+    schema_dict[f"step_{step_num}_color_temp"] = vol.Optional(
+        vol.All(
+            vol.Coerce(int),
+            vol.Range(min=MIN_COLOR_TEMP_KELVIN, max=MAX_COLOR_TEMP_KELVIN),
+        )
+    )
+    schema_dict[f"step_{step_num}_brightness"] = vol.Optional(
+        vol.All(
+            vol.Coerce(int),
+            vol.Range(min=MIN_BRIGHTNESS_PERCENT, max=MAX_BRIGHTNESS_PERCENT),
+        )
+    )
+    schema_dict[f"step_{step_num}_transition"] = vol.Optional(
+        vol.All(
+            vol.Coerce(float),
+            vol.Range(min=MIN_TRANSITION_TIME, max=MAX_TRANSITION_TIME),
+        )
+    )
+    schema_dict[f"step_{step_num}_hold"] = vol.Optional(
+        vol.All(vol.Coerce(float), vol.Range(min=MIN_HOLD_TIME, max=MAX_HOLD_TIME))
+    )
+
+
+# Activation patterns used in segment sequence step schemas
+_ACTIVATION_PATTERN_VALUES = [
+    ACTIVATION_ALL,
+    ACTIVATION_SEQUENTIAL_FORWARD,
+    ACTIVATION_SEQUENTIAL_REVERSE,
+    ACTIVATION_RANDOM,
+    ACTIVATION_PING_PONG,
+    ACTIVATION_CENTER_OUT,
+    ACTIVATION_EDGES_IN,
+    ACTIVATION_PAIRED,
+]
+
+
+def _add_segment_step_fields(schema_dict: dict, step_num: int) -> None:
+    """Add segment sequence step fields to a schema dict."""
+    schema_dict[f"step_{step_num}_segments"] = vol.Optional(cv.string)
+    schema_dict[f"step_{step_num}_mode"] = vol.Optional(
+        vol.In(
+            [
+                SEGMENT_MODE_BLOCKS_REPEAT,
+                SEGMENT_MODE_BLOCKS_EXPAND,
+                SEGMENT_MODE_GRADIENT,
+            ]
+        )
+    )
+    for color_num in range(1, 7):
+        schema_dict[f"step_{step_num}_color_{color_num}"] = vol.Optional(COLOR_SCHEMA)
+    schema_dict[f"step_{step_num}_segment_colors"] = vol.Optional(
+        vol.All(
+            cv.ensure_list,
+            [
+                vol.Schema(
+                    {
+                        vol.Required("segment"): vol.Coerce(int),
+                        vol.Required("color"): RGB_COLOR_SCHEMA,
+                    }
+                )
+            ],
+        )
+    )
+    schema_dict[f"step_{step_num}_duration"] = vol.Optional(
+        vol.All(vol.Coerce(float), vol.Range(min=MIN_DURATION, max=MAX_DURATION))
+    )
+    schema_dict[f"step_{step_num}_hold"] = vol.Optional(
+        vol.All(vol.Coerce(float), vol.Range(min=MIN_HOLD_TIME, max=MAX_HOLD_TIME))
+    )
+    schema_dict[f"step_{step_num}_activation_pattern"] = vol.Optional(
+        vol.In(_ACTIVATION_PATTERN_VALUES)
+    )
+
+
 # Build CCT sequence service schema with individual step fields
 _cct_sequence_schema_dict = {
     vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
@@ -320,45 +411,20 @@ _cct_sequence_schema_dict = {
     vol.Optional(ATTR_SYNC, default=True): cv.boolean,
 }
 
-# Add step 1 fields (optional - required only when not using a preset)
-_cct_sequence_schema_dict["step_1_color_temp"] = vol.Optional(vol.All(
-    vol.Coerce(int), vol.Range(min=MIN_COLOR_TEMP_KELVIN, max=MAX_COLOR_TEMP_KELVIN)
-))
-_cct_sequence_schema_dict["step_1_brightness"] = vol.Optional(vol.All(
-    vol.Coerce(int), vol.Range(min=MIN_BRIGHTNESS_PERCENT, max=MAX_BRIGHTNESS_PERCENT)
-))
-_cct_sequence_schema_dict["step_1_transition"] = vol.Optional(vol.All(
-    vol.Coerce(float), vol.Range(min=MIN_TRANSITION_TIME, max=MAX_TRANSITION_TIME)
-))
-_cct_sequence_schema_dict["step_1_hold"] = vol.Optional(vol.All(
-    vol.Coerce(float), vol.Range(min=MIN_HOLD_TIME, max=MAX_HOLD_TIME)
-))
-
-# Add steps 2-20 fields (optional)
-for step_num in range(2, 21):
-    _cct_sequence_schema_dict[f"step_{step_num}_color_temp"] = vol.Optional(vol.All(
-        vol.Coerce(int), vol.Range(min=MIN_COLOR_TEMP_KELVIN, max=MAX_COLOR_TEMP_KELVIN)
-    ))
-    _cct_sequence_schema_dict[f"step_{step_num}_brightness"] = vol.Optional(vol.All(
-        vol.Coerce(int), vol.Range(min=MIN_BRIGHTNESS_PERCENT, max=MAX_BRIGHTNESS_PERCENT)
-    ))
-    _cct_sequence_schema_dict[f"step_{step_num}_transition"] = vol.Optional(vol.All(
-        vol.Coerce(float), vol.Range(min=MIN_TRANSITION_TIME, max=MAX_TRANSITION_TIME)
-    ))
-    _cct_sequence_schema_dict[f"step_{step_num}_hold"] = vol.Optional(vol.All(
-        vol.Coerce(float), vol.Range(min=MIN_HOLD_TIME, max=MAX_HOLD_TIME)
-    ))
+# Add step 1-20 fields (all optional - required only when not using a preset)
+for _step_num in range(1, MAX_SEQUENCE_STEPS + 1):
+    _add_cct_step_fields(_cct_sequence_schema_dict, _step_num)
 
 # Add loop/end behavior fields
-_cct_sequence_schema_dict[vol.Optional(ATTR_LOOP_MODE, default=LOOP_MODE_ONCE)] = vol.In(
-    [LOOP_MODE_ONCE, LOOP_MODE_COUNT, LOOP_MODE_CONTINUOUS]
+_cct_sequence_schema_dict[vol.Optional(ATTR_LOOP_MODE, default=LOOP_MODE_ONCE)] = (
+    vol.In([LOOP_MODE_ONCE, LOOP_MODE_COUNT, LOOP_MODE_CONTINUOUS])
 )
 _cct_sequence_schema_dict[vol.Optional(ATTR_LOOP_COUNT)] = vol.All(
     vol.Coerce(int), vol.Range(min=MIN_LOOP_COUNT, max=MAX_LOOP_COUNT)
 )
-_cct_sequence_schema_dict[vol.Optional(ATTR_END_BEHAVIOR, default=END_BEHAVIOR_MAINTAIN)] = vol.In(
-    [END_BEHAVIOR_MAINTAIN, END_BEHAVIOR_TURN_OFF]
-)
+_cct_sequence_schema_dict[
+    vol.Optional(ATTR_END_BEHAVIOR, default=END_BEHAVIOR_MAINTAIN)
+] = vol.In([END_BEHAVIOR_MAINTAIN, END_BEHAVIOR_TURN_OFF, END_BEHAVIOR_RESTORE])
 _cct_sequence_schema_dict[vol.Optional(ATTR_Z2M_BASE_TOPIC)] = cv.string
 
 SERVICE_START_CCT_SEQUENCE_SCHEMA = vol.Schema(_cct_sequence_schema_dict)
@@ -366,6 +432,7 @@ SERVICE_START_CCT_SEQUENCE_SCHEMA = vol.Schema(_cct_sequence_schema_dict)
 SERVICE_STOP_CCT_SEQUENCE_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+        vol.Optional(ATTR_RESTORE_STATE, default=True): cv.boolean,
         vol.Optional(ATTR_Z2M_BASE_TOPIC): cv.string,
     }
 )
@@ -392,91 +459,26 @@ _segment_sequence_schema_dict = {
     vol.Optional(ATTR_SYNC, default=True): cv.boolean,
 }
 
-# Add step 1 fields (optional - required only when not using a preset)
-_segment_sequence_schema_dict["step_1_segments"] = vol.Optional(cv.string)
-_segment_sequence_schema_dict["step_1_mode"] = vol.Optional(
-    vol.In([SEGMENT_MODE_BLOCKS_REPEAT, SEGMENT_MODE_BLOCKS_EXPAND, SEGMENT_MODE_GRADIENT])
-)
-_segment_sequence_schema_dict["step_1_color_1"] = vol.Optional(COLOR_SCHEMA)
-_segment_sequence_schema_dict["step_1_color_2"] = vol.Optional(COLOR_SCHEMA)
-_segment_sequence_schema_dict["step_1_color_3"] = vol.Optional(COLOR_SCHEMA)
-_segment_sequence_schema_dict["step_1_color_4"] = vol.Optional(COLOR_SCHEMA)
-_segment_sequence_schema_dict["step_1_color_5"] = vol.Optional(COLOR_SCHEMA)
-_segment_sequence_schema_dict["step_1_color_6"] = vol.Optional(COLOR_SCHEMA)
-_segment_sequence_schema_dict["step_1_segment_colors"] = vol.Optional(
-    vol.All(cv.ensure_list, [vol.Schema({
-        vol.Required("segment"): vol.Coerce(int),
-        vol.Required("color"): RGB_COLOR_SCHEMA,
-    })])
-)
-_segment_sequence_schema_dict["step_1_duration"] = vol.Optional(
-    vol.All(vol.Coerce(float), vol.Range(min=MIN_DURATION, max=MAX_DURATION))
-)
-_segment_sequence_schema_dict["step_1_hold"] = vol.Optional(
-    vol.All(vol.Coerce(float), vol.Range(min=MIN_HOLD_TIME, max=MAX_HOLD_TIME))
-)
-_segment_sequence_schema_dict["step_1_activation_pattern"] = vol.Optional(
-    vol.In([
-        ACTIVATION_ALL,
-        ACTIVATION_SEQUENTIAL_FORWARD,
-        ACTIVATION_SEQUENTIAL_REVERSE,
-        ACTIVATION_RANDOM,
-        ACTIVATION_PING_PONG,
-        ACTIVATION_CENTER_OUT,
-        ACTIVATION_EDGES_IN,
-        ACTIVATION_PAIRED,
-    ])
-)
-
-# Add steps 2-20 fields (optional)
-for step_num in range(2, 21):
-    _segment_sequence_schema_dict[f"step_{step_num}_segments"] = vol.Optional(cv.string)
-    _segment_sequence_schema_dict[f"step_{step_num}_mode"] = vol.Optional(
-        vol.In([SEGMENT_MODE_BLOCKS_REPEAT, SEGMENT_MODE_BLOCKS_EXPAND, SEGMENT_MODE_GRADIENT])
-    )
-    _segment_sequence_schema_dict[f"step_{step_num}_color_1"] = vol.Optional(COLOR_SCHEMA)
-    _segment_sequence_schema_dict[f"step_{step_num}_color_2"] = vol.Optional(COLOR_SCHEMA)
-    _segment_sequence_schema_dict[f"step_{step_num}_color_3"] = vol.Optional(COLOR_SCHEMA)
-    _segment_sequence_schema_dict[f"step_{step_num}_color_4"] = vol.Optional(COLOR_SCHEMA)
-    _segment_sequence_schema_dict[f"step_{step_num}_color_5"] = vol.Optional(COLOR_SCHEMA)
-    _segment_sequence_schema_dict[f"step_{step_num}_color_6"] = vol.Optional(COLOR_SCHEMA)
-    _segment_sequence_schema_dict[f"step_{step_num}_segment_colors"] = vol.Optional(
-        vol.All(cv.ensure_list, [vol.Schema({
-            vol.Required("segment"): vol.Coerce(int),
-            vol.Required("color"): RGB_COLOR_SCHEMA,
-        })])
-    )
-    _segment_sequence_schema_dict[f"step_{step_num}_duration"] = vol.Optional(
-        vol.All(vol.Coerce(float), vol.Range(min=MIN_DURATION, max=MAX_DURATION))
-    )
-    _segment_sequence_schema_dict[f"step_{step_num}_hold"] = vol.Optional(
-        vol.All(vol.Coerce(float), vol.Range(min=MIN_HOLD_TIME, max=MAX_HOLD_TIME))
-    )
-    _segment_sequence_schema_dict[f"step_{step_num}_activation_pattern"] = vol.Optional(
-        vol.In([
-            ACTIVATION_ALL,
-            ACTIVATION_SEQUENTIAL_FORWARD,
-            ACTIVATION_SEQUENTIAL_REVERSE,
-            ACTIVATION_RANDOM,
-            ACTIVATION_PING_PONG,
-            ACTIVATION_CENTER_OUT,
-            ACTIVATION_EDGES_IN,
-            ACTIVATION_PAIRED,
-        ])
-    )
+# Add step 1-20 fields (all optional - required only when not using a preset)
+for _step_num in range(1, MAX_SEQUENCE_STEPS + 1):
+    _add_segment_step_fields(_segment_sequence_schema_dict, _step_num)
 
 # Add loop/end behavior fields
-_segment_sequence_schema_dict[vol.Optional(ATTR_LOOP_MODE, default=LOOP_MODE_ONCE)] = vol.In(
-    [LOOP_MODE_ONCE, LOOP_MODE_COUNT, LOOP_MODE_CONTINUOUS]
+_segment_sequence_schema_dict[vol.Optional(ATTR_LOOP_MODE, default=LOOP_MODE_ONCE)] = (
+    vol.In([LOOP_MODE_ONCE, LOOP_MODE_COUNT, LOOP_MODE_CONTINUOUS])
 )
 _segment_sequence_schema_dict[vol.Optional(ATTR_LOOP_COUNT)] = vol.All(
     vol.Coerce(int), vol.Range(min=MIN_LOOP_COUNT, max=MAX_LOOP_COUNT)
 )
-_segment_sequence_schema_dict[vol.Optional(ATTR_END_BEHAVIOR, default=END_BEHAVIOR_MAINTAIN)] = vol.In(
-    [END_BEHAVIOR_MAINTAIN, END_BEHAVIOR_TURN_OFF]
+_segment_sequence_schema_dict[
+    vol.Optional(ATTR_END_BEHAVIOR, default=END_BEHAVIOR_MAINTAIN)
+] = vol.In([END_BEHAVIOR_MAINTAIN, END_BEHAVIOR_TURN_OFF, END_BEHAVIOR_RESTORE])
+_segment_sequence_schema_dict[vol.Optional(ATTR_CLEAR_SEGMENTS, default=False)] = (
+    cv.boolean
 )
-_segment_sequence_schema_dict[vol.Optional(ATTR_CLEAR_SEGMENTS, default=False)] = cv.boolean
-_segment_sequence_schema_dict[vol.Optional(ATTR_SKIP_FIRST_IN_LOOP, default=False)] = cv.boolean
+_segment_sequence_schema_dict[vol.Optional(ATTR_SKIP_FIRST_IN_LOOP, default=False)] = (
+    cv.boolean
+)
 _segment_sequence_schema_dict[vol.Optional(ATTR_Z2M_BASE_TOPIC)] = cv.string
 
 SERVICE_START_SEGMENT_SEQUENCE_SCHEMA = vol.Schema(_segment_sequence_schema_dict)
@@ -484,6 +486,7 @@ SERVICE_START_SEGMENT_SEQUENCE_SCHEMA = vol.Schema(_segment_sequence_schema_dict
 SERVICE_STOP_SEGMENT_SEQUENCE_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+        vol.Optional(ATTR_RESTORE_STATE, default=True): cv.boolean,
         vol.Optional(ATTR_Z2M_BASE_TOPIC): cv.string,
     }
 )
@@ -525,12 +528,12 @@ SERVICE_START_DYNAMIC_SCENE_SCHEMA = vol.Schema(
         vol.Optional(
             "transition_time", default=DEFAULT_DYNAMIC_SCENE_TRANSITION_TIME
         ): vol.Coerce(float),
-        vol.Optional(
-            "hold_time", default=DEFAULT_DYNAMIC_SCENE_HOLD_TIME
-        ): vol.Coerce(float),
-        vol.Optional(
-            "distribution_mode", default=DISTRIBUTION_SHUFFLE_ROTATE
-        ): vol.In(VALID_DISTRIBUTION_MODES),
+        vol.Optional("hold_time", default=DEFAULT_DYNAMIC_SCENE_HOLD_TIME): vol.Coerce(
+            float
+        ),
+        vol.Optional("distribution_mode", default=DISTRIBUTION_SHUFFLE_ROTATE): vol.In(
+            VALID_DISTRIBUTION_MODES
+        ),
         vol.Optional("offset_delay", default=0.0): vol.Coerce(float),
         vol.Optional("random_order", default=False): cv.boolean,
         vol.Optional(ATTR_LOOP_MODE, default="continuous"): vol.In(
@@ -550,6 +553,7 @@ SERVICE_START_DYNAMIC_SCENE_SCHEMA = vol.Schema(
 SERVICE_STOP_DYNAMIC_SCENE_SCHEMA = vol.Schema(
     {
         vol.Optional(ATTR_ENTITY_ID): cv.entity_ids,
+        vol.Optional(ATTR_RESTORE_STATE): cv.boolean,
     }
 )
 
@@ -667,22 +671,6 @@ def _get_instance_for_entity(
     return None, None
 
 
-def _get_any_instance(hass: HomeAssistant) -> tuple[str | None, dict | None]:
-    """Get any available instance (for backward compatibility).
-
-    Returns the first available instance or (None, None) if none exist.
-    """
-    if DOMAIN not in hass.data:
-        return None, None
-
-    entries = hass.data[DOMAIN].get("entries", {})
-    if entries:
-        entry_id = next(iter(entries))
-        return entry_id, entries[entry_id]
-
-    return None, None
-
-
 def _get_backend_for_entity(
     hass: HomeAssistant, entity_id: str
 ) -> DeviceBackend | None:
@@ -699,40 +687,6 @@ def _get_backend_for_entity(
     if instance_data:
         return instance_data.get("backend")
     return None
-
-
-def _get_backend_and_state_manager(
-    hass: HomeAssistant,
-) -> tuple[DeviceBackend, StateManager]:
-    """Get any backend and state manager from hass.data.
-
-    This is used for validation that doesn't require entity-specific routing.
-    For entity-specific operations, use _get_instance_for_entity instead.
-    """
-    if DOMAIN not in hass.data:
-        raise ServiceValidationError(
-            translation_domain=DOMAIN,
-            translation_key="integration_not_initialized",
-        )
-
-    # Get any instance (for backward compatibility and general validation)
-    _, instance_data = _get_any_instance(hass)
-    if not instance_data:
-        raise ServiceValidationError(
-            translation_domain=DOMAIN,
-            translation_key="components_not_initialized",
-        )
-
-    backend = instance_data.get("backend")
-    state_manager = instance_data.get("state_manager")
-
-    if not backend or not state_manager:
-        raise ServiceValidationError(
-            translation_domain=DOMAIN,
-            translation_key="components_not_initialized",
-        )
-
-    return backend, state_manager
 
 
 def _get_instance_components_for_entity(
@@ -761,7 +715,8 @@ def _get_instance_components_for_entity(
             if backend:
                 backend_type = getattr(
                     getattr(backend, "entry", None),
-                    "runtime_data", None,
+                    "runtime_data",
+                    None,
                 )
                 if backend_type:
                     instance_names.append(
@@ -787,28 +742,6 @@ def _get_instance_components_for_entity(
         )
 
     return backend, state_manager, entry_id
-
-
-def _get_preset_store(hass: HomeAssistant):
-    """Get the preset store from hass.data.
-
-    Returns:
-        PresetStore instance or None if not initialized.
-    """
-    if DOMAIN not in hass.data:
-        _LOGGER.error(
-            "Integration domain not found in hass.data - integration may not be set up"
-        )
-        return None
-    preset_store = hass.data[DOMAIN].get(DATA_PRESET_STORE)
-    if preset_store is None:
-        _LOGGER.error(
-            "Preset store not found in hass.data[%s] - this should not happen. "
-            "Available keys: %s",
-            DOMAIN,
-            list(hass.data[DOMAIN].keys()),
-        )
-    return preset_store
 
 
 def _get_zones_for_device(
@@ -874,9 +807,7 @@ def _resolve_entity_ids(hass: HomeAssistant, entity_ids: list[str]) -> list[str]
     return unique_resolved
 
 
-def _validate_supported_entities(
-    hass: HomeAssistant, entity_ids: list[str]
-) -> None:
+def _validate_supported_entities(hass: HomeAssistant, entity_ids: list[str]) -> None:
     """Validate that all entities are supported Aqara devices.
 
     Checks across all configured Z2M instances to find each entity.
@@ -988,9 +919,7 @@ def _get_any_cct_manager(
     return None
 
 
-def _find_cct_manager_for_entity(
-    hass: HomeAssistant, entity_id: str
-) -> Any | None:
+def _find_cct_manager_for_entity(hass: HomeAssistant, entity_id: str) -> Any | None:
     """Find the CCT manager that has an active sequence for an entity.
 
     Searches all instances including generic routing. Used by stop/pause/resume
@@ -1012,109 +941,151 @@ def _find_cct_manager_for_entity(
     return None
 
 
+def _get_dynamic_scene_manager(hass: HomeAssistant) -> Any:
+    """Get the dynamic scene manager from any available config entry.
+
+    Dynamic scenes use HA service calls so any instance's manager works.
+
+    Returns:
+        Dynamic scene manager instance
+
+    Raises:
+        HomeAssistantError: If no manager is available
+    """
+    for instance_data in hass.data.get(DOMAIN, {}).get("entries", {}).values():
+        manager = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+        if manager:
+            return manager
+    raise HomeAssistantError("Dynamic scene manager not initialized")
+
+
+def _get_t1_strip_length_from_state(
+    hass: HomeAssistant, entity_id: str
+) -> float | None:
+    """Try to get T1 Strip length from the main entity's attributes."""
+    state = hass.states.get(entity_id)
+    if state and state.attributes:
+        length = state.attributes.get("length")
+        if length is not None:
+            return float(length)
+    return None
+
+
+def _get_t1_strip_length_from_sibling(
+    hass: HomeAssistant, entity_id: str
+) -> float | None:
+    """Try to get T1 Strip length from a sibling number/sensor entity.
+
+    Builds the expected entity ID from the light entity name,
+    e.g. light.t1_led_strip -> number.t1_led_strip_length.
+    """
+    base_name = entity_id.split(".", 1)[-1] if "." in entity_id else entity_id
+
+    for domain in ("number", "sensor"):
+        length_entity_id = f"{domain}.{base_name}_length"
+        length_state = hass.states.get(length_entity_id)
+        if length_state and length_state.state not in ("unknown", "unavailable"):
+            try:
+                length = float(length_state.state)
+                _LOGGER.debug(
+                    "Found T1 Strip length from entity %s: %s meters",
+                    length_entity_id,
+                    length,
+                )
+                return length
+            except (ValueError, TypeError):
+                pass
+    return None
+
+
+def _get_t1_strip_length_from_registry(
+    hass: HomeAssistant, entity_id: str
+) -> float | None:
+    """Try to get T1 Strip length by searching the device registry.
+
+    Finds all entities on the same device and looks for one with
+    "length" in its entity_id or unique_id.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    entity_reg = er.async_get(hass)
+    light_entry = entity_reg.async_get(entity_id)
+    if not light_entry or not light_entry.device_id:
+        return None
+
+    for entry in er.async_entries_for_device(entity_reg, light_entry.device_id):
+        if entry.domain not in ("number", "sensor"):
+            continue
+        if "length" not in entry.entity_id.lower() and not (
+            entry.unique_id and "length" in entry.unique_id.lower()
+        ):
+            continue
+        length_state = hass.states.get(entry.entity_id)
+        if length_state and length_state.state not in ("unknown", "unavailable"):
+            try:
+                length = float(length_state.state)
+                _LOGGER.debug(
+                    "Found T1 Strip length from device entity %s: %s meters",
+                    entry.entity_id,
+                    length,
+                )
+                return length
+            except (ValueError, TypeError):
+                pass
+    return None
+
+
+# Cache for T1 Strip segment counts (entity_id -> segment_count).
+# Cleared only on HA restart; strip length rarely changes at runtime.
+_t1_strip_segment_cache: dict[str, int] = {}
+
+
 def _get_actual_segment_count(
     hass: HomeAssistant, entity_id: str, model_id: str
 ) -> int:
     """Get actual segment count for a device, considering T1 Strip variable length.
 
     For T1 Strip, attempts to read the length attribute from entity state.
-    Falls back to reasonable defaults if unavailable.
+    Falls back to reasonable defaults if unavailable. Results for T1 Strip
+    are cached since physical strip length rarely changes.
     """
     base_count = get_segment_count(model_id)
-
-    # If not T1 Strip (base_count != 0), return the fixed count
     if base_count != 0:
         return base_count
 
-    # For T1 Strip, try to get actual length from entity attributes or separate length entity
     if model_id == MODEL_T1_STRIP:
-        state = hass.states.get(entity_id)
-        length_meters = None
+        if entity_id in _t1_strip_segment_cache:
+            return _t1_strip_segment_cache[entity_id]
 
-        # Try to get length from main entity attributes first
-        if state and state.attributes:
-            length_meters = state.attributes.get("length")
+        # Try each lookup strategy in order of cost
+        length_meters = (
+            _get_t1_strip_length_from_state(hass, entity_id)
+            or _get_t1_strip_length_from_sibling(hass, entity_id)
+            or _get_t1_strip_length_from_registry(hass, entity_id)
+        )
 
-        # If not in attributes, try to find separate length entity
-        if length_meters is None:
-            # Method 1: Try to build entity ID from light entity name
-            # e.g., light.t1_led_strip -> number.t1_led_strip_length
-            base_name = entity_id.split(".", 1)[-1] if "." in entity_id else entity_id
-
-            for domain in ["number", "sensor"]:
-                length_entity_id = f"{domain}.{base_name}_length"
-                length_state = hass.states.get(length_entity_id)
-                if length_state and length_state.state not in ("unknown", "unavailable"):
-                    try:
-                        length_meters = float(length_state.state)
-                        _LOGGER.debug(
-                            "Found T1 Strip length from entity %s: %s meters",
-                            length_entity_id,
-                            length_meters
-                        )
-                        break
-                    except (ValueError, TypeError):
-                        pass
-
-            # Method 2: If still not found, search device registry for length entity on same device
-            if length_meters is None:
-                from homeassistant.helpers import entity_registry as er, device_registry as dr
-
-                entity_reg = er.async_get(hass)
-                device_reg = dr.async_get(hass)
-
-                # Get the light entity's entry to find its device
-                light_entity_entry = entity_reg.async_get(entity_id)
-                if light_entity_entry and light_entity_entry.device_id:
-                    # Get all entities for this device
-                    device_entities = er.async_entries_for_device(
-                        entity_reg, light_entity_entry.device_id
-                    )
-
-                    # Look for a length entity (number or sensor with "length" in unique_id or entity_id)
-                    for entity_entry in device_entities:
-                        if entity_entry.domain in ["number", "sensor"]:
-                            # Check if it's a length entity by looking at unique_id or entity_id
-                            if (
-                                "length" in entity_entry.entity_id.lower()
-                                or (entity_entry.unique_id and "length" in entity_entry.unique_id.lower())
-                            ):
-                                length_state = hass.states.get(entity_entry.entity_id)
-                                if length_state and length_state.state not in ("unknown", "unavailable"):
-                                    try:
-                                        length_meters = float(length_state.state)
-                                        _LOGGER.debug(
-                                            "Found T1 Strip length from device entity %s: %s meters",
-                                            entity_entry.entity_id,
-                                            length_meters
-                                        )
-                                        break
-                                    except (ValueError, TypeError):
-                                        pass
-
-        # Calculate segment count from length if we found it
         if length_meters is not None:
             try:
-                # T1 Strip has 5 segments per meter
-                segment_count = int(float(length_meters) * 5)
+                segment_count = int(float(length_meters) * T1_STRIP_SEGMENTS_PER_METER)
                 _LOGGER.debug(
                     "T1 Strip %s: %s meters = %s segments",
                     entity_id,
                     length_meters,
-                    segment_count
+                    segment_count,
                 )
+                _t1_strip_segment_cache[entity_id] = segment_count
                 return segment_count
             except (ValueError, TypeError):
                 pass
 
-        # Default to 2 meters (10 segments) if length unavailable
         _LOGGER.debug(
-            "Could not determine T1 Strip length for %s (no length entity or attribute found), defaulting to 10 segments (2 meters)",
-            entity_id
+            "Could not determine T1 Strip length for %s, defaulting to %d segments",
+            entity_id,
+            T1_STRIP_DEFAULT_SEGMENT_COUNT,
         )
-        return 10
+        return T1_STRIP_DEFAULT_SEGMENT_COUNT
 
-    # For other unknown devices, return a reasonable default
+    # Unknown device default
     return 20
 
 
@@ -1186,7 +1157,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         is_user_preset = False
         if preset:
             # Check user presets first
-            preset_store = _get_preset_store(hass)
+            preset_store = get_preset_store(hass)
             user_preset = None
             if preset_store:
                 user_preset = preset_store.get_preset_by_name(
@@ -1236,7 +1207,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
                 _LOGGER.debug(
                     "Using user preset '%s': effect=%s, speed=%d, colors=%d, brightness=%s",
-                    preset, effect_str, speed, len(colors_data), brightness
+                    preset,
+                    effect_str,
+                    speed,
+                    len(colors_data),
+                    brightness,
                 )
             elif preset in EFFECT_PRESETS:
                 # Use built-in preset
@@ -1334,7 +1309,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         instance_groups: dict[str, dict] = {}
 
         # First pass: validate all entities and collect turn_on data
-        validated_entities: list[tuple] = []  # (entity_id, backend, aqara_device, entry_id, state_manager, entity_segments)
+        validated_entities: list[
+            tuple
+        ] = []  # (entity_id, backend, aqara_device, entry_id, state_manager, entity_segments)
 
         for entity_id in resolved_entity_ids:
             # Get the correct instance components for this entity
@@ -1366,7 +1343,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     )
 
             # Validate effect is supported for this model
-            is_valid, error_msg = validate_effect_for_model(aqara_device.model_id, effect)
+            is_valid, error_msg = validate_effect_for_model(
+                aqara_device.model_id, effect
+            )
             if not is_valid:
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
@@ -1399,11 +1378,25 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     )
 
             validated_entities.append(
-                (entity_id, entity_backend, aqara_device, entry_id, entity_state_manager, entity_segments)
+                (
+                    entity_id,
+                    entity_backend,
+                    aqara_device,
+                    entry_id,
+                    entity_state_manager,
+                    entity_segments,
+                )
             )
 
         # Second pass: process each validated entity
-        for entity_id, entity_backend, aqara_device, entry_id, entity_state_manager, entity_segments in validated_entities:
+        for (
+            entity_id,
+            entity_backend,
+            aqara_device,
+            entry_id,
+            entity_state_manager,
+            entity_segments,
+        ) in validated_entities:
             segments = entity_segments  # Use per-entity segments value
 
             # Stop all conflicting continuous actions (sequences, scenes)
@@ -1422,9 +1415,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 try:
                     await entity_backend.async_stop_music_sync(entity_id)
                 except Exception:
-                    _LOGGER.exception(
-                        "Failed to stop music sync on %s", entity_id
-                    )
+                    _LOGGER.exception("Failed to stop music sync on %s", entity_id)
                 active_music_sync.pop(entity_id, None)
 
             # Capture current state before applying effect
@@ -1445,9 +1436,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     "state_manager": entity_state_manager,
                     "entities": [],
                 }
-            instance_groups[entry_id]["entities"].append(
-                (entity_id, dynamic_effect)
-            )
+            instance_groups[entry_id]["entities"].append((entity_id, dynamic_effect))
 
         # Send effects to all devices, grouped by instance
         all_entities_published: list[tuple[str, DynamicEffect, StateManager]] = []
@@ -1481,16 +1470,12 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     try:
                         await group_backend.async_send_effect(eid, dynamic_effect)
                     except Exception as ex:
-                        _LOGGER.warning(
-                            "Failed to send effect to %s: %s", eid, ex
-                        )
+                        _LOGGER.warning("Failed to send effect to %s: %s", eid, ex)
                         continue
 
             # Add to combined list for marking effects active
             for entity_data in group_entities:
-                all_entities_published.append(
-                    (*entity_data, group_state_manager)
-                )
+                all_entities_published.append((*entity_data, group_state_manager))
 
         # Turn on lights after effect writes so the device has colors
         # configured before powering on, avoiding a brief flash of wrong colors
@@ -1533,7 +1518,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
             # Execute brightness changes in parallel
             if brightness_tasks:
-                results = await asyncio.gather(*brightness_tasks, return_exceptions=True)
+                results = await asyncio.gather(
+                    *brightness_tasks, return_exceptions=True
+                )
                 for idx, result in enumerate(results):
                     if isinstance(result, Exception):
                         entity_id = all_entities_published[idx][0]
@@ -1575,11 +1562,15 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
                 if restore_state:
                     restored = await entity_state_manager.async_restore_entity_state(
-                        entity_id, blocking=True, context=ctx,
+                        entity_id,
+                        blocking=True,
+                        context=ctx,
                     )
 
                 if restored:
-                    _LOGGER.info("Stopped effect and restored previous state for %s", entity_id)
+                    _LOGGER.info(
+                        "Stopped effect and restored previous state for %s", entity_id
+                    )
                 else:
                     # No saved state - stop effect with a default warm white RGB color
                     await hass.services.async_call(
@@ -1589,7 +1580,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         blocking=True,
                         context=ctx,
                     )
-                    _LOGGER.info("Stopped effect for %s (set to default warm white)", entity_id)
+                    _LOGGER.info(
+                        "Stopped effect for %s (set to default warm white)", entity_id
+                    )
 
                 # Mark effect as inactive (returns the preset that was active)
                 stopped_preset = entity_state_manager.mark_effect_inactive(entity_id)
@@ -1617,7 +1610,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         _validate_supported_entities(hass, resolved_entity_ids)
 
         preset: str | None = call.data.get(ATTR_PRESET)
-        segment_colors_data_input: list[dict[str, Any]] | None = call.data.get(ATTR_SEGMENT_COLORS)
+        segment_colors_data_input: list[dict[str, Any]] | None = call.data.get(
+            ATTR_SEGMENT_COLORS
+        )
         brightness_percent: int | None = call.data.get(ATTR_BRIGHTNESS)
         # Convert brightness percentage to device value (1-255)
         brightness = (
@@ -1633,7 +1628,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         user_preset = None
         if preset:
             # Check user presets first
-            preset_store = _get_preset_store(hass)
+            preset_store = get_preset_store(hass)
             if preset_store:
                 user_preset = preset_store.get_preset_by_name(
                     PRESET_TYPE_SEGMENT_PATTERN, preset
@@ -1679,7 +1674,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 )
 
             # Get segment count for this device
-            max_segments = _get_actual_segment_count(hass, entity_id, aqara_device.model_id)
+            max_segments = _get_actual_segment_count(
+                hass, entity_id, aqara_device.model_id
+            )
 
             # Validate preset is compatible with device type if using preset
             if preset_data and "device_types" in preset_data:
@@ -1710,11 +1707,17 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         blocking=True,
                         context=_get_context_and_record(hass, entity_id),
                     )
-                    _LOGGER.debug("Set brightness to %s for T1 Strip %s before segment pattern", brightness, entity_id)
+                    _LOGGER.debug(
+                        "Set brightness to %s for T1 Strip %s before segment pattern",
+                        brightness,
+                        entity_id,
+                    )
                     # Brief delay for Z2M state propagation (blocking=True confirms dispatch)
                     await asyncio.sleep(0.05)
                 except Exception as ex:
-                    _LOGGER.warning("Failed to set brightness for %s: %s", entity_id, ex)
+                    _LOGGER.warning(
+                        "Failed to set brightness for %s: %s", entity_id, ex
+                    )
 
             # If using preset, build segment_colors from preset data
             # Use local variable for segment data to allow modification per-entity
@@ -1740,14 +1743,18 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 segment_colors_data = segments_list[:max_segments]
                 _LOGGER.debug(
                     "Using user segment pattern preset '%s' with %d segments",
-                    preset, len(segment_colors_data)
+                    preset,
+                    len(segment_colors_data),
                 )
             elif preset_data:
                 preset_segments = preset_data["segments"]
                 # Scale preset to device segment count (nearest-neighbor resampling)
                 scaled_segments = scale_segment_pattern(preset_segments, max_segments)
                 segment_colors_data = [
-                    {"segment": i + 1, "color": {"r": color[0], "g": color[1], "b": color[2]}}
+                    {
+                        "segment": i + 1,
+                        "color": {"r": color[0], "g": color[1], "b": color[2]},
+                    }
                     for i, color in enumerate(scaled_segments)
                 ]
             elif segment_colors_data_input:
@@ -1755,14 +1762,18 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
             # Expand segment ranges into individual segments
             device_zones = _get_zones_for_device(hass, aqara_device.identifier)
-            expanded_data = expand_segment_colors(segment_colors_data, max_segments, zones=device_zones)
+            expanded_data = expand_segment_colors(
+                segment_colors_data, max_segments, zones=device_zones
+            )
 
             # If turn_off_unspecified is enabled, add black to all unspecified segments
             if turn_off_unspecified:
                 specified_segments = {sc["segment"] for sc in expanded_data}
                 for seg_num in range(1, max_segments + 1):
                     if seg_num not in specified_segments:
-                        expanded_data.append({"segment": seg_num, "color": {"r": 0, "g": 0, "b": 0}})
+                        expanded_data.append(
+                            {"segment": seg_num, "color": {"r": 0, "g": 0, "b": 0}}
+                        )
 
             # Convert to SegmentColor objects (no brightness - T1 Strip uses light's global brightness)
             segment_colors = [
@@ -1818,7 +1829,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     )
                     _LOGGER.debug("Set brightness to %s for %s", brightness, entity_id)
                 except Exception as ex:
-                    _LOGGER.warning("Failed to set brightness for %s: %s", entity_id, ex)
+                    _LOGGER.warning(
+                        "Failed to set brightness for %s: %s", entity_id, ex
+                    )
 
     async def handle_create_gradient(call: ServiceCall) -> None:
         """Handle create_gradient service call."""
@@ -1883,7 +1896,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             instance_data = hass.data[DOMAIN]["entries"].get(entry_id, {})
             dsm = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
             if dsm and dsm.is_scene_running(entity_id):
-                _LOGGER.debug("Detaching %s from dynamic scene before applying gradient", entity_id)
+                _LOGGER.debug(
+                    "Detaching %s from dynamic scene before applying gradient",
+                    entity_id,
+                )
                 dsm.detach_entity(entity_id)
 
             # Ensure light is on if requested
@@ -1900,22 +1916,34 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         blocking=True,
                         context=_get_context_and_record(hass, entity_id),
                     )
-                    _LOGGER.debug("Set brightness to %s for T1 Strip %s before gradient", brightness, entity_id)
+                    _LOGGER.debug(
+                        "Set brightness to %s for T1 Strip %s before gradient",
+                        brightness,
+                        entity_id,
+                    )
                     # Brief delay for Z2M state propagation (blocking=True confirms dispatch)
                     await asyncio.sleep(0.05)
                 except Exception as ex:
-                    _LOGGER.warning("Failed to set brightness for %s: %s", entity_id, ex)
+                    _LOGGER.warning(
+                        "Failed to set brightness for %s: %s", entity_id, ex
+                    )
 
             # Determine segments to use
             device_zones = _get_zones_for_device(hass, aqara_device.identifier)
             if segments_str:
                 # Parse segment range
-                max_segments = _get_actual_segment_count(hass, entity_id, aqara_device.model_id)
-                segment_list = parse_segment_range(segments_str, max_segments, zones=device_zones)
+                max_segments = _get_actual_segment_count(
+                    hass, entity_id, aqara_device.model_id
+                )
+                segment_list = parse_segment_range(
+                    segments_str, max_segments, zones=device_zones
+                )
                 segment_count = len(segment_list)
             else:
                 # Use all segments
-                segment_count = _get_actual_segment_count(hass, entity_id, aqara_device.model_id)
+                segment_count = _get_actual_segment_count(
+                    hass, entity_id, aqara_device.model_id
+                )
                 segment_list = list(range(1, segment_count + 1))
 
             # Generate gradient (convert RGBColor objects to dicts)
@@ -1932,11 +1960,15 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
             # If turn_off_unspecified is enabled, add black to all unspecified segments
             if turn_off_unspecified and segments_str:
-                max_segments_total = _get_actual_segment_count(hass, entity_id, aqara_device.model_id)
+                max_segments_total = _get_actual_segment_count(
+                    hass, entity_id, aqara_device.model_id
+                )
                 specified_segments = {sc["segment"] for sc in gradient_data}
                 for seg_num in range(1, max_segments_total + 1):
                     if seg_num not in specified_segments:
-                        gradient_data.append({"segment": seg_num, "color": {"r": 0, "g": 0, "b": 0}})
+                        gradient_data.append(
+                            {"segment": seg_num, "color": {"r": 0, "g": 0, "b": 0}}
+                        )
 
             # Convert to SegmentColor objects (no brightness - T1 Strip uses light's global brightness)
             segment_colors = [
@@ -1986,7 +2018,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     )
                     _LOGGER.debug("Set brightness to %s for %s", brightness, entity_id)
                 except Exception as ex:
-                    _LOGGER.warning("Failed to set brightness for %s: %s", entity_id, ex)
+                    _LOGGER.warning(
+                        "Failed to set brightness for %s: %s", entity_id, ex
+                    )
 
     async def handle_create_blocks(call: ServiceCall) -> None:
         """Handle create_blocks service call."""
@@ -2052,7 +2086,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             instance_data = hass.data[DOMAIN]["entries"].get(entry_id, {})
             dsm = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
             if dsm and dsm.is_scene_running(entity_id):
-                _LOGGER.debug("Detaching %s from dynamic scene before applying blocks", entity_id)
+                _LOGGER.debug(
+                    "Detaching %s from dynamic scene before applying blocks", entity_id
+                )
                 dsm.detach_entity(entity_id)
 
             # Ensure light is on if requested
@@ -2069,22 +2105,34 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         blocking=True,
                         context=_get_context_and_record(hass, entity_id),
                     )
-                    _LOGGER.debug("Set brightness to %s for T1 Strip %s before blocks", brightness, entity_id)
+                    _LOGGER.debug(
+                        "Set brightness to %s for T1 Strip %s before blocks",
+                        brightness,
+                        entity_id,
+                    )
                     # Brief delay for Z2M state propagation (blocking=True confirms dispatch)
                     await asyncio.sleep(0.05)
                 except Exception as ex:
-                    _LOGGER.warning("Failed to set brightness for %s: %s", entity_id, ex)
+                    _LOGGER.warning(
+                        "Failed to set brightness for %s: %s", entity_id, ex
+                    )
 
             # Determine segments to use
             device_zones = _get_zones_for_device(hass, aqara_device.identifier)
             if segments_str:
                 # Parse segment range
-                max_segments = _get_actual_segment_count(hass, entity_id, aqara_device.model_id)
-                segment_list = parse_segment_range(segments_str, max_segments, zones=device_zones)
+                max_segments = _get_actual_segment_count(
+                    hass, entity_id, aqara_device.model_id
+                )
+                segment_list = parse_segment_range(
+                    segments_str, max_segments, zones=device_zones
+                )
                 segment_count = len(segment_list)
             else:
                 # Use all segments
-                segment_count = _get_actual_segment_count(hass, entity_id, aqara_device.model_id)
+                segment_count = _get_actual_segment_count(
+                    hass, entity_id, aqara_device.model_id
+                )
                 segment_list = list(range(1, segment_count + 1))
 
             # Generate blocks (convert RGBColor objects to dicts)
@@ -2101,11 +2149,15 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
             # If turn_off_unspecified is enabled, add black to all unspecified segments
             if turn_off_unspecified and segments_str:
-                max_segments_total = _get_actual_segment_count(hass, entity_id, aqara_device.model_id)
+                max_segments_total = _get_actual_segment_count(
+                    hass, entity_id, aqara_device.model_id
+                )
                 specified_segments = {sc["segment"] for sc in blocks_data}
                 for seg_num in range(1, max_segments_total + 1):
                     if seg_num not in specified_segments:
-                        blocks_data.append({"segment": seg_num, "color": {"r": 0, "g": 0, "b": 0}})
+                        blocks_data.append(
+                            {"segment": seg_num, "color": {"r": 0, "g": 0, "b": 0}}
+                        )
 
             # Convert to SegmentColor objects (no brightness - T1 Strip uses light's global brightness)
             segment_colors = [
@@ -2155,7 +2207,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     )
                     _LOGGER.debug("Set brightness to %s for %s", brightness, entity_id)
                 except Exception as ex:
-                    _LOGGER.warning("Failed to set brightness for %s: %s", entity_id, ex)
+                    _LOGGER.warning(
+                        "Failed to set brightness for %s: %s", entity_id, ex
+                    )
 
     async def handle_start_cct_sequence(call: ServiceCall) -> None:
         """Handle start_cct_sequence service call."""
@@ -2180,9 +2234,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="unsupported_entities",
-                translation_placeholders={
-                    "entity_list": ", ".join(invalid_entity_ids)
-                },
+                translation_placeholders={"entity_list": ", ".join(invalid_entity_ids)},
             )
 
         turn_on: bool = call.data.get(ATTR_TURN_ON, False)
@@ -2191,7 +2243,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         # Handle preset or manual configuration
         if preset:
             # Check user presets first
-            preset_store = _get_preset_store(hass)
+            preset_store = get_preset_store(hass)
             user_preset = None
             if preset_store:
                 user_preset = preset_store.get_preset_by_name(
@@ -2234,7 +2286,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
                 _LOGGER.debug(
                     "Using user CCT sequence preset '%s' with %d steps",
-                    preset, len(preset_data["steps"])
+                    preset,
+                    len(preset_data["steps"]),
                 )
             elif preset in CCT_SEQUENCE_PRESETS:
                 preset_data = CCT_SEQUENCE_PRESETS[preset]
@@ -2282,7 +2335,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
             # Extract steps from individual field inputs
             sequence_steps = []
-            for step_num in range(1, 21):
+            for step_num in range(1, MAX_SEQUENCE_STEPS + 1):
                 color_temp_key = f"step_{step_num}_color_temp"
                 brightness_key = f"step_{step_num}_brightness"
                 transition_key = f"step_{step_num}_transition"
@@ -2291,7 +2344,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 # Check if this step is provided (all 4 fields must be present)
                 if color_temp_key in call.data:
                     # Validate all required fields for this step are present
-                    if not all(key in call.data for key in [brightness_key, transition_key, hold_key]):
+                    if not all(
+                        key in call.data
+                        for key in [brightness_key, transition_key, hold_key]
+                    ):
                         raise ServiceValidationError(
                             translation_domain=DOMAIN,
                             translation_key="step_incomplete",
@@ -2343,7 +2399,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             ) from ex
 
         # Group Aqara entities by their CCT manager instance for synchronized starting
-        instance_groups: dict[str, dict] = {}  # entry_id -> {manager, entities, turn_on_data}
+        instance_groups: dict[
+            str, dict
+        ] = {}  # entry_id -> {manager, entities, turn_on_data}
 
         for entity_id in aqara_entity_ids:
             # Get the correct instance components for this entity
@@ -2357,7 +2415,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             if not cct_manager:
                 _LOGGER.warning(
                     "CCT sequence manager not initialized for instance %s, skipping %s",
-                    entry_id, entity_id
+                    entry_id,
+                    entity_id,
                 )
                 continue
 
@@ -2392,22 +2451,44 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     "is configured."
                 )
 
+        # Capture state for all entities before starting sequence
+        for entity_id in aqara_entity_ids:
+            try:
+                _, entity_state_manager, _ = (
+                    _get_instance_components_for_entity(hass, entity_id)
+                )
+                entity_state_manager.capture_state(
+                    entity_id, entity_id.split(".")[-1]
+                )
+            except Exception:
+                _LOGGER.debug(
+                    "Could not capture state for %s before CCT sequence", entity_id
+                )
+
+        if generic_entity_ids:
+            generic_pair = _get_any_cct_manager(hass)
+            if generic_pair:
+                _, generic_state_manager = generic_pair
+                for entity_id in generic_entity_ids:
+                    generic_state_manager.capture_state(
+                        entity_id, entity_id.split(".")[-1]
+                    )
+
         # Turn on all lights in parallel if requested
         if turn_on:
             turn_on_tasks = []
             # Aqara lights
             for group_data in instance_groups.values():
                 for entity_id in group_data["turn_on_data"]:
-                    turn_on_tasks.append(
-                        _ensure_light_on(hass, entity_id, True)
-                    )
+                    turn_on_tasks.append(_ensure_light_on(hass, entity_id, True))
             # Generic lights - use HA service call directly
             for entity_id in generic_entity_ids:
                 state = hass.states.get(entity_id)
                 if state and state.state != "on":
                     turn_on_tasks.append(
                         hass.services.async_call(
-                            "light", "turn_on",
+                            "light",
+                            "turn_on",
                             {"entity_id": entity_id},
                             blocking=False,
                             context=_get_context_and_record(hass, entity_id),
@@ -2428,9 +2509,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             cct_manager = group_data["manager"]
             entity_list = group_data["entities"]
             start_tasks.append(
-                cct_manager.start_synchronized_group(
-                    entity_list, sequence, preset
-                )
+                cct_manager.start_synchronized_group(entity_list, sequence, preset)
             )
 
         # Start sequences for generic entities
@@ -2462,6 +2541,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     async def handle_stop_cct_sequence(call: ServiceCall) -> None:
         """Handle stop_cct_sequence service call."""
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+        restore_state: bool = call.data.get(ATTR_RESTORE_STATE, True)
 
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
@@ -2483,6 +2563,34 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     translation_key="stop_sequence_failed",
                     translation_placeholders={"entity": entity_id},
                 ) from ex
+
+        # Restore light states if requested
+        if restore_state:
+            for entity_id in resolved_entity_ids:
+                try:
+                    _, entity_state_manager, _ = (
+                        _get_instance_components_for_entity(hass, entity_id)
+                    )
+                    restored = await entity_state_manager.async_restore_entity_state(
+                        entity_id, blocking=False
+                    )
+                    if restored:
+                        _LOGGER.debug("Restored state for %s after CCT sequence", entity_id)
+                except ServiceValidationError:
+                    # Generic (non-Aqara) entity - try any available state manager
+                    generic_pair = _get_any_cct_manager(hass)
+                    if generic_pair:
+                        _, generic_sm = generic_pair
+                        try:
+                            await generic_sm.async_restore_entity_state(
+                                entity_id, blocking=False
+                            )
+                        except Exception:
+                            _LOGGER.debug(
+                                "No stored state to restore for %s", entity_id
+                            )
+                except Exception:
+                    _LOGGER.debug("No stored state to restore for %s", entity_id)
 
     async def handle_pause_cct_sequence(call: ServiceCall) -> None:
         """Handle pause_cct_sequence service call."""
@@ -2537,7 +2645,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         # Handle preset or manual configuration
         if preset:
             # Check user presets first
-            preset_store = _get_preset_store(hass)
+            preset_store = get_preset_store(hass)
             user_preset = None
             if preset_store:
                 user_preset = preset_store.get_preset_by_name(
@@ -2553,7 +2661,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         "loop_count": user_preset.get("loop_count"),
                         "end_behavior": user_preset["end_behavior"],
                         "clear_segments": user_preset.get("clear_segments", False),
-                        "skip_first_in_loop": user_preset.get("skip_first_in_loop", False),
+                        "skip_first_in_loop": user_preset.get(
+                            "skip_first_in_loop", False
+                        ),
                     }
                 except KeyError as ex:
                     raise ServiceValidationError(
@@ -2571,7 +2681,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
                 _LOGGER.debug(
                     "Using user segment sequence preset '%s' with %d steps",
-                    preset, len(preset_data["steps"])
+                    preset,
+                    len(preset_data["steps"]),
                 )
             elif preset in SEGMENT_SEQUENCE_PRESETS:
                 preset_data = SEGMENT_SEQUENCE_PRESETS[preset]
@@ -2603,7 +2714,12 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         mode = "individual"  # Default, not used
                     else:
                         # Legacy mode: use segments + colors + mode
-                        colors = [RGBColor(**color) if isinstance(color, dict) else RGBColor(r=color[0], g=color[1], b=color[2]) for color in step_data["colors"]]
+                        colors = [
+                            RGBColor(**color)
+                            if isinstance(color, dict)
+                            else RGBColor(r=color[0], g=color[1], b=color[2])
+                            for color in step_data["colors"]
+                        ]
                         segments = step_data["segments"]
                         mode = step_data["mode"]
 
@@ -2647,7 +2763,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
             # Extract steps from individual field inputs
             sequence_steps = []
-            for step_num in range(1, 21):
+            for step_num in range(1, MAX_SEQUENCE_STEPS + 1):
                 segments_key = f"step_{step_num}_segments"
                 mode_key = f"step_{step_num}_mode"
 
@@ -2657,7 +2773,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     segment_colors_key = f"step_{step_num}_segment_colors"
                     segment_colors = None
 
-                    if segment_colors_key in call.data and call.data[segment_colors_key]:
+                    if (
+                        segment_colors_key in call.data
+                        and call.data[segment_colors_key]
+                    ):
                         # Convert segment_colors from dicts to SegmentColor objects
                         segment_colors = [
                             SegmentColor(
@@ -2686,7 +2805,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
                     duration = call.data.get(f"step_{step_num}_duration", 0.0)
                     hold = call.data.get(f"step_{step_num}_hold", 0.0)
-                    activation_pattern = call.data.get(f"step_{step_num}_activation_pattern", ACTIVATION_ALL)
+                    activation_pattern = call.data.get(
+                        f"step_{step_num}_activation_pattern", ACTIVATION_ALL
+                    )
 
                     try:
                         step = SegmentSequenceStep(
@@ -2731,7 +2852,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             ) from ex
 
         # Group entities by their segment manager instance for synchronized starting
-        instance_groups: dict[str, dict] = {}  # entry_id -> {manager, entities, turn_on_data}
+        instance_groups: dict[
+            str, dict
+        ] = {}  # entry_id -> {manager, entities, turn_on_data}
 
         for entity_id in resolved_entity_ids:
             # Get the correct instance components for this entity
@@ -2745,7 +2868,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             if not segment_manager:
                 _LOGGER.warning(
                     "Segment sequence manager not initialized for instance %s, skipping %s",
-                    entry_id, entity_id
+                    entry_id,
+                    entity_id,
                 )
                 continue
 
@@ -2775,14 +2899,27 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             instance_groups[entry_id]["entities"].append(entity_id)
             instance_groups[entry_id]["turn_on_data"].append(entity_id)
 
+        # Capture state for all entities before starting sequence
+        for entity_id in resolved_entity_ids:
+            try:
+                _, entity_state_manager, _ = (
+                    _get_instance_components_for_entity(hass, entity_id)
+                )
+                entity_state_manager.capture_state(
+                    entity_id, entity_id.split(".")[-1]
+                )
+            except Exception:
+                _LOGGER.debug(
+                    "Could not capture state for %s before segment sequence",
+                    entity_id,
+                )
+
         # Turn on all lights in parallel if requested
         if turn_on:
             turn_on_tasks = []
             for group_data in instance_groups.values():
                 for entity_id in group_data["turn_on_data"]:
-                    turn_on_tasks.append(
-                        _ensure_light_on(hass, entity_id, True)
-                    )
+                    turn_on_tasks.append(_ensure_light_on(hass, entity_id, True))
             if turn_on_tasks:
                 await asyncio.gather(*turn_on_tasks, return_exceptions=True)
 
@@ -2807,9 +2944,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     len(entity_list),
                 )
             except Exception as ex:
-                _LOGGER.error(
-                    "Failed to start synchronized segment sequence: %s", ex
-                )
+                _LOGGER.error("Failed to start synchronized segment sequence: %s", ex)
                 raise HomeAssistantError(
                     translation_domain=DOMAIN,
                     translation_key="start_segment_sequence_failed",
@@ -2822,6 +2957,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     async def handle_stop_segment_sequence(call: ServiceCall) -> None:
         """Handle stop_segment_sequence service call."""
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+        restore_state: bool = call.data.get(ATTR_RESTORE_STATE, True)
 
         # Resolve groups to individual entities
         resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
@@ -2840,7 +2976,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             if not segment_manager:
                 _LOGGER.warning(
                     "Segment sequence manager not initialized for instance %s, skipping %s",
-                    entry_id, entity_id
+                    entry_id,
+                    entity_id,
                 )
                 continue
 
@@ -2848,7 +2985,26 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 await segment_manager.stop_sequence(entity_id)
                 _LOGGER.info("Stopped segment sequence for %s", entity_id)
             except Exception as ex:
-                _LOGGER.warning("Failed to stop segment sequence for %s: %s", entity_id, ex)
+                _LOGGER.warning(
+                    "Failed to stop segment sequence for %s: %s", entity_id, ex
+                )
+
+        # Restore light states if requested
+        if restore_state:
+            for entity_id in resolved_entity_ids:
+                try:
+                    _, entity_state_manager, _ = (
+                        _get_instance_components_for_entity(hass, entity_id)
+                    )
+                    restored = await entity_state_manager.async_restore_entity_state(
+                        entity_id, blocking=False
+                    )
+                    if restored:
+                        _LOGGER.debug(
+                            "Restored state for %s after segment sequence", entity_id
+                        )
+                except Exception:
+                    _LOGGER.debug("No stored state to restore for %s", entity_id)
 
     async def handle_pause_segment_sequence(call: ServiceCall) -> None:
         """Handle pause_segment_sequence service call."""
@@ -2871,7 +3027,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             if not segment_manager:
                 _LOGGER.warning(
                     "Segment sequence manager not initialized for instance %s, skipping %s",
-                    entry_id, entity_id
+                    entry_id,
+                    entity_id,
                 )
                 continue
 
@@ -2906,12 +3063,15 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             if not segment_manager:
                 _LOGGER.warning(
                     "Segment sequence manager not initialized for instance %s, skipping %s",
-                    entry_id, entity_id
+                    entry_id,
+                    entity_id,
                 )
                 continue
 
             if not segment_manager.is_sequence_running(entity_id):
-                _LOGGER.warning("No active segment sequence for %s to resume", entity_id)
+                _LOGGER.warning(
+                    "No active segment sequence for %s to resume", entity_id
+                )
                 continue
 
             success = segment_manager.resume_sequence(entity_id)
@@ -2943,9 +3103,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="unsupported_entities",
-                translation_placeholders={
-                    "entity_list": ", ".join(entity_ids)
-                },
+                translation_placeholders={"entity_list": ", ".join(entity_ids)},
             )
 
         # Dynamic scenes require RGB color capability (xy_color commands)
@@ -2956,9 +3114,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="no_rgb_entities",
-                translation_placeholders={
-                    "entity_list": ", ".join(valid_entity_ids)
-                },
+                translation_placeholders={"entity_list": ", ".join(valid_entity_ids)},
             )
         if len(rgb_entity_ids) < len(valid_entity_ids):
             skipped = set(valid_entity_ids) - set(rgb_entity_ids)
@@ -2968,26 +3124,29 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             )
         valid_entity_ids = rgb_entity_ids
 
-        # Get dynamic scene manager from first available config entry
-        # (scenes work across all Z2M instances so any manager will do)
-        manager = None
-        for instance_data in hass.data[DOMAIN].get("entries", {}).values():
-            manager = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
-            if manager:
-                break
-        if not manager:
-            raise HomeAssistantError("Dynamic scene manager not initialized")
+        manager = _get_dynamic_scene_manager(hass)
 
         # Build scene from preset or manual parameters
         if preset_name:
-            # Look up preset
-            preset_store = hass.data[DOMAIN].get(DATA_PRESET_STORE)
-            if not preset_store:
-                raise HomeAssistantError("Preset store not initialized")
+            preset: dict[str, Any] | None = None
 
-            preset = preset_store.get_preset_by_name(PRESET_TYPE_DYNAMIC_SCENE, preset_name)
-            if not preset:
-                preset = preset_store.get_preset(PRESET_TYPE_DYNAMIC_SCENE, preset_name)
+            # Check built-in presets first (by key)
+            if preset_name in DYNAMIC_SCENE_PRESETS:
+                preset = DYNAMIC_SCENE_PRESETS[preset_name]
+            else:
+                # Check user-created presets (by name, then by ID)
+                preset_store = hass.data[DOMAIN].get(DATA_PRESET_STORE)
+                if not preset_store:
+                    raise HomeAssistantError("Preset store not initialized")
+
+                preset = preset_store.get_preset_by_name(
+                    PRESET_TYPE_DYNAMIC_SCENE, preset_name
+                )
+                if not preset:
+                    preset = preset_store.get_preset(
+                        PRESET_TYPE_DYNAMIC_SCENE, preset_name
+                    )
+
             if not preset:
                 raise ServiceValidationError(
                     f"Dynamic scene preset '{preset_name}' not found",
@@ -3058,55 +3217,29 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
         static = call.data.get("static", False)
         if static:
-            await manager.apply_static_scene(
-                valid_entity_ids, scene, display_name
-            )
+            await manager.apply_static_scene(valid_entity_ids, scene, display_name)
         else:
             await manager.start_scene(valid_entity_ids, scene, display_name)
 
     async def handle_stop_dynamic_scene(call: ServiceCall) -> None:
         """Handle stop_dynamic_scene service call."""
         entity_ids: list[str] | None = call.data.get(ATTR_ENTITY_ID)
-
-        # Get dynamic scene manager from first available config entry
-        manager = None
-        for instance_data in hass.data[DOMAIN].get("entries", {}).values():
-            manager = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
-            if manager:
-                break
-        if not manager:
-            raise HomeAssistantError("Dynamic scene manager not initialized")
-
-        await manager.stop_scene(entity_ids=entity_ids)
+        restore_state: bool | None = call.data.get(ATTR_RESTORE_STATE)
+        manager = _get_dynamic_scene_manager(hass)
+        await manager.stop_scene(
+            entity_ids=entity_ids, restore_override=restore_state
+        )
 
     async def handle_pause_dynamic_scene(call: ServiceCall) -> None:
         """Handle pause_dynamic_scene service call."""
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
-
-        # Get dynamic scene manager from first available config entry
-        manager = None
-        for instance_data in hass.data[DOMAIN].get("entries", {}).values():
-            manager = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
-            if manager:
-                break
-        if not manager:
-            raise HomeAssistantError("Dynamic scene manager not initialized")
-
+        manager = _get_dynamic_scene_manager(hass)
         manager.pause_scene(entity_ids)
 
     async def handle_resume_dynamic_scene(call: ServiceCall) -> None:
         """Handle resume_dynamic_scene service call."""
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
-
-        # Get dynamic scene manager from first available config entry
-        manager = None
-        for instance_data in hass.data[DOMAIN].get("entries", {}).values():
-            manager = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
-            if manager:
-                break
-        if not manager:
-            raise HomeAssistantError("Dynamic scene manager not initialized")
-
+        manager = _get_dynamic_scene_manager(hass)
         manager.resume_scene(entity_ids)
 
     async def handle_set_music_sync(call: ServiceCall) -> None:
@@ -3174,9 +3307,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     try:
                         await entity_backend.async_stop_effect(entity_id)
                     except Exception:
-                        _LOGGER.exception(
-                            "Failed to stop effect on %s", entity_id
-                        )
+                        _LOGGER.exception("Failed to stop effect on %s", entity_id)
                     entity_state_manager.mark_effect_inactive(entity_id)
 
                 # Send music sync command to device
@@ -3185,9 +3316,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 )
 
                 # Track active music sync
-                active_music_sync = instance_data.setdefault(
-                    DATA_ACTIVE_MUSIC_SYNC, {}
-                )
+                active_music_sync = instance_data.setdefault(DATA_ACTIVE_MUSIC_SYNC, {})
                 active_music_sync[entity_id] = {
                     "sensitivity": sensitivity,
                     "effect": effect,

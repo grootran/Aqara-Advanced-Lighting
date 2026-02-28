@@ -113,15 +113,25 @@ interface MergedSlice {
 // Maximum distinct slices to render in a thumbnail
 const MAX_SLICES = 8;
 
+// Simple LRU-ish memoization cache for merged slices (avoids re-sorting during render)
+const _mergeCache = new Map<string, MergedSlice[]>();
+const MERGE_CACHE_MAX = 64;
+
 /**
  * Merge consecutive segments that share the same color into wider slices.
  * Segments are sorted by index first to ensure spatial ordering.
  * If the result exceeds MAX_SLICES, uniformly sample down to MAX_SLICES.
+ * Results are memoized to avoid re-sorting during Lit render cycles.
  */
 function mergeSegments(
   segments: { segment: number | string; color: RGBColor }[],
 ): MergedSlice[] {
   if (segments.length === 0) return [];
+
+  // Build a cache key from segment index + color
+  const cacheKey = 'seg:' + segments.map(s => `${s.segment}:${s.color.r},${s.color.g},${s.color.b}`).join('|');
+  const cached = _mergeCache.get(cacheKey);
+  if (cached) return cached;
 
   const sorted = [...segments].sort((a, b) => {
     const ai = typeof a.segment === 'number' ? a.segment : parseInt(a.segment, 10);
@@ -146,14 +156,28 @@ function mergeSegments(
   // Close the final run
   slices.push({ hex: runHex, startDeg: runStart, endDeg: 360 });
 
-  return capSlices(slices);
+  const result = capSlices(slices);
+
+  // Evict oldest entries if cache is full
+  if (_mergeCache.size >= MERGE_CACHE_MAX) {
+    const firstKey = _mergeCache.keys().next().value;
+    if (firstKey !== undefined) _mergeCache.delete(firstKey);
+  }
+  _mergeCache.set(cacheKey, result);
+
+  return result;
 }
 
 /**
  * Merge consecutive hex colors into slices, then cap to MAX_SLICES.
+ * Results are memoized to avoid re-computation during Lit render cycles.
  */
 function mergeHexColors(hexColors: string[]): MergedSlice[] {
   if (hexColors.length === 0) return [];
+
+  const cacheKey = 'hex:' + hexColors.join('|');
+  const cached = _mergeCache.get(cacheKey);
+  if (cached) return cached;
 
   const degPer = 360 / hexColors.length;
   const slices: MergedSlice[] = [];
@@ -170,7 +194,15 @@ function mergeHexColors(hexColors: string[]): MergedSlice[] {
   }
   slices.push({ hex: runHex, startDeg: runStart, endDeg: 360 });
 
-  return capSlices(slices);
+  const result = capSlices(slices);
+
+  if (_mergeCache.size >= MERGE_CACHE_MAX) {
+    const firstKey = _mergeCache.keys().next().value;
+    if (firstKey !== undefined) _mergeCache.delete(firstKey);
+  }
+  _mergeCache.set(cacheKey, result);
+
+  return result;
 }
 
 /**

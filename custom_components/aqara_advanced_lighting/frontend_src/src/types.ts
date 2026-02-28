@@ -45,6 +45,11 @@ export interface HassEntity {
   };
 }
 
+// Recursive translation object: leaf values are strings, branches are nested objects
+export interface Translations {
+  [key: string]: string | Translations;
+}
+
 export interface DynamicEffectPreset {
   id: string;
   name: string;
@@ -287,6 +292,25 @@ export interface UserPresetsData {
   dynamic_scene_presets: UserDynamicScenePreset[];
 }
 
+// Union type for any user-created preset
+export type UserPreset =
+  | UserEffectPreset
+  | UserSegmentPatternPreset
+  | UserCCTSequencePreset
+  | UserSegmentSequencePreset
+  | UserDynamicScenePreset;
+
+// Union type for any built-in preset
+export type BuiltinPreset =
+  | DynamicEffectPreset
+  | SegmentPatternPreset
+  | CCTSequencePreset
+  | SegmentSequencePreset
+  | DynamicScenePreset;
+
+// Union type for any preset (user or built-in)
+export type AnyPreset = UserPreset | BuiltinPreset;
+
 // Device context passed from Activate tab to editor tabs
 export interface DeviceContext {
   deviceType: string | null;  // First compatible device type from selection
@@ -302,9 +326,12 @@ export type PresetSortOption = 'name-asc' | 'name-desc' | 'date-new' | 'date-old
 
 export type PresetSortPreferences = Record<string, PresetSortOption>;
 
+// Preset category discriminator
+export type PresetType = 'effect' | 'segment_pattern' | 'cct_sequence' | 'segment_sequence' | 'dynamic_scene';
+
 // Reference to a favourited preset (type + id)
 export interface FavoritePresetRef {
-  type: string;
+  type: PresetType;
   id: string;
 }
 
@@ -335,6 +362,7 @@ export interface EffectEditorDraft {
   brightness: number;
   colors: XYColor[];
   segments: string;
+  hasUserInteraction: boolean;
 }
 
 export interface PatternEditorDraft {
@@ -353,6 +381,7 @@ export interface PatternEditorDraft {
   gradientWave: boolean;
   gradientWaveCycles: number;
   turnOffUnspecified: boolean;
+  hasUserInteraction: boolean;
 }
 
 export interface CCTEditorDraft {
@@ -362,6 +391,7 @@ export interface CCTEditorDraft {
   loopMode: string;
   loopCount: number;
   endBehavior: string;
+  hasUserInteraction: boolean;
 }
 
 export interface SegmentSequenceEditorDraft {
@@ -393,6 +423,7 @@ export interface SegmentSequenceEditorDraft {
   endBehavior: string;
   clearSegments: boolean;
   skipFirstInLoop: boolean;
+  hasUserInteraction: boolean;
 }
 
 export interface DynamicSceneEditorDraft {
@@ -408,6 +439,7 @@ export interface DynamicSceneEditorDraft {
   loopMode: string;
   loopCount: number;
   endBehavior: string;
+  hasUserInteraction: boolean;
 }
 
 export interface EditorDraftCache {

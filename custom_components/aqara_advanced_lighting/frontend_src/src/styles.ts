@@ -17,11 +17,19 @@ export const panelStyles = css`
     line-height: var(--ha-line-height-normal, 1.5);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Prevent layout shift when ha-dialog hides the scrollbar */
+    overflow-y: scroll;
+    scrollbar-gutter: stable;
   }
 
-  /* Fix ha-svg-icon vertical misalignment within ha-icon */
-  ha-svg-icon {
-    vertical-align: top;
+  /* Fix ha-svg-icon vertical misalignment inside ha-icon-button.
+   * ha-svg-icon sets vertical-align: middle on its :host inside ha-icon's
+   * shadow DOM which we can't reach. Making ha-icon a flex container
+   * neutralizes the vertical-align on its shadow child. */
+  ha-icon-button > ha-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   /* Fixed header - follows HA developer-tools pattern */
@@ -177,7 +185,6 @@ export const panelStyles = css`
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: 8px;
-    margin-top: 8px;
   }
 
   .running-op-card {
@@ -187,13 +194,20 @@ export const panelStyles = css`
     padding: 8px 12px;
     background: var(--card-background-color, var(--ha-card-background, #fff));
     border: 1px solid var(--divider-color, #e0e0e0);
+    border-left: 3px solid var(--primary-color);
     border-radius: var(--ha-card-border-radius, 12px);
     gap: 8px;
   }
 
+  .running-op-card.op-paused {
+    border-left-color: var(--disabled-text-color, #999);
+    border-left-style: dashed;
+  }
+
   .running-op-card.externally-paused {
     border-color: var(--warning-color, #ff9800);
-    border-style: dashed;
+    border-left-width: 3px;
+    border-left-style: dashed;
   }
 
   .running-op-info {
@@ -209,6 +223,18 @@ export const panelStyles = css`
     color: var(--primary-color);
     flex-shrink: 0;
     --mdc-icon-size: 20px;
+    background: rgba(var(--rgb-primary-color), 0.1);
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .op-paused .running-op-icon {
+    color: var(--disabled-text-color, #999);
+    background: rgba(var(--rgb-disabled-color, 158, 158, 158), 0.1);
   }
 
   .running-op-details {
@@ -227,6 +253,14 @@ export const panelStyles = css`
     text-overflow: ellipsis;
   }
 
+  .running-op-type {
+    font-size: var(--ha-font-size-xs, 11px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    color: var(--secondary-text-color);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
   .running-op-entity {
     font-size: var(--ha-font-size-s, 12px);
     color: var(--secondary-text-color);
@@ -243,16 +277,15 @@ export const panelStyles = css`
     min-width: 0;
   }
 
-  .running-op-progress {
-    color: var(--primary-color);
+  .running-op-status {
     font-weight: var(--ha-font-weight-medium, 500);
   }
 
-  .running-op-status {
-    font-style: italic;
+  .running-op-status.paused-text {
+    color: var(--disabled-text-color, #999);
   }
 
-  .externally-paused-text {
+  .running-op-status.externally-paused-text {
     color: var(--warning-color, #ff9800);
   }
 
@@ -264,6 +297,7 @@ export const panelStyles = css`
   }
 
   .running-op-actions ha-icon-button {
+    --ha-icon-button-size: 36px;
     --mdc-icon-button-size: 36px;
     --mdc-icon-size: 20px;
   }
@@ -303,6 +337,7 @@ export const panelStyles = css`
   }
 
   .add-favorite-btn {
+    --ha-icon-button-size: 36px;
     --mdc-icon-button-size: 36px;
     color: var(--primary-color);
     flex-shrink: 0;
@@ -466,6 +501,7 @@ export const panelStyles = css`
     position: absolute;
     top: 4px;
     right: 4px;
+    --ha-icon-button-size: 28px;
     --mdc-icon-button-size: 28px;
     --mdc-icon-size: 16px;
     opacity: 0;
@@ -598,35 +634,10 @@ export const panelStyles = css`
     gap: 8px;
   }
 
-  /* Sort dropdown - uses HA select styling patterns */
+  /* Sort dropdown - compact inline select using ha-selector */
   .sort-select {
-    padding: 6px 10px;
-    font-size: var(--ha-font-size-s, 12px);
-    border: 1px solid var(--divider-color);
-    border-radius: var(--ha-border-radius-sm, 4px);
-    background: var(--card-background-color);
-    color: var(--primary-text-color);
-    cursor: pointer;
-    min-width: 110px;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23666'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
-    background-repeat: no-repeat;
-    background-position: right 4px center;
-    background-size: 18px;
-    padding-right: 24px;
-    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-  }
-
-  .sort-select:hover {
-    border-color: var(--primary-color);
-  }
-
-  .sort-select:focus {
-    outline: none;
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 1px var(--primary-color);
+    min-width: 80px;
+    max-width: 110px;
   }
 
   /* Preset grid - uses HA layout patterns */
@@ -870,256 +881,6 @@ export const panelStyles = css`
     border-top: 1px solid var(--divider-color);
   }
 
-  /* =========================================
-   * UNIFORM COLOR PICKER STYLES
-   * Standard variant: for color arrays (Effects, Gradient, Blocks, Sequence Steps)
-   * Palette variant: for pattern-editor Individual mode (selectable fixed colors)
-   * ========================================= */
-
-  /* Color picker container */
-  .color-picker-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
-  }
-
-  /* Individual color item wrapper */
-  .color-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-  }
-
-  /* Color swatch - 48px for good touch targets */
-  .color-swatch {
-    width: 48px;
-    height: 48px;
-    border-radius: 8px;
-    cursor: pointer;
-    border: 2px solid var(--divider-color);
-    transition: all 0.2s ease;
-  }
-
-  .color-swatch:hover {
-    transform: scale(1.05);
-    border-color: var(--primary-color);
-  }
-
-  /* Hidden native input overlays the swatch */
-  .color-swatch input[type="color"] {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    opacity: 0;
-    cursor: pointer;
-    top: 0;
-    left: 0;
-    border: none;
-    padding: 0;
-  }
-
-  /* Edit/Remove button below color swatch */
-  .color-edit-btn {
-    padding: 4px;
-    background: var(--secondary-background-color);
-    border: 1px solid var(--divider-color);
-    border-radius: 4px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-  }
-
-  .color-edit-btn:hover {
-    background: var(--primary-color);
-    color: var(--text-primary-color);
-  }
-
-  .color-edit-btn ha-icon {
-    --mdc-icon-size: 16px;
-  }
-
-  /* Delete button variant */
-  .color-remove {
-    padding: 4px;
-    background: var(--secondary-background-color);
-    border: 1px solid var(--divider-color);
-    border-radius: 4px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-  }
-
-  .color-remove:hover {
-    background: var(--error-color);
-    color: white;
-  }
-
-  .color-remove ha-icon {
-    --mdc-icon-size: 16px;
-  }
-
-  /* Invisible spacer to maintain alignment when delete button is hidden */
-  .color-remove-spacer {
-    height: 26px;
-    visibility: hidden;
-  }
-
-  /* Add color button - matches color-item layout */
-  .add-color-btn {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 4px;
-    flex-shrink: 0;
-  }
-
-  .add-color-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 48px;
-    height: 48px;
-    border: 2px dashed var(--divider-color);
-    border-radius: 8px;
-    cursor: pointer;
-    color: var(--secondary-text-color);
-    background: transparent;
-    transition: all 0.15s ease;
-  }
-
-  .add-color-btn:not(.disabled):hover .add-color-icon {
-    border-color: var(--primary-color);
-    color: var(--primary-color);
-    background: var(--secondary-background-color);
-  }
-
-  .add-color-btn.disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-    pointer-events: none;
-  }
-
-  /* =========================================
-   * PALETTE VARIANT
-   * For pattern-editor Individual mode (selectable fixed colors)
-   * ========================================= */
-
-  /* Palette container */
-  .color-palette {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    align-items: center;
-  }
-
-  /* Palette color wrapper with edit button */
-  .palette-color-wrapper {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-  }
-
-  /* Selectable palette swatch */
-  .palette-color {
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    border: 3px solid var(--divider-color);
-    cursor: pointer;
-    transition: all 0.15s ease;
-    flex-shrink: 0;
-  }
-
-  .palette-color:hover {
-    transform: scale(1.08);
-  }
-
-  .palette-color.selected {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px var(--primary-color);
-  }
-
-  /* Small edit button below palette swatch */
-  .palette-edit-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    border: none;
-    border-radius: 50%;
-    background: var(--secondary-background-color);
-    color: var(--secondary-text-color);
-    cursor: pointer;
-    padding: 0;
-    transition: all 0.15s ease;
-    --mdc-icon-size: 14px;
-  }
-
-  .palette-edit-btn:hover {
-    background: var(--primary-color);
-    color: var(--text-primary-color);
-  }
-
-  /* Color picker modal overlay */
-  .color-picker-modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  }
-
-  .color-picker-modal {
-    background: var(--card-background-color);
-    border-radius: 8px;
-    padding: 24px;
-    width: 298px;
-    max-width: calc(100vw - 80px);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  }
-
-  .color-picker-modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-  }
-
-  .color-picker-modal-title {
-    font-size: 18px;
-    font-weight: 500;
-    color: var(--primary-text-color);
-  }
-
-  .color-picker-modal-preview {
-    width: 48px;
-    height: 48px;
-    border-radius: 8px;
-    border: 2px solid var(--divider-color);
-  }
-
-  .color-picker-modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    margin-top: 20px;
-  }
-
   /* Step list styles - follows HA list patterns */
   .step-list {
     display: flex;
@@ -1184,6 +945,7 @@ export const panelStyles = css`
   }
 
   .step-actions ha-icon-button {
+    --ha-icon-button-size: 32px;
     --mdc-icon-button-size: 32px;
     --mdc-icon-size: 18px;
   }
@@ -1245,33 +1007,6 @@ export const panelStyles = css`
     border-color: transparent;
   }
 
-  .preset-type-tabs {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  .preset-type-tab {
-    padding: 8px 16px;
-    border: 1px solid var(--divider-color);
-    border-radius: 20px;
-    background: transparent;
-    cursor: pointer;
-    font-size: var(--ha-font-size-s, 13px);
-    color: var(--secondary-text-color);
-    transition: all 0.15s ease-in-out;
-  }
-
-  .preset-type-tab:hover {
-    background: var(--secondary-background-color);
-  }
-
-  .preset-type-tab.active {
-    background: var(--primary-color);
-    color: var(--text-primary-color);
-    border-color: var(--primary-color);
-  }
-
   .preset-list {
     display: flex;
     flex-direction: column;
@@ -1322,6 +1057,7 @@ export const panelStyles = css`
   }
 
   .preset-list-item-actions ha-icon-button {
+    --ha-icon-button-size: 32px;
     --mdc-icon-button-size: 32px;
     --mdc-icon-size: 18px;
   }
@@ -1368,22 +1104,8 @@ export const panelStyles = css`
     margin: 16px 0;
   }
 
-  .toolbar-actions mwc-button {
-    --mdc-button-disabled-fill-color: var(--disabled-color);
-    --mdc-theme-primary: var(--secondary-text-color);
-    transition: all 0.2s ease;
-  }
-
-  .toolbar-actions mwc-button:not([disabled]):hover {
-    --mdc-theme-primary: var(--primary-color);
-  }
-
-  .toolbar-actions mwc-button:not([disabled]):hover ha-icon {
-    color: var(--primary-color);
-  }
-
-  .toolbar-actions mwc-button:not([disabled]):active {
-    opacity: 0.9;
+  .toolbar-actions ha-button {
+    font-size: var(--ha-font-size-s, 13px);
   }
 
   /* No presets empty state - follows HA empty state patterns */
@@ -1512,7 +1234,7 @@ export const panelStyles = css`
     gap: 2px;
     opacity: 0;
     transition: opacity 0.15s ease-in-out;
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(var(--rgb-primary-text-color, 0, 0, 0), 0.6);
     border-radius: var(--ha-border-radius-sm, 4px);
     padding: 2px;
     z-index: 1;
@@ -1527,9 +1249,10 @@ export const panelStyles = css`
 
   .preset-card-actions ha-icon-button,
   .preset-card-actions .favorite-star {
+    --ha-icon-button-size: 28px;
     --mdc-icon-button-size: 28px;
     --mdc-icon-size: 16px;
-    color: white;
+    color: var(--text-primary-color);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1548,7 +1271,7 @@ export const panelStyles = css`
 
   .preset-card-actions ha-icon-button:hover,
   .preset-card-actions .favorite-star:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(var(--rgb-text-primary-color, 255, 255, 255), 0.2);
     border-radius: var(--ha-border-radius-sm, 4px);
   }
 
@@ -1621,29 +1344,12 @@ export const panelStyles = css`
     gap: 8px;
   }
 
-  .sensitivity-btn {
-    padding: 6px 16px;
-    border: 1px solid var(--divider-color);
-    border-radius: var(--ha-border-radius-sm, 8px);
-    background: var(--card-background-color);
-    color: var(--primary-text-color);
+  .music-sync-sensitivity ha-button {
     font-size: var(--ha-font-size-s, 13px);
-    cursor: pointer;
-    transition: all 0.15s ease;
   }
 
-  .sensitivity-btn:hover {
-    border-color: var(--primary-color);
-  }
-
-  .sensitivity-btn.active {
-    background: var(--primary-color);
-    color: var(--text-primary-color);
-    border-color: var(--primary-color);
-  }
-
-  .sensitivity-btn:disabled {
-    cursor: not-allowed;
+  .music-sync-sensitivity ha-button[appearance="outlined"]::part(base) {
+    border-color: var(--divider-color);
   }
 
   .music-sync-effects {
@@ -1654,7 +1360,7 @@ export const panelStyles = css`
 
   .preset-button.music-sync-active {
     border-color: var(--primary-color);
-    background: rgba(var(--rgb-primary-color, 3, 169, 244), 0.12);
+    background: rgba(var(--rgb-primary-color), 0.12);
   }
 
   .preset-button.music-sync-active .preset-name {
@@ -1761,9 +1467,7 @@ export const panelStyles = css`
 
     /* Sort dropdown mobile styles */
     .sort-select {
-      min-width: 90px;
-      font-size: var(--ha-font-size-xs, 11px);
-      padding: 4px 20px 4px 6px;
+      min-width: 80px;
     }
 
     .section-header-controls {
@@ -1797,17 +1501,26 @@ export const panelStyles = css`
     .music-sync-content {
       grid-template-columns: 1fr;
     }
+
+    .zone-btn-label {
+      display: none;
+    }
   }
 
-  /* HA dialog fullscreen on mobile - follows haStyleDialog */
+  /* HA dialog fullscreen on mobile - follows haStyleDialog.
+   * Includes both new (2026.3+) and old (2026.2) CSS variables. */
   @media all and (max-width: 450px), all and (max-height: 500px) {
     ha-dialog {
+      --ha-dialog-width-md: calc(100vw - env(safe-area-inset-right) - env(safe-area-inset-left));
+      --ha-dialog-max-width: calc(100vw - env(safe-area-inset-right) - env(safe-area-inset-left));
+      --ha-dialog-min-height: 100%;
+      --ha-dialog-max-height: 100%;
+      --vertical-align-dialog: flex-end;
+      --ha-dialog-border-radius: 0;
       --mdc-dialog-min-width: calc(100vw - env(safe-area-inset-right) - env(safe-area-inset-left));
       --mdc-dialog-max-width: calc(100vw - env(safe-area-inset-right) - env(safe-area-inset-left));
       --mdc-dialog-min-height: 100%;
       --mdc-dialog-max-height: 100%;
-      --vertical-align-dialog: flex-end;
-      --ha-dialog-border-radius: 0;
     }
   }
 
@@ -2045,107 +1758,141 @@ export const panelStyles = css`
     }
   }
 
-  /* Z2M Instances Grid Styles */
-  .z2m-instances-grid {
+  /* Instance card grid styles */
+  .instance-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 16px;
     padding: 16px;
   }
 
-  .z2m-instance-card {
+  .instance-card {
     background: var(--card-background-color, var(--ha-card-background));
     border: 1px solid var(--divider-color);
-    border-radius: 8px;
+    border-radius: var(--ha-card-border-radius, 12px);
     padding: 16px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
   }
 
-  .z2m-instance-header {
+  .instance-header {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
   }
 
-  .z2m-instance-info {
+  .instance-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: var(--ha-font-size-xs, 11px);
+    font-weight: var(--ha-font-weight-bold, 600);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .instance-badge--z2m {
+    background: #e1a700;
+    color: #1a1400;
+  }
+
+  .instance-badge--zha {
+    background: #db4437;
+    color: #fff;
+  }
+
+  .instance-info {
     display: flex;
     flex-direction: column;
     gap: 2px;
     min-width: 0;
   }
 
-  .z2m-instance-name {
+  .instance-name {
     font-size: var(--ha-font-size-l, 16px);
     font-weight: var(--ha-font-weight-medium, 500);
     color: var(--primary-text-color);
     word-break: break-word;
   }
 
-  .z2m-instance-topic {
+  .instance-topic {
     font-size: var(--ha-font-size-s, 12px);
     color: var(--secondary-text-color);
     word-break: break-word;
   }
 
-  .z2m-instance-stats {
+  .instance-type-chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 6px;
   }
 
-  .z2m-stat {
-    display: flex;
-    flex-direction: column;
+  .instance-type-chip {
+    display: inline-flex;
     align-items: center;
-    padding: 8px 12px;
-    min-width: 60px;
-  }
-
-  .z2m-stat-value {
-    font-size: var(--ha-font-size-xl, 20px);
-    font-weight: var(--ha-font-weight-bold, 600);
-    color: var(--primary-color);
-  }
-
-  .z2m-stat-label {
+    padding: 2px 8px;
+    border-radius: 8px;
     font-size: var(--ha-font-size-xs, 11px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    background: var(--secondary-background-color);
     color: var(--secondary-text-color);
-    text-align: center;
     white-space: nowrap;
   }
 
-  .z2m-devices-list {
-    margin-top: 4px;
-    padding-top: 8px;
+  .instance-device-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding-top: 6px;
     border-top: 1px solid var(--divider-color);
   }
 
-  .z2m-devices-list details summary {
-    user-select: none;
+  .instance-device-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 14px;
+    font-size: var(--ha-font-size-s, 12px);
+    background: var(--secondary-background-color);
+    color: var(--primary-text-color);
+    white-space: nowrap;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  .z2m-devices-list details[open] summary {
-    margin-bottom: 4px;
+  .instance-device-chip--more {
+    cursor: pointer;
+    color: var(--primary-color);
+    background: transparent;
+    border: 1px solid var(--primary-color);
+    max-width: none;
   }
 
-  /* Mobile adjustments for Z2M instances */
+  .instance-device-chip--more:hover {
+    background: var(--primary-color);
+    color: var(--text-primary-color, #fff);
+  }
+
+  /* Mobile adjustments for instance cards */
   @media (max-width: 480px) {
-    .z2m-instances-grid {
+    .instance-grid {
       grid-template-columns: 1fr;
       padding: 12px;
       gap: 12px;
     }
 
-    .z2m-instance-stats {
-      gap: 8px;
+    .instance-type-chips {
+      gap: 4px;
     }
 
-    .z2m-stat {
-      flex: 1;
-      min-width: 50px;
-      padding: 6px 8px;
+    .instance-device-chips {
+      gap: 4px;
     }
   }
 
@@ -2163,7 +1910,6 @@ export const panelStyles = css`
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 12px;
     font-weight: var(--ha-font-weight-medium, 500);
     color: var(--primary-text-color);
   }
@@ -2175,25 +1921,71 @@ export const panelStyles = css`
     margin-left: auto;
   }
 
-  .zone-empty-message {
+  .zone-device-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .zone-device-toolbar .toolbar-spacer {
+    flex: 1;
+  }
+
+  .zone-unsaved-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     font-size: var(--ha-font-size-s, 12px);
+    color: var(--warning-color);
+  }
+
+  .zone-unsaved-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--warning-color);
+  }
+
+  .zone-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 24px 16px;
     color: var(--secondary-text-color);
-    padding: 8px 0;
+  }
+
+  .zone-empty-state ha-icon {
+    --mdc-icon-size: 40px;
+    opacity: 0.5;
+  }
+
+  .zone-empty-state .zone-empty-title {
+    font-size: var(--ha-font-size-m, 14px);
+    font-weight: var(--ha-font-weight-medium, 500);
+  }
+
+  .zone-empty-state .zone-empty-hint {
+    font-size: var(--ha-font-size-s, 12px);
+    text-align: center;
+    max-width: 280px;
   }
 
   .zone-list {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    margin-bottom: 12px;
+    margin-top: 12px;
   }
 
   .zone-row {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    padding: 8px;
+    padding: 12px;
     border: 1px solid var(--divider-color);
+    border-left: 3px solid var(--primary-color);
     border-radius: var(--ha-border-radius-sm, 4px);
     background: var(--secondary-background-color);
   }
@@ -2209,10 +2001,13 @@ export const panelStyles = css`
     min-width: 0;
   }
 
-  .zone-actions {
-    display: flex;
-    gap: 8px;
-    align-items: center;
+  .zone-row-header ha-icon-button {
+    color: var(--secondary-text-color);
+    transition: color 0.2s ease;
+  }
+
+  .zone-row-header ha-icon-button:hover {
+    color: var(--error-color);
   }
 `;
 
@@ -2308,7 +2103,7 @@ export const colorPickerStyles = css`
 
   .color-remove:hover {
     background: var(--error-color);
-    color: white;
+    color: var(--text-primary-color);
   }
 
   .color-remove ha-icon {
@@ -2421,79 +2216,95 @@ export const colorPickerStyles = css`
     color: var(--text-primary-color);
   }
 
-  /* Color picker modal overlay */
-  .color-picker-modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+  /* Color picker ha-dialog styling
+   * Fixed width sized for 8 color history swatches:
+   * 8 x 32px swatches + 7 x 6px gaps = 298px content + 48px padding = 346px
+   * Supports both new (2026.3+) and old (2026.2) ha-dialog CSS variables.
+   */
+  ha-dialog {
+    --ha-dialog-width-md: min(346px, calc(100vw - 32px));
+    --ha-dialog-max-width: min(346px, calc(100vw - 32px));
+    --mdc-dialog-min-width: min(346px, calc(100vw - 32px));
+    --mdc-dialog-max-width: min(346px, calc(100vw - 32px));
+  }
+
+  ha-dialog [slot="headerActionItems"] {
+    margin-right: 12px;
+  }
+
+  ha-dialog [slot="footer"] {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+
+  /* Old ha-dialog heading layout */
+  ha-dialog .header_title {
     display: flex;
     align-items: center;
-    justify-content: center;
-    z-index: 1000;
   }
-
-  .color-picker-modal {
-    background: var(--card-background-color);
-    border-radius: 8px;
-    padding: 24px;
-    width: 298px;
-    max-width: calc(100vw - 80px);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  ha-dialog .header_title span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+    padding-left: 4px;
+    padding-right: 4px;
+    flex: 1;
   }
-
-  .color-picker-modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-  }
-
-  .color-picker-modal-title {
-    font-size: 18px;
-    font-weight: 500;
-    color: var(--primary-text-color);
+  ha-dialog .header_title .header_button {
+    text-decoration: none;
+    color: inherit;
   }
 
   .color-picker-modal-preview {
-    width: 48px;
-    height: 48px;
-    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
     border: 2px solid var(--divider-color);
   }
 
-  .color-picker-value-display {
-    font-size: var(--ha-font-size-m, 14px);
-    font-weight: var(--ha-font-weight-medium, 500);
-    font-family: var(--code-font-family, monospace);
-    color: var(--primary-text-color);
-    text-align: center;
-    padding: 8px 16px;
-    background: var(--secondary-background-color);
-    border-radius: var(--ha-border-radius-sm, 4px);
-    letter-spacing: 0.5px;
+  ha-dialog.extractor-dialog {
+    --ha-dialog-width-md: min(420px, calc(100vw - 32px));
+    --ha-dialog-max-width: min(420px, calc(100vw - 32px));
+    --mdc-dialog-min-width: min(420px, calc(100vw - 32px));
+    --mdc-dialog-max-width: min(420px, calc(100vw - 32px));
   }
 
-  .color-picker-modal-actions {
+  ha-dialog.extractor-dialog image-color-extractor {
+    min-height: 200px;
+  }
+
+  .extractor-mode-toggle {
     display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    margin-top: 20px;
+    gap: 4px;
+    background: var(--secondary-background-color, #f5f5f5);
+    border-radius: 8px;
+    padding: 3px;
+    margin: 0 auto;
   }
 
-  /* Segment selector zone buttons */
-  .zone-divider {
-    width: 1px;
-    height: 24px;
-    background: var(--divider-color);
-    margin: 0 4px;
+  .extractor-mode-toggle .mode-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--primary-text-color);
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.2s;
   }
 
-  .zone-button {
-    --mdc-theme-primary: var(--primary-color);
+  .extractor-mode-toggle .mode-btn.active {
+    background: var(--card-background-color, #fff);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
   }
 
-  /* Color history styles moved to color-history-swatches.ts shared component */
+  .extractor-mode-toggle .mode-btn ha-icon {
+    --mdc-icon-size: 16px;
+  }
+
 `;

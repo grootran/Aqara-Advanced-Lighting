@@ -5,480 +5,226 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
-import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+from .base_sequence_manager import BaseSequenceManager
 from .const import (
     DATA_SEGMENT_ZONE_STORE,
     DOMAIN,
-    EVENT_SEQUENCE_COMPLETED,
-    EVENT_SEQUENCE_PAUSED,
-    EVENT_SEQUENCE_RESUMED,
-    EVENT_SEQUENCE_STARTED,
-    EVENT_SEQUENCE_STOPPED,
-    EVENT_STEP_CHANGED,
-    EVENT_ATTR_ENTITY_ID,
-    EVENT_ATTR_LOOP_ITERATION,
-    EVENT_ATTR_PRESET,
-    EVENT_ATTR_REASON,
-    EVENT_ATTR_SEQUENCE_ID,
-    EVENT_ATTR_SEQUENCE_TYPE,
-    EVENT_ATTR_STEP_INDEX,
-    EVENT_ATTR_TOTAL_STEPS,
     SEQUENCE_TYPE_SEGMENT,
 )
 from .models import SegmentSequence, RGBColor, SegmentColor
 
 if TYPE_CHECKING:
-    from homeassistant.core import HomeAssistant
-
-    from .backend_protocol import DeviceBackend
-    from .entity_controller import EntityController
+    from .models import SegmentSequenceStep
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class SegmentSequenceManager:
+class SegmentSequenceManager(BaseSequenceManager[SegmentSequence]):
     """Manages RGB segment sequence execution as background tasks."""
 
-    def __init__(
-        self,
-        hass: HomeAssistant,
-        backend: DeviceBackend,
-        entity_controller: EntityController | None = None,
-    ) -> None:
+    _sequence_type = SEQUENCE_TYPE_SEGMENT
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initialize the segment sequence manager."""
-        self.hass = hass
-        self.backend = backend
-        self._entity_controller = entity_controller
-        self._active_sequences: dict[str, asyncio.Task] = {}  # entity_id -> task
-        self._stop_flags: dict[str, asyncio.Event] = {}  # entity_id -> stop event
-        self._sequence_ids: dict[str, str] = {}  # entity_id -> sequence_id
-        self._pause_flags: dict[str, asyncio.Event] = {}  # entity_id -> pause event
-        self._sequence_state: dict[str, dict] = {}  # entity_id -> state info
-        self._sequence_presets: dict[str, str | None] = {}  # entity_id -> preset name
-        # Group synchronization support
-        self._group_barriers: dict[str, asyncio.Barrier] = {}  # group_id -> barrier
-        self._entity_to_group: dict[str, str] = {}  # entity_id -> group_id
+        super().__init__(*args, **kwargs)
+        self._total_segments: dict[str, int] = {}
 
-    def cleanup(self) -> None:
-        """Cleanup resources.
+    # -- BaseSequenceManager hooks --
 
-        State change listening is now managed by the centralized EntityController.
-        """
+    def _get_start_step(
+        self, sequence: SegmentSequence, loops_executed: int
+    ) -> int:
+        """Skip first step on subsequent loops when skip_first_in_loop is set."""
+        if (
+            loops_executed > 0
+            and sequence.skip_first_in_loop
+            and len(sequence.steps) > 1
+        ):
+            _LOGGER.debug(
+                "Skipping first step in loop %d (skip_first_in_loop=True)",
+                loops_executed + 1,
+            )
+            return 1
+        return 0
 
-    async def start_sequence(
+    async def _prepare_execution(
+        self, entity_id: str, sequence: SegmentSequence
+    ) -> bool:
+        """Get segment count and optionally clear segments before starting."""
+        total_segments = await self._get_device_segment_count(entity_id)
+        _LOGGER.info("Segment count for %s: %d", entity_id, total_segments)
+        if total_segments == 0:
+            _LOGGER.error(
+                "Could not determine segment count for %s", entity_id
+            )
+            return False
+
+        self._total_segments[entity_id] = total_segments
+
+        _LOGGER.info(
+            "Checking clear_segments flag: %s", sequence.clear_segments
+        )
+        if sequence.clear_segments:
+            _LOGGER.info(
+                "Clearing all segments for %s before starting sequence",
+                entity_id,
+            )
+            black_color = RGBColor(r=0, g=0, b=0)
+            clear_segments = [
+                SegmentColor(segment=seg, color=black_color)
+                for seg in range(1, total_segments + 1)
+            ]
+            try:
+                if self._entity_controller:
+                    self._entity_controller.record_command(entity_id)
+                await self.backend.async_send_segment_pattern(
+                    entity_id, clear_segments
+                )
+                await asyncio.sleep(0.1)
+            except Exception as ex:
+                _LOGGER.warning(
+                    "Failed to clear segments for %s: %s", entity_id, ex
+                )
+
+        return True
+
+    async def _apply_step(
         self,
         entity_id: str,
         sequence: SegmentSequence,
-        preset: str | None = None,
-    ) -> str:
-        """Start a segment sequence for an entity.
+        step: Any,
+        step_index: int,
+        stop_event: asyncio.Event,
+    ) -> bool:
+        """Apply a single segment step.
 
-        Args:
-            entity_id: The light entity ID to control
-            sequence: The segment sequence configuration
-            preset: Optional preset name for event tracking
-
-        Returns:
-            The unique sequence ID for this sequence run
+        Handles segment color generation, activation patterns (all-at-once
+        or sequential), and duration timing. Returns True if the step
+        completed normally, False if interrupted.
         """
-        # Cancel existing sequence if running
-        try:
-            await self.stop_sequence(entity_id)
-        except Exception as ex:
-            _LOGGER.debug("Error stopping existing sequence for %s: %s", entity_id, ex)
+        seg_step: SegmentSequenceStep = step
+        total_segments = self._total_segments.get(entity_id, 0)
 
-        # Generate unique sequence ID and store preset
-        sequence_id = str(uuid.uuid4())
-        self._sequence_ids[entity_id] = sequence_id
-        self._sequence_presets[entity_id] = preset
-
-        # Create stop and pause flags
-        stop_event = asyncio.Event()
-        pause_event = asyncio.Event()
-        self._stop_flags[entity_id] = stop_event
-        self._pause_flags[entity_id] = pause_event
-
-        # Initialize sequence state
-        self._sequence_state[entity_id] = {
-            "paused": False,
-            "current_step": 0,
-            "total_steps": len(sequence.steps),
-            "loop_iteration": 1,
-            "loop_mode": sequence.loop_mode,
-            "loop_count": sequence.loop_count,
-        }
-
-        # Create and store task
-        task = asyncio.create_task(
-            self._execute_sequence(
-                entity_id, sequence, stop_event, pause_event, sequence_id
-            )
-        )
-        self._active_sequences[entity_id] = task
-
-        # Fire sequence started event
-        self.hass.bus.async_fire(
-            EVENT_SEQUENCE_STARTED,
-            {
-                EVENT_ATTR_ENTITY_ID: entity_id,
-                EVENT_ATTR_SEQUENCE_ID: sequence_id,
-                EVENT_ATTR_TOTAL_STEPS: len(sequence.steps),
-                EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_SEGMENT,
-                EVENT_ATTR_PRESET: preset,
-            },
+        _LOGGER.debug(
+            "Executing step %d/%d for %s: %d colors, mode=%s, pattern=%s",
+            step_index + 1,
+            len(sequence.steps),
+            entity_id,
+            len(seg_step.colors),
+            seg_step.mode,
+            seg_step.activation_pattern,
         )
 
-        _LOGGER.info("Started segment sequence for %s (sequence_id=%s)", entity_id, sequence_id)
-
-        return sequence_id
-
-    async def start_synchronized_group(
-        self,
-        entity_ids: list[str],
-        sequence: SegmentSequence,
-        preset: str | None = None,
-    ) -> dict[str, str]:
-        """Start synchronized segment sequences for multiple entities.
-
-        All entities will coordinate their step timing to stay in sync.
-
-        Args:
-            entity_ids: List of light entity IDs to control
-            sequence: The segment sequence configuration (same for all)
-            preset: Optional preset name for event tracking
-
-        Returns:
-            Dict mapping entity_id to sequence_id for all started sequences
-        """
-        if not entity_ids:
-            return {}
-
-        # For single entity, use regular start_sequence
-        if len(entity_ids) == 1:
-            seq_id = await self.start_sequence(
-                entity_ids[0], sequence, preset
+        # Verify entity is supported by backend
+        is_supported, _ = self.backend.is_entity_supported(entity_id)
+        if not is_supported:
+            _LOGGER.warning(
+                "Entity %s not supported by backend, skipping step", entity_id
             )
-            return {entity_ids[0]: seq_id}
+            return True  # Continue to next step
 
-        # Generate a group ID for synchronization
-        group_id = str(uuid.uuid4())
-
-        # Stop any existing sequences for these entities in parallel
-        stop_tasks = [self.stop_sequence(entity_id) for entity_id in entity_ids]
-        await asyncio.gather(*stop_tasks, return_exceptions=True)
-
-        # Create a barrier for step synchronization
-        barrier = asyncio.Barrier(len(entity_ids))
-        self._group_barriers[group_id] = barrier
-
-        # Prepare all entities
-        sequence_ids: dict[str, str] = {}
-        tasks: list[asyncio.Task] = []
-
-        for entity_id in entity_ids:
-            # Generate unique sequence ID and store preset
-            sequence_id = str(uuid.uuid4())
-            self._sequence_ids[entity_id] = sequence_id
-            self._sequence_presets[entity_id] = preset
-            sequence_ids[entity_id] = sequence_id
-
-            # Track group membership
-            self._entity_to_group[entity_id] = group_id
-
-            # Create stop and pause flags
-            stop_event = asyncio.Event()
-            pause_event = asyncio.Event()
-            self._stop_flags[entity_id] = stop_event
-            self._pause_flags[entity_id] = pause_event
-
-            # Initialize sequence state
-            self._sequence_state[entity_id] = {
-                "paused": False,
-                "current_step": 0,
-                "total_steps": len(sequence.steps),
-                "loop_iteration": 1,
-                "loop_mode": sequence.loop_mode,
-                "loop_count": sequence.loop_count,
-                "group_id": group_id,
-            }
-
-            # Create task with group synchronization
-            task = asyncio.create_task(
-                self._execute_synchronized_sequence(
-                    entity_id,
-                    sequence,
-                    stop_event,
-                    pause_event,
-                    sequence_id,
-                    group_id,
+        # Get segment color assignments
+        if seg_step.segment_colors:
+            segment_colors = seg_step.segment_colors
+            _LOGGER.debug(
+                "Using direct segment assignments: %d segments",
+                len(segment_colors),
+            )
+        else:
+            segments = self._parse_segment_range(
+                seg_step.segments, total_segments, entity_id=entity_id
+            )
+            if not segments:
+                _LOGGER.warning(
+                    "No valid segments for step %d", step_index + 1
                 )
-            )
-            self._active_sequences[entity_id] = task
-            tasks.append(task)
-
-            # Fire sequence started event
-            self.hass.bus.async_fire(
-                EVENT_SEQUENCE_STARTED,
-                {
-                    EVENT_ATTR_ENTITY_ID: entity_id,
-                    EVENT_ATTR_SEQUENCE_ID: sequence_id,
-                    EVENT_ATTR_TOTAL_STEPS: len(sequence.steps),
-                    EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_SEGMENT,
-                    EVENT_ATTR_PRESET: preset,
-                },
+                return True  # Continue to next step
+            segment_colors = self._generate_segment_colors(
+                segments, seg_step.colors, seg_step.mode
             )
 
-        _LOGGER.info(
-            "Started synchronized segment sequence group %s for %d entities",
-            group_id,
-            len(entity_ids),
-        )
+        # Apply activation pattern
+        if seg_step.activation_pattern == "all":
+            try:
+                if self._entity_controller:
+                    self._entity_controller.record_command(entity_id)
+                await self.backend.async_send_segment_pattern(
+                    entity_id, segment_colors
+                )
+            except Exception as ex:
+                _LOGGER.warning(
+                    "Failed to apply segment pattern for %s: %s",
+                    entity_id,
+                    ex,
+                )
 
-        return sequence_ids
-
-    def _cleanup_group(self, group_id: str) -> None:
-        """Clean up group synchronization resources.
-
-        Args:
-            group_id: The group ID to clean up
-        """
-        # Remove barrier
-        if group_id in self._group_barriers:
-            del self._group_barriers[group_id]
-
-        # Remove entity-to-group mappings for this group
-        entities_to_remove = [
-            entity_id
-            for entity_id, gid in self._entity_to_group.items()
-            if gid == group_id
-        ]
-        for entity_id in entities_to_remove:
-            del self._entity_to_group[entity_id]
-
-    async def stop_sequence(self, entity_id: str) -> None:
-        """Stop a running segment sequence.
-
-        Args:
-            entity_id: The light entity ID
-        """
-        # Check if there's actually a sequence running
-        if entity_id not in self._active_sequences:
-            _LOGGER.debug("No active sequence to stop for %s", entity_id)
-            return
-
-        sequence_id = self._sequence_ids.get(entity_id)
-        preset = self._sequence_presets.get(entity_id)
-
-        # Set stop flag
-        if entity_id in self._stop_flags:
-            self._stop_flags[entity_id].set()
-
-        # Cancel and cleanup task
-        task = self._active_sequences[entity_id]
-        task.cancel()
-        try:
-            await task
-        except (asyncio.CancelledError, Exception) as ex:
-            # Log any unexpected exceptions from the task
-            if not isinstance(ex, asyncio.CancelledError):
-                _LOGGER.debug("Exception while stopping sequence for %s: %s", entity_id, ex)
-
-        # Cleanup all tracking data
-        if entity_id in self._active_sequences:
-            del self._active_sequences[entity_id]
-        if entity_id in self._stop_flags:
-            del self._stop_flags[entity_id]
-        if entity_id in self._pause_flags:
-            del self._pause_flags[entity_id]
-        if entity_id in self._sequence_ids:
-            del self._sequence_ids[entity_id]
-        if entity_id in self._sequence_state:
-            del self._sequence_state[entity_id]
-        if entity_id in self._sequence_presets:
-            del self._sequence_presets[entity_id]
-
-        # Fire sequence stopped event
-        self.hass.bus.async_fire(
-            EVENT_SEQUENCE_STOPPED,
-            {
-                EVENT_ATTR_ENTITY_ID: entity_id,
-                EVENT_ATTR_SEQUENCE_ID: sequence_id,
-                EVENT_ATTR_REASON: "manual_stop",
-                EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_SEGMENT,
-                EVENT_ATTR_PRESET: preset,
-            },
-        )
-
-        _LOGGER.info("Stopped segment sequence for %s", entity_id)
-
-    async def stop_all_sequences(self) -> None:
-        """Stop all running segment sequences."""
-        entity_ids = list(self._active_sequences.keys())
-        for entity_id in entity_ids:
-            await self.stop_sequence(entity_id)
-
-    def is_sequence_running(self, entity_id: str) -> bool:
-        """Check if a sequence is running for an entity.
-
-        Args:
-            entity_id: The light entity ID
-
-        Returns:
-            True if a sequence is currently running
-        """
-        return entity_id in self._active_sequences
-
-    def get_sequence_id(self, entity_id: str) -> str | None:
-        """Get the sequence ID for an entity.
-
-        Args:
-            entity_id: The light entity ID
-
-        Returns:
-            The sequence ID if a sequence is running, None otherwise
-        """
-        return self._sequence_ids.get(entity_id)
-
-    def get_sequence_preset(self, entity_id: str) -> str | None:
-        """Get the preset name for a running sequence.
-
-        Args:
-            entity_id: The light entity ID
-
-        Returns:
-            The preset name if a sequence is running, None otherwise
-        """
-        return self._sequence_presets.get(entity_id)
-
-    def get_running_sequences(self) -> dict[str, str]:
-        """Get all running sequences.
-
-        Returns:
-            Dict mapping entity_id to sequence_id for all running sequences
-        """
-        return dict(self._sequence_ids)
-
-    def pause_sequence(self, entity_id: str) -> bool:
-        """Pause a running segment sequence.
-
-        Args:
-            entity_id: The light entity ID
-
-        Returns:
-            True if sequence was paused, False if no sequence is running
-        """
-        if entity_id not in self._active_sequences:
-            _LOGGER.warning("No active sequence for %s to pause", entity_id)
-            return False
-
-        if entity_id in self._sequence_state and self._sequence_state[entity_id].get("paused"):
-            _LOGGER.debug("Sequence for %s is already paused", entity_id)
-            return True
-
-        # Set pause event
-        if entity_id in self._pause_flags:
-            self._pause_flags[entity_id].set()
-            if entity_id in self._sequence_state:
-                self._sequence_state[entity_id]["paused"] = True
-
-            # Fire sequence paused event
-            sequence_id = self._sequence_ids.get(entity_id, "")
-            preset = self._sequence_presets.get(entity_id)
-            self.hass.bus.async_fire(
-                EVENT_SEQUENCE_PAUSED,
-                {
-                    EVENT_ATTR_ENTITY_ID: entity_id,
-                    EVENT_ATTR_SEQUENCE_ID: sequence_id,
-                    EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_SEGMENT,
-                    EVENT_ATTR_PRESET: preset,
-                },
+            # Wait for duration
+            if seg_step.duration > 0:
+                try:
+                    await asyncio.wait_for(
+                        stop_event.wait(), timeout=seg_step.duration
+                    )
+                    _LOGGER.debug(
+                        "Sequence stopped during step duration for %s",
+                        entity_id,
+                    )
+                    return False
+                except asyncio.TimeoutError:
+                    pass  # Normal - duration elapsed
+        else:
+            # Sequential activation
+            segments = [
+                sc.segment
+                for sc in segment_colors
+                if isinstance(sc.segment, int)
+            ]
+            ordered_segments = self._order_segments_by_pattern(
+                segments, seg_step.activation_pattern
             )
 
-            _LOGGER.info("Paused segment sequence for %s", entity_id)
-            return True
+            if seg_step.duration > 0 and len(ordered_segments) > 1:
+                segment_delay = seg_step.duration / len(ordered_segments)
+            else:
+                segment_delay = 0
 
-        return False
+            color_map = {sc.segment: sc.color for sc in segment_colors}
 
-    def resume_sequence(self, entity_id: str) -> bool:
-        """Resume a paused segment sequence.
+            for segment in ordered_segments:
+                if stop_event.is_set():
+                    return False
 
-        Args:
-            entity_id: The light entity ID
+                if segment in color_map:
+                    segment_color = SegmentColor(
+                        segment=segment, color=color_map[segment]
+                    )
+                    try:
+                        if self._entity_controller:
+                            self._entity_controller.record_command(entity_id)
+                        await self.backend.async_send_segment_pattern(
+                            entity_id, [segment_color]
+                        )
+                    except Exception as ex:
+                        _LOGGER.warning(
+                            "Failed to apply segment %d for %s: %s",
+                            segment,
+                            entity_id,
+                            ex,
+                        )
 
-        Returns:
-            True if sequence was resumed, False if no sequence is paused
-        """
-        if entity_id not in self._active_sequences:
-            _LOGGER.warning("No active sequence for %s to resume", entity_id)
-            return False
+                if segment_delay > 0:
+                    try:
+                        await asyncio.wait_for(
+                            stop_event.wait(), timeout=segment_delay
+                        )
+                        return False  # Stop event was set
+                    except asyncio.TimeoutError:
+                        pass  # Normal - delay elapsed
 
-        if entity_id in self._sequence_state and not self._sequence_state[entity_id].get("paused"):
-            _LOGGER.debug("Sequence for %s is not paused", entity_id)
-            return True
+        return True
 
-        # Clear pause event
-        if entity_id in self._pause_flags:
-            self._pause_flags[entity_id].clear()
-            if entity_id in self._sequence_state:
-                self._sequence_state[entity_id]["paused"] = False
-
-            # Fire sequence resumed event
-            sequence_id = self._sequence_ids.get(entity_id, "")
-            preset = self._sequence_presets.get(entity_id)
-            self.hass.bus.async_fire(
-                EVENT_SEQUENCE_RESUMED,
-                {
-                    EVENT_ATTR_ENTITY_ID: entity_id,
-                    EVENT_ATTR_SEQUENCE_ID: sequence_id,
-                    EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_SEGMENT,
-                    EVENT_ATTR_PRESET: preset,
-                },
-            )
-
-            _LOGGER.info("Resumed segment sequence for %s", entity_id)
-            return True
-
-        return False
-
-    def is_sequence_paused(self, entity_id: str) -> bool:
-        """Check if a sequence is paused.
-
-        Args:
-            entity_id: The light entity ID
-
-        Returns:
-            True if sequence is paused, False otherwise
-        """
-        if entity_id not in self._sequence_state:
-            return False
-        return self._sequence_state[entity_id].get("paused", False)
-
-    def get_sequence_status(self, entity_id: str) -> dict | None:
-        """Get the current status of a sequence.
-
-        Args:
-            entity_id: The light entity ID
-
-        Returns:
-            Dict with sequence status info, or None if no sequence is running
-        """
-        if entity_id not in self._active_sequences:
-            return None
-
-        state = self._sequence_state.get(entity_id, {})
-        return {
-            "entity_id": entity_id,
-            "sequence_id": self._sequence_ids.get(entity_id),
-            "running": True,
-            "paused": state.get("paused", False),
-            "current_step": state.get("current_step", 0),
-            "total_steps": state.get("total_steps", 0),
-            "loop_iteration": state.get("loop_iteration", 1),
-            "loop_mode": state.get("loop_mode"),
-            "loop_count": state.get("loop_count"),
-        }
+    # -- Segment-specific helpers --
 
     def _get_zones_for_entity(self, entity_id: str) -> dict[str, str] | None:
         """Get segment zones for the device associated with an entity.
@@ -537,21 +283,17 @@ class SegmentSequenceManager:
 
         segments = []
 
-        # Handle comma-separated values
         parts = segments_str.split(",")
         for part in parts:
             part = part.strip()
             if "-" in part:
-                # Range: "1-5"
                 start_str, end_str = part.split("-", 1)
                 start = int(start_str.strip())
                 end = int(end_str.strip())
                 segments.extend(range(start, end + 1))
             else:
-                # Single segment
                 segments.append(int(part))
 
-        # Filter out invalid segment numbers and remove duplicates
         valid_segments = sorted(set(s for s in segments if 1 <= s <= total_segments))
         return valid_segments
 
@@ -574,27 +316,22 @@ class SegmentSequenceManager:
         segment_colors = []
 
         if mode == "individual":
-            # Direct 1:1 mapping - colors[i] maps to segments[i]
-            # Only map as many segments as we have colors for
             for i in range(min(len(segments), len(colors))):
                 segment_colors.append(
                     SegmentColor(segment=segments[i], color=colors[i])
                 )
 
         elif mode == "blocks_repeat":
-            # Repeat color pattern across segments
             for i, segment in enumerate(segments):
                 color = colors[i % len(colors)]
                 segment_colors.append(SegmentColor(segment=segment, color=color))
 
         elif mode == "blocks_expand":
-            # Distribute colors evenly across segments
             block_size = len(segments) // len(colors)
             remainder = len(segments) % len(colors)
 
             segment_idx = 0
             for color_idx, color in enumerate(colors):
-                # Add 1 extra segment to first 'remainder' blocks
                 size = block_size + (1 if color_idx < remainder else 0)
                 for _ in range(size):
                     if segment_idx < len(segments):
@@ -604,23 +341,19 @@ class SegmentSequenceManager:
                         segment_idx += 1
 
         elif mode == "gradient":
-            # Create gradient between colors
             if len(colors) < 2:
-                # Single color - just apply to all
                 for segment in segments:
-                    segment_colors.append(SegmentColor(segment=segment, color=colors[0]))
+                    segment_colors.append(
+                        SegmentColor(segment=segment, color=colors[0])
+                    )
             else:
-                # Interpolate between colors
                 for i, segment in enumerate(segments):
-                    # Calculate position in gradient (0.0 to 1.0)
                     position = i / max(len(segments) - 1, 1)
-                    # Determine which color pair to interpolate between
                     color_position = position * (len(colors) - 1)
                     color_idx = int(color_position)
                     color_idx = min(color_idx, len(colors) - 2)
                     local_position = color_position - color_idx
 
-                    # Interpolate between adjacent colors
                     color1 = colors[color_idx]
                     color2 = colors[color_idx + 1]
 
@@ -658,12 +391,10 @@ class SegmentSequenceManager:
             random.shuffle(shuffled)
             return shuffled
         elif pattern == "ping_pong":
-            # Forward then reverse
             forward = sorted(segments)
             reverse = sorted(segments, reverse=True)[1:-1] if len(segments) > 2 else []
             return forward + reverse
         elif pattern == "center_out":
-            # Start from center, move outwards
             sorted_segments = sorted(segments)
             mid = len(sorted_segments) // 2
             result = []
@@ -677,7 +408,6 @@ class SegmentSequenceManager:
                     left -= 1
             return result
         elif pattern == "edges_in":
-            # Start from edges, move inwards
             sorted_segments = sorted(segments)
             result = []
             left, right = 0, len(sorted_segments) - 1
@@ -689,617 +419,10 @@ class SegmentSequenceManager:
                 right -= 1
             return result
         elif pattern == "paired":
-            # Activate segments in pairs
             sorted_segments = sorted(segments)
             return sorted_segments
 
         return segments
-
-    async def _execute_sequence(
-        self,
-        entity_id: str,
-        sequence: SegmentSequence,
-        stop_event: asyncio.Event,
-        pause_event: asyncio.Event,
-        sequence_id: str,
-    ) -> None:
-        """Execute a segment sequence.
-
-        Args:
-            entity_id: The light entity ID to control
-            sequence: The segment sequence configuration
-            stop_event: Event to signal sequence should stop
-            pause_event: Event to signal sequence should pause
-            sequence_id: Unique identifier for this sequence run
-        """
-        _LOGGER.debug("Starting segment sequence for %s (sequence_id=%s)", entity_id, sequence_id)
-        completed_naturally = False
-
-        try:
-            # Get total segment count for this device
-            total_segments = await self._get_device_segment_count(entity_id)
-            _LOGGER.info("Segment count for %s: %d", entity_id, total_segments)
-            if total_segments == 0:
-                _LOGGER.error("Could not determine segment count for %s", entity_id)
-                return
-
-            # Clear all segments if requested (set all to black/off)
-            _LOGGER.info("Checking clear_segments flag: %s", sequence.clear_segments)
-            if sequence.clear_segments:
-                _LOGGER.info("Clearing all segments for %s before starting sequence", entity_id)
-                # Create black color for all segments
-                black_color = RGBColor(r=0, g=0, b=0)
-                clear_segments = [
-                    SegmentColor(segment=seg, color=black_color)
-                    for seg in range(1, total_segments + 1)
-                ]
-                try:
-                    if self._entity_controller:
-                        self._entity_controller.record_command(entity_id)
-                    await self.backend.async_send_segment_pattern(
-                        entity_id, clear_segments
-                    )
-                    # Small delay to ensure segments are cleared before sequence starts
-                    await asyncio.sleep(0.1)
-                except Exception as ex:
-                    _LOGGER.warning(
-                        "Failed to clear segments for %s: %s", entity_id, ex
-                    )
-
-            loops_executed = 0
-            max_loops = (
-                sequence.loop_count if sequence.loop_mode == "count" else None
-            )
-
-            while True:
-                # Determine starting step index
-                # Skip first step on loops after the first iteration if skip_first_in_loop is enabled
-                start_step = 0
-                if loops_executed > 0 and sequence.skip_first_in_loop and len(sequence.steps) > 1:
-                    start_step = 1
-                    _LOGGER.debug(
-                        "Skipping first step in loop %d for %s (skip_first_in_loop=True)",
-                        loops_executed + 1,
-                        entity_id
-                    )
-
-                # Execute steps (starting from start_step)
-                for step_index, step in enumerate(sequence.steps[start_step:], start=start_step):
-                    # Check for stop
-                    if stop_event.is_set():
-                        _LOGGER.debug("Sequence stopped for %s", entity_id)
-                        return
-
-                    # Check for pause - wait until unpaused
-                    while pause_event.is_set():
-                        if stop_event.is_set():
-                            _LOGGER.debug("Sequence stopped while paused for %s", entity_id)
-                            return
-                        await asyncio.sleep(0.1)
-
-                    # Update sequence state
-                    if entity_id in self._sequence_state:
-                        self._sequence_state[entity_id]["current_step"] = step_index + 1
-                        self._sequence_state[entity_id]["loop_iteration"] = loops_executed + 1
-
-                    # Fire step changed event
-                    self.hass.bus.async_fire(
-                        EVENT_STEP_CHANGED,
-                        {
-                            EVENT_ATTR_ENTITY_ID: entity_id,
-                            EVENT_ATTR_SEQUENCE_ID: sequence_id,
-                            EVENT_ATTR_STEP_INDEX: step_index + 1,
-                            EVENT_ATTR_TOTAL_STEPS: len(sequence.steps),
-                            EVENT_ATTR_LOOP_ITERATION: loops_executed + 1,
-                            EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_SEGMENT,
-                            EVENT_ATTR_PRESET: self._sequence_presets.get(entity_id),
-                        },
-                    )
-
-                    _LOGGER.debug(
-                        "Executing step %d/%d for %s: %d colors, mode=%s, pattern=%s",
-                        step_index + 1,
-                        len(sequence.steps),
-                        entity_id,
-                        len(step.colors),
-                        step.mode,
-                        step.activation_pattern,
-                    )
-
-                    # Verify entity is supported by backend
-                    is_supported, _ = self.backend.is_entity_supported(entity_id)
-                    if not is_supported:
-                        _LOGGER.warning(
-                            "Entity %s not supported by backend, skipping step", entity_id
-                        )
-                        continue
-
-                    # Use direct segment assignments if provided (like pattern editor)
-                    # Otherwise generate from mode (legacy)
-                    if step.segment_colors:
-                        segment_colors = step.segment_colors
-                        _LOGGER.debug(
-                            "Using direct segment assignments: %d segments",
-                            len(segment_colors),
-                        )
-                    else:
-                        # Parse segments
-                        segments = self._parse_segment_range(step.segments, total_segments, entity_id=entity_id)
-                        if not segments:
-                            _LOGGER.warning("No valid segments for step %d", step_index + 1)
-                            continue
-
-                        # Generate segment colors
-                        segment_colors = self._generate_segment_colors(
-                            segments, step.colors, step.mode
-                        )
-
-                    # Apply activation pattern
-                    if step.activation_pattern == "all":
-                        # Activate all segments at once
-                        try:
-                            if self._entity_controller:
-                                self._entity_controller.record_command(entity_id)
-                            await self.backend.async_send_segment_pattern(
-                                entity_id, segment_colors
-                            )
-                        except Exception as ex:
-                            _LOGGER.warning(
-                                "Failed to apply segment pattern for %s: %s",
-                                entity_id,
-                                ex,
-                            )
-
-                        # Wait for duration (transition/application time)
-                        if step.duration > 0:
-                            try:
-                                await asyncio.wait_for(
-                                    stop_event.wait(), timeout=step.duration
-                                )
-                                _LOGGER.debug("Sequence stopped during step duration for %s", entity_id)
-                                return
-                            except asyncio.TimeoutError:
-                                pass  # Normal - duration elapsed
-                    else:
-                        # Sequential activation
-                        # Extract segment numbers from segment_colors for ordering
-                        segments = [sc.segment for sc in segment_colors if isinstance(sc.segment, int)]
-                        ordered_segments = self._order_segments_by_pattern(
-                            segments, step.activation_pattern
-                        )
-
-                        # Calculate delay between segments
-                        if step.duration > 0 and len(ordered_segments) > 1:
-                            segment_delay = step.duration / len(ordered_segments)
-                        else:
-                            segment_delay = 0
-
-                        # Create segment color map for lookup
-                        color_map = {sc.segment: sc.color for sc in segment_colors}
-
-                        # Activate segments sequentially
-                        for segment in ordered_segments:
-                            if stop_event.is_set():
-                                return
-
-                            if segment in color_map:
-                                segment_color = SegmentColor(
-                                    segment=segment, color=color_map[segment]
-                                )
-                                try:
-                                    if self._entity_controller:
-                                        self._entity_controller.record_command(entity_id)
-                                    await self.backend.async_send_segment_pattern(
-                                        entity_id, [segment_color]
-                                    )
-                                except Exception as ex:
-                                    _LOGGER.warning(
-                                        "Failed to apply segment %d for %s: %s",
-                                        segment,
-                                        entity_id,
-                                        ex,
-                                    )
-
-                            # Wait before next segment
-                            if segment_delay > 0:
-                                try:
-                                    await asyncio.wait_for(
-                                        stop_event.wait(), timeout=segment_delay
-                                    )
-                                    return  # Stop event was set
-                                except asyncio.TimeoutError:
-                                    pass  # Normal - delay elapsed
-
-                    # Wait for hold time after activation completes
-                    if step.hold > 0:
-                        try:
-                            await asyncio.wait_for(
-                                stop_event.wait(), timeout=step.hold
-                            )
-                            _LOGGER.debug("Sequence stopped during step hold for %s", entity_id)
-                            return
-                        except asyncio.TimeoutError:
-                            pass  # Normal - hold time elapsed
-
-                # Check loop conditions
-                loops_executed += 1
-
-                if sequence.loop_mode == "once":
-                    break
-                elif sequence.loop_mode == "count" and loops_executed >= max_loops:
-                    break
-                # For "continuous", loop continues indefinitely
-
-            # Sequence completed naturally
-            completed_naturally = True
-
-            if sequence.end_behavior == "turn_off":
-                try:
-                    await self.backend.async_turn_off_light(entity_id)
-                    _LOGGER.info("Segment sequence completed, turned off %s", entity_id)
-                except Exception as ex:
-                    _LOGGER.warning("Failed to turn off %s after sequence: %s", entity_id, ex)
-            else:
-                _LOGGER.info(
-                    "Segment sequence completed, maintaining state for %s", entity_id
-                )
-
-        except Exception as ex:
-            _LOGGER.error(
-                "Error executing segment sequence for %s: %s", entity_id, ex, exc_info=True
-            )
-        finally:
-            # Get preset before cleanup
-            preset = self._sequence_presets.get(entity_id)
-
-            # Clean up
-            if entity_id in self._active_sequences:
-                del self._active_sequences[entity_id]
-            if entity_id in self._stop_flags:
-                del self._stop_flags[entity_id]
-            if entity_id in self._pause_flags:
-                del self._pause_flags[entity_id]
-            if entity_id in self._sequence_ids:
-                del self._sequence_ids[entity_id]
-            if entity_id in self._sequence_state:
-                del self._sequence_state[entity_id]
-            if entity_id in self._sequence_presets:
-                del self._sequence_presets[entity_id]
-
-            # Clear entity controller tracking
-            if self._entity_controller:
-                self._entity_controller.clear_entity(entity_id)
-
-            # Fire sequence completed event if it finished naturally
-            if completed_naturally:
-                self.hass.bus.async_fire(
-                    EVENT_SEQUENCE_COMPLETED,
-                    {
-                        EVENT_ATTR_ENTITY_ID: entity_id,
-                        EVENT_ATTR_SEQUENCE_ID: sequence_id,
-                        EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_SEGMENT,
-                        EVENT_ATTR_PRESET: preset,
-                    },
-                )
-
-    async def _execute_synchronized_sequence(
-        self,
-        entity_id: str,
-        sequence: SegmentSequence,
-        stop_event: asyncio.Event,
-        pause_event: asyncio.Event,
-        sequence_id: str,
-        group_id: str,
-    ) -> None:
-        """Execute a synchronized segment sequence with barrier-based step coordination.
-
-        Args:
-            entity_id: The light entity ID to control
-            sequence: The segment sequence configuration
-            stop_event: Event to signal sequence should stop
-            pause_event: Event to signal sequence should pause
-            sequence_id: Unique identifier for this sequence run
-            group_id: Group ID for barrier synchronization
-        """
-        _LOGGER.debug(
-            "Starting synchronized segment sequence for %s (sequence_id=%s, group=%s)",
-            entity_id,
-            sequence_id,
-            group_id,
-        )
-        completed_naturally = False
-        barrier = self._group_barriers.get(group_id)
-
-        try:
-            # Get total segment count for this device
-            total_segments = await self._get_device_segment_count(entity_id)
-            _LOGGER.info("Segment count for %s: %d", entity_id, total_segments)
-            if total_segments == 0:
-                _LOGGER.error("Could not determine segment count for %s", entity_id)
-                return
-
-            # Clear all segments if requested
-            if sequence.clear_segments:
-                _LOGGER.info(
-                    "Clearing all segments for %s before starting synchronized sequence",
-                    entity_id,
-                )
-                black_color = RGBColor(r=0, g=0, b=0)
-                clear_segments = [
-                    SegmentColor(segment=seg, color=black_color)
-                    for seg in range(1, total_segments + 1)
-                ]
-                try:
-                    if self._entity_controller:
-                        self._entity_controller.record_command(entity_id)
-                    await self.backend.async_send_segment_pattern(
-                        entity_id, clear_segments
-                    )
-                    await asyncio.sleep(0.1)
-                except Exception as ex:
-                    _LOGGER.warning(
-                        "Failed to clear segments for %s: %s", entity_id, ex
-                    )
-
-            loops_executed = 0
-            max_loops = (
-                sequence.loop_count if sequence.loop_mode == "count" else None
-            )
-
-            while True:
-                # Determine starting step index
-                start_step = 0
-                if (
-                    loops_executed > 0
-                    and sequence.skip_first_in_loop
-                    and len(sequence.steps) > 1
-                ):
-                    start_step = 1
-
-                # Execute steps
-                for step_index, step in enumerate(
-                    sequence.steps[start_step:], start=start_step
-                ):
-                    # Check for stop
-                    if stop_event.is_set():
-                        _LOGGER.debug(
-                            "Synchronized segment sequence stopped for %s", entity_id
-                        )
-                        return
-
-                    # Check for pause
-                    while pause_event.is_set():
-                        if stop_event.is_set():
-                            return
-                        await asyncio.sleep(0.1)
-
-                    # Synchronize at step boundary - all entities wait here
-                    if barrier is not None:
-                        try:
-                            await asyncio.wait_for(barrier.wait(), timeout=5.0)
-                        except asyncio.TimeoutError:
-                            _LOGGER.warning(
-                                "Barrier timeout for %s at step %d, continuing",
-                                entity_id,
-                                step_index + 1,
-                            )
-                        except asyncio.BrokenBarrierError:
-                            _LOGGER.debug(
-                                "Barrier broken for %s, continuing independently",
-                                entity_id,
-                            )
-                            barrier = None
-
-                    # Update sequence state
-                    if entity_id in self._sequence_state:
-                        self._sequence_state[entity_id]["current_step"] = step_index + 1
-                        self._sequence_state[entity_id]["loop_iteration"] = (
-                            loops_executed + 1
-                        )
-
-                    # Fire step changed event
-                    self.hass.bus.async_fire(
-                        EVENT_STEP_CHANGED,
-                        {
-                            EVENT_ATTR_ENTITY_ID: entity_id,
-                            EVENT_ATTR_SEQUENCE_ID: sequence_id,
-                            EVENT_ATTR_STEP_INDEX: step_index + 1,
-                            EVENT_ATTR_TOTAL_STEPS: len(sequence.steps),
-                            EVENT_ATTR_LOOP_ITERATION: loops_executed + 1,
-                            EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_SEGMENT,
-                            EVENT_ATTR_PRESET: self._sequence_presets.get(entity_id),
-                        },
-                    )
-
-                    _LOGGER.debug(
-                        "Executing synchronized step %d/%d for %s",
-                        step_index + 1,
-                        len(sequence.steps),
-                        entity_id,
-                    )
-
-                    # Verify entity is supported by backend
-                    is_supported, _ = self.backend.is_entity_supported(entity_id)
-                    if not is_supported:
-                        _LOGGER.warning(
-                            "Entity %s not supported by backend, skipping step",
-                            entity_id,
-                        )
-                        continue
-
-                    # Generate segment colors
-                    if step.segment_colors:
-                        segment_colors = step.segment_colors
-                    else:
-                        segments = self._parse_segment_range(
-                            step.segments, total_segments, entity_id=entity_id
-                        )
-                        if not segments:
-                            continue
-                        segment_colors = self._generate_segment_colors(
-                            segments, step.colors, step.mode
-                        )
-
-                    # Apply activation pattern
-                    if step.activation_pattern == "all":
-                        try:
-                            if self._entity_controller:
-                                self._entity_controller.record_command(entity_id)
-                            await self.backend.async_send_segment_pattern(
-                                entity_id, segment_colors
-                            )
-                        except Exception as ex:
-                            _LOGGER.warning(
-                                "Failed to apply synchronized segment pattern for %s: %s",
-                                entity_id,
-                                ex,
-                            )
-
-                        if step.duration > 0:
-                            try:
-                                await asyncio.wait_for(
-                                    stop_event.wait(), timeout=step.duration
-                                )
-                                return
-                            except asyncio.TimeoutError:
-                                pass
-                    else:
-                        # Sequential activation
-                        segments = [
-                            sc.segment
-                            for sc in segment_colors
-                            if isinstance(sc.segment, int)
-                        ]
-                        ordered_segments = self._order_segments_by_pattern(
-                            segments, step.activation_pattern
-                        )
-
-                        if step.duration > 0 and len(ordered_segments) > 1:
-                            segment_delay = step.duration / len(ordered_segments)
-                        else:
-                            segment_delay = 0
-
-                        color_map = {sc.segment: sc.color for sc in segment_colors}
-
-                        for segment in ordered_segments:
-                            if stop_event.is_set():
-                                return
-
-                            if segment in color_map:
-                                segment_color = SegmentColor(
-                                    segment=segment, color=color_map[segment]
-                                )
-                                try:
-                                    if self._entity_controller:
-                                        self._entity_controller.record_command(entity_id)
-                                    await self.backend.async_send_segment_pattern(
-                                        entity_id, [segment_color]
-                                    )
-                                except Exception as ex:
-                                    _LOGGER.warning(
-                                        "Failed to apply segment %d for %s: %s",
-                                        segment,
-                                        entity_id,
-                                        ex,
-                                    )
-
-                            if segment_delay > 0:
-                                try:
-                                    await asyncio.wait_for(
-                                        stop_event.wait(), timeout=segment_delay
-                                    )
-                                    return
-                                except asyncio.TimeoutError:
-                                    pass
-
-                    # Wait for hold time
-                    if step.hold > 0:
-                        try:
-                            await asyncio.wait_for(
-                                stop_event.wait(), timeout=step.hold
-                            )
-                            return
-                        except asyncio.TimeoutError:
-                            pass
-
-                # Check loop conditions
-                loops_executed += 1
-
-                if sequence.loop_mode == "once":
-                    break
-                elif sequence.loop_mode == "count" and loops_executed >= max_loops:
-                    break
-
-            # Sequence completed naturally
-            completed_naturally = True
-
-            if sequence.end_behavior == "turn_off":
-                try:
-                    await self.backend.async_turn_off_light(entity_id)
-                    _LOGGER.info(
-                        "Synchronized segment sequence completed, turned off %s",
-                        entity_id,
-                    )
-                except Exception as ex:
-                    _LOGGER.warning(
-                        "Failed to turn off %s after synchronized sequence: %s",
-                        entity_id,
-                        ex,
-                    )
-            else:
-                _LOGGER.info(
-                    "Synchronized segment sequence completed, maintaining state for %s",
-                    entity_id,
-                )
-
-        except Exception as ex:
-            _LOGGER.error(
-                "Error executing synchronized segment sequence for %s: %s",
-                entity_id,
-                ex,
-                exc_info=True,
-            )
-        finally:
-            # Get preset before cleanup
-            preset = self._sequence_presets.get(entity_id)
-
-            # Clean up entity resources
-            if entity_id in self._active_sequences:
-                del self._active_sequences[entity_id]
-            if entity_id in self._stop_flags:
-                del self._stop_flags[entity_id]
-            if entity_id in self._pause_flags:
-                del self._pause_flags[entity_id]
-            if entity_id in self._sequence_ids:
-                del self._sequence_ids[entity_id]
-            if entity_id in self._sequence_state:
-                del self._sequence_state[entity_id]
-            if entity_id in self._sequence_presets:
-                del self._sequence_presets[entity_id]
-            if entity_id in self._entity_to_group:
-                del self._entity_to_group[entity_id]
-
-            # Clear entity controller tracking
-            if self._entity_controller:
-                self._entity_controller.clear_entity(entity_id)
-
-            # Check if this was the last entity in the group and clean up
-            if group_id and not any(
-                gid == group_id for gid in self._entity_to_group.values()
-            ):
-                self._cleanup_group(group_id)
-
-            # Fire sequence completed event if it finished naturally
-            if completed_naturally:
-                self.hass.bus.async_fire(
-                    EVENT_SEQUENCE_COMPLETED,
-                    {
-                        EVENT_ATTR_ENTITY_ID: entity_id,
-                        EVENT_ATTR_SEQUENCE_ID: sequence_id,
-                        EVENT_ATTR_SEQUENCE_TYPE: SEQUENCE_TYPE_SEGMENT,
-                        EVENT_ATTR_PRESET: preset,
-                    },
-                )
 
     async def _get_device_segment_count(self, entity_id: str) -> int:
         """Get the segment count for a device.
@@ -1313,113 +436,124 @@ class SegmentSequenceManager:
         Returns:
             Number of segments, or 0 if unknown
         """
-        # Import here to avoid circular import
         from .light_capabilities import get_segment_count
         from .const import MODEL_T1_STRIP
         from homeassistant.helpers import entity_registry as er
 
         try:
-            # Get device info from backend
             aqara_device = self.backend.get_device_for_entity(entity_id)
             if not aqara_device:
-                _LOGGER.debug("Entity %s not mapped to any backend device", entity_id)
+                _LOGGER.debug(
+                    "Entity %s not mapped to any backend device", entity_id
+                )
                 return 0
 
-            # Get base segment count from model_id
             base_count = get_segment_count(aqara_device.model_id)
 
-            # If not T1 Strip (base_count != 0), return the fixed count
             if base_count != 0:
                 return base_count
 
-            # For T1 Strip, try to get actual length from entity attributes or separate length entity
             if aqara_device.model_id == MODEL_T1_STRIP:
                 state = self.hass.states.get(entity_id)
                 length_meters = None
 
-                # Try to get length from main entity attributes first
                 if state and state.attributes:
                     length_meters = state.attributes.get("length")
 
-                # If not in attributes, try to find separate length entity
                 if length_meters is None:
-                    # Method 1: Try to build entity ID from light entity name
-                    # e.g., light.t1_led_strip -> number.t1_led_strip_length
-                    base_name = entity_id.split(".", 1)[-1] if "." in entity_id else entity_id
+                    base_name = (
+                        entity_id.split(".", 1)[-1]
+                        if "." in entity_id
+                        else entity_id
+                    )
 
                     for domain in ["number", "sensor"]:
                         length_entity_id = f"{domain}.{base_name}_length"
                         length_state = self.hass.states.get(length_entity_id)
-                        if length_state and length_state.state not in ("unknown", "unavailable"):
+                        if length_state and length_state.state not in (
+                            "unknown",
+                            "unavailable",
+                        ):
                             try:
                                 length_meters = float(length_state.state)
                                 _LOGGER.debug(
                                     "Found T1 Strip length from entity %s: %s meters",
                                     length_entity_id,
-                                    length_meters
+                                    length_meters,
                                 )
                                 break
                             except (ValueError, TypeError):
                                 pass
 
-                    # Method 2: If still not found, search device registry for length entity on same device
                     if length_meters is None:
                         entity_reg = er.async_get(self.hass)
 
-                        # Get the light entity's entry to find its device
                         light_entity_entry = entity_reg.async_get(entity_id)
-                        if light_entity_entry and light_entity_entry.device_id:
-                            # Get all entities for this device
+                        if (
+                            light_entity_entry
+                            and light_entity_entry.device_id
+                        ):
                             device_entities = er.async_entries_for_device(
                                 entity_reg, light_entity_entry.device_id
                             )
 
-                            # Look for a length entity (number or sensor with "length" in unique_id or entity_id)
                             for entity_entry in device_entities:
-                                if entity_entry.domain in ["number", "sensor"]:
-                                    # Check if it's a length entity by looking at unique_id or entity_id
-                                    if (
-                                        "length" in entity_entry.entity_id.lower()
-                                        or (entity_entry.unique_id and "length" in entity_entry.unique_id.lower())
+                                if entity_entry.domain in [
+                                    "number",
+                                    "sensor",
+                                ]:
+                                    if "length" in entity_entry.entity_id.lower() or (
+                                        entity_entry.unique_id
+                                        and "length"
+                                        in entity_entry.unique_id.lower()
                                     ):
-                                        length_state = self.hass.states.get(entity_entry.entity_id)
-                                        if length_state and length_state.state not in ("unknown", "unavailable"):
+                                        length_state = self.hass.states.get(
+                                            entity_entry.entity_id
+                                        )
+                                        if (
+                                            length_state
+                                            and length_state.state
+                                            not in (
+                                                "unknown",
+                                                "unavailable",
+                                            )
+                                        ):
                                             try:
-                                                length_meters = float(length_state.state)
+                                                length_meters = float(
+                                                    length_state.state
+                                                )
                                                 _LOGGER.debug(
                                                     "Found T1 Strip length from device entity %s: %s meters",
                                                     entity_entry.entity_id,
-                                                    length_meters
+                                                    length_meters,
                                                 )
                                                 break
                                             except (ValueError, TypeError):
                                                 pass
 
-                # Calculate segment count from length if we found it
                 if length_meters is not None:
                     try:
-                        # T1 Strip has 5 segments per meter
                         segment_count = int(float(length_meters) * 5)
                         _LOGGER.debug(
                             "T1 Strip %s: %s meters = %s segments",
                             entity_id,
                             length_meters,
-                            segment_count
+                            segment_count,
                         )
                         return segment_count
                     except (ValueError, TypeError):
                         pass
 
-                # Default to 2 meters (10 segments) if length unavailable
                 _LOGGER.debug(
                     "Could not determine T1 Strip length for %s (no length entity or attribute found), defaulting to 10 segments (2 meters)",
-                    entity_id
+                    entity_id,
                 )
                 return 10
 
-            # For other unknown devices, return a reasonable default
             return 20
 
         except Exception as ex:
-            _LOGGER.error("Failed to get segment count for %s: %s", entity_id, ex)
+            _LOGGER.error(
+                "Failed to get segment count for %s: %s", entity_id, ex
+            )
             return 0

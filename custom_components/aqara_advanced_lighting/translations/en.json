@@ -518,6 +518,10 @@
           "name": "Light entity",
           "description": "The light entity or group to control."
         },
+        "restore_state": {
+          "name": "Restore state",
+          "description": "Restore lights to their pre-sequence state. If disabled, lights maintain their current color and brightness."
+        },
         "z2m_base_topic": {
           "name": "Z2M base topic (deprecated)",
           "description": "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
@@ -605,6 +609,10 @@
         "entity_id": {
           "name": "Light entity",
           "description": "The light entity or group to control."
+        },
+        "restore_state": {
+          "name": "Restore state",
+          "description": "Restore lights to their pre-sequence state. If disabled, lights maintain their current color and brightness."
         },
         "z2m_base_topic": {
           "name": "Z2M base topic (deprecated)",

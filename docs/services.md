@@ -76,7 +76,7 @@ data:
 - `speed` (required if no preset): Animation speed (1-100%)
 - `color_1` through `color_8`: RGB color pickers (color_1 required if no preset, others optional)
 - `segments` (optional): For T1 Strip only -- segments to apply effect to (e.g., "1-20", "odd", "even"). Supports [segment zone names](device-configuration.md#segment-zones)
-- `brightness` (optional): Brightness level (1-255)
+- `brightness` (optional): Brightness level (1-100%)
 - `turn_on` (optional): Turn light on before applying effect (default: false)
 
 **Note:** When using `preset`, manual `effect`, `speed`, and `color` parameters are ignored. Custom presets created in the frontend panel can be used by typing their name exactly as you saved it (case doesn't matter).
@@ -160,7 +160,7 @@ data:
 - `segment_colors` (required if no preset): List of segment/color pairs
   - `segment`: Segment number, range, keyword, or zone name (e.g., 1, "5-10", "odd", "even", "left side")
   - `color`: RGB color dict with r, g, b values (0-255)
-- `brightness` (optional): Brightness level (1-255)
+- `brightness` (optional): Brightness level (1-100%)
 - `turn_on` (optional): Turn light on before applying pattern (default: false)
 - `turn_off_unspecified` (optional): Turn off segments not specified (default: false)
 
@@ -194,7 +194,7 @@ data:
 - `color_2` (required): Second gradient color -- RGB color picker
 - `color_3` through `color_6` (optional): Additional gradient colors -- RGB color pickers
 - `segments` (optional): Segments to apply gradient to (e.g., "1-20", "5-15", "left side"). Supports ranges, keywords (all, odd, even, first-half, second-half), and [segment zone names](device-configuration.md#segment-zones)
-- `brightness` (optional): Brightness level (1-255)
+- `brightness` (optional): Brightness level (1-100%)
 - `turn_on` (optional): Turn light on before applying gradient (default: false)
 - `turn_off_unspecified` (optional): Turn off segments not specified (default: false)
 
@@ -227,7 +227,7 @@ data:
 - `color_2` through `color_6` (optional): Additional block colors -- RGB color pickers
 - `segments` (optional): Segments to apply blocks to (e.g., "1-20", "odd", "even", "left side"). Supports ranges, keywords, and [segment zone names](device-configuration.md#segment-zones)
 - `expand` (optional): Expand colors to fill segments evenly vs. alternating (default: false)
-- `brightness` (optional): Brightness level (1-255)
+- `brightness` (optional): Brightness level (1-100%)
 - `turn_on` (optional): Turn light on before applying blocks (default: false)
 - `turn_off_unspecified` (optional): Turn off segments not specified (default: false)
 
@@ -302,6 +302,7 @@ data:
 - `end_behavior` (optional): Action when sequence completes (default: "maintain", ignored when using preset)
   - `"maintain"`: Keep light at last step's settings
   - `"turn_off"`: Turn off the light
+  - `"restore"`: Restore light to its pre-sequence state
 
 **Note:** Each step consists of a transition period followed by a hold period. For example, if transition is 2s and hold is 10s, the light will fade for 2s then remain at those settings for 10s before the next step starts. Transitions use smooth step-based interpolation for gradual brightness and color temperature changes.
 
@@ -309,7 +310,7 @@ data:
 
 ## 7. Stop CCT sequence
 
-Stop a running CCT sequence on a light.
+Stop a running CCT sequence on a light and optionally restore the light to its previous state.
 
 **Service:** `aqara_advanced_lighting.stop_cct_sequence`
 
@@ -319,11 +320,14 @@ Stop a running CCT sequence on a light.
 service: aqara_advanced_lighting.stop_cct_sequence
 target:
   entity_id: light.aqara_ceiling_light
+data:
+  restore_state: true
 ```
 
 **Parameters:**
 
 - `entity_id` (required): Light entity or group to stop sequence on
+- `restore_state` (optional): Restore light to its pre-sequence state (default: true)
 
 ---
 
@@ -456,6 +460,7 @@ data:
 - `end_behavior` (optional): Action when sequence completes (default: "maintain", ignored when using preset)
   - `"maintain"`: Keep light at last step's settings
   - `"turn_off"`: Turn off the light
+  - `"restore"`: Restore light to its pre-sequence state
 
 **Note:** Each step consists of an activation period (duration) followed by a hold period. Activation patterns determine how segments light up during the duration phase.
 
@@ -463,7 +468,7 @@ data:
 
 ## 11. Stop RGB segment sequence
 
-Stop a running RGB segment sequence on a light.
+Stop a running RGB segment sequence on a light and optionally restore the light to its previous state.
 
 **Service:** `aqara_advanced_lighting.stop_segment_sequence`
 
@@ -473,11 +478,14 @@ Stop a running RGB segment sequence on a light.
 service: aqara_advanced_lighting.stop_segment_sequence
 target:
   entity_id: light.aqara_ceiling_light
+data:
+  restore_state: true
 ```
 
 **Parameters:**
 
 - `entity_id` (required): Light entity to stop sequence on
+- `restore_state` (optional): Restore light to its pre-sequence state (default: true)
 
 ---
 

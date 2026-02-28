@@ -1,9 +1,10 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { HomeAssistant, RGBColor, XYColor, UserEffectPreset, DeviceContext, EffectEditorDraft } from './types';
+import { HomeAssistant, RGBColor, XYColor, UserEffectPreset, DeviceContext, EffectEditorDraft, Translations } from './types';
 import { xyToHex, rgbToXy, getComplementaryColor } from './color-utils';
 import { colorPickerStyles } from './styles';
 import { addColorToHistory } from './color-history';
+import { ALL_DEVICE_LABELS, editorFormStyles, localize, hasNewHaDialog, dialogHeadingLegacy, dialogActions } from './editor-constants';
 import './xy-color-picker';
 import './color-history-swatches';
 
@@ -15,21 +16,11 @@ const EFFECT_TYPES: Record<string, string[]> = {
   t1_strip: ['breathing', 'rainbow1', 'chasing', 'flash', 'hopping', 'rainbow2', 'flicker', 'dash'],
 };
 
-// Map effect names to icon filenames (for cases where they differ)
-const EFFECT_ICON_MAP: Record<string, string> = {};
-
-const DEVICE_LABELS: Record<string, string> = {
-  t2_bulb: 'T2 Bulb',
-  t1: 'T1 (20 segments)',
-  t1m: 'T1M (26 segments)',
-  t1_strip: 'T1 Strip',
-};
-
 @customElement('effect-editor')
 export class EffectEditor extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @property({ type: Object }) public preset?: UserEffectPreset;
-  @property({ type: Object }) public translations: Record<string, any> = {};
+  @property({ type: Object }) public translations: Translations = {};
   @property({ type: Boolean }) public editMode = false;
   @property({ type: Boolean }) public hasSelectedEntities = false;
   @property({ type: Boolean }) public isCompatible = true;
@@ -55,74 +46,8 @@ export class EffectEditor extends LitElement {
 
   static styles = [
     colorPickerStyles,
+    editorFormStyles,
     css`
-    :host {
-      display: block;
-    }
-
-    .editor-content {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .form-row {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .form-row-pair {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 16px;
-    }
-
-    .form-row-triple {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 16px;
-    }
-
-    .form-row-pair .form-field,
-    .form-row-triple .form-field {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .form-section {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-bottom: 16px;
-    }
-
-    .form-section .form-label {
-      min-width: unset;
-    }
-
-    .form-label {
-      font-size: 14px;
-      font-weight: 500;
-      min-width: 120px;
-      color: var(--secondary-text-color);
-    }
-
-    .field-description {
-      font-size: 12px;
-      color: var(--secondary-text-color);
-      margin-top: 4px;
-    }
-
-    .form-input {
-      flex: 1;
-    }
-
-    /* Color picker styles inherited from panelStyles (styles.ts) */
-
     /* Effect icon grid selector */
     .effect-grid {
       display: flex;
@@ -178,57 +103,7 @@ export class EffectEditor extends LitElement {
       text-align: center;
     }
 
-    /* .color-remove and .add-color-btn inherited from panelStyles (styles.ts) */
-
-    .form-actions {
-      display: flex;
-      gap: 12px;
-      justify-content: flex-end;
-      margin-top: 24px;
-      padding-top: 16px;
-      border-top: 1px solid var(--divider-color);
-    }
-
-    .preview-warning {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      background: var(--secondary-background-color);
-      color: var(--secondary-text-color);
-      border: 1px solid var(--divider-color);
-      border-left: 4px solid var(--warning-color, #ffc107);
-      border-radius: 4px;
-      font-size: 13px;
-    }
-
-    .preview-warning ha-icon {
-      flex-shrink: 0;
-      --mdc-icon-size: 18px;
-    }
-
-    @media (max-width: 600px) {
-      .form-row {
-        flex-direction: column;
-        align-items: stretch;
-      }
-
-      .form-row-pair,
-      .form-row-triple {
-        grid-template-columns: 1fr;
-      }
-
-      .form-label {
-        min-width: unset;
-        margin-bottom: 4px;
-      }
-    }
-
-    .form-hint {
-      font-size: var(--ha-font-size-s, 12px);
-      color: var(--secondary-text-color);
-      margin-top: -4px;
-    }
+    /* .color-remove and .add-color-btn inherited from colorPickerStyles (styles.ts) */
   `];
 
   protected updated(changedProps: PropertyValues): void {
@@ -293,6 +168,7 @@ export class EffectEditor extends LitElement {
       brightness: this._brightness,
       colors: [...this._colors],
       segments: this._segments,
+      hasUserInteraction: this._hasUserInteraction,
     };
   }
 
@@ -317,15 +193,17 @@ export class EffectEditor extends LitElement {
     this._brightness = draft.brightness;
     this._colors = [...draft.colors];
     this._segments = draft.segments;
-    this._hasUserInteraction = true;
+    this._hasUserInteraction = draft.hasUserInteraction ?? false;
   }
 
   private _handleNameChange(e: CustomEvent): void {
     this._name = e.detail.value || '';
+    this._hasUserInteraction = true;
   }
 
   private _handleIconChange(e: CustomEvent): void {
     this._icon = e.detail.value || '';
+    this._hasUserInteraction = true;
   }
 
   private _handleDeviceTypeChange(e: CustomEvent): void {
@@ -341,14 +219,17 @@ export class EffectEditor extends LitElement {
 
   private _handleSpeedChange(e: CustomEvent): void {
     this._speed = e.detail.value ?? 50;
+    this._hasUserInteraction = true;
   }
 
   private _handleBrightnessChange(e: CustomEvent): void {
     this._brightness = e.detail.value ?? 100;
+    this._hasUserInteraction = true;
   }
 
   private _handleSegmentsChange(e: CustomEvent): void {
     this._segments = e.detail.value || '';
+    this._hasUserInteraction = true;
   }
 
   private _openColorPicker(index: number): void {
@@ -374,6 +255,7 @@ export class EffectEditor extends LitElement {
       this._colors = this._colors.map((c, i) =>
         i === this._editingColorIndex ? this._editingColor! : c
       );
+      this._hasUserInteraction = true;
     }
     this._closeColorPicker();
   }
@@ -394,12 +276,14 @@ export class EffectEditor extends LitElement {
       const lastColor = this._colors[this._colors.length - 1] || { x: 0.6800, y: 0.3100 }; // Default to red if undefined
       const newColor = getComplementaryColor(lastColor);
       this._colors = [...this._colors, newColor];
+      this._hasUserInteraction = true;
     }
   }
 
   private _removeColor(index: number): void {
     if (this._colors.length > 1) {
       this._colors = this._colors.filter((_, i) => i !== index);
+      this._hasUserInteraction = true;
     }
   }
 
@@ -408,8 +292,7 @@ export class EffectEditor extends LitElement {
   }
 
   private _getEffectIconUrl(effect: string): string {
-    const iconName = EFFECT_ICON_MAP[effect] || effect;
-    return `/api/aqara_advanced_lighting/icons/${iconName}.svg`;
+    return `/api/aqara_advanced_lighting/icons/${effect}.svg`;
   }
 
   private _selectEffect(effect: string): void {
@@ -482,6 +365,7 @@ export class EffectEditor extends LitElement {
   }
 
   private _cancel(): void {
+    this._hasUserInteraction = false;
     this.dispatchEvent(
       new CustomEvent('cancel', {
         bubbles: true,
@@ -491,29 +375,11 @@ export class EffectEditor extends LitElement {
   }
 
   private _localize(key: string, replacements?: Record<string, string>): string {
-    const keys = key.split('.');
-    let value: any = this.translations;
-    for (const k of keys) {
-      if (value && typeof value === 'object' && k in value) {
-        value = value[k];
-      } else {
-        return key;
-      }
-    }
-    let result = typeof value === 'string' ? value : key;
-
-    // Replace placeholders if provided
-    if (replacements) {
-      Object.entries(replacements).forEach(([placeholder, replacement]) => {
-        result = result.replace(`{${placeholder}}`, replacement);
-      });
-    }
-
-    return result;
+    return localize(this.translations, key, replacements);
   }
 
   protected render() {
-    const deviceOptions = Object.entries(DEVICE_LABELS).map(([value, label]) => ({
+    const deviceOptions = Object.entries(ALL_DEVICE_LABELS).map(([value, label]) => ({
       value,
       label,
     }));
@@ -535,12 +401,23 @@ export class EffectEditor extends LitElement {
           </div>
           <div class="form-field">
             <span class="form-label">${this._localize('editors.icon_label')}</span>
-            <ha-selector
-              .hass=${this.hass}
-              .selector=${{ icon: {} }}
-              .value=${this._icon}
-              @value-changed=${this._handleIconChange}
-            ></ha-selector>
+            <div class="icon-field-row">
+              <ha-selector
+                .hass=${this.hass}
+                .selector=${{ icon: {} }}
+                .value=${this._icon}
+                @value-changed=${this._handleIconChange}
+              ></ha-selector>
+              ${this._icon ? html`
+                <ha-icon-button
+                  class="icon-clear-btn"
+                  @click=${() => { this._icon = ''; this._hasUserInteraction = true; }}
+                  title=${this._localize('editors.icon_clear_tooltip')}
+                >
+                  <ha-icon icon="mdi:close"></ha-icon>
+                </ha-icon-button>
+              ` : ''}
+            </div>
             ${!this._icon ? html`<span class="form-hint">${this._localize('editors.icon_auto_hint')}</span>` : ''}
           </div>
           <div class="form-field">
@@ -642,9 +519,13 @@ export class EffectEditor extends LitElement {
                 <div class="color-item">
                   <div
                     class="color-swatch"
+                    role="button"
+                    tabindex="0"
                     style="background-color: ${this._colorToHex(color)}"
                     @click=${() => this._openColorPicker(index)}
+                    @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._openColorPicker(index); } }}
                     title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_edit')}"
+                    aria-label="${this._localize('editors.color_label') || 'Color'} ${index + 1}: ${this._colorToHex(color)}"
                   ></div>
                   ${this._colors.length > 1
                     ? html`
@@ -673,39 +554,51 @@ export class EffectEditor extends LitElement {
           </div>
         </div>
 
-        ${this._editingColorIndex !== null && this._editingColor !== null
-          ? html`
-              <div class="color-picker-modal-overlay" @click=${this._closeColorPicker}>
-                <div class="color-picker-modal" @click=${(e: Event) => e.stopPropagation()}>
-                  <div class="color-picker-modal-header">
-                    <span class="color-picker-modal-title">${this._localize('editors.color_picker_title')}</span>
-                    <div
-                      class="color-picker-modal-preview"
-                      style="background-color: ${this._colorToHex(this._editingColor)}"
-                    ></div>
-                  </div>
-                  <xy-color-picker
-                    .color=${this._editingColor}
-                    .size=${220}
-                    .showRgbInputs=${true}
-                    @color-changed=${this._handleColorPickerChange}
-                  ></xy-color-picker>
-                  <color-history-swatches
-                    .colorHistory=${this.colorHistory}
-                    .translations=${this.translations}
-                    @color-selected=${this._handleHistoryColorSelected}
-                  ></color-history-swatches>
-                  <div class="color-picker-modal-actions">
-                    <ha-button @click=${this._closeColorPicker}>${this._localize('editors.cancel_button')}</ha-button>
-                    <ha-button @click=${this._confirmColorPicker}>
-                      <ha-icon icon="mdi:check"></ha-icon>
-                      ${this._localize('editors.apply_button')}
-                    </ha-button>
-                  </div>
-                </div>
-              </div>
-            `
-          : ''}
+        <ha-dialog
+          .open=${this._editingColorIndex !== null && this._editingColor !== null}
+          @closed=${this._closeColorPicker}
+          .headerTitle=${hasNewHaDialog() ? this._localize('editors.color_picker_title') : undefined}
+          .heading=${!hasNewHaDialog() ? dialogHeadingLegacy(
+            this._localize('editors.color_picker_title'),
+            this._editingColor ? html`
+              <div
+                class="color-picker-modal-preview"
+                style="background-color: ${this._colorToHex(this._editingColor)}"
+              ></div>
+            ` : undefined,
+          ) : undefined}
+        >
+          ${hasNewHaDialog() ? html`
+            <span slot="headerNavigationIcon"></span>
+            ${this._editingColor ? html`
+              <div
+                slot="headerActionItems"
+                class="color-picker-modal-preview"
+                style="background-color: ${this._colorToHex(this._editingColor)}"
+              ></div>
+            ` : ''}
+          ` : ''}
+          ${this._editingColor ? html`
+            <xy-color-picker
+              .color=${this._editingColor}
+              .size=${220}
+              .showRgbInputs=${true}
+              @color-changed=${this._handleColorPickerChange}
+            ></xy-color-picker>
+            <color-history-swatches
+              .colorHistory=${this.colorHistory}
+              .translations=${this.translations}
+              @color-selected=${this._handleHistoryColorSelected}
+            ></color-history-swatches>
+          ` : ''}
+          ${dialogActions(
+            this._localize('editors.cancel_button'),
+            this._localize('editors.apply_button'),
+            () => this._closeColorPicker(),
+            () => this._confirmColorPicker(),
+            'mdi:check',
+          )}
+        </ha-dialog>
 
         ${!this.hasSelectedEntities
           ? html`
@@ -717,12 +610,20 @@ export class EffectEditor extends LitElement {
           : ''}
 
         <div class="form-actions">
-          <ha-button @click=${this._cancel}>${this._localize('editors.cancel_button')}</ha-button>
+          <div class="form-actions-left">
+            <ha-button @click=${this._cancel}>${this._localize('editors.cancel_button')}</ha-button>
+            ${this._hasUserInteraction ? html`
+              <span class="unsaved-indicator">
+                <span class="unsaved-dot"></span>
+                ${this._localize('editors.unsaved_changes')}
+              </span>
+            ` : ''}
+          </div>
           ${this.previewActive
             ? html`
                 <ha-button @click=${this._stopPreview}>
                   <ha-icon icon="mdi:stop"></ha-icon>
-                  ${this._localize('editors.stop_button')}
+                  <span class="btn-text">${this._localize('editors.stop_button')}</span>
                 </ha-button>
               `
             : html`
@@ -732,12 +633,12 @@ export class EffectEditor extends LitElement {
                   title=${!this.hasSelectedEntities ? this._localize('editors.tooltip_select_lights_first') : !this.isCompatible ? this._localize('editors.tooltip_light_not_compatible') : ''}
                 >
                   <ha-icon icon="mdi:play"></ha-icon>
-                  ${this._localize('editors.preview_button')}
+                  <span class="btn-text">${this._localize('editors.preview_button')}</span>
                 </ha-button>
               `}
           <ha-button @click=${this._save} .disabled=${!this._name.trim() || !this._effect || this._saving}>
             <ha-icon icon="mdi:content-save"></ha-icon>
-            ${this.editMode ? this._localize('editors.update_button') : this._localize('editors.save_button')}
+            <span class="btn-text">${this.editMode ? this._localize('editors.update_button') : this._localize('editors.save_button')}</span>
           </ha-button>
         </div>
       </div>

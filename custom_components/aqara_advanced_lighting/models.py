@@ -12,6 +12,30 @@ if TYPE_CHECKING:
     pass  # TypeAlias import used for type definitions
 
 
+def _validate_sequence_params(
+    steps_count: int,
+    loop_mode: str,
+    loop_count: int | None,
+    end_behavior: str,
+) -> None:
+    """Validate common sequence parameters shared by CCT and segment sequences."""
+    if not (1 <= steps_count <= 20):
+        msg = f"Sequence must have 1-20 steps, got {steps_count}"
+        raise ValueError(msg)
+
+    if loop_mode not in ("once", "count", "continuous"):
+        msg = f"Loop mode must be 'once', 'count', or 'continuous', got {loop_mode}"
+        raise ValueError(msg)
+
+    if loop_mode == "count" and (loop_count is None or loop_count < 1):
+        msg = "Loop count must be >= 1 when loop_mode is 'count'"
+        raise ValueError(msg)
+
+    if end_behavior not in ("maintain", "turn_off", "restore"):
+        msg = f"End behavior must be 'maintain', 'turn_off', or 'restore', got {end_behavior}"
+        raise ValueError(msg)
+
+
 def round_xy(value: float) -> float:
     """Round XY coordinate to 4 decimal places for consistency.
 
@@ -424,27 +448,13 @@ class CCTSequence:
     steps: list[CCTSequenceStep]  # 1-20 steps
     loop_mode: str  # "once", "count", "continuous"
     loop_count: int | None = None  # Number of loops if mode is "count"
-    end_behavior: str = "maintain"  # "maintain" or "turn_off"
+    end_behavior: str = "maintain"  # "maintain", "turn_off", or "restore"
 
     def __post_init__(self) -> None:
         """Validate sequence parameters."""
-        if not (1 <= len(self.steps) <= 20):
-            msg = f"Sequence must have 1-20 steps, got {len(self.steps)}"
-            raise ValueError(msg)
-
-        if self.loop_mode not in ("once", "count", "continuous"):
-            msg = f"Loop mode must be 'once', 'count', or 'continuous', got {self.loop_mode}"
-            raise ValueError(msg)
-
-        if self.loop_mode == "count" and (
-            self.loop_count is None or self.loop_count < 1
-        ):
-            msg = "Loop count must be >= 1 when loop_mode is 'count'"
-            raise ValueError(msg)
-
-        if self.end_behavior not in ("maintain", "turn_off"):
-            msg = f"End behavior must be 'maintain' or 'turn_off', got {self.end_behavior}"
-            raise ValueError(msg)
+        _validate_sequence_params(
+            len(self.steps), self.loop_mode, self.loop_count, self.end_behavior
+        )
 
 
 @dataclass
@@ -506,29 +516,15 @@ class SegmentSequence:
     steps: list[SegmentSequenceStep]  # 1-20 steps
     loop_mode: str  # "once", "count", "continuous"
     loop_count: int | None = None  # Number of loops if mode is "count"
-    end_behavior: str = "maintain"  # "maintain" or "turn_off"
+    end_behavior: str = "maintain"  # "maintain", "turn_off", or "restore"
     clear_segments: bool = False  # Clear all segments (set to black) before starting
     skip_first_in_loop: bool = False  # Skip first step when looping (after first iteration)
 
     def __post_init__(self) -> None:
         """Validate sequence parameters."""
-        if not (1 <= len(self.steps) <= 20):
-            msg = f"Sequence must have 1-20 steps, got {len(self.steps)}"
-            raise ValueError(msg)
-
-        if self.loop_mode not in ("once", "count", "continuous"):
-            msg = f"Loop mode must be 'once', 'count', or 'continuous', got {self.loop_mode}"
-            raise ValueError(msg)
-
-        if self.loop_mode == "count" and (
-            self.loop_count is None or self.loop_count < 1
-        ):
-            msg = "Loop count must be >= 1 when loop_mode is 'count'"
-            raise ValueError(msg)
-
-        if self.end_behavior not in ("maintain", "turn_off"):
-            msg = f"End behavior must be 'maintain' or 'turn_off', got {self.end_behavior}"
-            raise ValueError(msg)
+        _validate_sequence_params(
+            len(self.steps), self.loop_mode, self.loop_count, self.end_behavior
+        )
 
 
 @dataclass

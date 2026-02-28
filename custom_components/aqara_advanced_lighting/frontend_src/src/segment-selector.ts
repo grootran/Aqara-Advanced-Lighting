@@ -15,7 +15,7 @@
 
 import { LitElement, html, css, PropertyValues, CSSResultGroup, TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { XYColor, HSColor, HomeAssistant, SegmentZoneResolved } from './types';
+import { XYColor, HSColor, HomeAssistant, SegmentZoneResolved, Translations } from './types';
 import {
   xyToRgb,
   rgbToXy,
@@ -25,12 +25,8 @@ import {
   getComplementaryColor,
 } from './color-utils';
 import { addColorToHistory } from './color-history';
+import { hasNewHaDialog, dialogHeadingLegacy, dialogActions } from './editor-constants';
 import './color-history-swatches';
-
-// Translations object type
-interface Translations {
-  [key: string]: string | Translations;
-}
 
 // Component mode types
 type SegmentSelectorMode = 'selection' | 'color' | 'sequence';
@@ -216,43 +212,59 @@ export class SegmentSelector extends LitElement {
         border-color: var(--info-color, #2196f3);
       }
 
-      .controls {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        align-items: center;
-        margin-bottom: 8px;
-      }
-
-      .controls ha-button {
-        --mdc-theme-primary: var(--primary-color);
-      }
-
-      .selection-info {
+      /* Grid toolbar - compact inline controls below segment grid */
+      .grid-toolbar {
         display: flex;
         align-items: center;
         gap: 4px;
-        padding: 4px 8px;
-        background: var(--primary-background-color);
-        border-radius: 4px;
-        font-size: 12px;
+        padding-top: 8px;
+        border-top: 1px solid var(--divider-color);
+        margin-top: 8px;
+      }
+
+      .grid-toolbar ha-button {
+        color: var(--primary-color);
+        font-size: var(--ha-font-size-s, 13px);
+      }
+
+      .grid-toolbar ha-icon-button {
+        --ha-icon-button-size: 36px;
+        --mdc-icon-button-size: 36px;
+        --mdc-icon-size: 20px;
+      }
+
+      /* Fix ha-svg-icon vertical misalignment inside ha-icon-button */
+      .grid-toolbar ha-icon-button > ha-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .toolbar-spacer {
+        flex: 1;
+      }
+
+      .toolbar-divider {
+        width: 1px;
+        height: 24px;
+        background: var(--divider-color);
+        margin: 0 2px;
+      }
+
+      .selection-badge {
+        font-size: var(--ha-font-size-s, 12px);
         color: var(--secondary-text-color);
+        padding: 2px 8px;
+        white-space: nowrap;
       }
 
-      .selection-info ha-icon {
-        --mdc-icon-size: 16px;
+      /* Mode toggle active states */
+      .mode-toggle.active {
+        color: var(--primary-color);
       }
 
-      /* Clear mode toggle button */
-      .clear-mode-toggle.active {
-        --mdc-theme-primary: var(--error-color);
+      .mode-toggle.eraser.active {
         color: var(--error-color);
-      }
-
-      /* Select mode toggle button */
-      .select-mode-toggle.active {
-        --mdc-theme-primary: var(--info-color, #2196f3);
-        color: var(--info-color, #2196f3);
       }
 
       .zone-select {
@@ -282,43 +294,27 @@ export class SegmentSelector extends LitElement {
         border-radius: 8px;
       }
 
-      .mode-tabs {
-        display: flex;
-        gap: 4px;
-        margin-bottom: 16px;
-        border-bottom: 2px solid var(--divider-color);
+      /* Pattern mode tabs using native HA tab group */
+      .pattern-tabs {
+        margin-bottom: 12px;
       }
 
-      .mode-tab {
-        padding: 8px 16px;
-        border: none;
-        background: transparent;
-        cursor: pointer;
-        font-size: 13px;
-        font-weight: 500;
+      .pattern-tabs ha-tab-group {
+        --track-color: var(--divider-color);
+        --indicator-color: var(--primary-color);
+      }
+
+      .pattern-tabs ha-tab-group-tab {
+        --ha-tab-active-text-color: var(--primary-color);
+        font-size: var(--ha-font-size-m, 14px);
+      }
+
+      /* Subtle hint text below tabs */
+      .mode-hint {
+        font-size: var(--ha-font-size-xs, 11px);
         color: var(--secondary-text-color);
-        border-bottom: 2px solid transparent;
-        margin-bottom: -2px;
-        transition: all 0.2s ease;
-      }
-
-      .mode-tab:hover {
-        color: var(--primary-text-color);
-        background: var(--secondary-background-color);
-      }
-
-      .mode-tab.active {
-        color: var(--primary-color);
-        border-bottom-color: var(--primary-color);
-      }
-
-      .mode-description {
-        font-size: 13px;
-        color: var(--secondary-text-color);
-        margin-bottom: 16px;
-        padding: 8px 12px;
-        background: var(--secondary-background-color);
-        border-radius: 4px;
+        margin-bottom: 12px;
+        font-style: italic;
       }
 
       .color-palette {
@@ -426,7 +422,7 @@ export class SegmentSelector extends LitElement {
 
       .color-remove:hover {
         background: var(--error-color);
-        color: white;
+        color: var(--text-primary-color);
       }
 
       .color-remove ha-icon {
@@ -469,6 +465,43 @@ export class SegmentSelector extends LitElement {
         --mdc-icon-size: 24px;
       }
 
+      /* Grid options row (zone dropdown below toolbar) */
+      .grid-options {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-top: 8px;
+        flex-wrap: wrap;
+      }
+
+      .grid-options .zone-select {
+        min-width: 200px;
+        flex: 1;
+        max-width: 300px;
+      }
+
+      /* Grouped options section for gradient/blocks settings */
+      .options-group {
+        margin-top: 12px;
+        padding: 12px;
+        background: var(--secondary-background-color);
+        border-radius: 8px;
+      }
+
+      .options-group .options-row:first-child {
+        margin-top: 0;
+      }
+
+      /* Color section footer (turn off unspecified toggle) */
+      .color-footer {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--divider-color);
+      }
+
       .generated-actions {
         display: flex;
         gap: 8px;
@@ -497,65 +530,59 @@ export class SegmentSelector extends LitElement {
       }
 
       .option-number-input {
-        width: 50px;
-        padding: 4px 8px;
-        border: 1px solid var(--divider-color);
-        border-radius: 4px;
-        background: var(--card-background-color);
-        color: var(--primary-text-color);
+        width: 60px;
         font-size: 13px;
-        text-align: center;
       }
 
       .option-select {
-        padding: 4px 8px;
-        border: 1px solid var(--divider-color);
-        border-radius: 4px;
-        background: var(--card-background-color);
-        color: var(--primary-text-color);
         font-size: 13px;
       }
 
-      /* Color picker modal */
-      .color-picker-modal-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.7);
+      /* Color picker ha-dialog styling
+       * Fixed width sized for 8 color history swatches:
+       * 8 x 32px swatches + 7 x 6px gaps = 298px content + 48px padding = 346px
+       * Supports both new (2026.3+) and old (2026.2) ha-dialog CSS variables.
+       */
+      ha-dialog {
+        --ha-dialog-width-md: min(346px, calc(100vw - 32px));
+        --ha-dialog-max-width: min(346px, calc(100vw - 32px));
+        --mdc-dialog-min-width: min(346px, calc(100vw - 32px));
+        --mdc-dialog-max-width: min(346px, calc(100vw - 32px));
+      }
+
+      ha-dialog [slot="headerActionItems"] {
+        margin-right: 12px;
+      }
+
+      ha-dialog [slot="footer"] {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+
+      /* Old ha-dialog heading layout */
+      ha-dialog .header_title {
         display: flex;
         align-items: center;
-        justify-content: center;
-        z-index: 1000;
       }
-
-      .color-picker-modal {
-        background: var(--card-background-color);
-        border-radius: 8px;
-        padding: 24px;
-        width: 298px;
-        max-width: calc(100vw - 80px);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      ha-dialog .header_title span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        display: block;
+        padding-left: 4px;
+        padding-right: 4px;
+        flex: 1;
       }
-
-      .color-picker-modal-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 16px;
-      }
-
-      .color-picker-modal-title {
-        font-size: 18px;
-        font-weight: 500;
-        color: var(--primary-text-color);
+      ha-dialog .header_title .header_button {
+        text-decoration: none;
+        color: inherit;
       }
 
       .color-picker-modal-preview {
-        width: 48px;
-        height: 48px;
-        border-radius: 8px;
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
         border: 2px solid var(--divider-color);
       }
 
@@ -603,13 +630,6 @@ export class SegmentSelector extends LitElement {
         border-color: var(--primary-color);
       }
 
-      .color-picker-modal-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 8px;
-        margin-top: 20px;
-      }
-
       @media (max-width: 600px) {
         .segment-grid {
           grid-template-columns: repeat(auto-fill, minmax(32px, 1fr));
@@ -620,12 +640,12 @@ export class SegmentSelector extends LitElement {
           font-size: 9px;
         }
 
-        .controls ha-button {
-          width: calc(50% - 4px);
+        .grid-toolbar {
+          flex-wrap: wrap;
         }
 
-        .mode-tabs {
-          overflow-x: auto;
+        .grid-options .zone-select {
+          max-width: 100%;
         }
       }
     `;
@@ -953,24 +973,26 @@ export class SegmentSelector extends LitElement {
     }
   }
 
-  private _renderZoneListItems(): TemplateResult[] {
-    const items: TemplateResult[] = [];
+  private get _zoneOptions() {
+    const options: Array<{ value: string; label: string }> = [];
     if (this.zones.length > 0) {
       for (const z of this.zones) {
-        items.push(html`<mwc-list-item value=${z.name}>${z.name}</mwc-list-item>`);
+        options.push({ value: z.name, label: z.name });
       }
     }
-    items.push(html`<mwc-list-item value="__all">${this._localize('editors.select_all_button')}</mwc-list-item>`);
-    items.push(html`<mwc-list-item value="__first-half">${this._localize('editors.first_half_button')}</mwc-list-item>`);
-    items.push(html`<mwc-list-item value="__second-half">${this._localize('editors.second_half_button')}</mwc-list-item>`);
-    items.push(html`<mwc-list-item value="__odd">${this._localize('editors.odd_button')}</mwc-list-item>`);
-    items.push(html`<mwc-list-item value="__even">${this._localize('editors.even_button')}</mwc-list-item>`);
-    return items;
+    options.push({ value: '__all', label: this._localize('editors.select_all_button') });
+    options.push({ value: '__first-half', label: this._localize('editors.first_half_button') });
+    options.push({ value: '__second-half', label: this._localize('editors.second_half_button') });
+    options.push({ value: '__odd', label: this._localize('editors.odd_button') });
+    options.push({ value: '__even', label: this._localize('editors.even_button') });
+    return options;
   }
 
-  private _handleZoneSelected(e: Event): void {
-    const select = e.target as HTMLElement & { value: string };
-    const zoneName = select.value;
+  private _handleZoneSelected(e: CustomEvent): void {
+    // Stop the ha-selector's value-changed from bubbling up to parent editors,
+    // which would misinterpret the zone name as a segment value string.
+    e.stopPropagation();
+    const zoneName = e.detail.value as string;
     if (!zoneName || this.disabled) return;
 
     // Check built-in zones first
@@ -989,11 +1011,7 @@ export class SegmentSelector extends LitElement {
     if (this.mode === 'selection' || this.mode === 'sequence') {
       this._fireValueChanged();
     }
-  }
-
-  private _handleZoneMenuClosed(e: Event): void {
-    e.stopPropagation();
-    // Reset to empty after menu closes so the same zone can be re-selected
+    // Reset so the same zone can be re-selected
     this._selectedZone = '';
   }
 
@@ -1108,8 +1126,10 @@ export class SegmentSelector extends LitElement {
     this.gradientWaveCycles = Math.max(1, Math.min(5, parseInt((e.target as HTMLInputElement).value) || 1));
   }
 
-  private _handleGradientInterpolationChange(e: Event): void {
-    this.gradientInterpolation = (e.target as HTMLSelectElement).value as InterpolationMode;
+  private _handleGradientInterpolationChange(e: CustomEvent): void {
+    if (e.detail.value) {
+      this.gradientInterpolation = e.detail.value as InterpolationMode;
+    }
   }
 
   /**
@@ -1657,9 +1677,14 @@ export class SegmentSelector extends LitElement {
       cells.push(html`
         <div
           class="segment-cell ${cellClasses.join(' ')}"
+          role="button"
+          tabindex="0"
           style="${cellStyle}"
           @click=${(e: MouseEvent) => this._handleSegmentClick(i, e)}
+          @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._handleSegmentClick(i, e as unknown as MouseEvent); } }}
           title="Segment ${i + 1}${isSelected ? ' (selected)' : ''}${isColored ? ' (colored)' : ''}"
+          aria-label="Segment ${i + 1}"
+          aria-pressed="${isSelected ? 'true' : 'false'}"
         >
           ${i + 1}
         </div>
@@ -1668,7 +1693,11 @@ export class SegmentSelector extends LitElement {
 
     return html`
       <div class="segment-grid-container ${this.hideControls ? 'compact' : ''}">
-        <div class="segment-grid ${this._clearMode ? 'clear-mode' : ''} ${this._selectMode ? 'select-mode' : ''}">
+        <div
+          class="segment-grid ${this._clearMode ? 'clear-mode' : ''} ${this._selectMode ? 'select-mode' : ''}"
+          role="group"
+          aria-label="${this._localize('editors.segment_grid_label') || 'Segment grid'}"
+        >
           ${cells}
         </div>
         ${this.hideControls ? '' : this._renderControls()}
@@ -1682,54 +1711,38 @@ export class SegmentSelector extends LitElement {
 
     if (this.mode === 'selection') {
       return html`
-        <div class="controls">
+        <div class="grid-toolbar">
           <ha-button @click=${this._selectAll} .disabled=${this.disabled}>
-            <ha-icon icon="mdi:select-all"></ha-icon>
             ${this._localize('editors.select_all_button')}
           </ha-button>
           <ha-button @click=${this._clearAll} .disabled=${this.disabled || !hasSelection}>
-            <ha-icon icon="mdi:selection-off"></ha-icon>
             ${this._localize('editors.clear_all_button')}
           </ha-button>
-          <div class="selection-info">
-            <ha-icon icon="mdi:information-outline"></ha-icon>
-            <span>${this._localize('editors.segments_selected', { count })}</span>
-          </div>
+          <div class="toolbar-spacer"></div>
+          <span class="selection-badge">
+            ${this._localize('editors.segments_selected', { count })}
+          </span>
         </div>
-        <div class="options-row">
-          <ha-select
+        <div class="grid-options">
+          <ha-selector
             class="zone-select"
+            .hass=${this.hass}
+            .selector=${{
+              select: {
+                options: this._zoneOptions,
+                mode: 'dropdown',
+              },
+            }}
             .label=${this._localize('editors.zone_select_label')}
             .value=${this._selectedZone}
             .disabled=${this.disabled}
-            fixedMenuPosition
-            naturalMenuWidth
-            @selected=${this._handleZoneSelected}
-            @closed=${this._handleZoneMenuClosed}
-          >
-            ${this._renderZoneListItems()}
-          </ha-select>
+            @value-changed=${this._handleZoneSelected}
+          ></ha-selector>
         </div>
       `;
     } else if (this.mode === 'color' || this.mode === 'sequence') {
       return html`
-        <div class="controls">
-          <ha-button
-            class="${this._selectMode ? 'select-mode-toggle active' : 'select-mode-toggle'}"
-            @click=${this._toggleSelectMode}
-            .disabled=${this.disabled}
-          >
-            <ha-icon icon="${this._selectMode ? 'mdi:selection-multiple' : 'mdi:selection'}"></ha-icon>
-            ${this._selectMode ? this._localize('editors.select_mode_on') : this._localize('editors.select_mode_off')}
-          </ha-button>
-          <ha-button
-            class="${this._clearMode ? 'clear-mode-toggle active' : 'clear-mode-toggle'}"
-            @click=${this._toggleClearMode}
-            .disabled=${this.disabled}
-          >
-            <ha-icon icon="${this._clearMode ? 'mdi:eraser' : 'mdi:eraser-variant'}"></ha-icon>
-            ${this._clearMode ? this._localize('editors.clear_mode_on') : this._localize('editors.clear_mode_off')}
-          </ha-button>
+        <div class="grid-toolbar">
           <ha-button @click=${this._selectAll} .disabled=${this.disabled}>
             ${this._localize('editors.select_all_button')}
           </ha-button>
@@ -1739,30 +1752,43 @@ export class SegmentSelector extends LitElement {
           <ha-button @click=${this._clearAll} .disabled=${this.disabled}>
             ${this._localize('editors.clear_all_button')}
           </ha-button>
-          <div class="selection-info">
-            <span>${this._localize('editors.segments_selected', { count })}</span>
-          </div>
+          <div class="toolbar-spacer"></div>
+          <ha-icon-button
+            class="mode-toggle ${this._selectMode ? 'active' : ''}"
+            @click=${this._toggleSelectMode}
+            .disabled=${this.disabled}
+            title="${this._selectMode ? this._localize('editors.select_mode_on') : this._localize('editors.select_mode_off')}"
+          >
+            <ha-icon icon="${this._selectMode ? 'mdi:selection-multiple' : 'mdi:selection'}"></ha-icon>
+          </ha-icon-button>
+          <ha-icon-button
+            class="mode-toggle eraser ${this._clearMode ? 'active' : ''}"
+            @click=${this._toggleClearMode}
+            .disabled=${this.disabled}
+            title="${this._clearMode ? this._localize('editors.clear_mode_on') : this._localize('editors.clear_mode_off')}"
+          >
+            <ha-icon icon="${this._clearMode ? 'mdi:eraser' : 'mdi:eraser-variant'}"></ha-icon>
+          </ha-icon-button>
+          <div class="toolbar-divider"></div>
+          <span class="selection-badge">
+            ${this._localize('editors.segments_selected', { count })}
+          </span>
         </div>
-        <div class="options-row">
-          <ha-select
+        <div class="grid-options">
+          <ha-selector
             class="zone-select"
+            .hass=${this.hass}
+            .selector=${{
+              select: {
+                options: this._zoneOptions,
+                mode: 'dropdown',
+              },
+            }}
             .label=${this._localize('editors.zone_select_label')}
             .value=${this._selectedZone}
             .disabled=${this.disabled}
-            fixedMenuPosition
-            naturalMenuWidth
-            @selected=${this._handleZoneSelected}
-            @closed=${this._handleZoneMenuClosed}
-          >
-            ${this._renderZoneListItems()}
-          </ha-select>
-          <label class="option-item">
-            <ha-switch
-              .checked=${this.turnOffUnspecified}
-              @change=${this._handleTurnOffUnspecifiedChange}
-            ></ha-switch>
-            <span class="option-label">${this._localize('editors.turn_off_unspecified_label')}</span>
-          </label>
+            @value-changed=${this._handleZoneSelected}
+          ></ha-selector>
         </div>
       `;
     }
@@ -1778,33 +1804,66 @@ export class SegmentSelector extends LitElement {
       <div class="color-palette-container">
         ${this.mode === 'color' ? this._renderModeTabs() : ''}
         ${this._renderModeContent()}
+        ${this._renderColorFooter()}
+      </div>
+    `;
+  }
+
+  private _renderColorFooter(): TemplateResult | string {
+    if (this.mode !== 'color' && this.mode !== 'sequence') {
+      return '';
+    }
+    return html`
+      <div class="color-footer">
+        <label class="option-item">
+          <ha-switch
+            .checked=${this.turnOffUnspecified}
+            @change=${this._handleTurnOffUnspecifiedChange}
+          ></ha-switch>
+          <span class="option-label">${this._localize('editors.turn_off_unspecified_label')}</span>
+        </label>
       </div>
     `;
   }
 
   private _renderModeTabs(): TemplateResult {
     return html`
-      <div class="mode-tabs">
-        <button
-          class="mode-tab ${this._patternMode === 'individual' ? 'active' : ''}"
-          @click=${() => this._setPatternMode('individual')}
-        >
-          ${this._localize('editors.individual_tab')}
-        </button>
-        <button
-          class="mode-tab ${this._patternMode === 'gradient' ? 'active' : ''}"
-          @click=${() => this._setPatternMode('gradient')}
-        >
-          ${this._localize('editors.gradient_tab')}
-        </button>
-        <button
-          class="mode-tab ${this._patternMode === 'blocks' ? 'active' : ''}"
-          @click=${() => this._setPatternMode('blocks')}
-        >
-          ${this._localize('editors.blocks_tab')}
-        </button>
+      <div class="pattern-tabs">
+        <ha-tab-group @wa-tab-show=${this._handlePatternModeChange}>
+          <ha-tab-group-tab
+            slot="nav"
+            panel="individual"
+            .active=${this._patternMode === 'individual'}
+          >
+            ${this._localize('editors.individual_tab')}
+          </ha-tab-group-tab>
+          <ha-tab-group-tab
+            slot="nav"
+            panel="gradient"
+            .active=${this._patternMode === 'gradient'}
+          >
+            ${this._localize('editors.gradient_tab')}
+          </ha-tab-group-tab>
+          <ha-tab-group-tab
+            slot="nav"
+            panel="blocks"
+            .active=${this._patternMode === 'blocks'}
+          >
+            ${this._localize('editors.blocks_tab')}
+          </ha-tab-group-tab>
+        </ha-tab-group>
       </div>
     `;
+  }
+
+  private _handlePatternModeChange(ev: CustomEvent<{ name: string }>): void {
+    const newMode = ev.detail.name;
+    if (!newMode) {
+      return;
+    }
+    if (newMode !== this._patternMode) {
+      this._setPatternMode(newMode as PatternMode);
+    }
   }
 
   private _renderModeContent(): TemplateResult {
@@ -1820,7 +1879,7 @@ export class SegmentSelector extends LitElement {
 
   private _renderIndividualMode(): TemplateResult {
     return html`
-      <div class="mode-description">
+      <div class="mode-hint">
         Click a color to select it, then click segments to apply.
       </div>
       <div class="color-palette">
@@ -1828,8 +1887,13 @@ export class SegmentSelector extends LitElement {
           <div class="palette-color-wrapper">
             <div
               class="palette-color ${this._selectedPaletteIndex === index ? 'selected' : ''}"
+              role="button"
+              tabindex="0"
               style="background-color: ${xyToHex(color)}"
               @click=${() => this._selectPaletteColor(index)}
+              @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._selectPaletteColor(index); } }}
+              aria-label="${this._localize('editors.color_label') || 'Color'} ${index + 1}: ${xyToHex(color)}"
+              aria-pressed="${this._selectedPaletteIndex === index ? 'true' : 'false'}"
             ></div>
             <button
               class="palette-edit-btn"
@@ -1854,7 +1918,7 @@ export class SegmentSelector extends LitElement {
 
   private _renderGradientMode(): TemplateResult {
     return html`
-      <div class="mode-description">
+      <div class="mode-hint">
         ${this._localize('editors.gradient_mode_description')}
       </div>
       <div class="color-array">
@@ -1862,8 +1926,12 @@ export class SegmentSelector extends LitElement {
           <div class="color-item">
             <div
               class="color-swatch"
+              role="button"
+              tabindex="0"
               style="background-color: ${xyToHex(color)}"
               @click=${() => this._openColorPicker('gradient', index)}
+              @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._openColorPicker('gradient', index); } }}
+              aria-label="${this._localize('editors.color_label') || 'Color'} ${index + 1}: ${xyToHex(color)}"
             ></div>
             ${this.gradientColors.length > 2 ? html`
               <button class="color-remove" @click=${() => this._removeGradientColor(index)}>
@@ -1881,66 +1949,75 @@ export class SegmentSelector extends LitElement {
           </div>
         ` : ''}
       </div>
-      <div class="options-row">
-        <label class="option-item">
-          <ha-switch
-            .checked=${this.gradientReverse}
-            @change=${this._handleGradientReverseChange}
-          ></ha-switch>
-          <span class="option-label">${this._localize('editors.gradient_reverse_label')}</span>
-        </label>
-        <label class="option-item">
-          <ha-switch
-            .checked=${this.gradientMirror}
-            @change=${this._handleGradientMirrorChange}
-          ></ha-switch>
-          <span class="option-label">${this._localize('editors.gradient_mirror_label')}</span>
-        </label>
-        <label class="option-item">
-          <ha-switch
-            .checked=${this.gradientWave}
-            @change=${this._handleGradientWaveChange}
-          ></ha-switch>
-          <span class="option-label">${this._localize('editors.gradient_wave_label')}</span>
-        </label>
-      </div>
-      <div class="options-row">
-        <label class="option-item">
-          <span class="option-label">${this._localize('editors.gradient_repeat_label')}</span>
-          <input
-            type="number"
-            class="option-number-input"
-            min="1"
-            max="10"
-            .value=${String(this.gradientRepeat)}
-            @change=${this._handleGradientRepeatChange}
-          />
-        </label>
-        <label class="option-item">
-          <span class="option-label">${this._localize('editors.gradient_interpolation_label')}</span>
-          <select
-            class="option-select"
-            .value=${this.gradientInterpolation}
-            @change=${this._handleGradientInterpolationChange}
-          >
-            <option value="shortest">${this._localize('editors.gradient_interp_shortest')}</option>
-            <option value="longest">${this._localize('editors.gradient_interp_longest')}</option>
-            <option value="rgb">${this._localize('editors.gradient_interp_rgb')}</option>
-          </select>
-        </label>
-        ${this.gradientWave ? html`
+      <div class="options-group">
+        <div class="options-row">
           <label class="option-item">
-            <span class="option-label">${this._localize('editors.gradient_wave_cycles_label')}</span>
-            <input
+            <ha-switch
+              .checked=${this.gradientReverse}
+              @change=${this._handleGradientReverseChange}
+            ></ha-switch>
+            <span class="option-label">${this._localize('editors.gradient_reverse_label')}</span>
+          </label>
+          <label class="option-item">
+            <ha-switch
+              .checked=${this.gradientMirror}
+              @change=${this._handleGradientMirrorChange}
+            ></ha-switch>
+            <span class="option-label">${this._localize('editors.gradient_mirror_label')}</span>
+          </label>
+          <label class="option-item">
+            <ha-switch
+              .checked=${this.gradientWave}
+              @change=${this._handleGradientWaveChange}
+            ></ha-switch>
+            <span class="option-label">${this._localize('editors.gradient_wave_label')}</span>
+          </label>
+        </div>
+        <div class="options-row">
+          <label class="option-item">
+            <span class="option-label">${this._localize('editors.gradient_repeat_label')}</span>
+            <ha-textfield
               type="number"
               class="option-number-input"
               min="1"
-              max="5"
-              .value=${String(this.gradientWaveCycles)}
-              @change=${this._handleGradientWaveCyclesChange}
-            />
+              max="10"
+              .value=${String(this.gradientRepeat)}
+              @change=${this._handleGradientRepeatChange}
+            ></ha-textfield>
           </label>
-        ` : ''}
+          <label class="option-item">
+            <span class="option-label">${this._localize('editors.gradient_interpolation_label')}</span>
+            <ha-selector
+              class="option-select"
+              .hass=${this.hass}
+              .selector=${{
+                select: {
+                  options: [
+                    { value: 'shortest', label: this._localize('editors.gradient_interp_shortest') },
+                    { value: 'longest', label: this._localize('editors.gradient_interp_longest') },
+                    { value: 'rgb', label: this._localize('editors.gradient_interp_rgb') },
+                  ],
+                  mode: 'dropdown',
+                },
+              }}
+              .value=${this.gradientInterpolation}
+              @value-changed=${this._handleGradientInterpolationChange}
+            ></ha-selector>
+          </label>
+          ${this.gradientWave ? html`
+            <label class="option-item">
+              <span class="option-label">${this._localize('editors.gradient_wave_cycles_label')}</span>
+              <ha-textfield
+                type="number"
+                class="option-number-input"
+                min="1"
+                max="5"
+                .value=${String(this.gradientWaveCycles)}
+                @change=${this._handleGradientWaveCyclesChange}
+              ></ha-textfield>
+            </label>
+          ` : ''}
+        </div>
       </div>
       <div class="generated-actions">
         <ha-button @click=${this._applyToGrid}>
@@ -1960,7 +2037,7 @@ export class SegmentSelector extends LitElement {
 
   private _renderBlocksMode(): TemplateResult {
     return html`
-      <div class="mode-description">
+      <div class="mode-hint">
         ${this._localize('editors.blocks_mode_description')}
       </div>
       <div class="color-array">
@@ -1968,8 +2045,12 @@ export class SegmentSelector extends LitElement {
           <div class="color-item">
             <div
               class="color-swatch"
+              role="button"
+              tabindex="0"
               style="background-color: ${xyToHex(color)}"
               @click=${() => this._openColorPicker('blocks', index)}
+              @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._openColorPicker('blocks', index); } }}
+              aria-label="${this._localize('editors.color_label') || 'Color'} ${index + 1}: ${xyToHex(color)}"
             ></div>
             ${this.blockColors.length > 1 ? html`
               <button class="color-remove" @click=${() => this._removeBlockColor(index)}>
@@ -1987,14 +2068,16 @@ export class SegmentSelector extends LitElement {
           </div>
         ` : ''}
       </div>
-      <div class="options-row">
-        <label class="option-item">
-          <ha-switch
-            .checked=${this.expandBlocks}
-            @change=${this._handleExpandBlocksChange}
-          ></ha-switch>
-          <span class="option-label">${this._localize('editors.expand_blocks_label')}</span>
-        </label>
+      <div class="options-group">
+        <div class="options-row">
+          <label class="option-item">
+            <ha-switch
+              .checked=${this.expandBlocks}
+              @change=${this._handleExpandBlocksChange}
+            ></ha-switch>
+            <span class="option-label">${this._localize('editors.expand_blocks_label')}</span>
+          </label>
+        </div>
       </div>
       <div class="generated-actions">
         <ha-button @click=${this._applyToGrid}>
@@ -2023,67 +2106,79 @@ export class SegmentSelector extends LitElement {
     const accurateHex = rgbToHex(accurateRgb);
 
     return html`
-      <div class="color-picker-modal-overlay" @click=${this._closeColorPicker}>
-        <div class="color-picker-modal" @click=${(e: Event) => e.stopPropagation()}>
-          <div class="color-picker-modal-header">
-            <span class="color-picker-modal-title">${this._localize('editors.color_picker_title')}</span>
+      <ha-dialog
+        open
+        @closed=${this._closeColorPicker}
+        .headerTitle=${hasNewHaDialog() ? this._localize('editors.color_picker_title') : undefined}
+        .heading=${!hasNewHaDialog() ? dialogHeadingLegacy(
+          this._localize('editors.color_picker_title'),
+          html`
             <div
               class="color-picker-modal-preview"
               style="background-color: ${accurateHex}"
             ></div>
-          </div>
-          <div class="color-picker-canvas-container">
-            ${this._renderColorWheel()}
-          </div>
-          <div class="color-picker-rgb-inputs">
-            <label class="rgb-input-label">
-              <span class="rgb-input-channel">R</span>
-              <input
-                type="number"
-                class="rgb-input-field"
-                min="0"
-                max="255"
-                .value=${String(accurateRgb.r)}
-                @input=${(e: Event) => this._handleRgbInput(e, 'r')}
-              />
-            </label>
-            <label class="rgb-input-label">
-              <span class="rgb-input-channel">G</span>
-              <input
-                type="number"
-                class="rgb-input-field"
-                min="0"
-                max="255"
-                .value=${String(accurateRgb.g)}
-                @input=${(e: Event) => this._handleRgbInput(e, 'g')}
-              />
-            </label>
-            <label class="rgb-input-label">
-              <span class="rgb-input-channel">B</span>
-              <input
-                type="number"
-                class="rgb-input-field"
-                min="0"
-                max="255"
-                .value=${String(accurateRgb.b)}
-                @input=${(e: Event) => this._handleRgbInput(e, 'b')}
-              />
-            </label>
-          </div>
-          <color-history-swatches
-            .colorHistory=${this.colorHistory}
-            .translations=${this.translations}
-            @color-selected=${this._handleHistoryColorSelected}
-          ></color-history-swatches>
-          <div class="color-picker-modal-actions">
-            <ha-button @click=${this._closeColorPicker}>${this._localize('editors.cancel_button')}</ha-button>
-            <ha-button @click=${this._confirmColorPicker}>
-              <ha-icon icon="mdi:check"></ha-icon>
-              ${this._localize('editors.apply_button')}
-            </ha-button>
-          </div>
+          `,
+        ) : undefined}
+      >
+        ${hasNewHaDialog() ? html`
+          <span slot="headerNavigationIcon"></span>
+          <div
+            slot="headerActionItems"
+            class="color-picker-modal-preview"
+            style="background-color: ${accurateHex}"
+          ></div>
+        ` : ''}
+        <div class="color-picker-canvas-container">
+          ${this._renderColorWheel()}
         </div>
-      </div>
+        <div class="color-picker-rgb-inputs">
+          <label class="rgb-input-label">
+            <span class="rgb-input-channel">R</span>
+            <input
+              type="number"
+              class="rgb-input-field"
+              min="0"
+              max="255"
+              .value=${String(accurateRgb.r)}
+              @input=${(e: Event) => this._handleRgbInput(e, 'r')}
+            />
+          </label>
+          <label class="rgb-input-label">
+            <span class="rgb-input-channel">G</span>
+            <input
+              type="number"
+              class="rgb-input-field"
+              min="0"
+              max="255"
+              .value=${String(accurateRgb.g)}
+              @input=${(e: Event) => this._handleRgbInput(e, 'g')}
+            />
+          </label>
+          <label class="rgb-input-label">
+            <span class="rgb-input-channel">B</span>
+            <input
+              type="number"
+              class="rgb-input-field"
+              min="0"
+              max="255"
+              .value=${String(accurateRgb.b)}
+              @input=${(e: Event) => this._handleRgbInput(e, 'b')}
+            />
+          </label>
+        </div>
+        <color-history-swatches
+          .colorHistory=${this.colorHistory}
+          .translations=${this.translations}
+          @color-selected=${this._handleHistoryColorSelected}
+        ></color-history-swatches>
+        ${dialogActions(
+          this._localize('editors.cancel_button'),
+          this._localize('editors.apply_button'),
+          () => this._closeColorPicker(),
+          () => this._confirmColorPicker(),
+          'mdi:check',
+        )}
+      </ha-dialog>
     `;
   }
 

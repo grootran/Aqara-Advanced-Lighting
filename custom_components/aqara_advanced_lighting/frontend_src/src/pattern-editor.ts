@@ -1,8 +1,9 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { HomeAssistant, RGBColor, XYColor, SegmentColorEntry, UserSegmentPatternPreset, DeviceContext, PatternEditorDraft } from './types';
+import { HomeAssistant, RGBColor, XYColor, SegmentColorEntry, UserSegmentPatternPreset, DeviceContext, PatternEditorDraft, Translations } from './types';
 import { xyToRgb, rgbToXy } from './color-utils';
 import { colorPickerStyles } from './styles';
+import { DEVICE_LABELS, editorFormStyles, localize } from './editor-constants';
 // Note: hs-color-picker import removed - color picking handled by segment-selector
 
 // Segment counts per device type
@@ -10,12 +11,6 @@ const SEGMENT_COUNTS: Record<string, number> = {
   t1: 20,
   t1m: 26,
   t1_strip: 50, // 10 meters x 5 segments per meter (max)
-};
-
-const DEVICE_LABELS: Record<string, string> = {
-  t1: 'T1 (20 segments)',
-  t1m: 'T1M (26 segments)',
-  t1_strip: 'T1 Strip (up to 50 segments)',
 };
 
 // Default palette colors in XY space
@@ -32,13 +27,14 @@ const DEFAULT_PALETTE: XYColor[] = [
 export class PatternEditor extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @property({ type: Object }) public preset?: UserSegmentPatternPreset;
-  @property({ type: Object }) public translations: Record<string, any> = {};
+  @property({ type: Object }) public translations: Translations = {};
   @property({ type: Boolean }) public editMode = false;
   @property({ type: Boolean }) public hasSelectedEntities = false;
   @property({ type: Boolean }) public isCompatible = true;
   @property({ type: Number }) public stripSegmentCount = 10; // Default 2 meters (out-of-box T1 Strip length)
   @property({ type: Object }) public deviceContext?: DeviceContext;
   @property({ type: Array }) public colorHistory: XYColor[] = [];
+  @property({ type: Boolean }) public previewActive = false;
   @property({ type: Object }) public draft?: PatternEditorDraft;
 
   @state() private _name = '';
@@ -78,66 +74,8 @@ export class PatternEditor extends LitElement {
 
   static styles = [
     colorPickerStyles,
+    editorFormStyles,
     css`
-    :host {
-      display: block;
-    }
-
-    .editor-content {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .form-row {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .form-row-pair {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 16px;
-    }
-
-    .form-row-triple {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 16px;
-    }
-
-    .form-row-pair .form-field,
-    .form-row-triple .form-field {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .form-section {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-bottom: 16px;
-    }
-
-    .form-section .form-label {
-      min-width: unset;
-    }
-
-    .form-label {
-      font-size: 14px;
-      font-weight: 500;
-      min-width: 120px;
-      color: var(--secondary-text-color);
-    }
-
-    .form-input {
-      flex: 1;
-    }
-
     .segment-grid-container {
       background: var(--card-background-color);
       border-radius: 8px;
@@ -213,33 +151,6 @@ export class PatternEditor extends LitElement {
       margin-top: 8px;
     }
 
-    .form-actions {
-      display: flex;
-      gap: 12px;
-      justify-content: flex-end;
-      margin-top: 24px;
-      padding-top: 16px;
-      border-top: 1px solid var(--divider-color);
-    }
-
-    .preview-warning {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      background: var(--secondary-background-color);
-      color: var(--secondary-text-color);
-      border: 1px solid var(--divider-color);
-      border-left: 4px solid var(--warning-color, #ffc107);
-      border-radius: 4px;
-      font-size: 13px;
-    }
-
-    .preview-warning ha-icon {
-      flex-shrink: 0;
-      --mdc-icon-size: 18px;
-    }
-
     /* Sub-tabs for pattern modes */
     .mode-tabs {
       display: flex;
@@ -273,7 +184,7 @@ export class PatternEditor extends LitElement {
 
     /* Color picker, palette, color-array, color-item, color-swatch,
        color-picker-modal, color-remove, add-color-btn styles
-       are inherited from panelStyles (styles.ts) */
+       are inherited from colorPickerStyles (styles.ts) */
 
     .palette-label {
       font-size: 13px;
@@ -321,13 +232,11 @@ export class PatternEditor extends LitElement {
 
     /* Clear mode toggle button */
     .clear-mode-toggle.active {
-      --mdc-theme-primary: var(--error-color);
       color: var(--error-color);
     }
 
     /* Select mode toggle button */
     .select-mode-toggle.active {
-      --mdc-theme-primary: var(--info-color, #2196f3);
       color: var(--info-color, #2196f3);
     }
 
@@ -347,21 +256,6 @@ export class PatternEditor extends LitElement {
     }
 
     @media (max-width: 600px) {
-      .form-row {
-        flex-direction: column;
-        align-items: stretch;
-      }
-
-      .form-row-pair,
-      .form-row-triple {
-        grid-template-columns: 1fr;
-      }
-
-      .form-label {
-        min-width: unset;
-        margin-bottom: 4px;
-      }
-
       .grid-controls {
         flex-direction: column;
       }
@@ -478,6 +372,7 @@ export class PatternEditor extends LitElement {
       gradientWave: this._gradientWave,
       gradientWaveCycles: this._gradientWaveCycles,
       turnOffUnspecified: this._turnOffUnspecified,
+      hasUserInteraction: this._hasUserInteraction,
     };
   }
 
@@ -523,15 +418,17 @@ export class PatternEditor extends LitElement {
     this._gradientWave = draft.gradientWave;
     this._gradientWaveCycles = draft.gradientWaveCycles;
     this._turnOffUnspecified = draft.turnOffUnspecified;
-    this._hasUserInteraction = true;
+    this._hasUserInteraction = draft.hasUserInteraction ?? false;
   }
 
   private _handleNameChange(e: CustomEvent): void {
     this._name = e.detail.value || '';
+    this._hasUserInteraction = true;
   }
 
   private _handleIconChange(e: CustomEvent): void {
     this._icon = e.detail.value || '';
+    this._hasUserInteraction = true;
   }
 
   private _handleDeviceTypeChange(e: CustomEvent): void {
@@ -554,6 +451,7 @@ export class PatternEditor extends LitElement {
     const { value } = e.detail;
     if (value instanceof Map) {
       this._segments = value;
+      this._hasUserInteraction = true;
     }
   }
 
@@ -562,6 +460,7 @@ export class PatternEditor extends LitElement {
     const { colors } = e.detail;
     if (Array.isArray(colors)) {
       this._gradientColors = colors;
+      this._hasUserInteraction = true;
     }
   }
 
@@ -570,6 +469,7 @@ export class PatternEditor extends LitElement {
     const { colors } = e.detail;
     if (Array.isArray(colors)) {
       this._blockColors = colors;
+      this._hasUserInteraction = true;
     }
   }
 
@@ -578,11 +478,13 @@ export class PatternEditor extends LitElement {
     const { colors } = e.detail;
     if (Array.isArray(colors)) {
       this._colorPalette = colors;
+      this._hasUserInteraction = true;
     }
   }
 
   private _handleTurnOffUnspecifiedChange(e: CustomEvent): void {
     this._turnOffUnspecified = e.detail.value;
+    this._hasUserInteraction = true;
   }
 
   // Note: All pattern generation, color management, selection, and UI rendering
@@ -664,8 +566,18 @@ export class PatternEditor extends LitElement {
   }
 
   private _cancel(): void {
+    this._hasUserInteraction = false;
     this.dispatchEvent(
       new CustomEvent('cancel', {
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
+  private _stopPreview(): void {
+    this.dispatchEvent(
+      new CustomEvent('stop-preview', {
         bubbles: true,
         composed: true,
       })
@@ -691,25 +603,7 @@ export class PatternEditor extends LitElement {
   // - _renderBlocksMode() - blocks color configuration
 
   private _localize(key: string, replacements?: Record<string, string>): string {
-    const keys = key.split('.');
-    let value: any = this.translations;
-    for (const k of keys) {
-      if (value && typeof value === 'object' && k in value) {
-        value = value[k];
-      } else {
-        return key;
-      }
-    }
-    let result = typeof value === 'string' ? value : key;
-
-    // Replace placeholders if provided
-    if (replacements) {
-      Object.entries(replacements).forEach(([placeholder, replacement]) => {
-        result = result.replace(`{${placeholder}}`, replacement);
-      });
-    }
-
-    return result;
+    return localize(this.translations, key, replacements);
   }
 
   protected render() {
@@ -733,12 +627,23 @@ export class PatternEditor extends LitElement {
           </div>
           <div class="form-field">
             <span class="form-label">${this._localize('editors.icon_label')}</span>
-            <ha-selector
-              .hass=${this.hass}
-              .selector=${{ icon: {} }}
-              .value=${this._icon}
-              @value-changed=${this._handleIconChange}
-            ></ha-selector>
+            <div class="icon-field-row">
+              <ha-selector
+                .hass=${this.hass}
+                .selector=${{ icon: {} }}
+                .value=${this._icon}
+                @value-changed=${this._handleIconChange}
+              ></ha-selector>
+              ${this._icon ? html`
+                <ha-icon-button
+                  class="icon-clear-btn"
+                  @click=${() => { this._icon = ''; this._hasUserInteraction = true; }}
+                  title=${this._localize('editors.icon_clear_tooltip')}
+                >
+                  <ha-icon icon="mdi:close"></ha-icon>
+                </ha-icon-button>
+              ` : ''}
+            </div>
             ${!this._icon ? html`<span class="form-hint">${this._localize('editors.icon_auto_hint')}</span>` : ''}
           </div>
           <div class="form-field">
@@ -796,21 +701,38 @@ export class PatternEditor extends LitElement {
           : ''}
 
         <div class="form-actions">
-          <ha-button @click=${this._cancel}>${this._localize('editors.cancel_button')}</ha-button>
-          <ha-button
-            @click=${this._preview}
-            .disabled=${!this._canPreview() || this._previewing || !this.hasSelectedEntities || !this.isCompatible}
-            title=${!this.hasSelectedEntities ? this._localize('editors.tooltip_select_lights_first') : !this.isCompatible ? this._localize('editors.tooltip_light_not_compatible') : ''}
-          >
-            <ha-icon icon="mdi:play"></ha-icon>
-            ${this._localize('editors.preview_button')}
-          </ha-button>
+          <div class="form-actions-left">
+            <ha-button @click=${this._cancel}>${this._localize('editors.cancel_button')}</ha-button>
+            ${this._hasUserInteraction ? html`
+              <span class="unsaved-indicator">
+                <span class="unsaved-dot"></span>
+                ${this._localize('editors.unsaved_changes')}
+              </span>
+            ` : ''}
+          </div>
+          ${this.previewActive
+            ? html`
+                <ha-button @click=${this._stopPreview}>
+                  <ha-icon icon="mdi:stop"></ha-icon>
+                  <span class="btn-text">${this._localize('editors.stop_button')}</span>
+                </ha-button>
+              `
+            : html`
+                <ha-button
+                  @click=${this._preview}
+                  .disabled=${!this._canPreview() || this._previewing || !this.hasSelectedEntities || !this.isCompatible}
+                  title=${!this.hasSelectedEntities ? this._localize('editors.tooltip_select_lights_first') : !this.isCompatible ? this._localize('editors.tooltip_light_not_compatible') : ''}
+                >
+                  <ha-icon icon="mdi:play"></ha-icon>
+                  <span class="btn-text">${this._localize('editors.preview_button')}</span>
+                </ha-button>
+              `}
           <ha-button
             @click=${this._save}
             .disabled=${!this._canSave() || this._saving}
           >
             <ha-icon icon="mdi:content-save"></ha-icon>
-            ${this.editMode ? this._localize('editors.update_button') : this._localize('editors.save_button')}
+            <span class="btn-text">${this.editMode ? this._localize('editors.update_button') : this._localize('editors.save_button')}</span>
           </ha-button>
         </div>
       </div>

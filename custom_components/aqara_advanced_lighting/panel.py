@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
+import ipaddress
 import json
 import logging
 from pathlib import Path
+import re
+import socket
 from typing import TYPE_CHECKING, Any
-from urllib.parse import unquote
+from urllib.parse import unquote, urlparse
 import uuid
 
 from aiohttp import web
@@ -19,6 +22,7 @@ from homeassistant.components.http import HomeAssistantView
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 if TYPE_CHECKING:
     from .favorites_store import FavoritesStore
@@ -26,6 +30,7 @@ if TYPE_CHECKING:
     from .segment_zone_store import SegmentZoneStore
     from .user_preferences_store import UserPreferencesStore
 
+from .preset_store import get_preset_store
 from .user_preferences_store import _UNSET
 
 from .const import (
@@ -38,7 +43,6 @@ from .const import (
     DATA_ACTIVE_MUSIC_SYNC,
     DATA_ENTITY_CONTROLLER,
     DATA_FAVORITES_STORE,
-    DATA_PRESET_STORE,
     DATA_SEGMENT_SEQUENCE_MANAGER,
     DATA_SEGMENT_ZONE_STORE,
     DATA_STATE_MANAGER,
@@ -220,9 +224,7 @@ class IconView(HomeAssistantView):
             _LOGGER.warning("Invalid icon filename requested: %s", filename)
             return web.Response(status=400, text="Invalid filename")
 
-        icons_dir = Path(
-            hass.config.path(f"custom_components/{DOMAIN}/frontend/icons")
-        )
+        icons_dir = Path(hass.config.path(f"custom_components/{DOMAIN}/frontend/icons"))
         file_path = icons_dir / filename
 
         # Ensure the resolved path is within the icons directory
@@ -283,80 +285,101 @@ def _build_presets_data() -> dict[str, Any]:
         device_types = preset_data.get("device_types", [])
 
         # Categorize by device type
-        if any(model in device_types for model in [MODEL_T2_BULB_E26, MODEL_T2_BULB_E27, MODEL_T2_BULB_GU10_110V, MODEL_T2_BULB_GU10_230V]):
+        if any(
+            model in device_types
+            for model in [
+                MODEL_T2_BULB_E26,
+                MODEL_T2_BULB_E27,
+                MODEL_T2_BULB_GU10_110V,
+                MODEL_T2_BULB_GU10_230V,
+            ]
+        ):
             category = "t2_bulb"
-        elif any(model in device_types for model in [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT]):
+        elif any(
+            model in device_types
+            for model in [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT]
+        ):
             category = "t1m"
         elif MODEL_T1_STRIP in device_types:
             category = "t1_strip"
         else:
             continue
 
-        dynamic_effects[category].append({
-            "id": preset_id,
-            "name": preset_data["name"],
-            "icon": preset_data.get("icon"),
-            "effect": preset_data["effect"],
-            "speed": preset_data["speed"],
-            "brightness": preset_data.get("brightness"),
-            "colors": preset_data["colors"],
-            "device_types": device_types,
-        })
+        dynamic_effects[category].append(
+            {
+                "id": preset_id,
+                "name": preset_data["name"],
+                "icon": preset_data.get("icon"),
+                "effect": preset_data["effect"],
+                "speed": preset_data["speed"],
+                "brightness": preset_data.get("brightness"),
+                "colors": preset_data["colors"],
+                "device_types": device_types,
+            }
+        )
 
     # Build segment patterns
     segment_patterns = []
     for preset_id, preset_data in SEGMENT_PATTERN_PRESETS.items():
-        segment_patterns.append({
-            "id": preset_id,
-            "name": preset_data["name"],
-            "icon": preset_data.get("icon"),
-            "segments": preset_data["segments"],
-            "device_types": preset_data.get("device_types", []),
-        })
+        segment_patterns.append(
+            {
+                "id": preset_id,
+                "name": preset_data["name"],
+                "icon": preset_data.get("icon"),
+                "segments": preset_data["segments"],
+                "device_types": preset_data.get("device_types", []),
+            }
+        )
 
     # Build CCT sequences
     cct_sequences = []
     for preset_id, preset_data in CCT_SEQUENCE_PRESETS.items():
-        cct_sequences.append({
-            "id": preset_id,
-            "name": preset_data["name"],
-            "icon": preset_data.get("icon"),
-            "steps": preset_data["steps"],
-            "loop_mode": preset_data["loop_mode"],
-            "loop_count": preset_data.get("loop_count"),
-            "end_behavior": preset_data["end_behavior"],
-        })
+        cct_sequences.append(
+            {
+                "id": preset_id,
+                "name": preset_data["name"],
+                "icon": preset_data.get("icon"),
+                "steps": preset_data["steps"],
+                "loop_mode": preset_data["loop_mode"],
+                "loop_count": preset_data.get("loop_count"),
+                "end_behavior": preset_data["end_behavior"],
+            }
+        )
 
     # Build segment sequences
     segment_sequences = []
     for preset_id, preset_data in SEGMENT_SEQUENCE_PRESETS.items():
-        segment_sequences.append({
-            "id": preset_id,
-            "name": preset_data["name"],
-            "icon": preset_data.get("icon"),
-            "steps": preset_data["steps"],
-            "loop_mode": preset_data["loop_mode"],
-            "loop_count": preset_data.get("loop_count"),
-            "end_behavior": preset_data["end_behavior"],
-        })
+        segment_sequences.append(
+            {
+                "id": preset_id,
+                "name": preset_data["name"],
+                "icon": preset_data.get("icon"),
+                "steps": preset_data["steps"],
+                "loop_mode": preset_data["loop_mode"],
+                "loop_count": preset_data.get("loop_count"),
+                "end_behavior": preset_data["end_behavior"],
+            }
+        )
 
     # Build dynamic scenes
     dynamic_scenes = []
     for preset_id, preset_data in DYNAMIC_SCENE_PRESETS.items():
-        dynamic_scenes.append({
-            "id": preset_id,
-            "name": preset_data["name"],
-            "icon": preset_data.get("icon"),
-            "colors": preset_data["colors"],
-            "transition_time": preset_data["transition_time"],
-            "hold_time": preset_data["hold_time"],
-            "distribution_mode": preset_data["distribution_mode"],
-            "offset_delay": preset_data.get("offset_delay", 0.0),
-            "random_order": preset_data.get("random_order", False),
-            "loop_mode": preset_data["loop_mode"],
-            "loop_count": preset_data.get("loop_count"),
-            "end_behavior": preset_data["end_behavior"],
-        })
+        dynamic_scenes.append(
+            {
+                "id": preset_id,
+                "name": preset_data["name"],
+                "icon": preset_data.get("icon"),
+                "colors": preset_data["colors"],
+                "transition_time": preset_data["transition_time"],
+                "hold_time": preset_data["hold_time"],
+                "distribution_mode": preset_data["distribution_mode"],
+                "offset_delay": preset_data.get("offset_delay", 0.0),
+                "random_order": preset_data.get("random_order", False),
+                "loop_mode": preset_data["loop_mode"],
+                "loop_count": preset_data.get("loop_count"),
+                "end_behavior": preset_data["end_behavior"],
+            }
+        )
 
     return {
         "dynamic_effects": dynamic_effects,
@@ -417,7 +440,19 @@ class FavoritesView(HomeAssistantView):
         if not entities or not isinstance(entities, list):
             return web.Response(status=400, text="entities list is required")
 
+        if len(entities) > 250:
+            return web.Response(status=400, text="entities list exceeds 250 items")
+        for entity in entities:
+            if not isinstance(entity, str) or not entity:
+                return web.Response(
+                    status=400, text="Each entity must be a non-empty string"
+                )
+
         name = data.get("name")  # Optional custom name
+        if name is not None and (not isinstance(name, str) or len(name) > 200):
+            return web.Response(
+                status=400, text="name must be a string of 200 characters or fewer"
+            )
 
         favorite = await favorites_store.add_favorite(user.id, entities, name)
         return web.json_response({"favorite": favorite}, status=201)
@@ -479,23 +514,6 @@ class FavoriteView(HomeAssistantView):
         return web.Response(status=204)
 
 
-def _get_preset_store(hass: HomeAssistant) -> PresetStore | None:
-    """Get the preset store from hass.data."""
-    if DOMAIN not in hass.data:
-        _LOGGER.error(
-            "Integration domain not found in hass.data - integration may not be set up"
-        )
-        return None
-    preset_store = hass.data[DOMAIN].get(DATA_PRESET_STORE)
-    if preset_store is None:
-        _LOGGER.error(
-            "Preset store not found in hass.data[%s] - this should not happen. "
-            "Available keys: %s",
-            DOMAIN,
-            list(hass.data[DOMAIN].keys()),
-        )
-    return preset_store
-
 
 class UserPresetsView(HomeAssistantView):
     """View to list and create user presets."""
@@ -513,7 +531,7 @@ class UserPresetsView(HomeAssistantView):
         """
         hass = request.app["hass"]
 
-        preset_store = _get_preset_store(hass)
+        preset_store = get_preset_store(hass)
         if not preset_store:
             return web.Response(status=503, text="Preset store not initialized")
 
@@ -536,7 +554,7 @@ class UserPresetsView(HomeAssistantView):
         """
         hass = request.app["hass"]
 
-        preset_store = _get_preset_store(hass)
+        preset_store = get_preset_store(hass)
         if not preset_store:
             return web.Response(status=503, text="Preset store not initialized")
 
@@ -580,7 +598,7 @@ class UserPresetView(HomeAssistantView):
         """Get a single user preset."""
         hass = request.app["hass"]
 
-        preset_store = _get_preset_store(hass)
+        preset_store = get_preset_store(hass)
         if not preset_store:
             return web.Response(status=503, text="Preset store not initialized")
 
@@ -602,7 +620,7 @@ class UserPresetView(HomeAssistantView):
         """Update a user preset."""
         hass = request.app["hass"]
 
-        preset_store = _get_preset_store(hass)
+        preset_store = get_preset_store(hass)
         if not preset_store:
             return web.Response(status=503, text="Preset store not initialized")
 
@@ -632,7 +650,7 @@ class UserPresetView(HomeAssistantView):
         """Delete a user preset."""
         hass = request.app["hass"]
 
-        preset_store = _get_preset_store(hass)
+        preset_store = get_preset_store(hass)
         if not preset_store:
             return web.Response(status=503, text="Preset store not initialized")
 
@@ -666,7 +684,7 @@ class UserPresetDuplicateView(HomeAssistantView):
         """
         hass = request.app["hass"]
 
-        preset_store = _get_preset_store(hass)
+        preset_store = get_preset_store(hass)
         if not preset_store:
             return web.Response(status=503, text="Preset store not initialized")
 
@@ -886,8 +904,7 @@ class UserPreferencesView(HomeAssistantView):
         if "distribution_mode_override" in data:
             value = data["distribution_mode_override"]
             if value is not None and (
-                not isinstance(value, str)
-                or value not in VALID_DISTRIBUTION_MODES
+                not isinstance(value, str) or value not in VALID_DISTRIBUTION_MODES
             ):
                 return web.Response(
                     status=400,
@@ -1013,6 +1030,7 @@ class VersionView(HomeAssistantView):
         # Use executor to avoid blocking I/O
         def read_manifest():
             import json
+
             with open(manifest_path, "r", encoding="utf-8") as f:
                 return json.load(f)
 
@@ -1039,10 +1057,12 @@ class VersionView(HomeAssistantView):
                         setup_complete = False
                         break
 
-            return web.json_response({
-                "version": version,
-                "setup_complete": setup_complete,
-            })
+            return web.json_response(
+                {
+                    "version": version,
+                    "setup_complete": setup_complete,
+                }
+            )
         except (OSError, ValueError) as ex:
             _LOGGER.error("Error reading manifest: %s", ex)
             return web.Response(status=500, text="Error reading manifest")
@@ -1063,7 +1083,7 @@ class ExportPresetsView(HomeAssistantView):
         """
         hass = request.app["hass"]
 
-        preset_store = _get_preset_store(hass)
+        preset_store = get_preset_store(hass)
         if not preset_store:
             return web.Response(status=503, text="Preset store not initialized")
 
@@ -1084,11 +1104,9 @@ class ExportPresetsView(HomeAssistantView):
                 },
             )
 
-        except Exception as ex:
-            _LOGGER.exception("Failed to export presets: %s", ex)
-            return web.Response(
-                status=500, text=f"Failed to export presets: {ex}"
-            )
+        except Exception:
+            _LOGGER.exception("Failed to export presets")
+            return web.Response(status=500, text="Failed to export presets")
 
 
 class ImportPresetsView(HomeAssistantView):
@@ -1097,6 +1115,8 @@ class ImportPresetsView(HomeAssistantView):
     url = f"/api/{DOMAIN}/presets/import"
     name = f"api:{DOMAIN}:presets_import"
     requires_auth = True
+
+    MAX_IMPORT_PRESETS_TOTAL = 500
 
     async def post(self, request: web.Request) -> web.Response:
         """Import presets from uploaded JSON file.
@@ -1109,7 +1129,7 @@ class ImportPresetsView(HomeAssistantView):
         """
         hass = request.app["hass"]
 
-        preset_store = _get_preset_store(hass)
+        preset_store = get_preset_store(hass)
         if not preset_store:
             return web.Response(status=503, text="Preset store not initialized")
 
@@ -1119,6 +1139,29 @@ class ImportPresetsView(HomeAssistantView):
         except (json.JSONDecodeError, ValueError) as ex:
             _LOGGER.warning("Invalid JSON in import request: %s", ex)
             return web.Response(status=400, text="Invalid JSON format")
+
+        # Guard against oversized imports
+        if isinstance(import_data, dict):
+            preset_keys = (
+                "effect_presets",
+                "segment_pattern_presets",
+                "cct_sequence_presets",
+                "segment_sequence_presets",
+                "dynamic_scene_presets",
+            )
+            total_presets = sum(
+                len(import_data.get(k, []))
+                for k in preset_keys
+                if isinstance(import_data.get(k), list)
+            )
+            if total_presets > self.MAX_IMPORT_PRESETS_TOTAL:
+                return web.Response(
+                    status=400,
+                    text=(
+                        f"Import contains {total_presets} presets,"
+                        f" maximum is {self.MAX_IMPORT_PRESETS_TOTAL}"
+                    ),
+                )
 
         try:
             # Import presets with validation and conflict resolution
@@ -1136,10 +1179,11 @@ class ImportPresetsView(HomeAssistantView):
                 status=200,
             )
 
-        except Exception as ex:
-            _LOGGER.exception("Failed to import presets: %s", ex)
-            # Return the error message to the frontend
+        except ServiceValidationError as ex:
             return web.Response(status=400, text=str(ex))
+        except Exception:
+            _LOGGER.exception("Failed to import presets")
+            return web.Response(status=400, text="Failed to import presets")
 
 
 class SupportedEntitiesView(HomeAssistantView):
@@ -1199,31 +1243,42 @@ class SupportedEntitiesView(HomeAssistantView):
                     device_counts["t1m"] += 1
                 elif model_id == MODEL_T1_STRIP:
                     device_counts["t1_strip"] += 1
-                elif model_id in [MODEL_T2_BULB_E26, MODEL_T2_BULB_E27,
-                                  MODEL_T2_BULB_GU10_230V, MODEL_T2_BULB_GU10_110V]:
+                elif model_id in [
+                    MODEL_T2_BULB_E26,
+                    MODEL_T2_BULB_E27,
+                    MODEL_T2_BULB_GU10_230V,
+                    MODEL_T2_BULB_GU10_110V,
+                ]:
                     device_counts["t2_rgb"] += 1
-                elif model_id in [MODEL_T2_CCT_E26, MODEL_T2_CCT_E27,
-                                  MODEL_T2_CCT_GU10_230V, MODEL_T2_CCT_GU10_110V]:
+                elif model_id in [
+                    MODEL_T2_CCT_E26,
+                    MODEL_T2_CCT_E27,
+                    MODEL_T2_CCT_GU10_230V,
+                    MODEL_T2_CCT_GU10_110V,
+                ]:
                     device_counts["t2_cct"] += 1
                 else:
                     device_counts["other"] += 1
 
-            instances.append({
-                "entry_id": entry_id,
-                "title": entry.title,
-                "backend_type": backend_type,
-                "z2m_base_topic": (
-                    entry.runtime_data.z2m_base_topic
-                    if backend_type == "z2m"
-                    else None
-                ),
-                "device_counts": device_counts,
-                "devices": sorted(device_names),
-            })
+            instances.append(
+                {
+                    "entry_id": entry_id,
+                    "title": entry.title,
+                    "backend_type": backend_type,
+                    "z2m_base_topic": (
+                        entry.runtime_data.z2m_base_topic
+                        if backend_type == "z2m"
+                        else None
+                    ),
+                    "device_counts": device_counts,
+                    "devices": sorted(device_names),
+                }
+            )
 
             # Get entities routed to this entry
             entry_entity_ids = [
-                eid for eid, e_entry_id in entity_routing.items()
+                eid
+                for eid, e_entry_id in entity_routing.items()
                 if e_entry_id == entry_id
             ]
 
@@ -1251,17 +1306,26 @@ class SupportedEntitiesView(HomeAssistantView):
                     device_type = "t1m"
                 elif model_id == MODEL_T1_STRIP:
                     device_type = "t1_strip"
-                elif model_id in [MODEL_T2_BULB_E26, MODEL_T2_BULB_E27,
-                                  MODEL_T2_BULB_GU10_230V, MODEL_T2_BULB_GU10_110V]:
+                elif model_id in [
+                    MODEL_T2_BULB_E26,
+                    MODEL_T2_BULB_E27,
+                    MODEL_T2_BULB_GU10_230V,
+                    MODEL_T2_BULB_GU10_110V,
+                ]:
                     device_type = "t2_bulb"
-                elif model_id in [MODEL_T2_CCT_E26, MODEL_T2_CCT_E27,
-                                  MODEL_T2_CCT_GU10_230V, MODEL_T2_CCT_GU10_110V]:
+                elif model_id in [
+                    MODEL_T2_CCT_E26,
+                    MODEL_T2_CCT_E27,
+                    MODEL_T2_CCT_GU10_230V,
+                    MODEL_T2_CCT_GU10_110V,
+                ]:
                     device_type = "t2_cct"
                 else:
                     device_type = "unknown"
 
                 # Get segment count for this device model
                 from .light_capabilities import get_segment_count
+
                 segment_count = get_segment_count(model_id)
 
                 supported_entities[entity_id] = {
@@ -1319,15 +1383,17 @@ class SupportedEntitiesView(HomeAssistantView):
                     group_device_type = "mixed"
 
                 friendly_name = state.attributes.get("friendly_name", entity_id)
-                light_groups.append({
-                    "entity_id": entity_id,
-                    "friendly_name": friendly_name,
-                    "is_group": True,
-                    "device_type": group_device_type,
-                    "member_count": len(member_ids),
-                    "member_ids": list(member_ids),
-                    "member_device_types": list(group_device_types),
-                })
+                light_groups.append(
+                    {
+                        "entity_id": entity_id,
+                        "friendly_name": friendly_name,
+                        "is_group": True,
+                        "device_type": group_device_type,
+                        "member_count": len(member_ids),
+                        "member_ids": list(member_ids),
+                        "member_device_types": list(group_device_types),
+                    }
+                )
 
                 _LOGGER.debug(
                     "SupportedEntitiesView: Found light group %s with %d supported members: %s",
@@ -1342,11 +1408,13 @@ class SupportedEntitiesView(HomeAssistantView):
             len(light_groups),
         )
 
-        return web.json_response({
-            "entities": list(supported_entities.values()),
-            "instances": instances,
-            "light_groups": light_groups,
-        })
+        return web.json_response(
+            {
+                "entities": list(supported_entities.values()),
+                "instances": instances,
+                "light_groups": light_groups,
+            }
+        )
 
 
 def _get_segment_zone_store(hass: HomeAssistant) -> SegmentZoneStore | None:
@@ -1356,6 +1424,9 @@ def _get_segment_zone_store(hass: HomeAssistant) -> SegmentZoneStore | None:
     return hass.data[DOMAIN].get(DATA_SEGMENT_ZONE_STORE)
 
 
+_IEEE_ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{16}$")
+
+
 class SegmentZonesView(HomeAssistantView):
     """View to get and set segment zones for a device."""
 
@@ -1363,32 +1434,30 @@ class SegmentZonesView(HomeAssistantView):
     name = f"api:{DOMAIN}:segment_zones"
     requires_auth = True
 
-    async def get(
-        self, request: web.Request, ieee_address: str
-    ) -> web.Response:
+    async def get(self, request: web.Request, ieee_address: str) -> web.Response:
         """Get all zones for a device."""
+        if not _IEEE_ADDRESS_RE.match(ieee_address):
+            return web.Response(status=400, text="Invalid IEEE address format")
+
         hass = request.app["hass"]
 
         zone_store = _get_segment_zone_store(hass)
         if not zone_store:
-            return web.Response(
-                status=503, text="Segment zone store not initialized"
-            )
+            return web.Response(status=503, text="Segment zone store not initialized")
 
         zones = zone_store.get_zones(ieee_address)
         return web.json_response({"zones": zones})
 
-    async def put(
-        self, request: web.Request, ieee_address: str
-    ) -> web.Response:
+    async def put(self, request: web.Request, ieee_address: str) -> web.Response:
         """Replace all zones for a device."""
+        if not _IEEE_ADDRESS_RE.match(ieee_address):
+            return web.Response(status=400, text="Invalid IEEE address format")
+
         hass = request.app["hass"]
 
         zone_store = _get_segment_zone_store(hass)
         if not zone_store:
-            return web.Response(
-                status=503, text="Segment zone store not initialized"
-            )
+            return web.Response(status=503, text="Segment zone store not initialized")
 
         try:
             data = await request.json()
@@ -1428,14 +1497,15 @@ class SegmentZoneView(HomeAssistantView):
         self, request: web.Request, ieee_address: str, zone_name: str
     ) -> web.Response:
         """Delete a single zone from a device."""
+        if not _IEEE_ADDRESS_RE.match(ieee_address):
+            return web.Response(status=400, text="Invalid IEEE address format")
+
         hass = request.app["hass"]
         zone_name = unquote(zone_name)
 
         zone_store = _get_segment_zone_store(hass)
         if not zone_store:
-            return web.Response(
-                status=503, text="Segment zone store not initialized"
-            )
+            return web.Response(status=503, text="Segment zone store not initialized")
 
         deleted = await zone_store.delete_zone(ieee_address, zone_name)
         if not deleted:
@@ -1513,12 +1583,22 @@ class TriggerView(HomeAssistantView):
                 status=400,
             )
 
-        # Verify the entity exists
+        # Verify the entity exists and is managed by this integration
         state = hass.states.get(entity_id)
         if not state:
             return web.json_response(
                 {"success": False, "error": f"Entity `{entity_id}` not found"},
                 status=404,
+            )
+
+        entity_routing = hass.data.get(DOMAIN, {}).get("entity_routing", {})
+        if entity_id not in entity_routing:
+            return web.json_response(
+                {
+                    "success": False,
+                    "error": f"Entity `{entity_id}` is not managed by this integration",
+                },
+                status=400,
             )
 
         action = data.get("action")
@@ -1597,14 +1677,10 @@ class TriggerView(HomeAssistantView):
             )
         except ServiceValidationError as ex:
             _LOGGER.warning("Trigger validation error: %s", ex)
-            return web.json_response(
-                {"success": False, "error": str(ex)}, status=422
-            )
+            return web.json_response({"success": False, "error": str(ex)}, status=422)
         except HomeAssistantError as ex:
             _LOGGER.error("Trigger service error: %s", ex)
-            return web.json_response(
-                {"success": False, "error": str(ex)}, status=500
-            )
+            return web.json_response({"success": False, "error": str(ex)}, status=500)
 
         return web.json_response(
             {"success": True, "service": service_name, "entity_id": entity_id}
@@ -1634,16 +1710,19 @@ class RunningOperationsView(HomeAssistantView):
             # Effects (from state manager)
             state_manager = instance_data.get(DATA_STATE_MANAGER)
             if state_manager:
-                for entity_id, device_state in (
-                    state_manager.get_all_active_effects().items()
-                ):
-                    operations.append({
-                        "type": "effect",
-                        "entity_id": entity_id,
-                        "preset_id": device_state.current_preset,
-                        "paused": False,
-                        "externally_paused": False,
-                    })
+                for (
+                    entity_id,
+                    device_state,
+                ) in state_manager.get_all_active_effects().items():
+                    operations.append(
+                        {
+                            "type": "effect",
+                            "entity_id": entity_id,
+                            "preset_id": device_state.current_preset,
+                            "paused": False,
+                            "externally_paused": False,
+                        }
+                    )
 
             # CCT sequences
             cct_mgr = instance_data.get(DATA_CCT_SEQUENCE_MANAGER)
@@ -1655,15 +1734,17 @@ class RunningOperationsView(HomeAssistantView):
                         if entity_controller
                         else False
                     )
-                    operations.append({
-                        "type": "cct_sequence",
-                        "entity_id": entity_id,
-                        "preset_id": cct_mgr.get_sequence_preset(entity_id),
-                        "paused": status.get("paused", False),
-                        "externally_paused": ext_paused,
-                        "current_step": status.get("current_step", 0),
-                        "total_steps": status.get("total_steps", 0),
-                    })
+                    operations.append(
+                        {
+                            "type": "cct_sequence",
+                            "entity_id": entity_id,
+                            "preset_id": cct_mgr.get_sequence_preset(entity_id),
+                            "paused": status.get("paused", False),
+                            "externally_paused": ext_paused,
+                            "current_step": status.get("current_step", 0),
+                            "total_steps": status.get("total_steps", 0),
+                        }
+                    )
 
             # Segment sequences
             seg_mgr = instance_data.get(DATA_SEGMENT_SEQUENCE_MANAGER)
@@ -1675,15 +1756,17 @@ class RunningOperationsView(HomeAssistantView):
                         if entity_controller
                         else False
                     )
-                    operations.append({
-                        "type": "segment_sequence",
-                        "entity_id": entity_id,
-                        "preset_id": seg_mgr.get_sequence_preset(entity_id),
-                        "paused": status.get("paused", False),
-                        "externally_paused": ext_paused,
-                        "current_step": status.get("current_step", 0),
-                        "total_steps": status.get("total_steps", 0),
-                    })
+                    operations.append(
+                        {
+                            "type": "segment_sequence",
+                            "entity_id": entity_id,
+                            "preset_id": seg_mgr.get_sequence_preset(entity_id),
+                            "paused": status.get("paused", False),
+                            "externally_paused": ext_paused,
+                            "current_step": status.get("current_step", 0),
+                            "total_steps": status.get("total_steps", 0),
+                        }
+                    )
 
             # Dynamic scenes (grouped by scene, not per-entity)
             scene_mgr = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
@@ -1696,26 +1779,30 @@ class RunningOperationsView(HomeAssistantView):
                             for eid in scene_info.entity_ids
                             if entity_controller.is_entity_externally_paused(eid)
                         ]
-                    operations.append({
-                        "type": "dynamic_scene",
-                        "scene_id": scene_id,
-                        "entity_ids": list(scene_info.entity_ids),
-                        "preset_id": scene_info.preset_name,
-                        "paused": scene_info.paused,
-                        "externally_paused_entities": ext_paused_entities,
-                    })
+                    operations.append(
+                        {
+                            "type": "dynamic_scene",
+                            "scene_id": scene_id,
+                            "entity_ids": list(scene_info.entity_ids),
+                            "preset_id": scene_info.preset_name,
+                            "paused": scene_info.paused,
+                            "externally_paused_entities": ext_paused_entities,
+                        }
+                    )
 
             # Music sync (per-entity, firmware-managed)
             active_music_sync = instance_data.get(DATA_ACTIVE_MUSIC_SYNC, {})
             for entity_id, sync_info in active_music_sync.items():
-                operations.append({
-                    "type": "music_sync",
-                    "entity_id": entity_id,
-                    "preset_id": None,
-                    "paused": False,
-                    "sensitivity": sync_info.get("sensitivity", "low"),
-                    "audio_effect": sync_info.get("audio_effect", "random"),
-                })
+                operations.append(
+                    {
+                        "type": "music_sync",
+                        "entity_id": entity_id,
+                        "preset_id": None,
+                        "paused": False,
+                        "sensitivity": sync_info.get("sensitivity", "low"),
+                        "audio_effect": sync_info.get("audio_effect", "random"),
+                    }
+                )
 
         return web.json_response({"operations": operations})
 
@@ -1727,12 +1814,62 @@ def _get_thumbnail_dir(hass: HomeAssistant) -> Path:
     return path
 
 
+MAX_PENDING_THUMBNAILS = 20
+
+
 def _get_pending_thumbnails(hass: HomeAssistant) -> dict[str, bytes]:
-    """Get the in-memory pending thumbnails dict, creating it if needed."""
+    """Get the in-memory pending thumbnails dict, creating it if needed.
+
+    Evicts the oldest entries when the limit is reached to prevent
+    unbounded memory growth.
+    """
     domain_data = hass.data.setdefault(DOMAIN, {})
     if "pending_thumbnails" not in domain_data:
         domain_data["pending_thumbnails"] = {}
-    return domain_data["pending_thumbnails"]
+    pending = domain_data["pending_thumbnails"]
+    # Evict oldest entries if at capacity
+    while len(pending) >= MAX_PENDING_THUMBNAILS:
+        oldest_key = next(iter(pending))
+        del pending[oldest_key]
+    return pending
+
+
+def _validate_image_url(url: str) -> str | None:
+    """Validate a URL for image fetching, blocking SSRF vectors.
+
+    Returns an error message string if the URL is unsafe, or None if valid.
+    """
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return "Invalid URL format"
+
+    if parsed.scheme not in ("http", "https"):
+        return "Only http and https URLs are supported"
+
+    hostname = parsed.hostname
+    if not hostname:
+        return "URL must include a hostname"
+
+    # Resolve the hostname and check all addresses against blocked ranges
+    try:
+        addrinfo = socket.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
+    except socket.gaierror:
+        return "Unable to resolve hostname"
+
+    for _family, _type, _proto, _canonname, sockaddr in addrinfo:
+        ip = ipaddress.ip_address(sockaddr[0])
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_reserved
+            or ip.is_multicast
+            or ip.is_unspecified
+        ):
+            return "URLs pointing to private or internal addresses are not allowed"
+
+    return None
 
 
 class ColorExtractView(HomeAssistantView):
@@ -1796,43 +1933,56 @@ class ColorExtractView(HomeAssistantView):
             if not url or not isinstance(url, str):
                 return web.Response(status=400, text="Missing `url` field")
 
+            # Validate URL before making any network request
+            url_error = await hass.async_add_executor_job(_validate_image_url, url)
+            if url_error:
+                return web.Response(status=400, text=url_error)
+
             num_colors = int(data.get("num_colors", DEFAULT_EXTRACTED_COLORS))
             save_thumbnail = bool(data.get("save_thumbnail", False))
             extract_brightness = bool(data.get("extract_brightness", True))
 
-            # Download the image
+            # Download the image with size-capped streaming read
             try:
-                async with aiohttp.ClientSession() as session:
-                    async with asyncio.timeout(15):
-                        async with session.get(url) as resp:
-                            if resp.status != 200:
-                                return web.Response(
-                                    status=400,
-                                    text=f"Failed to download image: HTTP {resp.status}",
-                                )
-                            # Reject before downloading if Content-Length exceeds limit
-                            content_length = resp.headers.get("Content-Length")
-                            if (
-                                content_length
-                                and int(content_length) > MAX_IMAGE_SIZE_BYTES
-                            ):
+                session = async_get_clientsession(hass)
+                async with asyncio.timeout(15):
+                    async with session.get(url) as resp:
+                        if resp.status != 200:
+                            return web.Response(
+                                status=400,
+                                text=f"Failed to download image: HTTP {resp.status}",
+                            )
+                        # Reject before downloading if Content-Length exceeds limit
+                        content_length = resp.headers.get("Content-Length")
+                        if (
+                            content_length
+                            and int(content_length) > MAX_IMAGE_SIZE_BYTES
+                        ):
+                            return web.Response(
+                                status=413,
+                                text="Image exceeds 10 MB size limit",
+                            )
+                        # Stream with enforced size cap (protects against
+                        # missing/lying Content-Length headers)
+                        chunks: list[bytes] = []
+                        total = 0
+                        async for chunk in resp.content.iter_chunked(64 * 1024):
+                            total += len(chunk)
+                            if total > MAX_IMAGE_SIZE_BYTES:
                                 return web.Response(
                                     status=413,
                                     text="Image exceeds 10 MB size limit",
                                 )
-                            image_bytes = await resp.read()
+                            chunks.append(chunk)
+                        image_bytes = b"".join(chunks)
             except TimeoutError:
                 return web.Response(status=408, text="Image download timed out")
-            except aiohttp.ClientError as ex:
-                return web.Response(
-                    status=400, text=f"Failed to download image: {ex}"
-                )
+            except aiohttp.ClientError:
+                return web.Response(status=400, text="Failed to download image")
 
         # Validate size
         if len(image_bytes) > MAX_IMAGE_SIZE_BYTES:
-            return web.Response(
-                status=413, text="Image exceeds 10 MB size limit"
-            )
+            return web.Response(status=413, text="Image exceeds 10 MB size limit")
 
         # Clamp num_colors
         num_colors = max(1, min(8, num_colors))
@@ -1840,7 +1990,9 @@ class ColorExtractView(HomeAssistantView):
         # Extract colors
         try:
             colors = await async_extract_colors(
-                hass, image_bytes, num_colors,
+                hass,
+                image_bytes,
+                num_colors,
                 extract_brightness=extract_brightness,
             )
         except Exception as ex:
@@ -1871,9 +2023,7 @@ class ThumbnailView(HomeAssistantView):
     name = f"api:{DOMAIN}:thumbnail"
     requires_auth = False
 
-    async def get(
-        self, request: web.Request, thumbnail_id: str
-    ) -> web.Response:
+    async def get(self, request: web.Request, thumbnail_id: str) -> web.Response:
         """Serve a thumbnail image by ID.
 
         Checks pending (in-memory) thumbnails first, then falls back to
@@ -1923,9 +2073,7 @@ class ThumbnailView(HomeAssistantView):
             headers={"Cache-Control": "public, max-age=86400"},
         )
 
-    async def delete(
-        self, request: web.Request, thumbnail_id: str
-    ) -> web.Response:
+    async def delete(self, request: web.Request, thumbnail_id: str) -> web.Response:
         """Delete a pending thumbnail from memory."""
         hass: HomeAssistant = request.app["hass"]
 

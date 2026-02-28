@@ -1,16 +1,10 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { HomeAssistant, SegmentSequenceStep, XYColor, UserSegmentSequencePreset, DeviceContext, SegmentSequenceEditorDraft } from './types';
+import { HomeAssistant, SegmentSequenceStep, XYColor, UserSegmentSequencePreset, DeviceContext, SegmentSequenceEditorDraft, Translations } from './types';
 import { xyToRgb, rgbToXy } from './color-utils';
 import { colorPickerStyles } from './styles';
 import { ReorderableStepsMixin, reorderableStepStyles } from './reorderable-steps-mixin';
-// Note: hs-color-picker import removed - now handled by segment-selector
-
-const DEVICE_LABELS: Record<string, string> = {
-  t1: 'T1 (20 segments)',
-  t1m: 'T1M (26 segments)',
-  t1_strip: 'T1 Strip (up to 50 segments)',
-};
+import { DEVICE_LABELS, editorFormStyles, localize } from './editor-constants';
 
 // Default palette colors in XY space (same as pattern editor)
 const DEFAULT_PALETTE: XYColor[] = [
@@ -54,7 +48,7 @@ interface EditableStep extends SegmentSequenceStep {
 export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @property({ type: Object }) public preset?: UserSegmentSequencePreset;
-  @property({ type: Object }) public translations: Record<string, any> = {};
+  @property({ type: Object }) public translations: Translations = {};
   @property({ type: Boolean }) public editMode = false;
   @property({ type: Boolean }) public hasSelectedEntities = false;
   @property({ type: Boolean }) public isCompatible = true;
@@ -92,6 +86,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
     return [
       { value: 'maintain', label: this._localize('options.end_behavior_maintain') },
       { value: 'turn_off', label: this._localize('options.end_behavior_turn_off') },
+      { value: 'restore', label: this._localize('options.end_behavior_restore') },
     ];
   }
 
@@ -113,51 +108,8 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
   static styles = [
     colorPickerStyles,
     reorderableStepStyles,
+    editorFormStyles,
     css`
-    :host {
-      display: block;
-    }
-
-    .editor-content {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .form-row {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .form-row-pair {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 16px;
-    }
-
-    .form-row-triple {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 16px;
-    }
-
-    .form-row-pair .form-field,
-    .form-row-triple .form-field {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .form-section {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-bottom: 16px;
-    }
-
     .form-section.toggle-row {
       flex-direction: row;
       gap: 24px;
@@ -173,21 +125,6 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
     .toggle-label {
       font-size: 14px;
       color: var(--secondary-text-color);
-    }
-
-    .form-section .form-label {
-      min-width: unset;
-    }
-
-    .form-label {
-      font-size: 14px;
-      font-weight: 500;
-      min-width: 120px;
-      color: var(--secondary-text-color);
-    }
-
-    .form-input {
-      flex: 1;
     }
 
     .step-list {
@@ -223,8 +160,18 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
     }
 
     .step-actions ha-icon-button {
+      --ha-icon-button-size: 32px;
       --mdc-icon-button-size: 32px;
       --mdc-icon-size: 18px;
+    }
+
+    .step-actions .step-delete {
+      color: var(--secondary-text-color);
+      transition: color 0.2s ease;
+    }
+
+    .step-actions .step-delete:hover:not([disabled]) {
+      color: var(--error-color);
     }
 
     .step-segment-selector {
@@ -255,7 +202,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
 
     /* Color picker styles (color-picker-grid, color-item, color-swatch,
        color-picker-modal, color-remove, add-color-btn) are inherited
-       from panelStyles (styles.ts) */
+       from colorPickerStyles (styles.ts) */
 
     .add-step-btn {
       display: flex;
@@ -280,33 +227,6 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
     .add-step-btn.disabled {
       opacity: 0.5;
       cursor: not-allowed;
-    }
-
-    .form-actions {
-      display: flex;
-      gap: 12px;
-      justify-content: flex-end;
-      margin-top: 24px;
-      padding-top: 16px;
-      border-top: 1px solid var(--divider-color);
-    }
-
-    .preview-warning {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      background: var(--secondary-background-color);
-      color: var(--secondary-text-color);
-      border: 1px solid var(--divider-color);
-      border-left: 4px solid var(--warning-color, #ffc107);
-      border-radius: 4px;
-      font-size: 13px;
-    }
-
-    .preview-warning ha-icon {
-      flex-shrink: 0;
-      --mdc-icon-size: 18px;
     }
 
     .error-warning {
@@ -337,21 +257,6 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
     }
 
     @media (max-width: 600px) {
-      .form-row {
-        flex-direction: column;
-        align-items: stretch;
-      }
-
-      .form-row-pair,
-      .form-row-triple {
-        grid-template-columns: 1fr;
-      }
-
-      .form-label {
-        min-width: unset;
-        margin-bottom: 4px;
-      }
-
       .step-fields {
         grid-template-columns: 1fr;
       }
@@ -508,6 +413,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
       endBehavior: this._endBehavior,
       clearSegments: this._clearSegments,
       skipFirstInLoop: this._skipFirstInLoop,
+      hasUserInteraction: this._hasUserInteraction,
     };
   }
 
@@ -558,7 +464,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
       gradientWaveCycles: s.gradientWaveCycles,
       turnOffUnspecified: s.turnOffUnspecified,
     }));
-    this._hasUserInteraction = true;
+    this._hasUserInteraction = draft.hasUserInteraction ?? false;
   }
 
   private _addDefaultStep(): void {
@@ -595,10 +501,12 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
 
   private _handleNameChange(e: CustomEvent): void {
     this._name = e.detail.value || '';
+    this._hasUserInteraction = true;
   }
 
   private _handleIconChange(e: CustomEvent): void {
     this._icon = e.detail.value || '';
+    this._hasUserInteraction = true;
   }
 
   private _handleDeviceTypeChange(e: CustomEvent): void {
@@ -608,22 +516,27 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
 
   private _handleLoopModeChange(e: CustomEvent): void {
     this._loopMode = e.detail.value || 'once';
+    this._hasUserInteraction = true;
   }
 
   private _handleLoopCountChange(e: CustomEvent): void {
     this._loopCount = e.detail.value ?? 3;
+    this._hasUserInteraction = true;
   }
 
   private _handleEndBehaviorChange(e: CustomEvent): void {
     this._endBehavior = e.detail.value || 'maintain';
+    this._hasUserInteraction = true;
   }
 
   private _handleClearSegmentsChange(e: Event): void {
     this._clearSegments = (e.target as HTMLInputElement).checked;
+    this._hasUserInteraction = true;
   }
 
   private _handleSkipFirstInLoopChange(e: Event): void {
     this._skipFirstInLoop = (e.target as HTMLInputElement).checked;
+    this._hasUserInteraction = true;
   }
 
   private _hasInvalidGradientSteps(): boolean {
@@ -635,6 +548,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
     this._steps = this._steps.map((step) =>
       step.id === stepId ? { ...step, [field]: e.detail.value } : step
     );
+    this._hasUserInteraction = true;
   }
 
   // Note: Color picker and color management methods removed - now handled by segment-selector component
@@ -671,6 +585,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
 
       return step;
     });
+    this._hasUserInteraction = true;
   }
 
   private _handleStepGradientColorsChange(stepId: string, e: CustomEvent): void {
@@ -680,6 +595,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
     this._steps = this._steps.map((step) =>
       step.id === stepId ? { ...step, gradientColors: colors } : step
     );
+    this._hasUserInteraction = true;
   }
 
   private _handleStepBlockColorsChange(stepId: string, e: CustomEvent): void {
@@ -689,6 +605,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
     this._steps = this._steps.map((step) =>
       step.id === stepId ? { ...step, blockColors: colors } : step
     );
+    this._hasUserInteraction = true;
   }
 
   private _handleStepColorPaletteChange(stepId: string, e: CustomEvent): void {
@@ -698,12 +615,14 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
     this._steps = this._steps.map((step) =>
       step.id === stepId ? { ...step, colorPalette: colors } : step
     );
+    this._hasUserInteraction = true;
   }
 
   private _handleStepTurnOffUnspecifiedChange(stepId: string, e: CustomEvent): void {
     this._steps = this._steps.map((step) =>
       step.id === stepId ? { ...step, turnOffUnspecified: e.detail.value } : step
     );
+    this._hasUserInteraction = true;
   }
 
   private _addStep(): void {
@@ -737,11 +656,13 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
     };
 
     this._steps = [...this._steps, newStep];
+    this._hasUserInteraction = true;
   }
 
   private _removeStep(stepId: string): void {
     if (this._steps.length <= 1) return;
     this._steps = this._steps.filter((s) => s.id !== stepId);
+    this._hasUserInteraction = true;
   }
 
   private _moveStepUp(index: number): void {
@@ -751,6 +672,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
     newSteps[index - 1] = newSteps[index]!;
     newSteps[index] = temp;
     this._steps = newSteps;
+    this._hasUserInteraction = true;
   }
 
   private _moveStepDown(index: number): void {
@@ -760,6 +682,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
     newSteps[index] = newSteps[index + 1]!;
     newSteps[index + 1] = temp;
     this._steps = newSteps;
+    this._hasUserInteraction = true;
   }
 
   private _duplicateStep(step: EditableStep): void {
@@ -780,6 +703,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
     const newSteps = [...this._steps];
     newSteps.splice(index + 1, 0, newStep);
     this._steps = newSteps;
+    this._hasUserInteraction = true;
   }
 
 
@@ -893,6 +817,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
   }
 
   private _cancel(): void {
+    this._hasUserInteraction = false;
     this.dispatchEvent(
       new CustomEvent('cancel', {
         bubbles: true,
@@ -930,6 +855,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
               <ha-icon icon="mdi:content-copy"></ha-icon>
             </ha-icon-button>
             <ha-icon-button
+              class="step-delete"
               @click=${() => this._removeStep(step.id)}
               .disabled=${this._steps.length <= 1}
               title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.step_remove')}"
@@ -1022,25 +948,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
   }
 
   private _localize(key: string, replacements?: Record<string, string>): string {
-    const keys = key.split('.');
-    let value: any = this.translations;
-    for (const k of keys) {
-      if (value && typeof value === 'object' && k in value) {
-        value = value[k];
-      } else {
-        return key;
-      }
-    }
-    let result = typeof value === 'string' ? value : key;
-
-    // Replace placeholders if provided
-    if (replacements) {
-      Object.entries(replacements).forEach(([placeholder, replacement]) => {
-        result = result.replace(`{${placeholder}}`, replacement);
-      });
-    }
-
-    return result;
+    return localize(this.translations, key, replacements);
   }
 
   protected render() {
@@ -1063,12 +971,23 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
           </div>
           <div class="form-field">
             <span class="form-label">${this._localize('editors.icon_label')}</span>
-            <ha-selector
-              .hass=${this.hass}
-              .selector=${{ icon: {} }}
-              .value=${this._icon}
-              @value-changed=${this._handleIconChange}
-            ></ha-selector>
+            <div class="icon-field-row">
+              <ha-selector
+                .hass=${this.hass}
+                .selector=${{ icon: {} }}
+                .value=${this._icon}
+                @value-changed=${this._handleIconChange}
+              ></ha-selector>
+              ${this._icon ? html`
+                <ha-icon-button
+                  class="icon-clear-btn"
+                  @click=${() => { this._icon = ''; this._hasUserInteraction = true; }}
+                  title=${this._localize('editors.icon_clear_tooltip')}
+                >
+                  <ha-icon icon="mdi:close"></ha-icon>
+                </ha-icon-button>
+              ` : ''}
+            </div>
             ${!this._icon ? html`<span class="form-hint">${this._localize('editors.icon_auto_hint')}</span>` : ''}
           </div>
           <div class="form-field">
@@ -1202,12 +1121,20 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
           : ''}
 
         <div class="form-actions">
-          <ha-button @click=${this._cancel}>${this._localize('editors.cancel_button')}</ha-button>
+          <div class="form-actions-left">
+            <ha-button @click=${this._cancel}>${this._localize('editors.cancel_button')}</ha-button>
+            ${this._hasUserInteraction ? html`
+              <span class="unsaved-indicator">
+                <span class="unsaved-dot"></span>
+                ${this._localize('editors.unsaved_changes')}
+              </span>
+            ` : ''}
+          </div>
           ${this.previewActive
             ? html`
                 <ha-button @click=${this._stopPreview}>
                   <ha-icon icon="mdi:stop"></ha-icon>
-                  ${this._localize('editors.stop_button')}
+                  <span class="btn-text">${this._localize('editors.stop_button')}</span>
                 </ha-button>
               `
             : html`
@@ -1217,7 +1144,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
                   title=${!this.hasSelectedEntities ? this._localize('editors.tooltip_select_lights_first') : !this.isCompatible ? this._localize('editors.tooltip_light_not_compatible') : this._hasInvalidGradientSteps() ? this._localize('editors.tooltip_fix_gradient_errors') : ''}
                 >
                   <ha-icon icon="mdi:play"></ha-icon>
-                  ${this._localize('editors.preview_button')}
+                  <span class="btn-text">${this._localize('editors.preview_button')}</span>
                 </ha-button>
               `}
           <ha-button
@@ -1225,7 +1152,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
             .disabled=${!this._name.trim() || this._steps.length === 0 || this._saving || this._hasInvalidGradientSteps()}
           >
             <ha-icon icon="mdi:content-save"></ha-icon>
-            ${this.editMode ? this._localize('editors.update_button') : this._localize('editors.save_button')}
+            <span class="btn-text">${this.editMode ? this._localize('editors.update_button') : this._localize('editors.save_button')}</span>
           </ha-button>
         </div>
       </div>

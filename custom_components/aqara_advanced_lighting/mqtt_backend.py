@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components import mqtt
@@ -14,7 +15,6 @@ from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from .const import (
     DOMAIN,
-    MIN_TRANSITION_STEPS,
     MODEL_FRIENDLY_NAMES,
     MODEL_T1M_20_SEGMENT,
     MODEL_T1M_26_SEGMENT,
@@ -31,10 +31,13 @@ from .const import (
     PAYLOAD_AUDIO_EFFECT,
     PAYLOAD_AUDIO_SENSITIVITY,
     PAYLOAD_SEGMENT_COLORS,
-    SOFTWARE_TRANSITION_MODELS,
     TOPIC_Z2M_BRIDGE_DEVICES,
 )
-from .transition_utils import ease_in_out_cubic, get_software_step_interval
+from .transition_utils import (
+    apply_cct_step,
+    make_service_apply_callback,
+    turn_off_light,
+)
 from .models import AqaraDevice, DynamicEffect, SegmentColor, Z2MDevice
 
 if TYPE_CHECKING:
@@ -44,6 +47,9 @@ if TYPE_CHECKING:
     from .models import AqaraLightingConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
+
+# Characters unsafe for MQTT topic construction (wildcards, separator, null)
+_UNSAFE_TOPIC_NAME = re.compile(r"[/#+\x00]|\.\.")
 
 
 # Supported Aqara light models
@@ -128,6 +134,16 @@ class MQTTBackend:
                 manufacturer = device_data.get("manufacturer")
 
                 if not all([ieee_address, friendly_name, model_id]):
+                    continue
+
+                # Reject friendly names with MQTT-unsafe characters
+                if _UNSAFE_TOPIC_NAME.search(friendly_name):
+                    _LOGGER.warning(
+                        "Skipping device %s: friendly name %r contains"
+                        " characters unsafe for MQTT topics",
+                        ieee_address,
+                        friendly_name,
+                    )
                     continue
 
                 # Only store supported Aqara light models
@@ -230,7 +246,10 @@ class MQTTBackend:
         4. Entity ID pattern matching friendly name
         """
         from homeassistant.helpers import device_registry as dr
-        from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, format_mac
+        from homeassistant.helpers.device_registry import (
+            CONNECTION_NETWORK_MAC,
+            format_mac,
+        )
 
         ent_reg = er.async_get(self.hass)
         dev_reg = dr.async_get(self.hass)
@@ -353,11 +372,18 @@ class MQTTBackend:
                     matched_device.friendly_name
                 )
                 # Store the mapping method for diagnostics
-                runtime_data.entity_mapping_methods[entity_entry.entity_id] = match_method
+                runtime_data.entity_mapping_methods[entity_entry.entity_id] = (
+                    match_method
+                )
                 # Also update the global entity routing map for fast instance lookup
                 # Must access the actual dict in hass.data, not a copy
-                if DOMAIN in self.hass.data and "entity_routing" in self.hass.data[DOMAIN]:
-                    self.hass.data[DOMAIN]["entity_routing"][entity_entry.entity_id] = self.entry.entry_id
+                if (
+                    DOMAIN in self.hass.data
+                    and "entity_routing" in self.hass.data[DOMAIN]
+                ):
+                    self.hass.data[DOMAIN]["entity_routing"][entity_entry.entity_id] = (
+                        self.entry.entry_id
+                    )
                 mapped_count += 1
                 _LOGGER.debug(
                     "Mapped entity %s to Z2M device %s (via %s)",
@@ -433,7 +459,9 @@ class MQTTBackend:
         Returns:
             The Z2M base topic to use
         """
-        return z2m_base_topic if z2m_base_topic else self.entry.runtime_data.z2m_base_topic
+        return (
+            z2m_base_topic if z2m_base_topic else self.entry.runtime_data.z2m_base_topic
+        )
 
     async def async_publish_dynamic_effect(
         self,
@@ -462,9 +490,7 @@ class MQTTBackend:
         device_model = device.model_id if device else None
         payload = effect.to_mqtt_payload(device_model)
 
-        _LOGGER.debug(
-            "Publishing dynamic effect to %s: %s", z2m_friendly_name, payload
-        )
+        _LOGGER.debug("Publishing dynamic effect to %s: %s", z2m_friendly_name, payload)
 
         # Send effect command
         await mqtt.async_publish(self.hass, topic, json.dumps(payload))
@@ -522,7 +548,9 @@ class MQTTBackend:
         # Using warm white (255, 200, 150) as a neutral default
         payload = {"color": {"r": 255, "g": 200, "b": 150}}
 
-        _LOGGER.debug("Stopping effect on %s by setting solid RGB color", z2m_friendly_name)
+        _LOGGER.debug(
+            "Stopping effect on %s by setting solid RGB color", z2m_friendly_name
+        )
 
         await mqtt.async_publish(self.hass, topic, json.dumps(payload))
 
@@ -580,181 +608,18 @@ class MQTTBackend:
         stop_event: asyncio.Event | None = None,
         z2m_base_topic: str | None = None,  # noqa: ARG002 - kept for API compatibility
     ) -> bool:
-        """Apply CCT step to light entity using HA light service.
-
-        Uses Home Assistant's light.turn_on service which properly interfaces
-        with standard Zigbee clusters (genLevelCtrl, lightingColorCtrl). This
-        avoids "No converter available" errors from Z2M custom converters.
-
-        For T1-family devices that don't support hardware transitions, this
-        performs software interpolation with cubic easing.
-
-        Args:
-            entity_id: The Home Assistant light entity ID
-            color_temp_kelvin: Target color temperature in kelvin (2700-6500)
-            brightness: Target brightness level (1-255)
-            transition: Transition time in seconds
-            stop_event: Optional event to signal transition should be interrupted
-            z2m_base_topic: Unused, kept for API compatibility
-
-        Returns:
-            True if transition completed, False if interrupted by stop_event
-        """
-        _LOGGER.info(
-            "Applying CCT step to %s: %dK, brightness %d, transition %ss",
+        """Apply CCT step using the shared transition algorithm."""
+        callback = make_service_apply_callback(self.hass, self._entity_controller)
+        return await apply_cct_step(
+            self.hass,
+            self,
             entity_id,
             color_temp_kelvin,
             brightness,
             transition,
+            callback,
+            stop_event,
         )
-
-        # Check if this device needs software-interpolated transitions
-        if transition > 0:
-            device = self.get_device_for_entity(entity_id)
-            if device and device.model_id in SOFTWARE_TRANSITION_MODELS:
-                return await self._software_cct_transition(
-                    entity_id,
-                    color_temp_kelvin,
-                    brightness,
-                    transition,
-                    device.model_id,
-                    stop_event,
-                )
-
-        # Hardware transition path (T2 bulbs, generic lights)
-        await self._apply_cct_values_via_service(
-            entity_id, color_temp_kelvin, brightness, transition
-        )
-
-        # Wait for transition to complete (interruptible)
-        if stop_event is not None and transition > 0:
-            try:
-                await asyncio.wait_for(stop_event.wait(), timeout=transition)
-                _LOGGER.debug("Transition interrupted for %s", entity_id)
-                return False
-            except asyncio.TimeoutError:
-                pass
-        elif transition > 0:
-            await asyncio.sleep(transition)
-
-        _LOGGER.debug("Transition complete for %s", entity_id)
-        return True
-
-    async def _software_cct_transition(
-        self,
-        entity_id: str,
-        target_color_temp: int,
-        target_brightness: int,
-        transition: float,
-        model_id: str,
-        stop_event: asyncio.Event | None = None,
-    ) -> bool:
-        """Perform software-interpolated CCT transition for T1-family devices.
-
-        T1M and T1 Strip devices don't fully support hardware transitions.
-        This method sends incremental light commands with cubic easing to
-        simulate smooth transitions.
-
-        Args:
-            entity_id: The Home Assistant light entity ID
-            target_color_temp: Target color temperature in kelvin
-            target_brightness: Target brightness level (1-255)
-            transition: Total transition time in seconds
-            model_id: Device model ID for interval selection
-            stop_event: Optional event to signal interruption
-
-        Returns:
-            True if transition completed, False if interrupted
-        """
-        # Read current state as starting point
-        state = self.hass.states.get(entity_id)
-        if state is None or state.state == "unavailable":
-            _LOGGER.debug(
-                "Entity %s unavailable, applying target directly", entity_id
-            )
-            await self._apply_cct_values_via_service(
-                entity_id, target_color_temp, target_brightness
-            )
-            return True
-
-        start_color_temp = state.attributes.get(
-            "color_temp_kelvin", target_color_temp
-        )
-        start_brightness = state.attributes.get("brightness", target_brightness)
-
-        # Calculate step interval and count
-        step_interval = get_software_step_interval(model_id, transition)
-        num_steps = max(MIN_TRANSITION_STEPS, round(transition / step_interval))
-        actual_interval = transition / num_steps
-
-        # Ensure actual_interval never drops below model minimum (can happen
-        # when MIN_TRANSITION_STEPS forces more steps than the device can
-        # handle, e.g. T1M with its fixed 2s hardware transition)
-        if actual_interval < step_interval:
-            num_steps = max(1, round(transition / step_interval))
-            actual_interval = transition / num_steps
-
-        _LOGGER.debug(
-            "Software transition for %s (%s): %d steps, %.2fs interval, "
-            "%dK->%dK, brightness %d->%d",
-            entity_id,
-            model_id,
-            num_steps,
-            actual_interval,
-            start_color_temp,
-            target_color_temp,
-            start_brightness,
-            target_brightness,
-        )
-
-        for step in range(1, num_steps + 1):
-            # Check for stop before each sub-step
-            if stop_event is not None and stop_event.is_set():
-                _LOGGER.debug("Software transition stopped for %s", entity_id)
-                return False
-
-            # Calculate eased progress
-            t = step / num_steps
-            eased_t = ease_in_out_cubic(t)
-
-            # Interpolate color temp and brightness
-            color_temp = round(
-                start_color_temp
-                + (target_color_temp - start_color_temp) * eased_t
-            )
-            brightness = round(
-                start_brightness
-                + (target_brightness - start_brightness) * eased_t
-            )
-
-            # Send without transition parameter (device handles instantly or
-            # with its fixed hardware transition)
-            await self._apply_cct_values_via_service(
-                entity_id, color_temp, brightness
-            )
-
-            # Wait before next sub-step (interruptible)
-            if step < num_steps:
-                if stop_event is not None:
-                    try:
-                        await asyncio.wait_for(
-                            stop_event.wait(), timeout=actual_interval
-                        )
-                        _LOGGER.debug(
-                            "Software transition interrupted for %s at step"
-                            " %d/%d",
-                            entity_id,
-                            step,
-                            num_steps,
-                        )
-                        return False
-                    except asyncio.TimeoutError:
-                        pass
-                else:
-                    await asyncio.sleep(actual_interval)
-
-        _LOGGER.debug("Software transition complete for %s", entity_id)
-        return True
 
     async def async_set_t2_transition_curve(
         self,
@@ -832,69 +697,9 @@ class MQTTBackend:
         # Send command to Z2M
         await mqtt.async_publish(self.hass, topic, json.dumps(payload))
 
-    async def _apply_cct_values_via_service(
-        self,
-        entity_id: str,
-        color_temp_kelvin: int,
-        brightness: int,
-        transition: float | None = None,
-    ) -> None:
-        """Apply color temperature and brightness values via HA light service.
-
-        Uses HA light service which properly interfaces with standard Zigbee
-        clusters (genLevelCtrl, lightingColorCtrl) without hitting custom converters.
-
-        Args:
-            entity_id: The Home Assistant light entity ID
-            color_temp_kelvin: Color temperature in kelvin (2700-6500)
-            brightness: Brightness level (1-255)
-            transition: Optional transition time in seconds for smooth hardware transitions
-        """
-        service_data: dict[str, Any] = {
-            "entity_id": entity_id,
-            "color_temp_kelvin": color_temp_kelvin,
-            "brightness": brightness,
-        }
-
-        # Add transition if specified - this uses the light's hardware transition capability
-        if transition is not None:
-            service_data["transition"] = transition
-
-        context = None
-        if self._entity_controller:
-            self._entity_controller.record_command(entity_id)
-            context = self._entity_controller.create_context()
-
-        _LOGGER.debug("Setting CCT values via HA service: %s", service_data)
-        await self.hass.services.async_call(
-            "light",
-            "turn_on",
-            service_data,
-            blocking=True,
-            context=context,
-        )
-
     async def async_turn_off_light(self, entity_id: str) -> None:
-        """Turn off light using HA light service.
-
-        Args:
-            entity_id: The Home Assistant light entity ID
-        """
-        context = (
-            self._entity_controller.create_context()
-            if self._entity_controller
-            else None
-        )
-
-        _LOGGER.debug("Turning off light %s via HA service", entity_id)
-
-        await self.hass.services.async_call(
-            "light",
-            "turn_off",
-            {"entity_id": entity_id},
-            blocking=True,
-            context=context,
-        )
+        """Turn off light using HA light service."""
+        await turn_off_light(self.hass, entity_id, self._entity_controller)
 
     # --- DeviceBackend protocol methods ---
     # These methods accept entity_id and resolve Z2M names internally,
@@ -926,9 +731,7 @@ class MQTTBackend:
         if not z2m_device:
             return None
 
-        return self.entry.runtime_data.aqara_devices.get(
-            z2m_device.ieee_address
-        )
+        return self.entry.runtime_data.aqara_devices.get(z2m_device.ieee_address)
 
     def get_all_devices(self) -> dict[str, AqaraDevice]:
         """Get all discovered Aqara devices.
@@ -974,9 +777,7 @@ class MQTTBackend:
             if z2m_name:
                 z2m_effects.append((z2m_name, effect))
             else:
-                _LOGGER.warning(
-                    "Skipping effect for unmapped entity %s", entity_id
-                )
+                _LOGGER.warning("Skipping effect for unmapped entity %s", entity_id)
         if z2m_effects:
             await self.async_publish_batch_effects(z2m_effects)
 
@@ -1007,9 +808,7 @@ class MQTTBackend:
         """
         z2m_name = self.get_z2m_friendly_name(entity_id)
         if not z2m_name:
-            _LOGGER.warning(
-                "Cannot send segments: entity %s not mapped", entity_id
-            )
+            _LOGGER.warning("Cannot send segments: entity %s not mapped", entity_id)
             return
         await self.async_publish_segment_pattern(z2m_name, segments)
 
@@ -1030,9 +829,7 @@ class MQTTBackend:
             if z2m_name:
                 z2m_segments.append((z2m_name, segs))
             else:
-                _LOGGER.warning(
-                    "Skipping segments for unmapped entity %s", entity_id
-                )
+                _LOGGER.warning("Skipping segments for unmapped entity %s", entity_id)
         if z2m_segments:
             await self.async_publish_batch_segments(z2m_segments)
 
@@ -1082,9 +879,7 @@ class MQTTBackend:
             payload[PAYLOAD_AUDIO_SENSITIVITY] = sensitivity
             payload[PAYLOAD_AUDIO_EFFECT] = effect
 
-        _LOGGER.debug(
-            "Publishing music sync to %s: %s", z2m_friendly_name, payload
-        )
+        _LOGGER.debug("Publishing music sync to %s: %s", z2m_friendly_name, payload)
 
         await mqtt.async_publish(self.hass, topic, json.dumps(payload))
 
@@ -1105,9 +900,7 @@ class MQTTBackend:
         """
         z2m_name = self.get_z2m_friendly_name(entity_id)
         if not z2m_name:
-            _LOGGER.warning(
-                "Cannot send music sync: entity %s not mapped", entity_id
-            )
+            _LOGGER.warning("Cannot send music sync: entity %s not mapped", entity_id)
             return
         await self.async_publish_music_sync(z2m_name, enabled, sensitivity, effect)
 
@@ -1119,9 +912,8 @@ class MQTTBackend:
         """
         z2m_name = self.get_z2m_friendly_name(entity_id)
         if not z2m_name:
-            _LOGGER.warning(
-                "Cannot stop music sync: entity %s not mapped", entity_id
-            )
+            _LOGGER.warning("Cannot stop music sync: entity %s not mapped", entity_id)
             return
-        await self.async_publish_music_sync(z2m_name, enabled=False, sensitivity="low", effect="random")
-
+        await self.async_publish_music_sync(
+            z2m_name, enabled=False, sensitivity="low", effect="random"
+        )

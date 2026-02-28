@@ -299,12 +299,16 @@ class DynamicSceneManager:
         self,
         entity_ids: list[str] | None = None,
         scene_id: str | None = None,
+        restore_override: bool | None = None,
     ) -> None:
         """Stop running dynamic scene(s).
 
         Args:
             entity_ids: Optional list of entity IDs to stop scenes for
             scene_id: Optional specific scene ID to stop
+            restore_override: If True, force state restoration regardless of
+                end_behavior. If False, skip restoration. If None, use the
+                scene's end_behavior setting.
         """
         scenes_to_stop: set[str] = set()
 
@@ -319,10 +323,15 @@ class DynamicSceneManager:
             scenes_to_stop = set(self._active_scenes.keys())
 
         for sid in scenes_to_stop:
-            await self._stop_single_scene(sid, reason="manual_stop")
+            await self._stop_single_scene(
+                sid, reason="manual_stop", restore_override=restore_override
+            )
 
     async def _stop_single_scene(
-        self, scene_id: str, reason: str = "manual_stop"
+        self,
+        scene_id: str,
+        reason: str = "manual_stop",
+        restore_override: bool | None = None,
     ) -> None:
         """Stop a single scene by ID."""
         if scene_id not in self._active_scenes:
@@ -344,8 +353,15 @@ class DynamicSceneManager:
         except asyncio.CancelledError:
             pass
 
-        # Restore state if needed
-        if scene_state and scene_state.scene.end_behavior == "restore":
+        # Restore state if needed (override takes precedence over scene setting)
+        should_restore = (
+            restore_override
+            if restore_override is not None
+            else (scene_state and scene_state.scene.end_behavior == "restore")
+        )
+        if should_restore:
+            # Capture state now if not already captured (for restore_override=True
+            # on scenes that didn't have end_behavior="restore")
             await self._restore_states(entity_ids)
 
         # Cleanup
@@ -1159,7 +1175,7 @@ class DynamicSceneManager:
                     )
                     return
                 except TimeoutError:
-                    pass
+                    pass  # Normal - step interval elapsed
 
         _LOGGER.debug(
             "Software color transition complete for %s", entity_id

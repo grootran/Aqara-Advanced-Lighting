@@ -41,6 +41,7 @@ from .const import (
     END_BEHAVIOR_RESTORE,
     END_BEHAVIOR_TURN_OFF,
     LOOP_MODE_CONTINUOUS,
+    LOOP_MODE_COUNT,
     LOOP_MODE_ONCE,
     MODEL_T1_STRIP,
     MODEL_T1M_20_SEGMENT,
@@ -561,18 +562,19 @@ CCT_SEQUENCE_PRESETS: Final[dict[str, dict[str, Any]]] = {
             {
                 "color_temp": 3500,
                 "brightness": 50,  # 20%
-                "transition": 2.0,
+                "transition": 3.0,
                 "hold": 0.5,
             },
             {
                 "color_temp": 4900,
                 "brightness": 204,  # 80%
-                "transition": 2.5,
+                "transition": 4.0,
                 "hold": 0.5,
             },
         ],
-        "loop_mode": LOOP_MODE_CONTINUOUS,
-        "end_behavior": END_BEHAVIOR_MAINTAIN,
+        "loop_mode": LOOP_MODE_COUNT,
+        "loop_count": 20,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     PRESET_CCT_CIRCADIAN: {
         "name": "Circadian Rhythm",

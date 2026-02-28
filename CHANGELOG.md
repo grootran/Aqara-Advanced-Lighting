@@ -2,6 +2,112 @@
 
 All notable changes to the Aqara Advanced Lighting integration will be documented in this file.
 
+## [1.0.0] - 2026-02-28
+
+### What's New
+
+Version 1.0.0 is the first stable release. It includes full Home Assistant 2026.3 compatibility, security hardening across all API and MQTT inputs, a major UI overhaul migrating to native HA components, comprehensive accessibility support, expanded diagnostics, and significant backend refactoring.
+
+### Improvements
+
+#### **Restore State End Behavior for Sequences**
+
+**CCT and segment sequences can now restore lights to their pre-sequence state**
+
+  - New "restore state" end behavior option for both CCT and segment sequences
+  - Captures light state before sequence starts and restores it when the sequence completes
+  - State capture and restore also works with cancel and stop-preview across all editor tabs
+
+#### **Expanded Diagnostics**
+
+**Complete diagnostic coverage across all integration subsystems**
+
+  - Added diagnostics for segment sequences, music sync, entity controller, and all stores
+  - Provides full visibility for troubleshooting via the HA diagnostics panel
+
+### Home Assistant 2026.3 Compatibility
+
+#### **Component Migration**
+
+  - Migrated all MWC (Material Web Components) to native HA components
+  - Replaced `mwc-button` with `ha-button` across all toolbar actions
+  - Migrated `ha-dialog` to 2026.3 API with backwards compatibility for 2026.2
+  - Replaced custom form controls (sliders, selectors, inputs) with HA native components
+  - Added `--mdc-icon-button-size` fallback for `ha-icon-button` on HA 2026.2
+  - Added brand icons and logos for HA 2026.3 brand registry
+
+#### **Theme and CSS Updates**
+
+  - Replaced all dead MWC CSS variables with HA 2026.x equivalents
+  - Replaced hardcoded colors with HA theme variables
+  - Converted custom modals to `ha-dialog`
+  - Applied HA card `border-radius` variable for consistent card styling
+  - Removed dead preset tab CSS
+
+#### **API Updates**
+
+  - Replaced deprecated mired color temperature attributes with kelvin for HA 2026.3
+  - Use HA managed web session for image downloads
+
+### Security
+
+#### **API and Input Hardening**
+
+  - Fixed SSRF vulnerability in `ColorExtractView` image URL fetch
+  - Hardened all API endpoints and MQTT input handling with validation
+  - Added input validation and storage limits across API and backend
+
+### UI/UX Improvements
+
+#### **Redesigned Interface**
+
+  - Redesigned instance cards with polished editor UI
+  - Redesigned active preset cards with accent border, type labels, and icon treatment
+  - Shortened sort dropdown labels and reduced dropdown width
+  - Hidden zone button labels on mobile for cleaner layout
+
+#### **Accessibility**
+
+  - Added ARIA attributes across all frontend components for screen reader support
+
+### Bug Fixes
+
+  - Fixed CCT sequence not affecting lights in RGB mode
+  - Fixed CCT editor loop count field not showing when loop mode is count
+  - Fixed zone selector event leak and unsaved indicator text wrapping
+  - Fixed `start_dynamic_scene` service not finding built-in presets
+  - Fixed `loop_mode` value mismatch between frontend editors and backend schema
+
+### Code Quality and Refactoring
+
+#### **Backend Refactoring**
+
+  - Extracted `BaseStore` to consolidate shared storage infrastructure
+  - Extracted `BaseSequenceManager` to eliminate duplicate sequence lifecycle code
+  - Consolidated duplicate CCT transition and light control into `transition_utils`
+  - Refactored `services.py`: extracted schema helpers, cached segment count, deduplicated lookups
+  - Consolidated duplicate RGB-to-XY conversion into single source
+  - Removed unused gamut clamping functions and empty `EFFECT_ICON_MAP`
+  - Removed dead code and deduplicated shared logic
+
+#### **Frontend Refactoring**
+
+  - Extracted shared editor constants, localization, and form CSS into `editor-constants.ts`
+  - Added frontend performance optimizations and type safety improvements
+  - Removed duplicate color picker CSS from panel styles
+
+### Breaking Changes
+
+None. This release is fully backward compatible with v0.13.x. All existing presets, favorites, and configurations are preserved.
+
+### Compatibility
+
+  - Home Assistant 2026.2 and 2026.3 supported
+  - All existing presets, favorites, and configurations preserved
+  - No configuration changes required
+
+---
+
 ## [0.13.1] - 2026-02-21
 
 ### What's New
@@ -1648,5 +1754,6 @@ One click HACS cutton
 [0.10.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.10.0
 [0.11.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.11.0
 [0.12.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.12.0
-[0.13.1]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.13.1
 [0.13.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.13.0
+[0.13.1]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.13.1
+[1.0.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v1.0.0

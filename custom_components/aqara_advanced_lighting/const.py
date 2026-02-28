@@ -137,6 +137,10 @@ T1M_MODELS: Final = frozenset({
 SOFTWARE_TRANSITION_T1M_INTERVAL: Final = 2.0
 SOFTWARE_TRANSITION_T1_STRIP_INTERVAL: Final = 0.5
 
+# T1 Strip segment density and defaults
+T1_STRIP_SEGMENTS_PER_METER: Final = 5
+T1_STRIP_DEFAULT_SEGMENT_COUNT: Final = 10  # 2 meters
+
 # CIE 1931 color gamut triangles for Aqara lights
 # These define the actual color space the lights can produce
 # Format: [(red_x, red_y), (green_x, green_y), (blue_x, blue_y)]

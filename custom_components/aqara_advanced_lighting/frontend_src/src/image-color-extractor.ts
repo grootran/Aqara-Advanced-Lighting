@@ -6,7 +6,7 @@
 
 import { LitElement, html, css, TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { HomeAssistant, DynamicSceneColor } from './types';
+import { HomeAssistant, DynamicSceneColor, Translations } from './types';
 
 const API_BASE = '/api/aqara_advanced_lighting';
 
@@ -18,13 +18,13 @@ export interface ColorsExtractedDetail {
 @customElement('image-color-extractor')
 export class ImageColorExtractor extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
-  @property({ type: Object }) public translations: Record<string, any> = {};
+  @property({ type: Object }) public translations: Translations = {};
 
-  @state() private _mode: 'upload' | 'url' = 'upload';
+  @property({ type: String }) public mode: 'upload' | 'url' = 'upload';
   @state() private _url = '';
   @state() private _saveThumbnail = true;
   @state() private _extractBrightness = false;
-  @state() private _extracting = false;
+  @state() public extracting = false;
   @state() private _error = '';
   @state() private _previewSrc = '';
 
@@ -48,26 +48,8 @@ export class ImageColorExtractor extends LitElement {
   protected render(): TemplateResult {
     return html`
       <div class="extractor-container">
-        <!-- Mode toggle -->
-        <div class="mode-toggle">
-          <button
-            class="mode-btn ${this._mode === 'upload' ? 'active' : ''}"
-            @click=${() => { this._mode = 'upload'; this._error = ''; }}
-          >
-            <ha-icon icon="mdi:upload"></ha-icon>
-            ${this._localize('image_extractor.upload_tab')}
-          </button>
-          <button
-            class="mode-btn ${this._mode === 'url' ? 'active' : ''}"
-            @click=${() => { this._mode = 'url'; this._error = ''; }}
-          >
-            <ha-icon icon="mdi:link"></ha-icon>
-            ${this._localize('image_extractor.url_tab')}
-          </button>
-        </div>
-
         <!-- Upload mode -->
-        ${this._mode === 'upload' ? html`
+        ${this.mode === 'upload' ? html`
           <div
             class="drop-zone ${this._previewSrc ? 'has-preview' : ''}"
             @click=${this._triggerFileInput}
@@ -131,28 +113,12 @@ export class ImageColorExtractor extends LitElement {
           <div class="error-message">${this._error}</div>
         ` : ''}
 
-        <!-- Actions -->
-        <div class="actions">
-          <ha-button @click=${this._cancel}>
-            ${this._localize('image_extractor.cancel_button')}
-          </ha-button>
-          <ha-button
-            .disabled=${this._extracting || !this._hasInput()}
-            @click=${this._extract}
-          >
-            ${this._extracting
-              ? html`<ha-circular-progress indeterminate size="small"></ha-circular-progress>`
-              : html`<ha-icon icon="mdi:palette-swatch"></ha-icon>`
-            }
-            ${this._localize('image_extractor.extract_button')}
-          </ha-button>
-        </div>
       </div>
     `;
   }
 
-  private _hasInput(): boolean {
-    if (this._mode === 'upload') return !!this._previewSrc;
+  public hasInput(): boolean {
+    if (this.mode === 'upload') return !!this._previewSrc;
     return !!this._url.trim();
   }
 
@@ -216,16 +182,16 @@ export class ImageColorExtractor extends LitElement {
     this._saveThumbnail = (e.target as any).checked;
   }
 
-  private async _extract(): Promise<void> {
-    if (this._extracting) return;
+  public async extract(): Promise<void> {
+    if (this.extracting) return;
 
-    this._extracting = true;
+    this.extracting = true;
     this._error = '';
 
     try {
       let response: Response;
 
-      if (this._mode === 'upload') {
+      if (this.mode === 'upload') {
         if (!this._selectedFile) {
           this._error = this._localize('image_extractor.error_no_file') || 'No file selected';
           return;
@@ -285,11 +251,11 @@ export class ImageColorExtractor extends LitElement {
     } catch (ex: any) {
       this._error = ex.message || this._localize('image_extractor.error_failed') || 'Extraction failed';
     } finally {
-      this._extracting = false;
+      this.extracting = false;
     }
   }
 
-  private _cancel(): void {
+  public cancel(): void {
     this.dispatchEvent(new CustomEvent('extractor-cancelled', {
       bubbles: true,
       composed: true,
@@ -305,39 +271,6 @@ export class ImageColorExtractor extends LitElement {
       display: flex;
       flex-direction: column;
       gap: 12px;
-    }
-
-    .mode-toggle {
-      display: flex;
-      gap: 4px;
-      background: var(--secondary-background-color, #f5f5f5);
-      border-radius: 8px;
-      padding: 4px;
-    }
-
-    .mode-btn {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      padding: 8px 12px;
-      border: none;
-      border-radius: 6px;
-      background: transparent;
-      color: var(--primary-text-color);
-      font-size: 13px;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-
-    .mode-btn.active {
-      background: var(--card-background-color, #fff);
-      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-    }
-
-    .mode-btn ha-icon {
-      --mdc-icon-size: 18px;
     }
 
     .drop-zone {
@@ -381,8 +314,8 @@ export class ImageColorExtractor extends LitElement {
       align-items: center;
       justify-content: center;
       gap: 4px;
-      background: rgba(0,0,0,0.5);
-      color: white;
+      background: rgba(var(--rgb-primary-text-color, 0, 0, 0), 0.5);
+      color: var(--text-primary-color);
       opacity: 0;
       transition: opacity 0.2s;
       font-size: 13px;
@@ -432,12 +365,5 @@ export class ImageColorExtractor extends LitElement {
       border-radius: 4px;
     }
 
-    .actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-      padding-top: 8px;
-      border-top: 1px solid var(--divider-color);
-    }
   `;
 }
