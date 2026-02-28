@@ -989,6 +989,9 @@ export class SegmentSelector extends LitElement {
   }
 
   private _handleZoneSelected(e: CustomEvent): void {
+    // Stop the ha-selector's value-changed from bubbling up to parent editors,
+    // which would misinterpret the zone name as a segment value string.
+    e.stopPropagation();
     const zoneName = e.detail.value as string;
     if (!zoneName || this.disabled) return;
 

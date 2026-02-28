@@ -241,8 +241,7 @@ export const editorFormStyles = css`
     gap: 6px;
     font-size: var(--ha-font-size-s, 12px);
     color: var(--warning-color);
-    max-width: 100px;
-    line-height: 1.3;
+    white-space: nowrap;
   }
 
   .unsaved-dot {
