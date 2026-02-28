@@ -56,7 +56,9 @@
     "lights_count": "{count} lights",
     "favorite_lights_count": "{count} lights",
     "include_all_lights_label": "Include non-Aqara lights",
-    "include_all_lights_hint": "Show all light entities, not just Aqara devices. CCT sequences and dynamic scenes work with any light."
+    "include_all_lights_hint": "Show all light entities, not just Aqara devices. CCT sequences and dynamic scenes work with any light.",
+    "save_as_favorite": "Save selection as favorite",
+    "favorites_empty": "Save your first favorite for quick access"
   },
   "devices": {
     "t2_bulb": "T2 Bulb",
@@ -199,6 +201,8 @@
     "step_duplicate": "Duplicate",
     "step_remove": "Remove",
     "favorite_save": "Save as favorite",
+    "favorite_rename": "Rename favorite",
+    "favorite_remove": "Remove favorite",
     "favorite_preset_add": "Add to favorites",
     "favorite_preset_remove": "Remove from favorites",
     "preset_edit": "Edit preset",

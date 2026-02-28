@@ -302,20 +302,18 @@ export const panelStyles = css`
     --mdc-icon-size: 20px;
   }
 
-  /* Target input with selector and favorite button */
+  /* Target input with selector and toggle row */
   .target-input {
     display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 8px;
+    flex-direction: column;
+    gap: 0;
     min-width: 0;
     width: 100%;
   }
 
   /* Target selector container */
   .target-selector {
-    flex: 1;
-    min-width: 200px;
+    width: 100%;
   }
 
   .target-selector ha-selector {
@@ -324,7 +322,15 @@ export const panelStyles = css`
   }
 
   .include-all-lights-toggle {
+    display: flex;
+    justify-content: flex-end;
     margin-top: 8px;
+    flex-shrink: 0;
+  }
+
+  .has-selection .include-all-lights-toggle {
+    margin-top: -30px;
+    pointer-events: none;
   }
 
   .include-all-lights-toggle .toggle-label {
@@ -334,39 +340,65 @@ export const panelStyles = css`
     font-size: var(--ha-font-size-s, 12px);
     color: var(--secondary-text-color);
     cursor: pointer;
+    white-space: nowrap;
+    pointer-events: auto;
   }
 
-  .add-favorite-btn {
-    --ha-icon-button-size: 36px;
-    --mdc-icon-button-size: 36px;
-    color: var(--primary-color);
-    flex-shrink: 0;
-  }
-
-  .add-favorite-btn:hover {
-    color: var(--accent-color, var(--primary-color));
-  }
-
-  /* Favorite inline input */
-  .favorite-input-container {
+  /* Save-as-favorite action bar */
+  .save-favorite-bar {
     display: flex;
     align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px 14px;
+    margin-top: 8px;
+    background: rgba(var(--rgb-primary-color), 0.06);
+    border: 1px dashed rgba(var(--rgb-primary-color), 0.3);
+    border-radius: var(--ha-card-border-radius, 12px);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+    font-family: inherit;
+    font-size: var(--ha-font-size-m, 14px);
+    color: var(--primary-color);
+    width: 100%;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
   }
 
-  .favorite-input-container ha-selector {
-    flex: 1;
-    min-width: 150px;
+  .save-favorite-bar:hover {
+    background: rgba(var(--rgb-primary-color), 0.12);
+    border-color: var(--primary-color);
   }
 
-  .favorite-input-container ha-button {
+  .save-favorite-bar:active {
+    background: rgba(var(--rgb-primary-color), 0.18);
+  }
+
+  .save-favorite-bar ha-icon {
+    --mdc-icon-size: 20px;
     flex-shrink: 0;
   }
 
-  .favorite-input-buttons {
+  .save-favorite-bar span {
+    font-weight: var(--ha-font-weight-medium, 500);
+    white-space: nowrap;
+  }
+
+  /* Favorites empty state */
+  .favorites-empty-state {
     display: flex;
-    gap: 8px;
+    align-items: center;
+    gap: 10px;
+    padding: 16px;
+    color: var(--secondary-text-color);
+    font-size: var(--ha-font-size-m, 14px);
+    border: 1px dashed var(--divider-color);
+    border-radius: var(--ha-card-border-radius, 12px);
+    min-height: 48px;
+  }
+
+  .favorites-empty-state ha-icon {
+    --mdc-icon-size: 20px;
+    opacity: 0.5;
     flex-shrink: 0;
   }
 
@@ -497,32 +529,74 @@ export const panelStyles = css`
     margin-top: 2px;
   }
 
-  .favorite-button-remove {
+  .favorite-button-actions {
     position: absolute;
-    top: 4px;
-    right: 4px;
-    --ha-icon-button-size: 28px;
-    --mdc-icon-button-size: 28px;
-    --mdc-icon-size: 16px;
+    top: 2px;
+    right: 2px;
+    display: flex;
+    gap: 0;
     opacity: 0;
     transition: opacity 0.2s ease-in-out;
     z-index: 2;
+    pointer-events: none;
   }
 
-  .favorite-button:hover .favorite-button-remove {
-    opacity: 0.6;
+  /* Hover devices: show actions on hover */
+  @media (hover: hover) {
+    .favorite-button:hover .favorite-button-actions {
+      opacity: 0.6;
+      pointer-events: auto;
+    }
+
+    .favorite-button-actions:hover {
+      opacity: 1 !important;
+    }
   }
 
-  .favorite-button-remove ha-icon {
+  /* Touch edit mode: show actions persistently after long press */
+  .favorite-button.edit-mode .favorite-button-actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .favorite-button.edit-mode {
+    border-color: var(--primary-color);
+  }
+
+  .favorite-button-action {
+    --ha-icon-button-size: 28px;
+    --mdc-icon-button-size: 28px;
+    --mdc-icon-size: 16px;
+  }
+
+  .favorite-button-action ha-icon {
     color: var(--primary-text-color);
   }
 
-  .favorite-button:hover .favorite-button-remove ha-icon {
-    color: var(--text-primary-color);
+  /* Inline rename input */
+  .favorite-rename-input {
+    width: 100%;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    color: var(--primary-text-color);
+    background: var(--input-fill-color, rgba(var(--rgb-primary-color), 0.05));
+    border: 1px solid var(--primary-color);
+    border-radius: 6px;
+    padding: 4px 8px;
+    outline: none;
+    text-align: center;
+    box-sizing: border-box;
   }
 
-  .favorite-button-remove:hover {
-    opacity: 1 !important;
+  .favorite-button.renaming {
+    cursor: default;
+  }
+
+  .favorite-button.renaming .favorite-button-actions,
+  .favorite-button.renaming.edit-mode .favorite-button-actions {
+    opacity: 0;
+    pointer-events: none;
   }
 
   /* Favorite button states */
@@ -1238,14 +1312,33 @@ export const panelStyles = css`
     border-radius: var(--ha-border-radius-sm, 4px);
     padding: 2px;
     z-index: 1;
+    pointer-events: none;
   }
 
-  .user-preset-card:hover .preset-card-actions,
-  .user-preset:hover .preset-card-actions,
-  .builtin-preset:hover .preset-card-actions {
+  /* Hover devices: show actions on hover */
+  @media (hover: hover) {
+    .user-preset-card:hover .preset-card-actions,
+    .user-preset:hover .preset-card-actions,
+    .builtin-preset:hover .preset-card-actions {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+
+  /* Touch edit mode: show actions persistently after long press */
+  .user-preset-card.edit-mode .preset-card-actions,
+  .user-preset.edit-mode .preset-card-actions,
+  .builtin-preset.edit-mode .preset-card-actions {
     opacity: 1;
+    pointer-events: auto;
   }
 
+  .user-preset-card.edit-mode,
+  .user-preset.edit-mode,
+  .builtin-preset.edit-mode {
+    outline: 2px solid var(--primary-color);
+    outline-offset: -2px;
+  }
 
   .preset-card-actions ha-icon-button,
   .preset-card-actions .favorite-star {
@@ -1269,10 +1362,12 @@ export const panelStyles = css`
     justify-content: center;
   }
 
-  .preset-card-actions ha-icon-button:hover,
-  .preset-card-actions .favorite-star:hover {
-    background: rgba(var(--rgb-text-primary-color, 255, 255, 255), 0.2);
-    border-radius: var(--ha-border-radius-sm, 4px);
+  @media (hover: hover) {
+    .preset-card-actions ha-icon-button:hover,
+    .preset-card-actions .favorite-star:hover {
+      background: rgba(var(--rgb-text-primary-color, 255, 255, 255), 0.2);
+      border-radius: var(--ha-border-radius-sm, 4px);
+    }
   }
 
   /* Music sync section */
