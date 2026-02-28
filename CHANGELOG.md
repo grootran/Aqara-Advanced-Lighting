@@ -16,7 +16,7 @@ Version 1.0.0 is the first stable release. It includes full Home Assistant 2026.
 
   - New "restore state" end behavior option for both CCT and segment sequences
   - Captures light state before sequence starts and restores it when the sequence completes
-  - State capture and restore also works with cancel and stop-preview across all editor tabs
+  - State capture and restore also now works with cancel and stop-preview across all editors
 
 #### **Expanded Diagnostics**
 
@@ -65,6 +65,7 @@ Version 1.0.0 is the first stable release. It includes full Home Assistant 2026.
   - Redesigned active preset cards with accent border, type labels, and icon treatment
   - Shortened sort dropdown labels and reduced dropdown width
   - Hidden zone button labels on mobile for cleaner layout
+  - Improved mobile layout and touch support
 
 #### **Accessibility**
 
