@@ -16,12 +16,13 @@ Configure device-specific settings directly from the Device Config tab in the pa
 
 ### Transition curve editor
 
-- Visual curve editor with interactive graph showing brightness vs time
-- Adjust transition curvature from 0.2 to 6.0
-- Three curve types:
-  - **0.2-1.0**: Fast then slow (quick start, gentle finish)
-  - **1.0**: Linear (constant speed)
-  - **1.0-6.0**: Slow then fast (gentle start, quick finish)
+- Interactive canvas graph showing a brightness-over-time curve
+- Drag vertically on the graph to adjust the curvature (0.2-6.0)
+- Three curve regions with color-coded visual feedback:
+  - **Fast then slow** (curvature below 0.95): Brightness changes quickly at the start, then gradually tapers off
+  - **Linear** (curvature 0.95-1.05): Even brightness change throughout the transition
+  - **Slow then fast** (curvature above 1.05): Brightness changes slowly at first, then accelerates toward the end
+- Supports both mouse and touch interaction
 - Supports multiple devices simultaneously for synchronized behavior
 - Apply button sends settings directly to your selected T2 bulbs
 
