@@ -37,6 +37,7 @@ if TYPE_CHECKING:
 
     from .backend_protocol import DeviceBackend
     from .entity_controller import EntityController
+    from .state_manager import StateManager
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,11 +54,13 @@ class BaseSequenceManager(ABC, Generic[SequenceT]):
         hass: HomeAssistant,
         backend: DeviceBackend,
         entity_controller: EntityController | None = None,
+        state_manager: StateManager | None = None,
     ) -> None:
         """Initialize the sequence manager."""
         self.hass = hass
         self.backend = backend
         self._entity_controller = entity_controller
+        self._state_manager = state_manager
         self._active_sequences: dict[str, asyncio.Task] = {}
         self._stop_flags: dict[str, asyncio.Event] = {}
         self._sequence_ids: dict[str, str] = {}
@@ -425,6 +428,44 @@ class BaseSequenceManager(ABC, Generic[SequenceT]):
         for eid in entities_to_remove:
             del self._entity_to_group[eid]
 
+    async def _restore_entity_state(self, entity_id: str) -> None:
+        """Restore a single entity to its previously captured state."""
+        if not self._state_manager:
+            _LOGGER.warning(
+                "Cannot restore state for %s: no state manager available",
+                entity_id,
+            )
+            return
+
+        context = (
+            self._entity_controller.create_context()
+            if self._entity_controller
+            else None
+        )
+
+        try:
+            restored = await self._state_manager.async_restore_entity_state(
+                entity_id, blocking=False, context=context,
+            )
+            if restored:
+                _LOGGER.info(
+                    "%s sequence completed, restored previous state for %s",
+                    self._sequence_type.upper(),
+                    entity_id,
+                )
+            else:
+                _LOGGER.warning(
+                    "No stored state found for %s, skipping restoration",
+                    entity_id,
+                )
+        except Exception:
+            _LOGGER.warning(
+                "Failed to restore state for %s after %s sequence",
+                entity_id,
+                self._sequence_type,
+                exc_info=True,
+            )
+
     # -- Subclass hooks --
 
     @abstractmethod
@@ -607,6 +648,8 @@ class BaseSequenceManager(ABC, Generic[SequenceT]):
                     _LOGGER.warning(
                         "Failed to turn off %s after sequence: %s", entity_id, ex
                     )
+            elif sequence.end_behavior == "restore":  # type: ignore[attr-defined]
+                await self._restore_entity_state(entity_id)
             else:
                 _LOGGER.info(
                     "%s sequence completed, maintaining state for %s",

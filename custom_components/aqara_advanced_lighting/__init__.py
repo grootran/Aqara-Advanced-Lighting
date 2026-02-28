@@ -328,10 +328,14 @@ async def async_setup_entry(
     await state_manager.async_load()
 
     # Initialize CCT sequence manager (needs backend for device communication)
-    cct_sequence_manager = CCTSequenceManager(hass, backend, entity_controller)
+    cct_sequence_manager = CCTSequenceManager(
+        hass, backend, entity_controller, state_manager,
+    )
 
     # Initialize segment sequence manager (needs backend for device communication)
-    segment_sequence_manager = SegmentSequenceManager(hass, backend, entity_controller)
+    segment_sequence_manager = SegmentSequenceManager(
+        hass, backend, entity_controller, state_manager,
+    )
 
     # Initialize dynamic scene manager (uses HA light.turn_on for transitions)
     dynamic_scene_manager = DynamicSceneManager(hass, state_manager, entity_controller)

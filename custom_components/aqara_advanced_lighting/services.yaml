@@ -966,6 +966,8 @@ start_cct_sequence:
               value: "maintain"
             - label: "Turn off light"
               value: "turn_off"
+            - label: "Restore previous state"
+              value: "restore"
     z2m_base_topic:
       name: Z2M base topic (deprecated)
       description: "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
@@ -2105,6 +2107,8 @@ start_segment_sequence:
               value: "maintain"
             - label: "Turn off light"
               value: "turn_off"
+            - label: "Restore previous state"
+              value: "restore"
     clear_segments:
       name: Clear segments
       description: Clear all segments (set to black) before starting the sequence.

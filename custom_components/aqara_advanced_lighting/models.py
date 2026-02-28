@@ -31,8 +31,8 @@ def _validate_sequence_params(
         msg = "Loop count must be >= 1 when loop_mode is 'count'"
         raise ValueError(msg)
 
-    if end_behavior not in ("maintain", "turn_off"):
-        msg = f"End behavior must be 'maintain' or 'turn_off', got {end_behavior}"
+    if end_behavior not in ("maintain", "turn_off", "restore"):
+        msg = f"End behavior must be 'maintain', 'turn_off', or 'restore', got {end_behavior}"
         raise ValueError(msg)
 
 
@@ -448,7 +448,7 @@ class CCTSequence:
     steps: list[CCTSequenceStep]  # 1-20 steps
     loop_mode: str  # "once", "count", "continuous"
     loop_count: int | None = None  # Number of loops if mode is "count"
-    end_behavior: str = "maintain"  # "maintain" or "turn_off"
+    end_behavior: str = "maintain"  # "maintain", "turn_off", or "restore"
 
     def __post_init__(self) -> None:
         """Validate sequence parameters."""
@@ -516,7 +516,7 @@ class SegmentSequence:
     steps: list[SegmentSequenceStep]  # 1-20 steps
     loop_mode: str  # "once", "count", "continuous"
     loop_count: int | None = None  # Number of loops if mode is "count"
-    end_behavior: str = "maintain"  # "maintain" or "turn_off"
+    end_behavior: str = "maintain"  # "maintain", "turn_off", or "restore"
     clear_segments: bool = False  # Clear all segments (set to black) before starting
     skip_first_in_loop: bool = False  # Skip first step when looping (after first iteration)
 

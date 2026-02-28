@@ -64,6 +64,7 @@ from .const import (
     PRESET_TYPE_SEGMENT_PATTERN,
     PRESET_TYPE_SEGMENT_SEQUENCE,
     END_BEHAVIOR_MAINTAIN,
+    END_BEHAVIOR_RESTORE,
     END_BEHAVIOR_TURN_OFF,
     EVENT_ATTR_AUDIO_EFFECT,
     EVENT_ATTR_EFFECT_TYPE,
@@ -423,7 +424,7 @@ _cct_sequence_schema_dict[vol.Optional(ATTR_LOOP_COUNT)] = vol.All(
 )
 _cct_sequence_schema_dict[
     vol.Optional(ATTR_END_BEHAVIOR, default=END_BEHAVIOR_MAINTAIN)
-] = vol.In([END_BEHAVIOR_MAINTAIN, END_BEHAVIOR_TURN_OFF])
+] = vol.In([END_BEHAVIOR_MAINTAIN, END_BEHAVIOR_TURN_OFF, END_BEHAVIOR_RESTORE])
 _cct_sequence_schema_dict[vol.Optional(ATTR_Z2M_BASE_TOPIC)] = cv.string
 
 SERVICE_START_CCT_SEQUENCE_SCHEMA = vol.Schema(_cct_sequence_schema_dict)
@@ -471,7 +472,7 @@ _segment_sequence_schema_dict[vol.Optional(ATTR_LOOP_COUNT)] = vol.All(
 )
 _segment_sequence_schema_dict[
     vol.Optional(ATTR_END_BEHAVIOR, default=END_BEHAVIOR_MAINTAIN)
-] = vol.In([END_BEHAVIOR_MAINTAIN, END_BEHAVIOR_TURN_OFF])
+] = vol.In([END_BEHAVIOR_MAINTAIN, END_BEHAVIOR_TURN_OFF, END_BEHAVIOR_RESTORE])
 _segment_sequence_schema_dict[vol.Optional(ATTR_CLEAR_SEGMENTS, default=False)] = (
     cv.boolean
 )

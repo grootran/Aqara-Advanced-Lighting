@@ -213,6 +213,7 @@
     "loop_mode_continuous": "Continuous loop",
     "end_behavior_maintain": "Stay at last step",
     "end_behavior_turn_off": "Turn off light",
+    "end_behavior_restore": "Restore previous state",
     "activation_all": "All at once",
     "activation_sequential_forward": "Sequential forward",
     "activation_sequential_reverse": "Sequential reverse",

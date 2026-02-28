@@ -43,6 +43,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
     return [
       { value: 'maintain', label: this._localize('options.end_behavior_maintain') },
       { value: 'turn_off', label: this._localize('options.end_behavior_turn_off') },
+      { value: 'restore', label: this._localize('options.end_behavior_restore') },
     ];
   }
 
