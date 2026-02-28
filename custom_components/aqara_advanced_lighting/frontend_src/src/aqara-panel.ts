@@ -4015,10 +4015,7 @@ export class AqaraPanel extends LitElement {
         class="user-preset-card ${isEditMode ? 'edit-mode' : ''}"
         title="${preset.name}"
         aria-label="${preset.name}"
-        @click=${() => { if (isEditMode) this._presetEditModeId = null; }}
-        @touchstart=${() => this._handlePresetTouchStart(preset.id)}
-        @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)}
-        @touchmove=${this._handlePresetTouchMove}
+        @click=${() => { this._presetEditModeId = isEditMode ? null : preset.id; }}
       >
         <div class="preset-card-actions">
           <ha-icon-button
