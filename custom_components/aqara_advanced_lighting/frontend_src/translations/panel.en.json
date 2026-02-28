@@ -23,7 +23,7 @@
     "incompatible_light_message": "One or more selected lights are not supported Aqara models. Please select only T1M, T1 Strip, or T2 bulb lights."
   },
   "target": {
-    "section_title": "Targets",
+    "section_title": "Lights",
     "select_lights": "Select lights to control",
     "lights_selected": "{count} light selected",
     "lights_selected_plural": "{count} lights selected",
