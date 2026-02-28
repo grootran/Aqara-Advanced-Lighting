@@ -316,6 +316,19 @@ async def apply_cct_step(
         transition,
     )
 
+    # Some devices (e.g. T1 Strip) ignore CCT commands while in RGB mode.
+    # Send a preparatory mode-switch command so the device accepts CCT values.
+    state = hass.states.get(entity_id)
+    if state and state.attributes.get("color_mode") in (
+        "xy", "rgb", "hs", "rgbw", "rgbww",
+    ):
+        _LOGGER.debug(
+            "Light %s is in %s mode, switching to CCT before sequence step",
+            entity_id,
+            state.attributes.get("color_mode"),
+        )
+        await apply_values(entity_id, color_temp_kelvin, brightness, None)
+
     # Software transition path for T1-family devices
     if transition > 0:
         device = backend.get_device_for_entity(entity_id)
