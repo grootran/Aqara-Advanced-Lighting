@@ -66,6 +66,7 @@ Version 1.0.0 is the first stable release. It includes full Home Assistant 2026.
   - Shortened sort dropdown labels and reduced dropdown width
   - Hidden zone button labels on mobile for cleaner layout
   - Improved mobile layout and touch support
+  - Replace add-favorites button with save bar
 
 #### **Accessibility**
 
@@ -78,6 +79,7 @@ Version 1.0.0 is the first stable release. It includes full Home Assistant 2026.
   - Fixed zone selector event leak and unsaved indicator text wrapping
   - Fixed `start_dynamic_scene` service not finding built-in presets
   - Fixed `loop_mode` value mismatch between frontend editors and backend schema
+  - Fix false external-pause triggers during long transitions and holds
 
 ### Code Quality and Refactoring
 
