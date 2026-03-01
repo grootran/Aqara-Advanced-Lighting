@@ -435,6 +435,8 @@
     cursor: pointer;
     transition: all 0.2s ease-in-out;
     position: relative;
+    user-select: none;
+    -webkit-user-select: none;
     overflow: hidden;
   }
 
@@ -737,6 +739,8 @@
     min-height: 80px;
     position: relative;
     overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
   }
 
   .preset-button::before {
@@ -1238,6 +1242,8 @@
     transition: all 0.15s ease-in-out;
     min-height: 80px;
     overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
   }
 
   .user-preset-card::before {

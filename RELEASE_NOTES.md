@@ -53,6 +53,7 @@ Version 1.0.0 is the first stable release. It includes full Home Assistant 2026.
 - Redesigned instance cards and active preset cards
 - Improved mobile layout and touch support
 - Added ARIA attributes across all frontend components for screen reader support
+- Replace add-favorites button with save bar
 
 ### Bug Fixes
 
@@ -61,6 +62,7 @@ Version 1.0.0 is the first stable release. It includes full Home Assistant 2026.
 - Fixed zone selector event leak
 - Fixed `start_dynamic_scene` service not finding built-in presets
 - Fixed `loop_mode` value mismatch between frontend editors and backend schema
+- Fix false external-pause triggers during long transitions and holds
 
 ### Code Quality and Refactoring
 
