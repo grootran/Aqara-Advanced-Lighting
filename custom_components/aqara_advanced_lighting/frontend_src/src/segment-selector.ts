@@ -1975,7 +1975,6 @@ export class SegmentSelector extends LitElement {
         </div>
         <div class="options-row">
           <label class="option-item">
-            <span class="option-label">${this._localize('editors.gradient_repeat_label')}</span>
             <ha-textfield
               type="number"
               class="option-number-input"
@@ -1984,9 +1983,9 @@ export class SegmentSelector extends LitElement {
               .value=${String(this.gradientRepeat)}
               @change=${this._handleGradientRepeatChange}
             ></ha-textfield>
+            <span class="option-label">${this._localize('editors.gradient_repeat_label')}</span>
           </label>
           <label class="option-item">
-            <span class="option-label">${this._localize('editors.gradient_interpolation_label')}</span>
             <ha-selector
               class="option-select"
               .hass=${this.hass}
@@ -2003,10 +2002,10 @@ export class SegmentSelector extends LitElement {
               .value=${this.gradientInterpolation}
               @value-changed=${this._handleGradientInterpolationChange}
             ></ha-selector>
+            <span class="option-label">${this._localize('editors.gradient_interpolation_label')}</span>
           </label>
           ${this.gradientWave ? html`
             <label class="option-item">
-              <span class="option-label">${this._localize('editors.gradient_wave_cycles_label')}</span>
               <ha-textfield
                 type="number"
                 class="option-number-input"
@@ -2015,6 +2014,7 @@ export class SegmentSelector extends LitElement {
                 .value=${String(this.gradientWaveCycles)}
                 @change=${this._handleGradientWaveCyclesChange}
               ></ha-textfield>
+              <span class="option-label">${this._localize('editors.gradient_wave_cycles_label')}</span>
             </label>
           ` : ''}
         </div>
