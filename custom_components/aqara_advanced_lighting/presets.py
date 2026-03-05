@@ -52,6 +52,7 @@ from .const import (
     MODEL_T2_BULB_GU10_230V,
     PRESET_CCT_CIRCADIAN,
     PRESET_CCT_GOODNIGHT,
+    PRESET_POWER_NAP,
     PRESET_CCT_MINDFUL_BREATHING,
     PRESET_CCT_WAKEUP,
     PRESET_SEGMENT_1,
@@ -554,6 +555,20 @@ CCT_SEQUENCE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         ],
         "loop_mode": LOOP_MODE_ONCE,
         "end_behavior": END_BEHAVIOR_MAINTAIN,
+    },
+    PRESET_POWER_NAP: {
+        "name": "Power Nap",
+        "icon": "mdi:sleep",
+        "steps": [
+            {
+                "color_temp": 2700,
+                "brightness": 25,
+                "transition": 60.0,
+                "hold": 1200.0,
+            },
+        ],
+        "loop_mode": LOOP_MODE_ONCE,
+        "end_behavior": END_BEHAVIOR_RESTORE,
     },
     PRESET_CCT_MINDFUL_BREATHING: {
         "name": "Mindful Breathing",
