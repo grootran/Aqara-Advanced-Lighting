@@ -563,7 +563,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
       end_behavior: this._endBehavior,
     };
 
-    if (this._loopMode === 'loop') {
+    if (this._loopMode === 'count') {
       data.loop_count = this._loopCount;
     }
 
@@ -964,7 +964,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
           </div>
         </div>
 
-        ${this._loopMode === 'loop' ? html`
+        ${this._loopMode === 'count' ? html`
           <div class="form-row">
             <span class="form-label">${this._localize('editors.loop_count_label')}</span>
             <div class="form-input">
