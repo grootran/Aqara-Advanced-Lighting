@@ -27,6 +27,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
   @state() private _loopMode = 'once';
   @state() private _loopCount = 3;
   @state() private _endBehavior = 'maintain';
+  @state() private _skipFirstInLoop = false;
   @state() private _saving = false;
   @state() private _previewing = false;
   @state() private _hasUserInteraction = false;
@@ -170,6 +171,23 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
       }
     }
 
+    .form-section.toggle-row {
+      flex-direction: row;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    .toggle-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toggle-label {
+      font-size: 14px;
+      color: var(--secondary-text-color);
+    }
+
     .form-hint {
       font-size: var(--ha-font-size-s, 12px);
       color: var(--secondary-text-color);
@@ -202,6 +220,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
     this._loopMode = preset.loop_mode;
     this._loopCount = preset.loop_count || 3;
     this._endBehavior = preset.end_behavior;
+    this._skipFirstInLoop = preset.skip_first_in_loop || false;
     this._steps = preset.steps.map((step, index) => ({
       ...step,
       id: `step-${index}-${Date.now()}`,
@@ -221,6 +240,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
       loopMode: this._loopMode,
       loopCount: this._loopCount,
       endBehavior: this._endBehavior,
+      skipFirstInLoop: this._skipFirstInLoop,
       hasUserInteraction: this._hasUserInteraction,
     };
   }
@@ -231,6 +251,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
     this._loopMode = 'once';
     this._loopCount = 3;
     this._endBehavior = 'maintain';
+    this._skipFirstInLoop = false;
     this._hasUserInteraction = false;
     this._addDefaultStep();
   }
@@ -241,6 +262,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
     this._loopMode = draft.loopMode;
     this._loopCount = draft.loopCount;
     this._endBehavior = draft.endBehavior;
+    this._skipFirstInLoop = draft.skipFirstInLoop;
     this._steps = draft.steps.map((step, index) => ({
       ...step,
       id: `step-${index}-${Date.now()}`,
@@ -286,6 +308,11 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
 
   private _handleEndBehaviorChange(e: CustomEvent): void {
     this._endBehavior = e.detail.value || 'maintain';
+    this._hasUserInteraction = true;
+  }
+
+  private _handleSkipFirstInLoopChange(e: Event): void {
+    this._skipFirstInLoop = (e.target as HTMLInputElement).checked;
     this._hasUserInteraction = true;
   }
 
@@ -391,6 +418,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
       steps,
       loop_mode: this._loopMode,
       end_behavior: this._endBehavior,
+      skip_first_in_loop: this._skipFirstInLoop,
     };
 
     if (this._loopMode === 'count') {
@@ -654,6 +682,16 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
               </div>
             `
           : ''}
+
+        <div class="form-section toggle-row">
+          <div class="toggle-item">
+            <span class="toggle-label">${this._localize('editors.skip_first_step_label')}</span>
+            <ha-switch
+              .checked=${this._skipFirstInLoop}
+              @change=${this._handleSkipFirstInLoopChange}
+            ></ha-switch>
+          </div>
+        </div>
 
         <div class="form-section">
           <span class="form-label">${this._localize('editors.steps_label')}</span>

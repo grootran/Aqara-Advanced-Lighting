@@ -968,6 +968,13 @@ start_cct_sequence:
               value: "turn_off"
             - label: "Restore previous state"
               value: "restore"
+    skip_first_in_loop:
+      name: Skip first step in loop
+      description: Skip the first step when looping. Useful for setting an initial state that should not repeat.
+      required: false
+      default: false
+      selector:
+        boolean:
     z2m_base_topic:
       name: Z2M base topic (deprecated)
       description: "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."

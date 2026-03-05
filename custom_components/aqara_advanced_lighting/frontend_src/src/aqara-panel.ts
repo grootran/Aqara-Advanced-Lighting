@@ -3422,6 +3422,7 @@ export class AqaraPanel extends LitElement {
       entity_id: compatibleEntities,
       loop_mode: data.loop_mode,
       end_behavior: data.end_behavior,
+      skip_first_in_loop: data.skip_first_in_loop || false,
       turn_on: true,
       sync: true,
     };

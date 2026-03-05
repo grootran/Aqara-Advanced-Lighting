@@ -247,6 +247,7 @@ export interface UserCCTSequencePreset {
   loop_mode: string;
   loop_count?: number;
   end_behavior: string;
+  skip_first_in_loop?: boolean;
   created_at: string;
   modified_at: string;
 }
@@ -391,6 +392,7 @@ export interface CCTEditorDraft {
   loopMode: string;
   loopCount: number;
   endBehavior: string;
+  skipFirstInLoop: boolean;
   hasUserInteraction: boolean;
 }
 

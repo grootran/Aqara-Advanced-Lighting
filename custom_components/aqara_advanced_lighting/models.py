@@ -449,6 +449,7 @@ class CCTSequence:
     loop_mode: str  # "once", "count", "continuous"
     loop_count: int | None = None  # Number of loops if mode is "count"
     end_behavior: str = "maintain"  # "maintain", "turn_off", or "restore"
+    skip_first_in_loop: bool = False  # Skip first step when looping (after first iteration)
 
     def __post_init__(self) -> None:
         """Validate sequence parameters."""

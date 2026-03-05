@@ -425,6 +425,9 @@ _cct_sequence_schema_dict[vol.Optional(ATTR_LOOP_COUNT)] = vol.All(
 _cct_sequence_schema_dict[
     vol.Optional(ATTR_END_BEHAVIOR, default=END_BEHAVIOR_MAINTAIN)
 ] = vol.In([END_BEHAVIOR_MAINTAIN, END_BEHAVIOR_TURN_OFF, END_BEHAVIOR_RESTORE])
+_cct_sequence_schema_dict[vol.Optional(ATTR_SKIP_FIRST_IN_LOOP, default=False)] = (
+    cv.boolean
+)
 _cct_sequence_schema_dict[vol.Optional(ATTR_Z2M_BASE_TOPIC)] = cv.string
 
 SERVICE_START_CCT_SEQUENCE_SCHEMA = vol.Schema(_cct_sequence_schema_dict)
@@ -2269,6 +2272,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         "loop_mode": user_preset["loop_mode"],
                         "loop_count": user_preset.get("loop_count"),
                         "end_behavior": user_preset["end_behavior"],
+                        "skip_first_in_loop": user_preset.get(
+                            "skip_first_in_loop", False
+                        ),
                     }
                 except KeyError as ex:
                     raise ServiceValidationError(
@@ -2320,11 +2326,15 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             loop_mode: str = preset_data["loop_mode"]
             loop_count: int | None = preset_data.get("loop_count")
             end_behavior: str = preset_data["end_behavior"]
+            skip_first_in_loop: bool = preset_data.get(
+                "skip_first_in_loop", False
+            )
         else:
             # Manual configuration - extract from service call parameters
             loop_mode = call.data.get(ATTR_LOOP_MODE, LOOP_MODE_ONCE)
             loop_count = call.data.get(ATTR_LOOP_COUNT)
             end_behavior = call.data.get(ATTR_END_BEHAVIOR, END_BEHAVIOR_MAINTAIN)
+            skip_first_in_loop = call.data.get(ATTR_SKIP_FIRST_IN_LOOP, False)
 
             # Validate loop_count is provided when loop_mode is "count"
             if loop_mode == LOOP_MODE_COUNT and loop_count is None:
@@ -2390,6 +2400,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 loop_mode=loop_mode,
                 loop_count=loop_count,
                 end_behavior=end_behavior,
+                skip_first_in_loop=skip_first_in_loop,
             )
         except ValueError as ex:
             raise ServiceValidationError(

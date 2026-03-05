@@ -21,6 +21,24 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
 
     _sequence_type = SEQUENCE_TYPE_CCT
 
+    # -- BaseSequenceManager hooks --
+
+    def _get_start_step(
+        self, sequence: CCTSequence, loops_executed: int
+    ) -> int:
+        """Skip first step on subsequent loops when skip_first_in_loop is set."""
+        if (
+            loops_executed > 0
+            and sequence.skip_first_in_loop
+            and len(sequence.steps) > 1
+        ):
+            _LOGGER.debug(
+                "Skipping first step in loop %d (skip_first_in_loop=True)",
+                loops_executed + 1,
+            )
+            return 1
+        return 0
+
     async def _apply_step(
         self,
         entity_id: str,
