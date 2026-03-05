@@ -589,6 +589,7 @@ PRESET_T1_STRIP_COLORFUL: Final = "t1_strip_colorful"
 # CCT sequence presets
 PRESET_CCT_GOODNIGHT: Final = "goodnight"
 PRESET_CCT_WAKEUP: Final = "wakeup"
+PRESET_CCT_POWER_NAP: Final = "power_nap"
 PRESET_CCT_MINDFUL_BREATHING: Final = "mindful_breathing"
 PRESET_CCT_CIRCADIAN: Final = "circadian"
 
