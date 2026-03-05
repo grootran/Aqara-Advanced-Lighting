@@ -546,7 +546,7 @@ SERVICE_START_DYNAMIC_SCENE_SCHEMA = vol.Schema(
             vol.Coerce(int), vol.Range(min=1, max=100)
         ),
         vol.Optional(ATTR_END_BEHAVIOR, default="maintain"): vol.In(
-            ["maintain", "restore"]
+            ["maintain", "turn_off", "restore"]
         ),
         vol.Optional("scene_name"): cv.string,
         vol.Optional("static", default=False): cv.boolean,

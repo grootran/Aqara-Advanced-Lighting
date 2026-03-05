@@ -2352,6 +2352,8 @@ start_dynamic_scene:
           options:
             - label: "Restore previous state"
               value: "restore"
+            - label: "Turn off light"
+              value: "turn_off"
             - label: "Maintain last color"
               value: "maintain"
     scene_name:

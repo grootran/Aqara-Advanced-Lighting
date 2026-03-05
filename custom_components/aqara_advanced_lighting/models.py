@@ -540,7 +540,7 @@ class DynamicScene:
     random_order: bool  # Randomize light order for offset
     loop_mode: str  # "once", "count", "continuous"
     loop_count: int | None = None  # Number of loops if mode is "count"
-    end_behavior: str = "maintain"  # "maintain" or "restore"
+    end_behavior: str = "maintain"  # "maintain", "turn_off", or "restore"
 
     def __post_init__(self) -> None:
         """Validate scene parameters."""
@@ -575,8 +575,8 @@ class DynamicScene:
             msg = "Loop count must be >= 1 when loop_mode is 'count'"
             raise ValueError(msg)
 
-        if self.end_behavior not in ("maintain", "restore"):
-            msg = f"End behavior must be 'maintain' or 'restore', got {self.end_behavior}"
+        if self.end_behavior not in ("maintain", "turn_off", "restore"):
+            msg = f"End behavior must be 'maintain', 'turn_off', or 'restore', got {self.end_behavior}"
             raise ValueError(msg)
 
 

@@ -901,7 +901,9 @@ class DynamicSceneManager:
                 )
 
                 # Handle end behavior
-                if scene.end_behavior == "restore":
+                if scene.end_behavior == "turn_off":
+                    await self._turn_off_entities(scene_state.entity_ids)
+                elif scene.end_behavior == "restore":
                     await self._restore_states(scene_state.entity_ids)
 
                 # Cleanup
@@ -1252,3 +1254,30 @@ class DynamicSceneManager:
                 _LOGGER.warning(
                     "Failed to restore state for %s", entity_id, exc_info=True
                 )
+
+    async def _turn_off_entities(self, entity_ids: list[str]) -> None:
+        """Turn off lights after scene completes."""
+        context = (
+            self._entity_controller.create_context()
+            if self._entity_controller
+            else None
+        )
+
+        service_data: dict[str, Any] = {ATTR_ENTITY_ID: entity_ids}
+
+        try:
+            await self.hass.services.async_call(
+                "light",
+                "turn_off",
+                service_data,
+                blocking=True,
+                context=context,
+            )
+            _LOGGER.info(
+                "Dynamic scene completed, turned off %d lights", len(entity_ids)
+            )
+        except Exception:
+            _LOGGER.warning(
+                "Failed to turn off lights after dynamic scene",
+                exc_info=True,
+            )
