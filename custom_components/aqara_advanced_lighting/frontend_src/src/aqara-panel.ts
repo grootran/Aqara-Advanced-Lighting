@@ -108,6 +108,7 @@ export class AqaraPanel extends LitElement {
   @state() private _instanceDevicesExpanded: Set<string> = new Set();
   @state() private _localCurvature = 1.0;
   @state() private _applyingCurvature = false;
+  @state() private _curvatureApplied = false;
   @state() private _isExporting = false;
   @state() private _isImporting = false;
   @state() private _favoritePresets: FavoritePresetRef[] = [];
@@ -5118,9 +5119,13 @@ export class AqaraPanel extends LitElement {
                             ></ha-selector>
                             <ha-button
                               @click=${this._applyCurvature}
-                              ?disabled=${!transitionCurveEntity || this._applyingCurvature}
+                              ?disabled=${!transitionCurveEntity || this._applyingCurvature || this._curvatureApplied}
                             >
-                              ${this._applyingCurvature ? this._localize('config.applying_button') : this._localize('config.apply_button')}
+                              ${this._curvatureApplied
+                                ? html`<ha-svg-icon .path=${'M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z'}></ha-svg-icon> ${this._localize('config.curvature_applied_button')}`
+                                : this._applyingCurvature
+                                  ? this._localize('config.applying_button')
+                                  : this._localize('config.apply_button')}
                             </ha-button>
                           </div>
                         </div>
@@ -5797,8 +5802,15 @@ export class AqaraPanel extends LitElement {
           )
         );
       }
+
+      this._curvatureApplied = true;
+      this._showToast(this._localize('config.curvature_applied'));
+      setTimeout(() => {
+        this._curvatureApplied = false;
+      }, 2000);
     } catch (err) {
       console.error('Failed to set transition curve curvature:', err);
+      this._showToast(this._localize('config.curvature_apply_error'));
     } finally {
       this._applyingCurvature = false;
     }
