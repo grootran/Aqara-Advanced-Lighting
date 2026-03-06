@@ -3808,9 +3808,11 @@ export class AqaraPanel extends LitElement {
 
   /**
    * Export presets via a signed backend URL.
-   * Uses HA's sign_path API to create an authenticated URL, then opens
-   * it to trigger a native HTTP download. This works in both desktop
-   * browsers and the HA mobile app WebView (which cannot handle blob: URLs).
+   * Uses HA's sign_path WebSocket command to create a temporary
+   * authenticated URL, then navigates to it. The Content-Disposition
+   * attachment header triggers a download without leaving the page.
+   * This works in both desktop browsers and the HA mobile app WebView
+   * (which cannot handle blob: URLs).
    */
   private async _exportPresets(presetIds?: string[]): Promise<void> {
     let path = '/api/aqara_advanced_lighting/presets/export';
@@ -3818,11 +3820,12 @@ export class AqaraPanel extends LitElement {
       path += `?preset_ids=${encodeURIComponent(presetIds.join(','))}`;
     }
 
-    const signedPath = await this.hass.callApi<{ path: string }>(
-      'POST', 'auth/sign_path', { path, expires: 60 },
-    );
+    const result = await this.hass.callWS<{ path: string }>({
+      type: 'auth/sign_path',
+      path,
+    });
 
-    window.open(signedPath.path, '_blank');
+    window.location.href = result.path;
   }
 
   private _handleImportClick(): void {
