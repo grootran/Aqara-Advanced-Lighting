@@ -3749,92 +3749,28 @@ export class AqaraPanel extends LitElement {
     }
   }
 
-  private _handleExportSelected(): void {
+  private async _handleExportSelected(): Promise<void> {
     if (!this._userPresets || this._selectedPresetIds.size === 0) return;
-
-    const ids = this._selectedPresetIds;
-    const filteredData = {
-      effect_presets: this._userPresets.effect_presets.filter(p => ids.has(p.id)),
-      segment_pattern_presets: this._userPresets.segment_pattern_presets.filter(p => ids.has(p.id)),
-      cct_sequence_presets: this._userPresets.cct_sequence_presets.filter(p => ids.has(p.id)),
-      segment_sequence_presets: this._userPresets.segment_sequence_presets.filter(p => ids.has(p.id)),
-      dynamic_scene_presets: this._userPresets.dynamic_scene_presets.filter(p => ids.has(p.id)),
-    };
-
-    const presetCounts = {
-      effect_presets: filteredData.effect_presets.length,
-      segment_pattern_presets: filteredData.segment_pattern_presets.length,
-      cct_sequence_presets: filteredData.cct_sequence_presets.length,
-      segment_sequence_presets: filteredData.segment_sequence_presets.length,
-      dynamic_scene_presets: filteredData.dynamic_scene_presets.length,
-    };
-
-    const now = new Date();
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-
-    const exportPayload = {
-      version: 1,
-      timestamp,
-      preset_counts: presetCounts,
-      data: filteredData,
-    };
-
-    const blob = new Blob(
-      [JSON.stringify(exportPayload, null, 2)],
-      { type: 'application/json' },
-    );
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `aqara_presets_selected_${timestamp}.json`;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-
     const exportedCount = this._selectedPresetIds.size;
-    this._exitSelectMode();
-    this._showToast(
-      this._localize('presets.export_selected_success', {
-        count: exportedCount.toString(),
-      }),
-    );
+    try {
+      await this._exportPresets([...this._selectedPresetIds]);
+      this._exitSelectMode();
+      this._showToast(
+        this._localize('presets.export_selected_success', {
+          count: exportedCount.toString(),
+        }),
+      );
+    } catch (err) {
+      this._showToast(this._localize('presets.export_error_network'));
+      console.error('Export error:', err);
+    }
   }
 
   private async _handleExportPresets(): Promise<void> {
     this._isExporting = true;
     this.requestUpdate();
-
     try {
-      const response = await fetch('/api/aqara_advanced_lighting/presets/export', {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${this.hass.auth.data.access_token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Export failed: ${response.statusText}`);
-      }
-
-      // Get filename from Content-Disposition header
-      const contentDisposition = response.headers.get('Content-Disposition');
-      const filenameMatch = contentDisposition?.match(/filename="(.+)"/);
-      const filename = filenameMatch?.[1] || 'aqara_presets_backup.json';
-
-      // Download file
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      // Show success toast
+      await this._exportPresets();
       this._showToast(this._localize('presets.export_success'));
     } catch (err) {
       this._showToast(this._localize('presets.export_error_network'));
@@ -3843,6 +3779,25 @@ export class AqaraPanel extends LitElement {
       this._isExporting = false;
       this.requestUpdate();
     }
+  }
+
+  /**
+   * Export presets via a signed backend URL.
+   * Uses HA's sign_path API to create an authenticated URL, then opens
+   * it to trigger a native HTTP download. This works in both desktop
+   * browsers and the HA mobile app WebView (which cannot handle blob: URLs).
+   */
+  private async _exportPresets(presetIds?: string[]): Promise<void> {
+    let path = '/api/aqara_advanced_lighting/presets/export';
+    if (presetIds?.length) {
+      path += `?preset_ids=${encodeURIComponent(presetIds.join(','))}`;
+    }
+
+    const signedPath = await this.hass.callApi<{ path: string }>(
+      'POST', 'auth/sign_path', { path, expires: 60 },
+    );
+
+    window.open(signedPath.path, '_blank');
   }
 
   private _handleImportClick(): void {

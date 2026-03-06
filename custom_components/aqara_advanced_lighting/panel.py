@@ -1069,17 +1069,26 @@ class VersionView(HomeAssistantView):
 
 
 class ExportPresetsView(HomeAssistantView):
-    """View to export all user presets as JSON file."""
+    """View to export user presets as a downloadable JSON file.
+
+    Accepts an optional comma-separated list of preset IDs via query
+    parameter to export selectively. If omitted, all presets are exported.
+    Uses GET so the URL can be signed for authenticated downloads that
+    work in the HA mobile app WebView.
+    """
 
     url = f"/api/{DOMAIN}/presets/export"
     name = f"api:{DOMAIN}:presets_export"
     requires_auth = True
 
     async def get(self, request: web.Request) -> web.Response:
-        """Export all user presets.
+        """Export user presets, optionally filtered by ID.
+
+        Query params:
+            preset_ids: Optional comma-separated list of preset IDs
 
         Returns:
-            JSON file download with all user presets
+            JSON file download with selected or all user presets
         """
         hass = request.app["hass"]
 
@@ -1087,15 +1096,18 @@ class ExportPresetsView(HomeAssistantView):
         if not preset_store:
             return web.Response(status=503, text="Preset store not initialized")
 
+        # Parse optional preset_ids from query string
+        preset_ids: list[str] | None = None
+        ids_param = request.query.get("preset_ids")
+        if ids_param:
+            preset_ids = [i.strip() for i in ids_param.split(",") if i.strip()]
+
         try:
-            # Export all presets
-            export_data = await preset_store.export_all_user_presets()
+            export_data = await preset_store.export_user_presets(preset_ids)
 
-            # Generate filename with timestamp
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"aqara_presets_backup_{timestamp}.json"
+            filename = f"aqara_presets_export_{timestamp}.json"
 
-            # Return as downloadable JSON file
             return web.Response(
                 body=json.dumps(export_data, indent=2, ensure_ascii=False),
                 content_type="application/json",

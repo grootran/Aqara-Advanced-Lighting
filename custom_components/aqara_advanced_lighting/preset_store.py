@@ -776,36 +776,54 @@ class PresetStore(BaseStore[PresetsData]):
 
         return await self.add_preset(preset_type, preset_data)
 
-    async def export_all_user_presets(self) -> dict[str, Any]:
-        """Export all user-created presets to a dictionary.
+    async def export_user_presets(
+        self, preset_ids: list[str] | None = None
+    ) -> dict[str, Any]:
+        """Export user-created presets to a dictionary.
 
-        Excludes built-in presets, includes only user-created presets.
+        Args:
+            preset_ids: Optional list of preset IDs to export.
+                If None, exports all presets.
 
         Returns:
             Dictionary with version, timestamp, counts, and preset data
         """
-        # Get all presets (only user-created presets are in storage)
         all_presets = self.get_all_presets()
 
-        # Calculate counts
+        # Filter by IDs if provided
+        if preset_ids is not None:
+            id_set = set(preset_ids)
+            filtered: dict[str, list[dict[str, Any]]] = {}
+            for key in (
+                "effect_presets",
+                "segment_pattern_presets",
+                "cct_sequence_presets",
+                "segment_sequence_presets",
+                "dynamic_scene_presets",
+            ):
+                filtered[key] = [
+                    p for p in all_presets.get(key, []) if p.get("id") in id_set
+                ]
+            export_presets = filtered
+        else:
+            export_presets = all_presets
+
         preset_counts = {
-            "effect_presets": len(all_presets.get("effect_presets", [])),
-            "segment_pattern_presets": len(
-                all_presets.get("segment_pattern_presets", [])
-            ),
-            "cct_sequence_presets": len(all_presets.get("cct_sequence_presets", [])),
-            "segment_sequence_presets": len(
-                all_presets.get("segment_sequence_presets", [])
-            ),
-            "dynamic_scene_presets": len(all_presets.get("dynamic_scene_presets", [])),
+            key: len(export_presets.get(key, []))
+            for key in (
+                "effect_presets",
+                "segment_pattern_presets",
+                "cct_sequence_presets",
+                "segment_sequence_presets",
+                "dynamic_scene_presets",
+            )
         }
 
-        # Build export structure
         export_data = {
             "version": 1,
             "timestamp": self._get_timestamp(),
             "preset_counts": preset_counts,
-            "data": all_presets,
+            "data": export_presets,
         }
 
         _LOGGER.debug(
