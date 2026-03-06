@@ -2957,7 +2957,7 @@ export class AqaraPanel extends LitElement {
                                 ? html`<div class="favorite-button-count">${this._localize('target.favorite_lights_count', { count: entityCount.toString() })}</div>`
                                 : ''}
                             </div>
-                            <div class="favorite-button-actions">
+                            <div class="favorite-button-actions favorite-button-actions-left">
                               <ha-icon-button
                                 class="favorite-button-action"
                                 @click=${(e: Event) => this._startRenameFavorite(e, favorite)}
@@ -2965,6 +2965,8 @@ export class AqaraPanel extends LitElement {
                               >
                                 <ha-icon icon="mdi:pencil"></ha-icon>
                               </ha-icon-button>
+                            </div>
+                            <div class="favorite-button-actions">
                               <ha-icon-button
                                 class="favorite-button-action"
                                 @click=${(e: Event) => {
@@ -4198,13 +4200,15 @@ export class AqaraPanel extends LitElement {
         aria-label="${preset.name}"
         @click=${() => { this._presetEditModeId = isEditMode ? null : preset.id; }}
       >
-        <div class="preset-card-actions">
+        <div class="preset-card-actions preset-card-actions-left">
           <ha-icon-button
             @click=${(e: Event) => { e.stopPropagation(); onEdit(preset); }}
             title="${this._localize('tooltips.preset_edit')}"
           >
             <ha-icon icon="mdi:pencil"></ha-icon>
           </ha-icon-button>
+        </div>
+        <div class="preset-card-actions">
           <ha-icon-button
             @click=${(e: Event) => { e.stopPropagation(); onDuplicate(preset); }}
             title="${this._localize('tooltips.preset_duplicate')}"
@@ -4524,7 +4528,7 @@ export class AqaraPanel extends LitElement {
             const isEditMode = this._presetEditModeId === ref.id;
             return html`
             <div class="preset-button ${isUser ? 'user-preset' : 'builtin-preset'} ${isEditMode ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (isEditMode) { this._presetEditModeId = null; } else { this._activateFavoritePreset(ref, preset, isUser); } }} @touchstart=${() => this._handlePresetTouchStart(ref.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-              <div class="preset-card-actions">
+              <div class="preset-card-actions preset-card-actions-left">
                 ${this._renderFavoriteStar(ref.type, ref.id)}
               </div>
               <div class="preset-icon">
@@ -4568,7 +4572,7 @@ export class AqaraPanel extends LitElement {
           ${sortedUserPresets.map(
             (preset) => html`
               <div class="preset-button user-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateUserEffectPreset(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar('effect', preset.id)}
                 </div>
                 <div class="preset-icon">
@@ -4581,8 +4585,10 @@ export class AqaraPanel extends LitElement {
           ${sortedBuiltinPresets.map(
             (preset) => html`
               <div class="preset-button builtin-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateDynamicEffect(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar('effect', preset.id)}
+                </div>
+                <div class="preset-card-actions">
                   <ha-icon-button
                     @click=${(e: Event) => { e.stopPropagation(); this._duplicateBuiltinEffectPreset(preset, deviceType); }}
                     title="${this._localize('tooltips.preset_duplicate')}"
@@ -4803,7 +4809,7 @@ export class AqaraPanel extends LitElement {
           ${sortedUserPresets.map(
             (preset) => html`
               <div class="preset-button user-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateUserPatternPreset(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar('segment_pattern', preset.id)}
                 </div>
                 <div class="preset-icon">
@@ -4816,8 +4822,10 @@ export class AqaraPanel extends LitElement {
           ${sortedBuiltinPresets.map(
             (preset) => html`
               <div class="preset-button builtin-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateSegmentPattern(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar('segment_pattern', preset.id)}
+                </div>
+                <div class="preset-card-actions">
                   <ha-icon-button
                     @click=${(e: Event) => { e.stopPropagation(); this._duplicateBuiltinPatternPreset(preset, deviceType); }}
                     title="${this._localize('tooltips.preset_duplicate')}"
@@ -4933,7 +4941,7 @@ export class AqaraPanel extends LitElement {
           ${sortedUserPresets.map(
             (preset) => html`
               <div class="preset-button user-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateUserCCTSequencePreset(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar('cct_sequence', preset.id)}
                 </div>
                 <div class="preset-icon">
@@ -4946,8 +4954,10 @@ export class AqaraPanel extends LitElement {
           ${sortedBuiltinPresets.map(
             (preset) => html`
               <div class="preset-button builtin-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateCCTSequence(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar('cct_sequence', preset.id)}
+                </div>
+                <div class="preset-card-actions">
                   <ha-icon-button
                     @click=${(e: Event) => { e.stopPropagation(); this._duplicateBuiltinCCTSequencePreset(preset); }}
                     title="${this._localize('tooltips.preset_duplicate')}"
@@ -4997,7 +5007,7 @@ export class AqaraPanel extends LitElement {
           ${sortedUserPresets.map(
             (preset) => html`
               <div class="preset-button user-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateUserSegmentSequencePreset(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar('segment_sequence', preset.id)}
                 </div>
                 <div class="preset-icon">
@@ -5010,8 +5020,10 @@ export class AqaraPanel extends LitElement {
           ${sortedBuiltinPresets.map(
             (preset) => html`
               <div class="preset-button builtin-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateSegmentSequence(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar('segment_sequence', preset.id)}
+                </div>
+                <div class="preset-card-actions">
                   <ha-icon-button
                     @click=${(e: Event) => { e.stopPropagation(); this._duplicateBuiltinSegmentSequencePreset(preset, deviceType); }}
                     title="${this._localize('tooltips.preset_duplicate')}"
@@ -5062,7 +5074,7 @@ export class AqaraPanel extends LitElement {
           ${sortedUserPresets.map(
             (preset) => html`
               <div class="preset-button user-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateUserDynamicScenePreset(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar('dynamic_scene', preset.id)}
                 </div>
                 <div class="preset-icon">
@@ -5075,8 +5087,10 @@ export class AqaraPanel extends LitElement {
           ${sortedBuiltinPresets.map(
             (preset) => html`
               <div class="preset-button builtin-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateDynamicScene(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar('dynamic_scene', preset.id)}
+                </div>
+                <div class="preset-card-actions">
                   <ha-icon-button
                     @click=${(e: Event) => { e.stopPropagation(); this._duplicateBuiltinDynamicScenePreset(preset); }}
                     title="${this._localize('tooltips.preset_duplicate')}"

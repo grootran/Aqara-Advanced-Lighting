@@ -576,6 +576,11 @@
     pointer-events: none;
   }
 
+  .favorite-button-actions-left {
+    right: auto;
+    left: 2px;
+  }
+
   /* Hover devices: show actions on hover */
   @media (hover: hover) {
     .favorite-button:hover .favorite-button-actions {
@@ -1358,6 +1363,11 @@
   .preset-card-actions-right {
     top: auto;
     bottom: 2px;
+  }
+
+  .preset-card-actions-left {
+    right: auto;
+    left: 2px;
   }
 
   /* Hover devices: show actions on hover */
@@ -5406,7 +5416,7 @@
                                   `:H`<div class="favorite-button-name">${e.name}</div>`}
                               ${s>1&&!h?H`<div class="favorite-button-count">${this._localize("target.favorite_lights_count",{count:s.toString()})}</div>`:""}
                             </div>
-                            <div class="favorite-button-actions">
+                            <div class="favorite-button-actions favorite-button-actions-left">
                               <ha-icon-button
                                 class="favorite-button-action"
                                 @click=${t=>this._startRenameFavorite(t,e)}
@@ -5414,6 +5424,8 @@
                               >
                                 <ha-icon icon="mdi:pencil"></ha-icon>
                               </ha-icon-button>
+                            </div>
+                            <div class="favorite-button-actions">
                               <ha-icon-button
                                 class="favorite-button-action"
                                 @click=${t=>{t.stopPropagation(),this._removeFavorite(e.id)}}
@@ -5835,13 +5847,15 @@
         aria-label="${e.name}"
         @click=${()=>{this._presetEditModeId=n?null:e.id}}
       >
-        <div class="preset-card-actions">
+        <div class="preset-card-actions preset-card-actions-left">
           <ha-icon-button
             @click=${i=>{i.stopPropagation(),t(e)}}
             title="${this._localize("tooltips.preset_edit")}"
           >
             <ha-icon icon="mdi:pencil"></ha-icon>
           </ha-icon-button>
+        </div>
+        <div class="preset-card-actions">
           <ha-icon-button
             @click=${t=>{t.stopPropagation(),o(e)}}
             title="${this._localize("tooltips.preset_duplicate")}"
@@ -5889,7 +5903,7 @@
         <div class="section-content">
           ${r.map(({ref:e,preset:t,isUser:i})=>{const s=this._presetEditModeId===e.id;return H`
             <div class="preset-button ${i?"user-preset":"builtin-preset"} ${s?"edit-mode":""}" role="button" tabindex="0" aria-label="${t.name}" @click=${()=>{s?this._presetEditModeId=null:this._activateFavoritePreset(e,t,i)}} @touchstart=${()=>this._handlePresetTouchStart(e.id)} @touchend=${e=>this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-              <div class="preset-card-actions">
+              <div class="preset-card-actions preset-card-actions-left">
                 ${this._renderFavoriteStar(e.type,e.id)}
               </div>
               <div class="preset-icon">
@@ -5918,7 +5932,7 @@
         <div class="section-content">
           ${l.map(e=>H`
               <div class="preset-button user-preset ${this._presetEditModeId===e.id?"edit-mode":""}" role="button" tabindex="0" aria-label="${e.name}" @click=${()=>{this._presetEditModeId===e.id?this._presetEditModeId=null:this._activateUserEffectPreset(e)}} @touchstart=${()=>this._handlePresetTouchStart(e.id)} @touchend=${e=>this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar("effect",e.id)}
                 </div>
                 <div class="preset-icon">
@@ -5929,8 +5943,10 @@
             `)}
           ${c.map(e=>H`
               <div class="preset-button builtin-preset ${this._presetEditModeId===e.id?"edit-mode":""}" role="button" tabindex="0" aria-label="${e.name}" @click=${()=>{this._presetEditModeId===e.id?this._presetEditModeId=null:this._activateDynamicEffect(e)}} @touchstart=${()=>this._handlePresetTouchStart(e.id)} @touchend=${e=>this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar("effect",e.id)}
+                </div>
+                <div class="preset-card-actions">
                   <ha-icon-button
                     @click=${t=>{t.stopPropagation(),this._duplicateBuiltinEffectPreset(e,i)}}
                     title="${this._localize("tooltips.preset_duplicate")}"
@@ -6054,7 +6070,7 @@
         <div class="section-content">
           ${l.map(e=>H`
               <div class="preset-button user-preset ${this._presetEditModeId===e.id?"edit-mode":""}" role="button" tabindex="0" aria-label="${e.name}" @click=${()=>{this._presetEditModeId===e.id?this._presetEditModeId=null:this._activateUserPatternPreset(e)}} @touchstart=${()=>this._handlePresetTouchStart(e.id)} @touchend=${e=>this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar("segment_pattern",e.id)}
                 </div>
                 <div class="preset-icon">
@@ -6065,8 +6081,10 @@
             `)}
           ${c.map(e=>H`
               <div class="preset-button builtin-preset ${this._presetEditModeId===e.id?"edit-mode":""}" role="button" tabindex="0" aria-label="${e.name}" @click=${()=>{this._presetEditModeId===e.id?this._presetEditModeId=null:this._activateSegmentPattern(e)}} @touchstart=${()=>this._handlePresetTouchStart(e.id)} @touchend=${e=>this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar("segment_pattern",e.id)}
+                </div>
+                <div class="preset-card-actions">
                   <ha-icon-button
                     @click=${t=>{t.stopPropagation(),this._duplicateBuiltinPatternPreset(e,i)}}
                     title="${this._localize("tooltips.preset_duplicate")}"
@@ -6100,7 +6118,7 @@
         <div class="section-content">
           ${a.map(e=>H`
               <div class="preset-button user-preset ${this._presetEditModeId===e.id?"edit-mode":""}" role="button" tabindex="0" aria-label="${e.name}" @click=${()=>{this._presetEditModeId===e.id?this._presetEditModeId=null:this._activateUserCCTSequencePreset(e)}} @touchstart=${()=>this._handlePresetTouchStart(e.id)} @touchend=${e=>this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar("cct_sequence",e.id)}
                 </div>
                 <div class="preset-icon">
@@ -6111,8 +6129,10 @@
             `)}
           ${r.map(e=>H`
               <div class="preset-button builtin-preset ${this._presetEditModeId===e.id?"edit-mode":""}" role="button" tabindex="0" aria-label="${e.name}" @click=${()=>{this._presetEditModeId===e.id?this._presetEditModeId=null:this._activateCCTSequence(e)}} @touchstart=${()=>this._handlePresetTouchStart(e.id)} @touchend=${e=>this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar("cct_sequence",e.id)}
+                </div>
+                <div class="preset-card-actions">
                   <ha-icon-button
                     @click=${t=>{t.stopPropagation(),this._duplicateBuiltinCCTSequencePreset(e)}}
                     title="${this._localize("tooltips.preset_duplicate")}"
@@ -6146,7 +6166,7 @@
         <div class="section-content">
           ${l.map(e=>H`
               <div class="preset-button user-preset ${this._presetEditModeId===e.id?"edit-mode":""}" role="button" tabindex="0" aria-label="${e.name}" @click=${()=>{this._presetEditModeId===e.id?this._presetEditModeId=null:this._activateUserSegmentSequencePreset(e)}} @touchstart=${()=>this._handlePresetTouchStart(e.id)} @touchend=${e=>this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar("segment_sequence",e.id)}
                 </div>
                 <div class="preset-icon">
@@ -6157,8 +6177,10 @@
             `)}
           ${c.map(e=>H`
               <div class="preset-button builtin-preset ${this._presetEditModeId===e.id?"edit-mode":""}" role="button" tabindex="0" aria-label="${e.name}" @click=${()=>{this._presetEditModeId===e.id?this._presetEditModeId=null:this._activateSegmentSequence(e)}} @touchstart=${()=>this._handlePresetTouchStart(e.id)} @touchend=${e=>this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar("segment_sequence",e.id)}
+                </div>
+                <div class="preset-card-actions">
                   <ha-icon-button
                     @click=${t=>{t.stopPropagation(),this._duplicateBuiltinSegmentSequencePreset(e,i)}}
                     title="${this._localize("tooltips.preset_duplicate")}"
@@ -6192,7 +6214,7 @@
         <div class="section-content">
           ${a.map(e=>H`
               <div class="preset-button user-preset ${this._presetEditModeId===e.id?"edit-mode":""}" role="button" tabindex="0" aria-label="${e.name}" @click=${()=>{this._presetEditModeId===e.id?this._presetEditModeId=null:this._activateUserDynamicScenePreset(e)}} @touchstart=${()=>this._handlePresetTouchStart(e.id)} @touchend=${e=>this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar("dynamic_scene",e.id)}
                 </div>
                 <div class="preset-icon">
@@ -6203,8 +6225,10 @@
             `)}
           ${r.map(e=>H`
               <div class="preset-button builtin-preset ${this._presetEditModeId===e.id?"edit-mode":""}" role="button" tabindex="0" aria-label="${e.name}" @click=${()=>{this._presetEditModeId===e.id?this._presetEditModeId=null:this._activateDynamicScene(e)}} @touchstart=${()=>this._handlePresetTouchStart(e.id)} @touchend=${e=>this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar("dynamic_scene",e.id)}
+                </div>
+                <div class="preset-card-actions">
                   <ha-icon-button
                     @click=${t=>{t.stopPropagation(),this._duplicateBuiltinDynamicScenePreset(e)}}
                     title="${this._localize("tooltips.preset_duplicate")}"

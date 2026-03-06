@@ -583,6 +583,11 @@ export const panelStyles = css`
     pointer-events: none;
   }
 
+  .favorite-button-actions-left {
+    right: auto;
+    left: 2px;
+  }
+
   /* Hover devices: show actions on hover */
   @media (hover: hover) {
     .favorite-button:hover .favorite-button-actions {
@@ -1365,6 +1370,11 @@ export const panelStyles = css`
   .preset-card-actions-right {
     top: auto;
     bottom: 2px;
+  }
+
+  .preset-card-actions-left {
+    right: auto;
+    left: 2px;
   }
 
   /* Hover devices: show actions on hover */
