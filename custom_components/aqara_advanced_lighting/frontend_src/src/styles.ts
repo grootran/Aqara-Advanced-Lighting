@@ -199,6 +199,19 @@ export const panelStyles = css`
     gap: 8px;
   }
 
+  .running-op-card.scene-op-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .running-op-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
   .running-op-card.op-paused {
     border-left-color: var(--disabled-text-color, #999);
     border-left-style: dashed;
@@ -275,6 +288,33 @@ export const panelStyles = css`
     overflow: hidden;
     text-overflow: ellipsis;
     min-width: 0;
+  }
+
+  .entity-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 4px 0 4px 44px;
+  }
+
+  .entity-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--ha-font-size-s, 12px);
+    color: var(--primary-text-color);
+    background: var(--secondary-background-color);
+    padding: 2px 8px;
+    border-radius: 12px;
+    white-space: nowrap;
+  }
+
+  .chip-badge {
+    font-size: 10px;
+    padding: 0 5px;
+    border-radius: 8px;
+    background: rgba(var(--rgb-primary-color), 0.12);
+    color: var(--primary-color);
   }
 
   .running-op-status {

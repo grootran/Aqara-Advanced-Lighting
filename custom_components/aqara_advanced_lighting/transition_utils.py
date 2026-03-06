@@ -13,6 +13,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
+from .capability_profile import clamp_color_temp
 from .const import (
     DOMAIN,
     MIN_TRANSITION_STEPS,
@@ -310,6 +311,15 @@ async def apply_cct_step(
     Returns:
         True if transition completed, False if interrupted
     """
+    # Read entity capabilities and clamp color temp to supported range
+    entity_state = hass.states.get(entity_id)
+    if entity_state:
+        attrs = entity_state.attributes
+        min_k = attrs.get("min_color_temp_kelvin")
+        max_k = attrs.get("max_color_temp_kelvin")
+        if min_k is not None and max_k is not None:
+            color_temp_kelvin = clamp_color_temp(color_temp_kelvin, min_k, max_k)
+
     _LOGGER.info(
         "Applying CCT step to %s: %dK, brightness %d, transition %ss",
         entity_id,

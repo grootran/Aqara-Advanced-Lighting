@@ -58,7 +58,11 @@
     "include_all_lights_label": "Include non-Aqara lights",
     "include_all_lights_hint": "Show all light entities, not just Aqara devices. CCT sequences and dynamic scenes work with any light.",
     "save_as_favorite": "Save selection as favorite",
-    "favorites_empty": "Save your first favorite for quick access"
+    "favorites_empty": "Save your first favorite for quick access",
+    "capability_cct": "CCT",
+    "capability_brightness": "Brightness",
+    "capability_on_off": "On/off",
+    "capability_software_transition": "Software transition"
   },
   "devices": {
     "t2_bulb": "T2 Bulb",
@@ -182,7 +186,12 @@
     "curvature_slow_fast": "Slow start, fast end",
     "curve_legend_fast_slow": "0.2-1: Fast then slow",
     "curve_legend_linear": "1: Linear",
-    "curve_legend_slow_fast": "1-6: Slow then fast"
+    "curve_legend_slow_fast": "1-6: Slow then fast",
+    "generic_lights_title": "Generic lights",
+    "generic_lights_subtitle": "Non-Aqara lights used in scenes and sequences",
+    "software_transitions_label": "Use software transitions",
+    "software_transitions_description": "Use the integration's cubic-easing transition engine instead of the light's hardware transitions. Enable this if you notice jerky transitions on specific lights.",
+    "no_generic_lights": "No generic lights have been used in scenes yet."
   },
   "instances": {
     "section_title": "Zigbee integrations",

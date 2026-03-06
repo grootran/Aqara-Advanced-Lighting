@@ -351,6 +351,7 @@ export interface UserPreferences {
 // Integration-wide preferences (not per-user)
 export interface GlobalPreferences {
   ignore_external_changes?: boolean;
+  software_transition_entities?: string[];
 }
 
 // Draft state types for editor tab caching (in-memory only, not persisted)
@@ -515,6 +516,8 @@ export interface RunningOperation {
   // Music sync
   sensitivity?: string;
   audio_effect?: string;
+  // Capability indicators for dynamic scene entities
+  entity_capabilities?: Record<string, string>;
 }
 
 export interface RunningOperationsResponse {

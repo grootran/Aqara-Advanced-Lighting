@@ -69,6 +69,7 @@ export class AqaraPanel extends LitElement {
   @state() private _useCustomBrightness = false;
   @state() private _useStaticSceneMode = false;
   @state() private _ignoreExternalChanges = false;
+  @state() private _softwareTransitionEntities: string[] = [];
   @state() private _useDistributionModeOverride = false;
   @state() private _distributionModeOverride = 'shuffle_rotate';
   @state() private _collapsed: Record<string, boolean> = { instances: true };
@@ -372,11 +373,14 @@ export class AqaraPanel extends LitElement {
 
     // Load global preferences (separate endpoint, not per-user)
     try {
-      const globalPrefs = await this.hass.callApi<{ignore_external_changes?: boolean}>(
+      const globalPrefs = await this.hass.callApi<{ignore_external_changes?: boolean; software_transition_entities?: string[]}>(
         'GET', 'aqara_advanced_lighting/global_preferences'
       );
       if (globalPrefs.ignore_external_changes !== undefined) {
         this._ignoreExternalChanges = globalPrefs.ignore_external_changes;
+      }
+      if (globalPrefs.software_transition_entities) {
+        this._softwareTransitionEntities = globalPrefs.software_transition_entities;
       }
     } catch (err) {
       console.warn('Failed to load global preferences:', err);
@@ -2006,6 +2010,7 @@ export class AqaraPanel extends LitElement {
     try {
       await this.hass.callApi('PUT', 'aqara_advanced_lighting/global_preferences', {
         ignore_external_changes: this._ignoreExternalChanges,
+        software_transition_entities: this._softwareTransitionEntities,
       });
     } catch (err) {
       console.warn('Failed to save global preferences:', err);
@@ -2301,53 +2306,73 @@ export class AqaraPanel extends LitElement {
 
   private _renderSceneOp(op: RunningOperation) {
     const preset = this._resolvePresetInfo(op.preset_id);
-    const entityNames = (op.entity_ids || [])
-      .map(id => this._getEntityName(id))
-      .join(', ');
+    const entityChips = (op.entity_ids || []).map(id => {
+      const name = this._getEntityName(id);
+      const cap = op.entity_capabilities?.[id];
+      const isSoftwareTransition = cap?.includes('software_transition');
+      const badges: unknown[] = [];
+      if (cap?.includes('cct_mode')) {
+        badges.push(html`<span class="chip-badge">${this._localize('target.capability_cct')}</span>`);
+      }
+      if (cap?.includes('brightness_only')) {
+        badges.push(html`<span class="chip-badge">${this._localize('target.capability_brightness')}</span>`);
+      }
+      if (cap?.includes('on_off_only')) {
+        badges.push(html`<span class="chip-badge">${this._localize('target.capability_on_off')}</span>`);
+      }
+      if (isSoftwareTransition) {
+        badges.push(html`<span class="chip-badge">${this._localize('target.capability_software_transition')}</span>`);
+      }
+      return html`<span class="entity-chip ${badges.length ? 'has-badge' : ''}">${name}${badges}</span>`;
+    });
     const extPausedEntities = op.externally_paused_entities || [];
     const isPaused = op.paused || extPausedEntities.length > 0;
 
     return html`
-      <div class="running-op-card ${isPaused ? 'op-paused' : ''}">
-        <div class="running-op-info">
-          <ha-icon class="running-op-icon" icon="${preset.icon || 'mdi:palette-swatch-variant'}"></ha-icon>
-          <div class="running-op-details">
-            <span class="running-op-name">${preset.name || this._localize('target.scene_button')}</span>
-            <span class="running-op-entity">
-              ${preset.name ? html`<span class="running-op-type">${this._localize('target.scene_button')}</span>` : ''}
-              <span class="running-op-entity-name">${entityNames}</span>
-              ${op.paused ? html`<span class="running-op-status paused-text">${this._localize('target.paused')}</span>` : ''}
-              ${extPausedEntities.length > 0
-                ? html`<span class="running-op-status externally-paused-text">
-                    ${this._localize('target.entities_externally_paused', { count: String(extPausedEntities.length) })}
-                  </span>`
-                : ''}
-            </span>
+      <div class="running-op-card scene-op-card ${isPaused ? 'op-paused' : ''}">
+        <div class="running-op-header">
+          <div class="running-op-info">
+            <ha-icon class="running-op-icon" icon="${preset.icon || 'mdi:palette-swatch-variant'}"></ha-icon>
+            <div class="running-op-details">
+              <span class="running-op-name">${preset.name || this._localize('target.scene_button')}</span>
+              <span class="running-op-entity">
+                ${preset.name ? html`<span class="running-op-type">${this._localize('target.scene_button')}</span>` : ''}
+                ${op.paused ? html`<span class="running-op-status paused-text">${this._localize('target.paused')}</span>` : ''}
+                ${extPausedEntities.length > 0
+                  ? html`<span class="running-op-status externally-paused-text">
+                      ${this._localize('target.entities_externally_paused', { count: String(extPausedEntities.length) })}
+                    </span>`
+                  : ''}
+              </span>
+            </div>
+          </div>
+          <div class="running-op-actions">
+            ${extPausedEntities.length > 0
+              ? html`
+                  <ha-icon-button
+                    .label=${this._localize('target.resume_control')}
+                    @click=${() => this._resumeSceneEntities(extPausedEntities)}
+                  >
+                    <ha-icon icon="mdi:play-circle-outline"></ha-icon>
+                  </ha-icon-button>
+                `
+              : ''}
+            <ha-icon-button
+              .label=${op.paused ? this._localize('target.resume') : this._localize('target.pause')}
+              @click=${() => this._toggleScenePause(op)}
+            >
+              <ha-icon icon="mdi:${op.paused ? 'play' : 'pause'}"></ha-icon>
+            </ha-icon-button>
+            <ha-icon-button
+              .label=${this._localize('target.stop')}
+              @click=${() => this._stopRunningScene(op)}
+            >
+              <ha-icon icon="mdi:stop"></ha-icon>
+            </ha-icon-button>
           </div>
         </div>
-        <div class="running-op-actions">
-          ${extPausedEntities.length > 0
-            ? html`
-                <ha-icon-button
-                  .label=${this._localize('target.resume_control')}
-                  @click=${() => this._resumeSceneEntities(extPausedEntities)}
-                >
-                  <ha-icon icon="mdi:play-circle-outline"></ha-icon>
-                </ha-icon-button>
-              `
-            : ''}
-          <ha-icon-button
-            .label=${op.paused ? this._localize('target.resume') : this._localize('target.pause')}
-            @click=${() => this._toggleScenePause(op)}
-          >
-            <ha-icon icon="mdi:${op.paused ? 'play' : 'pause'}"></ha-icon>
-          </ha-icon-button>
-          <ha-icon-button
-            .label=${this._localize('target.stop')}
-            @click=${() => this._stopRunningScene(op)}
-          >
-            <ha-icon icon="mdi:stop"></ha-icon>
-          </ha-icon-button>
+        <div class="entity-chip-list">
+          ${entityChips}
         </div>
       </div>
     `;
@@ -5180,6 +5205,30 @@ export class AqaraPanel extends LitElement {
         </div>
       </ha-expansion-panel>
 
+      <!-- Generic Lights Section -->
+      <ha-expansion-panel
+        outlined
+        .expanded=${this._collapsed['generic_lights'] === undefined ? false : !this._collapsed['generic_lights']}
+        @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange('generic_lights', e)}
+      >
+        <div slot="header" class="section-header">
+          <div>
+            <div class="section-title">${this._localize('config.generic_lights_title')}</div>
+            <div class="section-subtitle">${this._localize('config.generic_lights_subtitle')}</div>
+          </div>
+        </div>
+        <div class="section-content" style="display: block; padding: 16px;">
+          <p style="margin: 0 0 16px 0; font-size: var(--ha-font-size-s, 12px); color: var(--secondary-text-color);">${this._localize('config.software_transitions_description')}</p>
+          <ha-selector
+            .hass=${this.hass}
+            .selector=${{ entity: { domain: 'light', multiple: true } }}
+            .value=${this._softwareTransitionEntities}
+            .label=${this._localize('config.software_transitions_label')}
+            @value-changed=${this._softwareTransitionEntitiesChanged}
+          ></ha-selector>
+        </div>
+      </ha-expansion-panel>
+
       ${!hasSelection
         ? html`
             <ha-card class="controls">
@@ -5458,7 +5507,13 @@ export class AqaraPanel extends LitElement {
         : ''}
 
       ${hasSegmentDevice ? this._renderSegmentZonesSection() : ''}
+
     `;
+  }
+
+  private _softwareTransitionEntitiesChanged(e: CustomEvent): void {
+    this._softwareTransitionEntities = e.detail.value || [];
+    this._saveGlobalPreferences();
   }
 
   private _renderSegmentZonesSection() {

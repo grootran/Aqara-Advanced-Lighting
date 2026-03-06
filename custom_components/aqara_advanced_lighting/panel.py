@@ -999,11 +999,24 @@ class GlobalPreferencesView(HomeAssistantView):
                 )
             ignore_external_changes = data["ignore_external_changes"]
 
-        if ignore_external_changes is None:
+        software_transition_entities = None
+        if "software_transition_entities" in data:
+            entities = data["software_transition_entities"]
+            if not isinstance(entities, list) or not all(
+                isinstance(e, str) for e in entities
+            ):
+                return web.Response(
+                    status=400,
+                    text="software_transition_entities must be a list of strings",
+                )
+            software_transition_entities = entities
+
+        if ignore_external_changes is None and software_transition_entities is None:
             return web.json_response(store.get_global_preferences())
 
         preferences = await store.update_global_preferences(
             ignore_external_changes=ignore_external_changes,
+            software_transition_entities=software_transition_entities,
         )
         return web.json_response(preferences)
 
@@ -1799,6 +1812,7 @@ class RunningOperationsView(HomeAssistantView):
                             "preset_id": scene_info.preset_name,
                             "paused": scene_info.paused,
                             "externally_paused_entities": ext_paused_entities,
+                            "entity_capabilities": scene_info.entity_capabilities,
                         }
                     )
 

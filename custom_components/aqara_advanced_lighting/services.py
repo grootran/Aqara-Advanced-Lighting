@@ -879,28 +879,6 @@ def _is_valid_light_entity(hass: HomeAssistant, entity_id: str) -> bool:
     return state is not None and state.domain == "light"
 
 
-_RGB_COLOR_MODES = {"xy", "hs", "rgb", "rgbw", "rgbww"}
-
-
-def _has_rgb_color_mode(hass: HomeAssistant, entity_id: str) -> bool:
-    """Check if a light entity supports RGB color modes.
-
-    Args:
-        hass: Home Assistant instance
-        entity_id: Entity ID to check
-
-    Returns:
-        True if entity supports at least one RGB color mode
-    """
-    state = hass.states.get(entity_id)
-    if state is None:
-        return False
-    color_modes = state.attributes.get("supported_color_modes")
-    if not isinstance(color_modes, list):
-        return False
-    return bool(_RGB_COLOR_MODES.intersection(color_modes))
-
-
 def _get_any_cct_manager(
     hass: HomeAssistant,
 ) -> tuple[Any, StateManager] | None:
@@ -3116,24 +3094,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 translation_key="unsupported_entities",
                 translation_placeholders={"entity_list": ", ".join(entity_ids)},
             )
-
-        # Dynamic scenes require RGB color capability (xy_color commands)
-        rgb_entity_ids = [
-            eid for eid in valid_entity_ids if _has_rgb_color_mode(hass, eid)
-        ]
-        if not rgb_entity_ids:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="no_rgb_entities",
-                translation_placeholders={"entity_list": ", ".join(valid_entity_ids)},
-            )
-        if len(rgb_entity_ids) < len(valid_entity_ids):
-            skipped = set(valid_entity_ids) - set(rgb_entity_ids)
-            _LOGGER.info(
-                "Skipping CCT-only entities for dynamic scene: %s",
-                ", ".join(skipped),
-            )
-        valid_entity_ids = rgb_entity_ids
 
         manager = _get_dynamic_scene_manager(hass)
 

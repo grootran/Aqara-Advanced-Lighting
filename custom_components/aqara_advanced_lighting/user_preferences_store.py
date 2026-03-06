@@ -54,10 +54,12 @@ class GlobalPreferences(TypedDict):
     """Integration-wide preferences (not per-user)."""
 
     ignore_external_changes: bool
+    software_transition_entities: list[str]
 
 
 DEFAULT_GLOBAL_PREFERENCES: GlobalPreferences = {
     "ignore_external_changes": False,
+    "software_transition_entities": [],
 }
 
 
@@ -79,6 +81,9 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
                 self._global_data = {
                     "ignore_external_changes": raw_global.get(
                         "ignore_external_changes", False
+                    ),
+                    "software_transition_entities": raw_global.get(
+                        "software_transition_entities", []
                     ),
                 }
             else:
@@ -243,6 +248,7 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
     async def update_global_preferences(
         self,
         ignore_external_changes: bool | None = None,
+        software_transition_entities: list[str] | None = None,
     ) -> GlobalPreferences:
         """Update integration-wide global preferences.
 
@@ -250,6 +256,9 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
         """
         if ignore_external_changes is not None:
             self._global_data["ignore_external_changes"] = ignore_external_changes
+
+        if software_transition_entities is not None:
+            self._global_data["software_transition_entities"] = software_transition_entities
 
         await self.async_save()
         _LOGGER.debug("Updated global preferences")
