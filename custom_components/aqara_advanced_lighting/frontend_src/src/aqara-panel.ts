@@ -111,6 +111,8 @@ export class AqaraPanel extends LitElement {
   @state() private _curvatureApplied = false;
   @state() private _isExporting = false;
   @state() private _isImporting = false;
+  @state() private _isSelectMode = false;
+  @state() private _selectedPresetIds: Set<string> = new Set();
   @state() private _favoritePresets: FavoritePresetRef[] = [];
   @state() private _runningOperations: RunningOperation[] = [];
   @state() private _musicSyncEnabled = false;
@@ -1278,6 +1280,9 @@ export class AqaraPanel extends LitElement {
   private _setActiveTab(tab: PanelTab): void {
     if (tab !== this._activeTab) {
       this._cacheCurrentEditorDraft();
+      if (this._isSelectMode) {
+        this._exitSelectMode();
+      }
     }
     this._activeTab = tab;
   }
@@ -1289,6 +1294,9 @@ export class AqaraPanel extends LitElement {
     }
     if (newTab !== this._activeTab) {
       this._cacheCurrentEditorDraft();
+      if (this._isSelectMode) {
+        this._exitSelectMode();
+      }
       this._activeTab = newTab;
     }
   }
@@ -2735,11 +2743,11 @@ export class AqaraPanel extends LitElement {
           <ha-tab-group-tab slot="nav" panel="segments" .active=${this._activeTab === 'segments'}>
             ${this._localize('tabs.segments')}
           </ha-tab-group-tab>
-          <ha-tab-group-tab slot="nav" panel="presets" .active=${this._activeTab === 'presets'}>
-            ${this._localize('tabs.presets')}
-          </ha-tab-group-tab>
           <ha-tab-group-tab slot="nav" panel="config" .active=${this._activeTab === 'config'}>
             ${this._localize('tabs.config')}
+          </ha-tab-group-tab>
+          <ha-tab-group-tab slot="nav" panel="presets" .active=${this._activeTab === 'presets'}>
+            ${this._localize('tabs.presets')}
           </ha-tab-group-tab>
         </ha-tab-group>
       </div>
@@ -3696,6 +3704,104 @@ export class AqaraPanel extends LitElement {
     this._scenePreviewActive = false;
   }
 
+  private _enterSelectMode(): void {
+    this._selectedPresetIds = new Set();
+    this._isSelectMode = true;
+    this._presetEditModeId = null;
+  }
+
+  private _exitSelectMode(): void {
+    this._isSelectMode = false;
+    this._selectedPresetIds = new Set();
+  }
+
+  private _togglePresetSelection(id: string): void {
+    const next = new Set(this._selectedPresetIds);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    this._selectedPresetIds = next;
+  }
+
+  private _getAllPresetIds(): string[] {
+    if (!this._userPresets) return [];
+    return [
+      ...this._userPresets.effect_presets.map(p => p.id),
+      ...this._userPresets.segment_pattern_presets.map(p => p.id),
+      ...this._userPresets.cct_sequence_presets.map(p => p.id),
+      ...this._userPresets.segment_sequence_presets.map(p => p.id),
+      ...this._userPresets.dynamic_scene_presets.map(p => p.id),
+    ];
+  }
+
+  private _isAllSelected(): boolean {
+    const all = this._getAllPresetIds();
+    return all.length > 0 && all.every(id => this._selectedPresetIds.has(id));
+  }
+
+  private _toggleSelectAll(): void {
+    if (this._isAllSelected()) {
+      this._selectedPresetIds = new Set();
+    } else {
+      this._selectedPresetIds = new Set(this._getAllPresetIds());
+    }
+  }
+
+  private _handleExportSelected(): void {
+    if (!this._userPresets || this._selectedPresetIds.size === 0) return;
+
+    const ids = this._selectedPresetIds;
+    const filteredData = {
+      effect_presets: this._userPresets.effect_presets.filter(p => ids.has(p.id)),
+      segment_pattern_presets: this._userPresets.segment_pattern_presets.filter(p => ids.has(p.id)),
+      cct_sequence_presets: this._userPresets.cct_sequence_presets.filter(p => ids.has(p.id)),
+      segment_sequence_presets: this._userPresets.segment_sequence_presets.filter(p => ids.has(p.id)),
+      dynamic_scene_presets: this._userPresets.dynamic_scene_presets.filter(p => ids.has(p.id)),
+    };
+
+    const presetCounts = {
+      effect_presets: filteredData.effect_presets.length,
+      segment_pattern_presets: filteredData.segment_pattern_presets.length,
+      cct_sequence_presets: filteredData.cct_sequence_presets.length,
+      segment_sequence_presets: filteredData.segment_sequence_presets.length,
+      dynamic_scene_presets: filteredData.dynamic_scene_presets.length,
+    };
+
+    const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+
+    const exportPayload = {
+      version: 1,
+      timestamp,
+      preset_counts: presetCounts,
+      data: filteredData,
+    };
+
+    const blob = new Blob(
+      [JSON.stringify(exportPayload, null, 2)],
+      { type: 'application/json' },
+    );
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `aqara_presets_selected_${timestamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+
+    const exportedCount = this._selectedPresetIds.size;
+    this._exitSelectMode();
+    this._showToast(
+      this._localize('presets.export_selected_success', {
+        count: exportedCount.toString(),
+      }),
+    );
+  }
+
   private async _handleExportPresets(): Promise<void> {
     this._isExporting = true;
     this.requestUpdate();
@@ -3832,27 +3938,63 @@ export class AqaraPanel extends LitElement {
           </div>
         </div>
         <div class="section-content preset-management-content">
-          <div class="toolbar-actions">
-            <ha-button
-              @click=${this._handleExportPresets}
-              .disabled=${this._isExporting || this._isImporting}
-            >
-              <ha-icon icon="mdi:download" slot="icon"></ha-icon>
-              ${this._isExporting
-                ? this._localize('presets.export_progress')
-                : this._localize('presets.export_button')}
-            </ha-button>
+          ${this._isSelectMode
+            ? html`
+              <div class="toolbar-actions toolbar-select-mode">
+                <ha-button @click=${() => this._exitSelectMode()}>
+                  <ha-icon icon="mdi:close" slot="icon"></ha-icon>
+                  ${this._localize('presets.select_cancel')}
+                </ha-button>
+                <ha-button @click=${() => this._toggleSelectAll()}>
+                  <ha-icon icon=${this._isAllSelected()
+                    ? 'mdi:checkbox-multiple-blank-outline'
+                    : 'mdi:checkbox-multiple-outline'} slot="icon"></ha-icon>
+                  ${this._isAllSelected()
+                    ? this._localize('presets.deselect_all')
+                    : this._localize('presets.select_all')}
+                </ha-button>
+                <ha-button
+                  @click=${() => this._handleExportSelected()}
+                  .disabled=${this._selectedPresetIds.size === 0}
+                >
+                  <ha-icon icon="mdi:download" slot="icon"></ha-icon>
+                  ${this._localize('presets.export_selected_button', {
+                    count: this._selectedPresetIds.size.toString(),
+                  })}
+                </ha-button>
+              </div>
+            `
+            : html`
+              <div class="toolbar-actions">
+                <ha-button
+                  @click=${this._handleExportPresets}
+                  .disabled=${this._isExporting || this._isImporting}
+                >
+                  <ha-icon icon="mdi:download" slot="icon"></ha-icon>
+                  ${this._isExporting
+                    ? this._localize('presets.export_progress')
+                    : this._localize('presets.export_button')}
+                </ha-button>
 
-            <ha-button
-              @click=${this._handleImportClick}
-              .disabled=${this._isExporting || this._isImporting}
-            >
-              <ha-icon icon="mdi:upload" slot="icon"></ha-icon>
-              ${this._isImporting
-                ? this._localize('presets.import_progress')
-                : this._localize('presets.import_button')}
-            </ha-button>
-          </div>
+                <ha-button
+                  @click=${this._handleImportClick}
+                  .disabled=${this._isExporting || this._isImporting}
+                >
+                  <ha-icon icon="mdi:upload" slot="icon"></ha-icon>
+                  ${this._isImporting
+                    ? this._localize('presets.import_progress')
+                    : this._localize('presets.import_button')}
+                </ha-button>
+
+                <ha-button
+                  @click=${() => this._enterSelectMode()}
+                  .disabled=${totalCount === 0 || this._isExporting || this._isImporting}
+                >
+                  <ha-icon icon="mdi:checkbox-multiple-marked-outline" slot="icon"></ha-icon>
+                  ${this._localize('presets.select_button')}
+                </ha-button>
+              </div>
+            `}
         </div>
       </ha-expansion-panel>
 
@@ -4004,6 +4146,7 @@ export class AqaraPanel extends LitElement {
   }
 
   /** Render a single user preset card with action buttons. */
+  /** Render a single user preset card with action buttons or selection checkbox. */
   private _renderPresetCard<T extends { id: string; name: string }>(
     preset: T,
     onEdit: (preset: T) => void,
@@ -4011,6 +4154,30 @@ export class AqaraPanel extends LitElement {
     renderIcon: (preset: T) => unknown,
     onDuplicate: (preset: T) => void,
   ) {
+    if (this._isSelectMode) {
+      const isSelected = this._selectedPresetIds.has(preset.id);
+      return html`
+        <div
+          class="user-preset-card select-mode ${isSelected ? 'selected' : ''}"
+          title="${preset.name}"
+          aria-label="${preset.name}"
+          aria-pressed="${isSelected}"
+          @click=${() => this._togglePresetSelection(preset.id)}
+        >
+          <div class="preset-select-checkbox">
+            <ha-icon icon=${isSelected
+              ? 'mdi:checkbox-marked'
+              : 'mdi:checkbox-blank-outline'}
+            ></ha-icon>
+          </div>
+          <div class="preset-icon">
+            ${renderIcon(preset)}
+          </div>
+          <div class="preset-name">${preset.name}</div>
+        </div>
+      `;
+    }
+
     const isEditMode = this._presetEditModeId === preset.id;
     return html`
       <div

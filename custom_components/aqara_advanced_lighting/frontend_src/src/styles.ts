@@ -1376,6 +1376,48 @@ export const panelStyles = css`
     color: var(--accent-color, #ffc107);
   }
 
+  /* Select mode checkbox overlay on preset cards */
+  .preset-select-checkbox {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    z-index: 2;
+    --mdc-icon-size: 20px;
+    color: var(--secondary-text-color);
+    line-height: 0;
+  }
+
+  .user-preset-card.selected {
+    border-color: var(--primary-color);
+    background: color-mix(in srgb, var(--primary-color) 12%, var(--card-background-color, var(--ha-card-background, white)));
+  }
+
+  .user-preset-card.selected .preset-select-checkbox {
+    color: var(--primary-color);
+  }
+
+  .user-preset-card.select-mode:hover {
+    transform: none;
+    box-shadow: none;
+  }
+
+  .user-preset-card.select-mode:hover::before {
+    opacity: 0.05;
+  }
+
+  .user-preset-card.select-mode {
+    cursor: pointer;
+  }
+
+  /* Select mode toolbar highlight */
+  .toolbar-select-mode {
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    background: color-mix(in srgb, var(--primary-color) 8%, var(--card-background-color, var(--ha-card-background, white)));
+    border-radius: var(--ha-card-border-radius, 12px);
+    border: 1px solid var(--primary-color);
+  }
+
   /* Music sync section */
   .music-sync-content {
     display: grid;
