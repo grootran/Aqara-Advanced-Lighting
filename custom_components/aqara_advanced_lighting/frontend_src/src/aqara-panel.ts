@@ -124,6 +124,8 @@ export class AqaraPanel extends LitElement {
   private _translations: Translations = PANEL_TRANSLATIONS;
   private _fileInputRef: HTMLInputElement | null = null;
   private _eventUnsubscribers: Array<() => void> = [];
+  private _runningOpsDebounceTimer?: ReturnType<typeof setTimeout>;
+  private _runningOpsFetchId = 0;
 
   private _tileCardRef: Ref<HTMLElement> = createRef();
   private _tileCards: Map<string, HaTileCard> = new Map();
@@ -192,6 +194,10 @@ export class AqaraPanel extends LitElement {
     if (this._preferencesSaveTimer !== undefined) {
       clearTimeout(this._preferencesSaveTimer);
       this._preferencesSaveTimer = undefined;
+    }
+    if (this._runningOpsDebounceTimer !== undefined) {
+      clearTimeout(this._runningOpsDebounceTimer);
+      this._runningOpsDebounceTimer = undefined;
     }
     this._stopSetupPolling();
     this._tileCards.clear();
@@ -743,13 +749,26 @@ export class AqaraPanel extends LitElement {
     }
   }
 
+  private _scheduleLoadRunningOperations(): void {
+    if (this._runningOpsDebounceTimer !== undefined) {
+      clearTimeout(this._runningOpsDebounceTimer);
+    }
+    this._runningOpsDebounceTimer = setTimeout(() => {
+      this._runningOpsDebounceTimer = undefined;
+      this._loadRunningOperations();
+    }, 100);
+  }
+
   private async _loadRunningOperations(): Promise<void> {
     if (!this.hass?.auth?.data?.access_token) return;
+    const fetchId = ++this._runningOpsFetchId;
     try {
       const response = await fetch('/api/aqara_advanced_lighting/running_operations', {
         headers: { Authorization: `Bearer ${this.hass.auth.data.access_token}` },
       });
       if (!response.ok) return;
+      // Discard stale responses from earlier fetches
+      if (fetchId !== this._runningOpsFetchId) return;
       const data: RunningOperationsResponse = await response.json();
       this._runningOperations = data.operations || [];
 
@@ -797,7 +816,7 @@ export class AqaraPanel extends LitElement {
     for (const eventType of eventTypes) {
       try {
         const unsub = await this.hass.connection.subscribeEvents(
-          () => { this._loadRunningOperations(); },
+          () => { this._scheduleLoadRunningOperations(); },
           eventType,
         );
         this._eventUnsubscribers.push(unsub);
@@ -2052,6 +2071,7 @@ export class AqaraPanel extends LitElement {
     }
 
     await this.hass.callService('aqara_advanced_lighting', 'set_dynamic_effect', serviceData);
+    await this._loadRunningOperations();
   }
 
   private async _activateSegmentPattern(preset: SegmentPatternPreset): Promise<void> {
@@ -2070,6 +2090,7 @@ export class AqaraPanel extends LitElement {
     }
 
     await this.hass.callService('aqara_advanced_lighting', 'set_segment_pattern', serviceData);
+    await this._loadRunningOperations();
   }
 
   private async _activateCCTSequence(preset: CCTSequencePreset): Promise<void> {
@@ -2081,6 +2102,7 @@ export class AqaraPanel extends LitElement {
       turn_on: true,
       sync: true,
     });
+    await this._loadRunningOperations();
   }
 
   private async _activateSegmentSequence(preset: SegmentSequencePreset): Promise<void> {
@@ -2092,6 +2114,7 @@ export class AqaraPanel extends LitElement {
       turn_on: true,
       sync: true,
     });
+    await this._loadRunningOperations();
   }
 
   private async _activateDynamicScene(preset: DynamicScenePreset): Promise<void> {
@@ -2134,6 +2157,7 @@ export class AqaraPanel extends LitElement {
     }
 
     await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
+    await this._loadRunningOperations();
   }
 
   // --- Running operations rendering and actions ---
@@ -2521,6 +2545,7 @@ export class AqaraPanel extends LitElement {
     }
 
     await this.hass.callService('aqara_advanced_lighting', 'set_dynamic_effect', serviceData);
+    await this._loadRunningOperations();
   }
 
   private async _activateUserPatternPreset(preset: UserSegmentPatternPreset): Promise<void> {
@@ -2559,6 +2584,7 @@ export class AqaraPanel extends LitElement {
 
     try {
       await this.hass.callService('aqara_advanced_lighting', 'set_segment_pattern', serviceData);
+      await this._loadRunningOperations();
     } catch (err) {
       console.error('Failed to activate pattern preset:', err);
     }
@@ -2593,6 +2619,7 @@ export class AqaraPanel extends LitElement {
     });
 
     await this.hass.callService('aqara_advanced_lighting', 'start_cct_sequence', serviceData);
+    await this._loadRunningOperations();
   }
 
   private async _activateUserSegmentSequencePreset(preset: UserSegmentSequencePreset): Promise<void> {
@@ -2634,6 +2661,7 @@ export class AqaraPanel extends LitElement {
     });
 
     await this.hass.callService('aqara_advanced_lighting', 'start_segment_sequence', serviceData);
+    await this._loadRunningOperations();
   }
 
   private async _activateUserDynamicScenePreset(preset: UserDynamicScenePreset): Promise<void> {
@@ -2676,6 +2704,7 @@ export class AqaraPanel extends LitElement {
     }
 
     await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
+    await this._loadRunningOperations();
   }
 
   protected render() {
