@@ -9,8 +9,10 @@ service calls from external changes.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
+from collections.abc import Callable, Coroutine
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.const import STATE_OFF
@@ -53,6 +55,59 @@ def _state_attributes_equal(old_state: State, new_state: State) -> bool:
     return True
 
 
+class AutoResumeTimer:
+    """Cancellable single-shot timer for automatic resume after manual override."""
+
+    def __init__(
+        self,
+        delay: float,
+        callback: Callable[[], Coroutine[Any, Any, Any]],
+    ) -> None:
+        """Initialize the timer."""
+        self.delay = delay
+        self._callback: Callable[[], Coroutine[Any, Any, Any]] | None = callback
+        self.start_time: float = 0
+        self._task: asyncio.Task[None] | None = None
+
+    @property
+    def is_running(self) -> bool:
+        """Check if the timer is currently running."""
+        return self._task is not None and not self._task.done()
+
+    @property
+    def remaining(self) -> float:
+        """Get remaining seconds until the timer fires."""
+        if not self.is_running:
+            return 0
+        return max(0.0, self.delay - (time.monotonic() - self.start_time))
+
+    def start(self) -> None:
+        """Start or restart the timer."""
+        self.cancel_task()
+        self.start_time = time.monotonic()
+        self._task = asyncio.ensure_future(self._run())
+
+    def cancel(self) -> None:
+        """Cancel the timer and prevent callback execution."""
+        self.cancel_task()
+        self._callback = None
+
+    def cancel_task(self) -> None:
+        """Cancel the running task without clearing the callback."""
+        if self._task and not self._task.done():
+            self._task.cancel()
+        self._task = None
+
+    async def _run(self) -> None:
+        """Wait for the delay then execute the callback."""
+        try:
+            await asyncio.sleep(self.delay)
+            if self._callback:
+                await self._callback()
+        except asyncio.CancelledError:
+            pass
+
+
 class EntityController:
     """Centralized controller for entity conflict resolution and external change detection.
 
@@ -66,6 +121,7 @@ class EntityController:
         self._externally_paused: set[str] = set()
         self._pending_restore: set[str] = set()
         self._last_command_time: dict[str, float] = {}
+        self._auto_resume_timers: dict[str, AutoResumeTimer] = {}
         self._state_listener_remove: Any | None = None
 
     def setup(self) -> None:
@@ -147,6 +203,16 @@ class EntityController:
                 )
                 return
 
+            # Already paused — restart auto-resume timer if running
+            if entity_id in self._externally_paused:
+                timer = self._auto_resume_timers.get(entity_id)
+                if timer and timer.is_running:
+                    _LOGGER.debug(
+                        "Restarting auto-resume timer for %s", entity_id
+                    )
+                    timer.start()
+                return
+
             # Attribute change (brightness, color, etc.) - pause entity
             _LOGGER.info(
                 "External change detected on %s, pausing entity control",
@@ -203,6 +269,8 @@ class EntityController:
         """
         self._externally_paused.discard(entity_id)
         self._pending_restore.discard(entity_id)
+        if timer := self._auto_resume_timers.pop(entity_id, None):
+            timer.cancel()
 
         for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():
             # Clear effect/pattern active flag in state manager
@@ -246,6 +314,10 @@ class EntityController:
 
         self._externally_paused.discard(entity_id)
 
+        # Cancel auto-resume timer (manual or automatic resume)
+        if timer := self._auto_resume_timers.pop(entity_id, None):
+            timer.cancel()
+
         # Resume in the controlling manager
         for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():
             dsm: DynamicSceneManager | None = instance_data.get(
@@ -285,6 +357,8 @@ class EntityController:
         self._externally_paused.discard(entity_id)
         self._pending_restore.discard(entity_id)
         self._last_command_time.pop(entity_id, None)
+        if timer := self._auto_resume_timers.pop(entity_id, None):
+            timer.cancel()
 
     def cleanup(self) -> None:
         """Remove listener and clear state.
@@ -297,6 +371,9 @@ class EntityController:
         self._externally_paused.clear()
         self._pending_restore.clear()
         self._last_command_time.clear()
+        for timer in self._auto_resume_timers.values():
+            timer.cancel()
+        self._auto_resume_timers.clear()
         _LOGGER.debug("Entity controller cleaned up")
 
     def _is_entity_controlled(self, entity_id: str) -> bool:
@@ -332,12 +409,49 @@ class EntityController:
 
         return False
 
+    def get_auto_resume_remaining(self, entity_id: str) -> float | None:
+        """Get remaining seconds on the auto-resume timer for an entity.
+
+        Returns None if no timer is running.
+        """
+        timer = self._auto_resume_timers.get(entity_id)
+        if timer and timer.is_running:
+            return timer.remaining
+        return None
+
+    def _get_solar_auto_resume_delay(self, entity_id: str) -> float:
+        """Get the per-preset auto-resume delay for a solar sequence entity.
+
+        Returns 0 if the entity is not running a solar sequence or the
+        preset has no auto-resume configured.
+        """
+        for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():
+            cct: CCTSequenceManager | None = instance_data.get(
+                DATA_CCT_SEQUENCE_MANAGER
+            )
+            if cct and cct.is_solar_sequence(entity_id):
+                return cct.get_auto_resume_delay(entity_id)
+        return 0
+
     def _pause_entity(self, entity_id: str) -> None:
         """Pause control of a single entity due to external change."""
         if entity_id in self._externally_paused:
             return
 
         self._externally_paused.add(entity_id)
+
+        # Start auto-resume timer only for solar sequences with a per-preset delay
+        delay = self._get_solar_auto_resume_delay(entity_id)
+        if delay > 0:
+            timer = AutoResumeTimer(
+                delay,
+                lambda eid=entity_id: self.resume_entity(eid),
+            )
+            self._auto_resume_timers[entity_id] = timer
+            timer.start()
+            _LOGGER.debug(
+                "Auto-resume timer started for %s (%.0fs)", entity_id, delay
+            )
 
         # Pause in the controlling manager
         for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():

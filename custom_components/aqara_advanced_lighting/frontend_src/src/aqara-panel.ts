@@ -2136,6 +2136,14 @@ export class AqaraPanel extends LitElement {
     return (state?.attributes?.friendly_name as string) || entityId;
   }
 
+  private _formatAutoResumeRemaining(seconds: number): string {
+    if (seconds >= 60) {
+      const mins = Math.ceil(seconds / 60);
+      return `${mins}m`;
+    }
+    return `${seconds}s`;
+  }
+
   private _resolvePresetInfo(presetId: string | null): { name: string | null; icon: string | null } {
     if (!presetId) return { name: null, icon: null };
 
@@ -2310,7 +2318,7 @@ export class AqaraPanel extends LitElement {
               ${preset.name ? html`<span class="running-op-type">${typeLabel}</span>` : ''}
               <span class="running-op-entity-name">${entityName}</span>
               ${op.paused ? html`<span class="running-op-status paused-text">${this._localize('target.paused')}</span>` : ''}
-              ${op.externally_paused ? html`<span class="running-op-status externally-paused-text">${this._localize('target.externally_paused')}</span>` : ''}
+              ${op.externally_paused ? html`<span class="running-op-status externally-paused-text">${this._localize('target.externally_paused')}${op.auto_resume_remaining ? html` (${this._formatAutoResumeRemaining(op.auto_resume_remaining)})` : ''}</span>` : ''}
             </span>
           </div>
         </div>
@@ -2703,6 +2711,18 @@ export class AqaraPanel extends LitElement {
 
   private async _activateUserCCTSequencePreset(preset: UserCCTSequencePreset): Promise<void> {
     if (!this._selectedEntities.length) return;
+
+    // Solar presets are resolved by name on the backend
+    if (preset.mode === 'solar') {
+      await this.hass.callService('aqara_advanced_lighting', 'start_cct_sequence', {
+        entity_id: this._selectedEntities,
+        preset: preset.name,
+        turn_on: true,
+        sync: true,
+      });
+      await this._loadRunningOperations();
+      return;
+    }
 
     const serviceData: Record<string, unknown> = {
       entity_id: this._selectedEntities,

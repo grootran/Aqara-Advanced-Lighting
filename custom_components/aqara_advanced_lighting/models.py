@@ -454,6 +454,7 @@ class CCTSequence:
     skip_first_in_loop: bool = False  # Skip first step when looping (after first iteration)
     mode: str = "standard"  # "standard" or "solar"
     solar_steps: list[SolarStep] = field(default_factory=list)
+    auto_resume_delay: float = 0  # Seconds before auto-resuming after external override (solar only, 0 = disabled)
 
     def __post_init__(self) -> None:
         """Validate sequence parameters."""

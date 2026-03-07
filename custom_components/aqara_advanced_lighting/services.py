@@ -193,7 +193,10 @@ def _get_context_and_record(hass: HomeAssistant, entity_id: str) -> Context | No
     return None
 
 
-def _build_solar_sequence(solar_steps_data: list[dict[str, Any]]) -> CCTSequence:
+def _build_solar_sequence(
+    solar_steps_data: list[dict[str, Any]],
+    auto_resume_delay: float = 0,
+) -> CCTSequence:
     """Build a solar CCTSequence from raw step data."""
     solar_steps = [
         SolarStep(
@@ -210,6 +213,7 @@ def _build_solar_sequence(solar_steps_data: list[dict[str, Any]]) -> CCTSequence
         end_behavior="maintain",
         mode="solar",
         solar_steps=solar_steps,
+        auto_resume_delay=max(0, auto_resume_delay),
     )
 
 
@@ -2299,10 +2303,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
             if user_preset:
                 if user_preset.get("mode") == CCT_MODE_SOLAR:
-                    # Solar user preset - pass through as-is
+                    # Solar user preset - pass through solar fields
                     preset_data = {
                         "mode": CCT_MODE_SOLAR,
                         "solar_steps": user_preset.get("solar_steps", []),
+                        "auto_resume_delay": user_preset.get("auto_resume_delay", 0),
                     }
                     if not preset_data["solar_steps"]:
                         raise ServiceValidationError(
@@ -2371,7 +2376,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             # Check if this is a solar mode preset
             if preset_data.get("mode") == CCT_MODE_SOLAR:
                 solar_steps_data = preset_data.get("solar_steps", [])
-                sequence = _build_solar_sequence(solar_steps_data)
+                sequence = _build_solar_sequence(
+                    solar_steps_data,
+                    auto_resume_delay=preset_data.get("auto_resume_delay", 0),
+                )
             else:
                 # Create CCTSequenceStep objects from preset step data
                 sequence_steps = []

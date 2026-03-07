@@ -1015,7 +1015,10 @@ class GlobalPreferencesView(HomeAssistantView):
                 )
             software_transition_entities = entities
 
-        if ignore_external_changes is None and software_transition_entities is None:
+        if (
+            ignore_external_changes is None
+            and software_transition_entities is None
+        ):
             return web.json_response(store.get_global_preferences())
 
         preferences = await store.update_global_preferences(
@@ -1763,18 +1766,24 @@ class RunningOperationsView(HomeAssistantView):
                         if entity_controller
                         else False
                     )
-                    operations.append(
-                        {
-                            "type": "cct_sequence",
-                            "entity_id": entity_id,
-                            "preset_id": cct_mgr.get_sequence_preset(entity_id),
-                            "paused": status.get("paused", False),
-                            "externally_paused": ext_paused,
-                            "current_step": status.get("current_step", 0),
-                            "total_steps": status.get("total_steps", 0),
-                            "mode": "solar" if cct_mgr.is_solar_sequence(entity_id) else "standard",
-                        }
+                    auto_resume = (
+                        entity_controller.get_auto_resume_remaining(entity_id)
+                        if entity_controller and ext_paused
+                        else None
                     )
+                    op_data: dict[str, Any] = {
+                        "type": "cct_sequence",
+                        "entity_id": entity_id,
+                        "preset_id": cct_mgr.get_sequence_preset(entity_id),
+                        "paused": status.get("paused", False),
+                        "externally_paused": ext_paused,
+                        "current_step": status.get("current_step", 0),
+                        "total_steps": status.get("total_steps", 0),
+                        "mode": "solar" if cct_mgr.is_solar_sequence(entity_id) else "standard",
+                    }
+                    if auto_resume is not None:
+                        op_data["auto_resume_remaining"] = round(auto_resume)
+                    operations.append(op_data)
 
             # Segment sequences
             seg_mgr = instance_data.get(DATA_SEGMENT_SEQUENCE_MANAGER)
@@ -1786,17 +1795,15 @@ class RunningOperationsView(HomeAssistantView):
                         if entity_controller
                         else False
                     )
-                    operations.append(
-                        {
-                            "type": "segment_sequence",
-                            "entity_id": entity_id,
-                            "preset_id": seg_mgr.get_sequence_preset(entity_id),
-                            "paused": status.get("paused", False),
-                            "externally_paused": ext_paused,
-                            "current_step": status.get("current_step", 0),
-                            "total_steps": status.get("total_steps", 0),
-                        }
-                    )
+                    operations.append({
+                        "type": "segment_sequence",
+                        "entity_id": entity_id,
+                        "preset_id": seg_mgr.get_sequence_preset(entity_id),
+                        "paused": status.get("paused", False),
+                        "externally_paused": ext_paused,
+                        "current_step": status.get("current_step", 0),
+                        "total_steps": status.get("total_steps", 0),
+                    })
 
             # Dynamic scenes (grouped by scene, not per-entity)
             scene_mgr = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
@@ -1809,17 +1816,15 @@ class RunningOperationsView(HomeAssistantView):
                             for eid in scene_info.entity_ids
                             if entity_controller.is_entity_externally_paused(eid)
                         ]
-                    operations.append(
-                        {
-                            "type": "dynamic_scene",
-                            "scene_id": scene_id,
-                            "entity_ids": list(scene_info.entity_ids),
-                            "preset_id": scene_info.preset_name,
-                            "paused": scene_info.paused,
-                            "externally_paused_entities": ext_paused_entities,
-                            "entity_capabilities": scene_info.entity_capabilities,
-                        }
-                    )
+                    operations.append({
+                        "type": "dynamic_scene",
+                        "scene_id": scene_id,
+                        "entity_ids": list(scene_info.entity_ids),
+                        "preset_id": scene_info.preset_name,
+                        "paused": scene_info.paused,
+                        "externally_paused_entities": ext_paused_entities,
+                        "entity_capabilities": scene_info.entity_capabilities,
+                    })
 
             # Music sync (per-entity, firmware-managed)
             active_music_sync = instance_data.get(DATA_ACTIVE_MUSIC_SYNC, {})

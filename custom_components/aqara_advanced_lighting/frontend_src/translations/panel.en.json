@@ -335,6 +335,8 @@
     "phase_setting": "Setting",
     "phase_any": "Any",
     "solar_mode_hint": "Solar mode automatically adjusts color temperature and brightness based on sun position.",
+    "auto_resume_delay_label": "Auto-resume delay",
+    "auto_resume_delay_hint": "Seconds before automatically resuming after manual override (0 = manual only)",
     "solar_steps_label": "Solar steps (2-20)"
   },
   "color_history": {

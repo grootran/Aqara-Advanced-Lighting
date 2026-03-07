@@ -81,6 +81,10 @@ _ALLOWED_FIELDS: dict[str, set[str]] = {
         "loop_mode",
         "loop_count",
         "end_behavior",
+        "mode",
+        "solar_steps",
+        "skip_first_in_loop",
+        "auto_resume_delay",
     },
     PRESET_TYPE_SEGMENT_SEQUENCE: {
         "name",

@@ -268,6 +268,7 @@ export interface UserCCTSequencePreset {
   skip_first_in_loop?: boolean;
   mode?: string;
   solar_steps?: SolarStep[];
+  auto_resume_delay?: number;
   created_at: string;
   modified_at: string;
 }
@@ -417,6 +418,7 @@ export interface CCTEditorDraft {
   hasUserInteraction: boolean;
   mode: 'standard' | 'solar';
   solarSteps: SolarStep[];
+  autoResumeDelay: number;
 }
 
 export interface SegmentSequenceEditorDraft {
@@ -545,6 +547,8 @@ export interface RunningOperation {
   // Circadian/solar operation state
   current_color_temp?: number;
   current_brightness?: number;
+  // Auto-resume countdown (seconds remaining, present when externally paused)
+  auto_resume_remaining?: number;
 }
 
 export interface RunningOperationsResponse {

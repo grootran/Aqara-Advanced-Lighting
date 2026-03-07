@@ -57,6 +57,17 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
         """Check if the running sequence for an entity is solar mode."""
         return entity_id in self._solar_sequences
 
+    def get_auto_resume_delay(self, entity_id: str) -> float:
+        """Get the auto-resume delay for a running solar sequence.
+
+        Returns the per-preset delay in seconds, or 0 if not configured
+        or entity is not running a solar sequence.
+        """
+        seq_data = self._solar_sequences.get(entity_id)
+        if seq_data:
+            return seq_data.get("auto_resume_delay", 0)
+        return 0
+
     # -- BaseSequenceManager hooks --
 
     def _get_start_step(
@@ -215,7 +226,7 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
         preset: str | None,
     ) -> None:
         """Save a running solar sequence to persistent storage."""
-        self._solar_sequences[entity_id] = {
+        solar_data: dict[str, Any] = {
             "preset": preset,
             "solar_steps": [
                 {
@@ -227,6 +238,9 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
                 for s in sequence.solar_steps
             ],
         }
+        if sequence.auto_resume_delay > 0:
+            solar_data["auto_resume_delay"] = sequence.auto_resume_delay
+        self._solar_sequences[entity_id] = solar_data
         await self._solar_store.async_save(
             {"sequences": self._solar_sequences}
         )
@@ -295,6 +309,7 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
                     end_behavior="maintain",
                     mode="solar",
                     solar_steps=solar_steps,
+                    auto_resume_delay=seq_data.get("auto_resume_delay", 0),
                 )
                 await self.start_sequence(
                     entity_id, sequence, seq_data.get("preset")

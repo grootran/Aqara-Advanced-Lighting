@@ -37,6 +37,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
   @state() private _endBehavior = 'maintain';
   @state() private _skipFirstInLoop = false;
   @state() private _mode: 'standard' | 'solar' = 'standard';
+  @state() private _autoResumeDelay = 0;
   @state() private _solarSteps: EditableSolarStep[] = [];
   @state() private _saving = false;
   @state() private _previewing = false;
@@ -252,6 +253,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
 
     if (preset.mode === 'solar' && preset.solar_steps) {
       this._mode = 'solar';
+      this._autoResumeDelay = preset.auto_resume_delay || 0;
       this._solarSteps = preset.solar_steps.map((step, index) => ({
         ...step,
         id: `solar-${index}-${Date.now()}`,
@@ -284,6 +286,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
       hasUserInteraction: this._hasUserInteraction,
       mode: this._mode,
       solarSteps: this._solarSteps.map(({ id, ...step }) => step),
+      autoResumeDelay: this._autoResumeDelay,
     };
   }
 
@@ -295,6 +298,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
     this._loopCount = 3;
     this._endBehavior = 'maintain';
     this._skipFirstInLoop = false;
+    this._autoResumeDelay = 0;
     this._hasUserInteraction = false;
     this._solarSteps = [];
     this._addDefaultStep();
@@ -316,6 +320,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
       ...step,
       id: `solar-${index}-${Date.now()}`,
     }));
+    this._autoResumeDelay = draft.autoResumeDelay || 0;
     this._hasUserInteraction = draft.hasUserInteraction ?? false;
   }
 
@@ -357,6 +362,11 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
 
   private _handleEndBehaviorChange(e: CustomEvent): void {
     this._endBehavior = e.detail.value || 'maintain';
+    this._hasUserInteraction = true;
+  }
+
+  private _handleAutoResumeDelayChange(e: CustomEvent): void {
+    this._autoResumeDelay = Number(e.detail.value) || 0;
     this._hasUserInteraction = true;
   }
 
@@ -469,6 +479,9 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
       data.solar_steps = this._solarSteps.map(({ id, ...step }) => step);
       data.loop_mode = 'continuous';
       data.end_behavior = 'maintain';
+      if (this._autoResumeDelay > 0) {
+        data.auto_resume_delay = this._autoResumeDelay;
+      }
     } else {
       const steps = this._steps.map(({ id, ...step }) => step);
       data.steps = steps;
@@ -888,7 +901,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
           </div>
         </div>
 
-        <div class="form-row">
+        <div class="form-row-pair">
           <div class="form-field">
             <span class="form-label">${this._localize('editors.mode_label')}</span>
             <ha-selector
@@ -902,12 +915,28 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
               .value=${this._mode}
               @value-changed=${this._handleModeChange}
             ></ha-selector>
+            <span class="form-hint">${this._localize('editors.solar_mode_hint')}</span>
+          </div>
+          <div class="form-field">
+            <span class="form-label">${this._localize('editors.auto_resume_delay_label')}</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{
+                number: {
+                  min: 0,
+                  max: 3600,
+                  step: 1,
+                  unit_of_measurement: 's',
+                  mode: 'box',
+                },
+              }}
+              .value=${this._autoResumeDelay}
+              .disabled=${this._mode !== 'solar'}
+              @value-changed=${this._handleAutoResumeDelayChange}
+            ></ha-selector>
+            <span class="form-hint">${this._localize('editors.auto_resume_delay_hint')}</span>
           </div>
         </div>
-
-        ${this._mode === 'solar' ? html`
-          <div class="form-hint">${this._localize('editors.solar_mode_hint')}</div>
-        ` : ''}
 
         <div class="form-row-pair">
             <div class="form-field">
