@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -309,3 +309,99 @@ def test_service_pause_times_cleared_on_cleanup(controller):
     controller._service_pause_times["light.test"] = 100.0
     controller.cleanup()
     assert not controller._service_pause_times
+
+
+# -- Bare turn-on tests --
+
+
+def test_bare_turn_on_only_default_is_false(controller, mock_hass):
+    """bare_turn_on_only defaults to False when no store exists."""
+    assert controller._get_bare_turn_on_only() is False
+
+
+def test_bare_turn_on_only_reads_preference(controller, mock_hass):
+    """bare_turn_on_only reads from preferences store."""
+    store = MagicMock()
+    store.get_global_preference = MagicMock(side_effect=lambda k: {
+        "bare_turn_on_only": True,
+    }.get(k))
+    mock_hass.data[DOMAIN][DATA_USER_PREFERENCES_STORE] = store
+
+    assert controller._get_bare_turn_on_only() is True
+
+
+async def test_apply_solar_no_override_applies_both(controller, mock_hass):
+    """With no overrides, solar apply sends both color_temp and brightness."""
+    cct = MagicMock()
+    cct.is_solar_sequence = MagicMock(return_value=True)
+    cct.get_current_solar_values = MagicMock(return_value=(4000, 128))
+    mock_hass.data[DOMAIN]["entries"] = {
+        "entry1": {DATA_CCT_SEQUENCE_MANAGER: cct},
+    }
+    mock_hass.services.async_call = AsyncMock()
+
+    await controller._apply_solar_on_turn_on("light.test")
+
+    mock_hass.services.async_call.assert_called_once()
+    call_args = mock_hass.services.async_call.call_args
+    service_data = call_args[0][2]
+    assert "color_temp_kelvin" in service_data
+    assert "brightness" in service_data
+    assert service_data["color_temp_kelvin"] == 4000
+    assert service_data["brightness"] == 128
+
+
+async def test_apply_solar_brightness_overridden_applies_color_only(controller, mock_hass):
+    """With BRIGHTNESS overridden, solar apply sends only color_temp."""
+    cct = MagicMock()
+    cct.is_solar_sequence = MagicMock(return_value=True)
+    cct.get_current_solar_values = MagicMock(return_value=(4000, 128))
+    mock_hass.data[DOMAIN]["entries"] = {
+        "entry1": {DATA_CCT_SEQUENCE_MANAGER: cct},
+    }
+    mock_hass.services.async_call = AsyncMock()
+    controller._externally_paused["light.test"] = OverrideAttributes.BRIGHTNESS
+
+    await controller._apply_solar_on_turn_on("light.test")
+
+    mock_hass.services.async_call.assert_called_once()
+    call_args = mock_hass.services.async_call.call_args
+    service_data = call_args[0][2]
+    assert "color_temp_kelvin" in service_data
+    assert "brightness" not in service_data
+
+
+async def test_apply_solar_color_overridden_applies_brightness_only(controller, mock_hass):
+    """With COLOR overridden, solar apply sends only brightness."""
+    cct = MagicMock()
+    cct.is_solar_sequence = MagicMock(return_value=True)
+    cct.get_current_solar_values = MagicMock(return_value=(4000, 128))
+    mock_hass.data[DOMAIN]["entries"] = {
+        "entry1": {DATA_CCT_SEQUENCE_MANAGER: cct},
+    }
+    mock_hass.services.async_call = AsyncMock()
+    controller._externally_paused["light.test"] = OverrideAttributes.COLOR
+
+    await controller._apply_solar_on_turn_on("light.test")
+
+    mock_hass.services.async_call.assert_called_once()
+    call_args = mock_hass.services.async_call.call_args
+    service_data = call_args[0][2]
+    assert "brightness" in service_data
+    assert "color_temp_kelvin" not in service_data
+
+
+async def test_apply_solar_all_overridden_skips(controller, mock_hass):
+    """With ALL overridden, solar apply is skipped entirely."""
+    cct = MagicMock()
+    cct.is_solar_sequence = MagicMock(return_value=True)
+    cct.get_current_solar_values = MagicMock(return_value=(4000, 128))
+    mock_hass.data[DOMAIN]["entries"] = {
+        "entry1": {DATA_CCT_SEQUENCE_MANAGER: cct},
+    }
+    mock_hass.services.async_call = AsyncMock()
+    controller._externally_paused["light.test"] = OverrideAttributes.ALL
+
+    await controller._apply_solar_on_turn_on("light.test")
+
+    mock_hass.services.async_call.assert_not_called()

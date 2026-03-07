@@ -1024,10 +1024,19 @@ class GlobalPreferencesView(HomeAssistantView):
                     text="override_control_mode must be 'pause_all' or 'pause_changed'",
                 )
 
+        bare_turn_on_only = None
+        if "bare_turn_on_only" in data:
+            if not isinstance(data["bare_turn_on_only"], bool):
+                return web.Response(
+                    status=400, text="bare_turn_on_only must be a boolean"
+                )
+            bare_turn_on_only = data["bare_turn_on_only"]
+
         if (
             ignore_external_changes is None
             and software_transition_entities is None
             and override_control_mode is None
+            and bare_turn_on_only is None
         ):
             return web.json_response(store.get_global_preferences())
 
@@ -1035,6 +1044,7 @@ class GlobalPreferencesView(HomeAssistantView):
             ignore_external_changes=ignore_external_changes,
             software_transition_entities=software_transition_entities,
             override_control_mode=override_control_mode,
+            bare_turn_on_only=bare_turn_on_only,
         )
         return web.json_response(preferences)
 

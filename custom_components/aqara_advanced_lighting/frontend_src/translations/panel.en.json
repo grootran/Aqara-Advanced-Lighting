@@ -39,6 +39,8 @@
     "override_control_mode_hint": "Pause all stops all adaptation. Pause changed only pauses the attribute you changed, allowing the other to keep adapting.",
     "override_mode_pause_all": "Pause all",
     "override_mode_pause_changed": "Pause changed only",
+    "bare_turn_on_only_label": "Treat parameterized turn-on as override",
+    "bare_turn_on_only_hint": "When enabled, turning on a light with specific brightness or color overrides those attributes instead of applying solar values.",
     "paused_brightness_only": "Brightness overridden",
     "paused_color_only": "Color overridden",
     "distribution_mode_override_label": "Scene color assignment",

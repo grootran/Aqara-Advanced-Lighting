@@ -69,7 +69,8 @@ export class AqaraPanel extends LitElement {
   @state() private _useCustomBrightness = false;
   @state() private _useStaticSceneMode = false;
   @state() private _ignoreExternalChanges = false;
-  @state() private _overrideControlMode: string = 'pause_all';
+  @state() private _overrideControlMode: string = 'pause_changed';
+  @state() private _bareTurnOnOnly = false;
   @state() private _softwareTransitionEntities: string[] = [];
   @state() private _useDistributionModeOverride = false;
   @state() private _distributionModeOverride = 'shuffle_rotate';
@@ -380,7 +381,7 @@ export class AqaraPanel extends LitElement {
 
     // Load global preferences (separate endpoint, not per-user)
     try {
-      const globalPrefs = await this.hass.callApi<{ignore_external_changes?: boolean; software_transition_entities?: string[]; override_control_mode?: string}>(
+      const globalPrefs = await this.hass.callApi<{ignore_external_changes?: boolean; software_transition_entities?: string[]; override_control_mode?: string; bare_turn_on_only?: boolean}>(
         'GET', 'aqara_advanced_lighting/global_preferences'
       );
       if (globalPrefs.ignore_external_changes !== undefined) {
@@ -391,6 +392,9 @@ export class AqaraPanel extends LitElement {
       }
       if (globalPrefs.software_transition_entities) {
         this._softwareTransitionEntities = globalPrefs.software_transition_entities;
+      }
+      if (globalPrefs.bare_turn_on_only !== undefined) {
+        this._bareTurnOnOnly = globalPrefs.bare_turn_on_only;
       }
     } catch (err) {
       console.warn('Failed to load global preferences:', err);
@@ -1985,6 +1989,11 @@ export class AqaraPanel extends LitElement {
     this._saveGlobalPreferences();
   }
 
+  private _handleBareTurnOnOnlyToggle(e: Event): void {
+    this._bareTurnOnOnly = (e.target as HTMLInputElement).checked;
+    this._saveGlobalPreferences();
+  }
+
   private _handleDistributionModeOverrideToggle(e: Event): void {
     this._useDistributionModeOverride = (e.target as HTMLInputElement).checked;
     this._saveUserPreferences();
@@ -2009,6 +2018,7 @@ export class AqaraPanel extends LitElement {
         ignore_external_changes: this._ignoreExternalChanges,
         override_control_mode: this._overrideControlMode,
         software_transition_entities: this._softwareTransitionEntities,
+        bare_turn_on_only: this._bareTurnOnOnly,
       });
     } catch (err) {
       console.warn('Failed to save global preferences:', err);
@@ -3285,6 +3295,16 @@ export class AqaraPanel extends LitElement {
                       @value-changed=${this._handleOverrideControlModeChanged}
                     ></ha-selector>
                     <span class="form-hint">${this._localize('target.override_control_mode_hint')}</span>
+                  </div>
+
+                  <div class="override-item">
+                    <span class="form-label">${this._localize('target.bare_turn_on_only_label')}</span>
+                    <ha-switch
+                      .checked=${this._bareTurnOnOnly}
+                      .disabled=${this._ignoreExternalChanges}
+                      @change=${this._handleBareTurnOnOnlyToggle}
+                    ></ha-switch>
+                    <span class="form-hint">${this._localize('target.bare_turn_on_only_hint')}</span>
                   </div>
                 </div>
 

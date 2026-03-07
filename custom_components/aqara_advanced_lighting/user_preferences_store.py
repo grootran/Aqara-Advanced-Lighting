@@ -56,12 +56,14 @@ class GlobalPreferences(TypedDict):
     ignore_external_changes: bool
     software_transition_entities: list[str]
     override_control_mode: str
+    bare_turn_on_only: bool
 
 
 DEFAULT_GLOBAL_PREFERENCES: GlobalPreferences = {
     "ignore_external_changes": False,
     "software_transition_entities": [],
-    "override_control_mode": "pause_all",
+    "override_control_mode": "pause_changed",
+    "bare_turn_on_only": False,
 }
 
 
@@ -256,6 +258,7 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
         ignore_external_changes: bool | None = None,
         software_transition_entities: list[str] | None = None,
         override_control_mode: str | None = None,
+        bare_turn_on_only: bool | None = None,
     ) -> GlobalPreferences:
         """Update integration-wide global preferences.
 
@@ -269,6 +272,9 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
 
         if override_control_mode is not None:
             self._global_data["override_control_mode"] = override_control_mode
+
+        if bare_turn_on_only is not None:
+            self._global_data["bare_turn_on_only"] = bare_turn_on_only
 
         await self.async_save()
         _LOGGER.debug("Updated global preferences")

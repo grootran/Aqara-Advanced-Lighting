@@ -334,6 +334,8 @@ class EntityController:
             if store and store.get_global_preference("ignore_external_changes"):
                 return
 
+            bare_turn_on_only = self._get_bare_turn_on_only()
+
             for entity_id in entity_ids:
                 if not self._is_entity_controlled(entity_id):
                     continue
@@ -342,6 +344,14 @@ class EntityController:
                 if attributes == OverrideAttributes.NONE:
                     # Bare turn_on with no attributes -- not an override
                     continue
+
+                # When bare_turn_on_only is disabled, off-to-on transitions
+                # are never overrides -- the off-to-on handler will apply
+                # solar values. Skip to avoid stale override flags.
+                if not bare_turn_on_only:
+                    state = self.hass.states.get(entity_id)
+                    if state and state.state in (STATE_OFF, STATE_UNAVAILABLE):
+                        continue
 
                 _LOGGER.info(
                     "External service call detected on %s "
@@ -562,6 +572,13 @@ class EntityController:
             return store.get_global_preference("override_control_mode") or "pause_changed"
         return "pause_changed"
 
+    def _get_bare_turn_on_only(self) -> bool:
+        """Get the bare_turn_on_only preference."""
+        store = self.hass.data.get(DOMAIN, {}).get(DATA_USER_PREFERENCES_STORE)
+        if store:
+            return bool(store.get_global_preference("bare_turn_on_only"))
+        return False
+
     def _supports_partial_override(self, entity_id: str) -> bool:
         """Check if the entity's controlling action supports per-attribute overrides.
 
@@ -677,6 +694,10 @@ class EntityController:
         For solar sequences this prevents the user seeing the bulb's cold/bright
         startup defaults before the solar loop's next 60-second poll.
         Non-solar entities are silently ignored.
+
+        When bare_turn_on_only is enabled, a parameterized turn-on (detected
+        by the service call listener) overrides the specified attributes.
+        Only non-overridden solar values are applied.
         """
         for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():
             cct: CCTSequenceManager | None = instance_data.get(
@@ -690,20 +711,38 @@ class EntityController:
                 return
 
             ct, br = values
+
+            # When bare_turn_on_only is enabled, the service call listener
+            # may have already marked some attributes as overridden for a
+            # parameterized turn-on. Only apply non-overridden values.
+            override = self.get_override_attributes(entity_id)
+            if override == OverrideAttributes.ALL:
+                _LOGGER.info(
+                    "Skipping solar apply on turn-on for %s "
+                    "(fully overridden by parameterized turn-on)",
+                    entity_id,
+                )
+                return
+
+            service_data: dict[str, Any] = {"entity_id": entity_id}
+            if OverrideAttributes.COLOR not in override:
+                service_data["color_temp_kelvin"] = ct
+            if OverrideAttributes.BRIGHTNESS not in override:
+                service_data["brightness"] = br
+
+            if len(service_data) == 1:
+                # Only entity_id, nothing to apply
+                return
+
             _LOGGER.info(
-                "Applying solar values on turn-on for %s: %dK, brightness %d",
+                "Applying solar values on turn-on for %s: %s",
                 entity_id,
-                ct,
-                br,
+                {k: v for k, v in service_data.items() if k != "entity_id"},
             )
             await self.hass.services.async_call(
                 "light",
                 "turn_on",
-                {
-                    "entity_id": entity_id,
-                    "color_temp_kelvin": ct,
-                    "brightness": br,
-                },
+                service_data,
                 blocking=False,
                 context=self.create_context(),
             )
