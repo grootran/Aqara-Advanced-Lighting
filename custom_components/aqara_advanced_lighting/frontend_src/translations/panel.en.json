@@ -48,6 +48,7 @@
     "distribution_mode_override_label": "Scene color assignment",
     "controls_card_title": "Active presets",
     "activation_overrides_title": "Activation overrides",
+    "override_detection_title": "Override detection",
     "effect_button": "Effect",
     "cct_button": "CCT",
     "solar_cct_button": "Solar CCT",

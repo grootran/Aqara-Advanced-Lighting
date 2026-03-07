@@ -3241,6 +3241,25 @@ export class AqaraPanel extends LitElement {
         </div>
       </ha-expansion-panel>
 
+      ${hasSelection || this._runningOperations.length > 0
+        ? html`
+            <ha-expansion-panel
+              outlined
+              .expanded=${!this._collapsed['controls']}
+              @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange('controls', e)}
+            >
+              <div slot="header" class="section-header">
+                <div>
+                  <div class="section-title">${this._localize('target.controls_card_title')}</div>
+                </div>
+              </div>
+              <div class="section-content controls-content">
+                ${this._renderRunningOperations()}
+              </div>
+            </ha-expansion-panel>
+          `
+        : ''}
+
       ${hasSelection
         ? html`
             <ha-expansion-panel
@@ -3278,7 +3297,60 @@ export class AqaraPanel extends LitElement {
                       @change=${this._handleDistributionModeOverrideToggle}
                     ></ha-switch>
                   </div>
+                </div>
 
+                ${this._useDistributionModeOverride
+                  ? html`
+                      <div class="brightness-slider">
+                        <ha-selector
+                          .hass=${this.hass}
+                          .selector=${{
+                            select: {
+                              options: this._distributionModeOverrideOptions,
+                              mode: 'dropdown',
+                            },
+                          }}
+                          .value=${this._distributionModeOverride}
+                          @value-changed=${this._handleDistributionModeOverrideChange}
+                        ></ha-selector>
+                      </div>
+                    `
+                  : ''}
+
+                ${this._useCustomBrightness
+                  ? html`
+                      <div class="brightness-slider">
+                        <ha-selector
+                          .hass=${this.hass}
+                          .selector=${{
+                            number: {
+                              min: 1,
+                              max: 100,
+                              mode: 'slider',
+                              unit_of_measurement: '%',
+                            },
+                          }}
+                          .value=${this._brightness}
+                          @value-changed=${this._handleBrightnessChange}
+                        ></ha-selector>
+                      </div>
+                    `
+                  : ''}
+              </div>
+            </ha-expansion-panel>
+
+            <ha-expansion-panel
+              outlined
+              .expanded=${this._collapsed['override_detection'] === undefined ? false : !this._collapsed['override_detection']}
+              @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange('override_detection', e)}
+            >
+              <div slot="header" class="section-header">
+                <div>
+                  <div class="section-title">${this._localize('target.override_detection_title')}</div>
+                </div>
+              </div>
+              <div class="section-content controls-content">
+                <div class="overrides-grid">
                   <div class="override-item">
                     <span class="form-label">${this._localize('target.ignore_external_changes_label')}</span>
                     <ha-switch
@@ -3327,63 +3399,6 @@ export class AqaraPanel extends LitElement {
                     <span class="form-hint">${this._localize('target.detect_non_ha_changes_hint')}</span>
                   </div>
                 </div>
-
-                ${this._useDistributionModeOverride
-                  ? html`
-                      <div class="brightness-slider">
-                        <ha-selector
-                          .hass=${this.hass}
-                          .selector=${{
-                            select: {
-                              options: this._distributionModeOverrideOptions,
-                              mode: 'dropdown',
-                            },
-                          }}
-                          .value=${this._distributionModeOverride}
-                          @value-changed=${this._handleDistributionModeOverrideChange}
-                        ></ha-selector>
-                      </div>
-                    `
-                  : ''}
-
-                ${this._useCustomBrightness
-                  ? html`
-                      <div class="brightness-slider">
-                        <ha-selector
-                          .hass=${this.hass}
-                          .selector=${{
-                            number: {
-                              min: 1,
-                              max: 100,
-                              mode: 'slider',
-                              unit_of_measurement: '%',
-                            },
-                          }}
-                          .value=${this._brightness}
-                          @value-changed=${this._handleBrightnessChange}
-                        ></ha-selector>
-                      </div>
-                    `
-                  : ''}
-              </div>
-            </ha-expansion-panel>
-          `
-        : ''}
-
-      ${hasSelection || this._runningOperations.length > 0
-        ? html`
-            <ha-expansion-panel
-              outlined
-              .expanded=${!this._collapsed['controls']}
-              @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange('controls', e)}
-            >
-              <div slot="header" class="section-header">
-                <div>
-                  <div class="section-title">${this._localize('target.controls_card_title')}</div>
-                </div>
-              </div>
-              <div class="section-content controls-content">
-                ${this._renderRunningOperations()}
               </div>
             </ha-expansion-panel>
           `
