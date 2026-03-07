@@ -122,6 +122,28 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
 
     # -- Solar mode support --
 
+    async def start_synchronized_group(
+        self,
+        entity_ids: list[str],
+        sequence: CCTSequence,
+        preset: str | None = None,
+    ) -> dict[str, str]:
+        """Start synchronized sequences, routing solar mode to individual starts.
+
+        Solar sequences each poll sun elevation independently so group
+        barrier synchronization is unnecessary.
+        """
+        if sequence.mode != "solar":
+            return await super().start_synchronized_group(
+                entity_ids, sequence, preset
+            )
+
+        results: dict[str, str] = {}
+        for entity_id in entity_ids:
+            seq_id = await self.start_sequence(entity_id, sequence, preset)
+            results[entity_id] = seq_id
+        return results
+
     async def start_sequence(
         self,
         entity_id: str,
