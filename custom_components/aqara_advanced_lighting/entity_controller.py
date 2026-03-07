@@ -33,6 +33,7 @@ from .const import (
     EVENT_ENTITY_CONTROL_RESUMED,
     EVENT_ENTITY_EXTERNALLY_CONTROLLED,
     INTEGRATION_CONTEXT_PARENT_ID,
+    OverrideAttributes,
 )
 
 if TYPE_CHECKING:
@@ -53,6 +54,22 @@ def _state_attributes_equal(old_state: State, new_state: State) -> bool:
         if old_state.attributes.get(attr) != new_state.attributes.get(attr):
             return False
     return True
+
+
+def _detect_changed_attributes(old_state: State, new_state: State) -> OverrideAttributes:
+    """Detect which attribute categories changed between two states."""
+    changed = OverrideAttributes.NONE
+
+    if old_state.attributes.get("brightness") != new_state.attributes.get("brightness"):
+        changed |= OverrideAttributes.BRIGHTNESS
+
+    color_attrs = ("color_temp_kelvin", "xy_color", "rgb_color", "hs_color")
+    for attr in color_attrs:
+        if old_state.attributes.get(attr) != new_state.attributes.get(attr):
+            changed |= OverrideAttributes.COLOR
+            break
+
+    return changed
 
 
 class AutoResumeTimer:
