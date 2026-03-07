@@ -707,15 +707,9 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _loadSupportedEntities(): Promise<void> {
+    if (!this.hass) return;
     try {
-      const response = await fetch('/api/aqara_advanced_lighting/supported_entities', {
-        headers: { Authorization: `Bearer ${this.hass?.auth?.data?.access_token}` },
-      });
-      if (!response.ok) {
-        console.warn('Failed to load supported entities:', response.status);
-        return;
-      }
-      const data = await response.json();
+      const data = await this.hass.callApi<{ entities?: any[]; light_groups?: any[]; instances?: any[] }>('GET', 'aqara_advanced_lighting/supported_entities');
       // Build a map for fast lookup
       const entityMap = new Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; ieee_address?: string; segment_count?: number; backend_type?: string; is_group?: boolean; member_count?: number }>();
       for (const entity of data.entities || []) {
@@ -760,16 +754,12 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _loadRunningOperations(): Promise<void> {
-    if (!this.hass?.auth?.data?.access_token) return;
+    if (!this.hass) return;
     const fetchId = ++this._runningOpsFetchId;
     try {
-      const response = await fetch('/api/aqara_advanced_lighting/running_operations', {
-        headers: { Authorization: `Bearer ${this.hass.auth.data.access_token}` },
-      });
-      if (!response.ok) return;
+      const data = await this.hass.callApi<RunningOperationsResponse>('GET', 'aqara_advanced_lighting/running_operations');
       // Discard stale responses from earlier fetches
       if (fetchId !== this._runningOpsFetchId) return;
-      const data: RunningOperationsResponse = await response.json();
       this._runningOperations = data.operations || [];
 
       // Sync music sync state from running operations
@@ -857,12 +847,9 @@ export class AqaraPanel extends LitElement {
    * Load zones for a specific device from the backend.
    */
   private async _loadZonesForDevice(ieeeAddress: string): Promise<void> {
+    if (!this.hass) return;
     try {
-      const response = await fetch(`/api/aqara_advanced_lighting/segment_zones/${encodeURIComponent(ieeeAddress)}`, {
-        headers: { Authorization: `Bearer ${this.hass?.auth?.data?.access_token}` },
-      });
-      if (!response.ok) return;
-      const data = await response.json();
+      const data = await this.hass.callApi<{ zones?: Record<string, string> }>('GET', `aqara_advanced_lighting/segment_zones/${encodeURIComponent(ieeeAddress)}`);
       const zones: Array<{ name: string; segments: string }> = Object.entries(data.zones || {}).map(
         ([name, segments]) => ({ name, segments: segments as string })
       );
@@ -968,23 +955,11 @@ export class AqaraPanel extends LitElement {
 
     this._zoneSaving = true;
     try {
-      const response = await fetch(`/api/aqara_advanced_lighting/segment_zones/${encodeURIComponent(ieeeAddress)}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.hass?.auth?.data?.access_token}`,
-        },
-        body: JSON.stringify({ zones: zonesPayload }),
-      });
-      if (response.ok) {
-        await this._loadZonesForDevice(ieeeAddress);
-        this._showToast(this._localize('config.zone_saved'));
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        this._showToast(errorData.message || this._localize('config.zone_save_error'));
-      }
-    } catch {
-      this._showToast(this._localize('config.zone_save_error'));
+      await this.hass!.callApi('PUT', `aqara_advanced_lighting/segment_zones/${encodeURIComponent(ieeeAddress)}`, { zones: zonesPayload });
+      await this._loadZonesForDevice(ieeeAddress);
+      this._showToast(this._localize('config.zone_saved'));
+    } catch (err: any) {
+      this._showToast(err?.body?.message || this._localize('config.zone_save_error'));
     } finally {
       this._zoneSaving = false;
     }
@@ -1014,13 +989,7 @@ export class AqaraPanel extends LitElement {
       );
       if (isSaved) {
         try {
-          await fetch(
-            `/api/aqara_advanced_lighting/segment_zones/${encodeURIComponent(ieeeAddress)}/${encodeURIComponent(zone.name.trim())}`,
-            {
-              method: 'DELETE',
-              headers: { Authorization: `Bearer ${this.hass?.auth?.data?.access_token}` },
-            }
-          );
+          await this.hass!.callApi('DELETE', `aqara_advanced_lighting/segment_zones/${encodeURIComponent(ieeeAddress)}/${encodeURIComponent(zone.name.trim())}`);
           // Reload saved zones from backend to stay in sync
           await this._loadZonesForDevice(ieeeAddress);
           return;

@@ -13,6 +13,7 @@ export interface HomeAssistant {
     path: string,
     data?: Record<string, unknown>
   ) => Promise<T>;
+  fetchWithAuth: (path: string, init?: RequestInit) => Promise<Response>;
   callWS: <T>(msg: Record<string, unknown>) => Promise<T>;
   states: Record<string, HassEntity>;
   localize: (key: string) => string;

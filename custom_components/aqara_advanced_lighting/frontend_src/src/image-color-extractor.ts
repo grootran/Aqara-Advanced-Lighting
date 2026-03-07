@@ -39,10 +39,8 @@ export class ImageColorExtractor extends LitElement {
     return typeof obj === 'string' ? obj : '';
   }
 
-  private _getAuthHeaders(): Record<string, string> {
-    return {
-      Authorization: `Bearer ${this.hass?.auth?.data?.access_token}`,
-    };
+  private _fetchWithAuth(path: string, init?: RequestInit): Promise<Response> {
+    return this.hass.fetchWithAuth(path, init);
   }
 
   protected render(): TemplateResult {
@@ -203,16 +201,14 @@ export class ImageColorExtractor extends LitElement {
         formData.append('save_thumbnail', this._saveThumbnail ? 'true' : 'false');
         formData.append('extract_brightness', this._extractBrightness ? 'true' : 'false');
 
-        response = await fetch(`${API_BASE}/extract_colors`, {
+        response = await this._fetchWithAuth(`${API_BASE}/extract_colors`, {
           method: 'POST',
-          headers: this._getAuthHeaders(),
           body: formData,
         });
       } else {
-        response = await fetch(`${API_BASE}/extract_colors`, {
+        response = await this._fetchWithAuth(`${API_BASE}/extract_colors`, {
           method: 'POST',
           headers: {
-            ...this._getAuthHeaders(),
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
