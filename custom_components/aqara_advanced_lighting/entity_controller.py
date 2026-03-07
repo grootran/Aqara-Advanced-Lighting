@@ -46,6 +46,15 @@ _LOGGER = logging.getLogger(__name__)
 
 _WATCHED_ATTRS = ("brightness", "color_temp_kelvin", "xy_color", "rgb_color", "hs_color")
 
+_BRIGHTNESS_KEYS = frozenset({
+    "brightness", "brightness_pct", "brightness_step", "brightness_step_pct",
+})
+_COLOR_KEYS = frozenset({
+    "color_temp", "color_temp_kelvin", "kelvin",
+    "rgb_color", "hs_color", "xy_color",
+    "rgbw_color", "rgbww_color", "color_name",
+})
+
 
 def _state_attributes_equal(old_state: State, new_state: State) -> bool:
     """Check if light-relevant attributes are unchanged between two states."""
@@ -98,6 +107,25 @@ def _detect_changed_attributes(old_state: State, new_state: State) -> OverrideAt
     if color_changed:
         changed |= OverrideAttributes.COLOR
     return changed
+
+
+def _detect_service_call_attributes(service_data: dict[str, Any]) -> OverrideAttributes:
+    """Detect which attribute categories a service call is setting.
+
+    Unlike _detect_changed_attributes (which infers from state deltas),
+    this uses the explicit service data keys to determine exactly which
+    attributes the caller intended to change.
+    """
+    attributes = OverrideAttributes.NONE
+    keys = set(service_data.keys()) - {"entity_id", "transition"}
+    if keys & _BRIGHTNESS_KEYS:
+        attributes |= OverrideAttributes.BRIGHTNESS
+    if keys & _COLOR_KEYS:
+        attributes |= OverrideAttributes.COLOR
+    # effect/flash affect everything
+    if keys & {"effect", "flash"}:
+        attributes = OverrideAttributes.ALL
+    return attributes
 
 
 class AutoResumeTimer:
@@ -166,7 +194,9 @@ class EntityController:
         self._externally_paused: dict[str, OverrideAttributes] = {}
         self._pending_restore: set[str] = set()
         self._auto_resume_timers: dict[str, AutoResumeTimer] = {}
+        self._service_pause_times: dict[str, float] = {}
         self._state_listener_remove: Any | None = None
+        self._service_listener_remove: Any | None = None
 
     def setup(self) -> None:
         """Set up the centralized state change listener."""
@@ -250,6 +280,19 @@ class EntityController:
                 )
                 return
 
+            # If the service call listener already handled this entity
+            # recently, skip state-delta detection to avoid overriding
+            # the more precise service-data-based attribute detection.
+            svc_time = self._service_pause_times.get(entity_id)
+            if svc_time is not None and (time.monotonic() - svc_time) < 5.0:
+                _LOGGER.debug(
+                    "Skipping state-delta detection for %s (service call "
+                    "listener handled %.1fs ago)",
+                    entity_id,
+                    time.monotonic() - svc_time,
+                )
+                return
+
             # Detect which attributes changed and pause
             changed = _detect_changed_attributes(old_state, new_state)
             if changed == OverrideAttributes.NONE:
@@ -262,10 +305,61 @@ class EntityController:
             )
             self._pause_entity(entity_id, changed)
 
+        @callback
+        def _async_service_called(event: Event) -> None:
+            """Handle external service calls targeting controlled light entities.
+
+            Fires before the device responds, with the full service data.
+            This gives more precise attribute detection than state deltas.
+            """
+            if event.data.get("domain") != "light":
+                return
+            service = event.data.get("service")
+            if service not in ("turn_on", "toggle"):
+                return
+
+            # Skip our own service calls
+            if event.context.parent_id == INTEGRATION_CONTEXT_PARENT_ID:
+                return
+
+            service_data = event.data.get("service_data", {})
+            entity_ids = service_data.get("entity_id", [])
+            if isinstance(entity_ids, str):
+                entity_ids = [entity_ids]
+
+            # Check if user has disabled external change detection
+            store = self.hass.data.get(DOMAIN, {}).get(
+                DATA_USER_PREFERENCES_STORE
+            )
+            if store and store.get_global_preference("ignore_external_changes"):
+                return
+
+            for entity_id in entity_ids:
+                if not self._is_entity_controlled(entity_id):
+                    continue
+
+                attributes = _detect_service_call_attributes(service_data)
+                if attributes == OverrideAttributes.NONE:
+                    # Bare turn_on with no attributes -- not an override
+                    continue
+
+                _LOGGER.info(
+                    "External service call detected on %s "
+                    "(service: %s, attributes: %s), pausing",
+                    entity_id,
+                    service,
+                    attributes,
+                )
+                self._service_pause_times[entity_id] = time.monotonic()
+                self._pause_entity(entity_id, attributes)
+
         self._state_listener_remove = self.hass.bus.async_listen(
             "state_changed", _async_state_changed
         )
-        _LOGGER.debug("Entity controller state listener registered")
+        self._service_listener_remove = self.hass.bus.async_listen(
+            "call_service", _async_service_called
+        )
+        _LOGGER.debug("Entity controller listeners registered")
 
     def create_context(self) -> Context:
         """Create a Context tagged with the integration marker.
@@ -381,19 +475,24 @@ class EntityController:
         """
         self._externally_paused.pop(entity_id, None)
         self._pending_restore.discard(entity_id)
+        self._service_pause_times.pop(entity_id, None)
         if timer := self._auto_resume_timers.pop(entity_id, None):
             timer.cancel()
 
     def cleanup(self) -> None:
-        """Remove listener and clear state.
+        """Remove listeners and clear state.
 
         Called when the last config entry unloads.
         """
         if self._state_listener_remove:
             self._state_listener_remove()
             self._state_listener_remove = None
+        if self._service_listener_remove:
+            self._service_listener_remove()
+            self._service_listener_remove = None
         self._externally_paused.clear()
         self._pending_restore.clear()
+        self._service_pause_times.clear()
         for timer in self._auto_resume_timers.values():
             timer.cancel()
         self._auto_resume_timers.clear()
@@ -460,8 +559,8 @@ class EntityController:
         """Get the override control mode preference."""
         store = self.hass.data.get(DOMAIN, {}).get(DATA_USER_PREFERENCES_STORE)
         if store:
-            return store.get_global_preference("override_control_mode") or "pause_all"
-        return "pause_all"
+            return store.get_global_preference("override_control_mode") or "pause_changed"
+        return "pause_changed"
 
     def _supports_partial_override(self, entity_id: str) -> bool:
         """Check if the entity's controlling action supports per-attribute overrides.

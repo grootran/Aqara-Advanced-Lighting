@@ -16,6 +16,7 @@ from custom_components.aqara_advanced_lighting.const import (
 from custom_components.aqara_advanced_lighting.entity_controller import (
     EntityController,
     _detect_changed_attributes,
+    _detect_service_call_attributes,
     _state_attributes_equal,
 )
 
@@ -225,3 +226,86 @@ def test_pause_entity_merges_attributes(controller, mock_hass):
     controller._pause_entity("light.test", OverrideAttributes.COLOR)
     assert controller.get_override_attributes("light.test") == OverrideAttributes.ALL
     cct.pause_sequence.assert_called_once_with("light.test")
+
+
+# -- Service call attribute detection tests --
+
+
+def test_service_call_brightness_only():
+    """Brightness keys in service data return BRIGHTNESS."""
+    assert _detect_service_call_attributes(
+        {"entity_id": "light.test", "brightness_pct": 50}
+    ) == OverrideAttributes.BRIGHTNESS
+
+
+def test_service_call_brightness_step():
+    """Brightness step keys return BRIGHTNESS."""
+    assert _detect_service_call_attributes(
+        {"entity_id": "light.test", "brightness_step_pct": -10}
+    ) == OverrideAttributes.BRIGHTNESS
+
+
+def test_service_call_color_temp_only():
+    """Color temp keys return COLOR."""
+    assert _detect_service_call_attributes(
+        {"entity_id": "light.test", "color_temp_kelvin": 3000}
+    ) == OverrideAttributes.COLOR
+
+
+def test_service_call_rgb_color():
+    """RGB color key returns COLOR."""
+    assert _detect_service_call_attributes(
+        {"entity_id": "light.test", "rgb_color": [255, 0, 0]}
+    ) == OverrideAttributes.COLOR
+
+
+def test_service_call_both_attributes():
+    """Both brightness and color keys return ALL."""
+    assert _detect_service_call_attributes(
+        {"entity_id": "light.test", "brightness": 200, "color_temp_kelvin": 3000}
+    ) == OverrideAttributes.ALL
+
+
+def test_service_call_effect():
+    """Effect key returns ALL regardless of other keys."""
+    assert _detect_service_call_attributes(
+        {"entity_id": "light.test", "effect": "rainbow"}
+    ) == OverrideAttributes.ALL
+
+
+def test_service_call_bare_turn_on():
+    """Bare turn_on (no attributes) returns NONE."""
+    assert _detect_service_call_attributes(
+        {"entity_id": "light.test"}
+    ) == OverrideAttributes.NONE
+
+
+def test_service_call_transition_only():
+    """Transition-only service call returns NONE (transition is not an override)."""
+    assert _detect_service_call_attributes(
+        {"entity_id": "light.test", "transition": 2}
+    ) == OverrideAttributes.NONE
+
+
+def test_service_call_flash():
+    """Flash key returns ALL."""
+    assert _detect_service_call_attributes(
+        {"entity_id": "light.test", "flash": "short"}
+    ) == OverrideAttributes.ALL
+
+
+# -- Service call listener dedup tests --
+
+
+def test_service_pause_times_cleared_on_clear_entity(controller):
+    """clear_entity removes service pause tracking."""
+    controller._service_pause_times["light.test"] = 100.0
+    controller.clear_entity("light.test")
+    assert "light.test" not in controller._service_pause_times
+
+
+def test_service_pause_times_cleared_on_cleanup(controller):
+    """cleanup removes all service pause tracking."""
+    controller._service_pause_times["light.test"] = 100.0
+    controller.cleanup()
+    assert not controller._service_pause_times
