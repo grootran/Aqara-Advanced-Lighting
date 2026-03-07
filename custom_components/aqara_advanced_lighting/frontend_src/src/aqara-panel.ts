@@ -2190,13 +2190,55 @@ export class AqaraPanel extends LitElement {
       `;
     }
 
+    const displayItems = this._buildDisplayOperations(this._runningOperations);
+
     return html`
       <div class="running-ops-container">
         <div class="running-ops-list">
-          ${this._runningOperations.map(op => this._renderOperationCard(op))}
+          ${displayItems.map(item =>
+            Array.isArray(item)
+              ? this._renderGroupedSequenceOp(item)
+              : this._renderOperationCard(item),
+          )}
         </div>
       </div>
     `;
+  }
+
+  /**
+   * Group sequence operations sharing the same preset into arrays.
+   * Single-entity sequences stay as individual RunningOperation objects.
+   */
+  private _buildDisplayOperations(
+    ops: RunningOperation[],
+  ): (RunningOperation | RunningOperation[])[] {
+    const result: (RunningOperation | RunningOperation[])[] = [];
+    const seqGroupIndex = new Map<string, number>();
+
+    for (const op of ops) {
+      if (
+        (op.type === 'cct_sequence' || op.type === 'segment_sequence') &&
+        op.preset_id
+      ) {
+        const key = `${op.type}:${op.preset_id}`;
+        const idx = seqGroupIndex.get(key);
+        if (idx !== undefined) {
+          const existing = result[idx];
+          if (Array.isArray(existing)) {
+            existing.push(op);
+          } else {
+            result[idx] = [existing as RunningOperation, op];
+          }
+        } else {
+          seqGroupIndex.set(key, result.length);
+          result.push(op);
+        }
+      } else {
+        result.push(op);
+      }
+    }
+
+    return result;
   }
 
   private _renderOperationCard(op: RunningOperation) {
@@ -2302,6 +2344,81 @@ export class AqaraPanel extends LitElement {
     `;
   }
 
+  private _renderGroupedSequenceOp(ops: RunningOperation[]) {
+    const first = ops[0]!;
+    const preset = this._resolvePresetInfo(first.preset_id);
+    const isCCT = first.type === 'cct_sequence';
+    const isSolar = isCCT && first.mode === 'solar';
+    const fallbackIcon = isSolar
+      ? 'mdi:white-balance-sunny'
+      : isCCT
+        ? 'mdi:thermometer'
+        : 'mdi:led-strip-variant';
+    const typeLabel = isSolar
+      ? this._localize('target.solar_cct_button')
+      : isCCT
+        ? this._localize('target.cct_button')
+        : this._localize('target.segment_button');
+
+    const entityChips = ops.map(op => {
+      const name = this._getEntityName(op.entity_id!);
+      return html`<span class="entity-chip">${name}</span>`;
+    });
+
+    const anyPaused = ops.some(op => op.paused);
+    const extPausedOps = ops.filter(op => op.externally_paused);
+    const isPaused = anyPaused || extPausedOps.length > 0;
+
+    return html`
+      <div class="running-op-card scene-op-card ${isPaused ? 'op-paused' : ''}">
+        <div class="running-op-header">
+          <div class="running-op-info">
+            <ha-icon class="running-op-icon" icon="${preset.icon || fallbackIcon}"></ha-icon>
+            <div class="running-op-details">
+              <span class="running-op-name">${preset.name || typeLabel}</span>
+              <span class="running-op-entity">
+                ${preset.name ? html`<span class="running-op-type">${typeLabel}</span>` : ''}
+                ${anyPaused ? html`<span class="running-op-status paused-text">${this._localize('target.paused')}</span>` : ''}
+                ${extPausedOps.length > 0
+                  ? html`<span class="running-op-status externally-paused-text">
+                      ${this._localize('target.entities_externally_paused', { count: String(extPausedOps.length) })}
+                    </span>`
+                  : ''}
+              </span>
+            </div>
+          </div>
+          <div class="running-op-actions">
+            ${extPausedOps.length > 0
+              ? html`
+                  <ha-icon-button
+                    .label=${this._localize('target.resume_control')}
+                    @click=${() => this._resumeSceneEntities(extPausedOps.map(op => op.entity_id!))}
+                  >
+                    <ha-icon icon="mdi:play-circle-outline"></ha-icon>
+                  </ha-icon-button>
+                `
+              : ''}
+            <ha-icon-button
+              .label=${anyPaused ? this._localize('target.resume') : this._localize('target.pause')}
+              @click=${() => this._toggleGroupedSequencePause(ops)}
+            >
+              <ha-icon icon="mdi:${anyPaused ? 'play' : 'pause'}"></ha-icon>
+            </ha-icon-button>
+            <ha-icon-button
+              .label=${this._localize('target.stop')}
+              @click=${() => this._stopGroupedSequence(ops)}
+            >
+              <ha-icon icon="mdi:stop"></ha-icon>
+            </ha-icon-button>
+          </div>
+        </div>
+        <div class="entity-chip-list">
+          ${entityChips}
+        </div>
+      </div>
+    `;
+  }
+
   private _renderSceneOp(op: RunningOperation) {
     const preset = this._resolvePresetInfo(op.preset_id);
     const entityChips = (op.entity_ids || []).map(id => {
@@ -2401,6 +2518,26 @@ export class AqaraPanel extends LitElement {
       : 'stop_segment_sequence';
     await this.hass.callService('aqara_advanced_lighting', service, {
       entity_id: [op.entity_id],
+    });
+  }
+
+  private async _toggleGroupedSequencePause(ops: RunningOperation[]): Promise<void> {
+    const isCCT = ops[0]!.type === 'cct_sequence';
+    const anyPaused = ops.some(op => op.paused);
+    const service = anyPaused
+      ? (isCCT ? 'resume_cct_sequence' : 'resume_segment_sequence')
+      : (isCCT ? 'pause_cct_sequence' : 'pause_segment_sequence');
+    await this.hass.callService('aqara_advanced_lighting', service, {
+      entity_id: ops.map(op => op.entity_id!),
+    });
+  }
+
+  private async _stopGroupedSequence(ops: RunningOperation[]): Promise<void> {
+    const service = ops[0]!.type === 'cct_sequence'
+      ? 'stop_cct_sequence'
+      : 'stop_segment_sequence';
+    await this.hass.callService('aqara_advanced_lighting', service, {
+      entity_id: ops.map(op => op.entity_id!),
     });
   }
 

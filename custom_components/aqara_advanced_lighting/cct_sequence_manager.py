@@ -319,6 +319,11 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
         if restored:
             _LOGGER.info("Restored %d solar CCT sequence(s)", restored)
 
+    def _is_light_on(self, entity_id: str) -> bool:
+        """Check if a light entity is currently on."""
+        state = self.hass.states.get(entity_id)
+        return state is not None and state.state == "on"
+
     async def _run_solar_loop(
         self,
         entity_id: str,
@@ -327,9 +332,14 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
         pause_event: asyncio.Event,
         sequence_id: str,
     ) -> None:
-        """Execute solar CCT mode by polling sun elevation."""
+        """Execute solar CCT mode by polling sun elevation.
+
+        Skips updates while the light is off and immediately applies
+        when the light comes back on.
+        """
         last_ct: int | None = None
         last_br: int | None = None
+        was_off = False
 
         try:
             while not stop_event.is_set():
@@ -339,6 +349,32 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
 
                 if stop_event.is_set():
                     break
+
+                # Skip updates while light is off
+                if not self._is_light_on(entity_id):
+                    if not was_off:
+                        _LOGGER.debug(
+                            "Solar sequence for %s: light is off, waiting",
+                            entity_id,
+                        )
+                        was_off = True
+                    try:
+                        await asyncio.wait_for(
+                            stop_event.wait(), timeout=SOLAR_POLL_INTERVAL
+                        )
+                        break
+                    except asyncio.TimeoutError:
+                        continue
+
+                # Light is on — force update if it just came back on
+                if was_off:
+                    _LOGGER.debug(
+                        "Solar sequence for %s: light back on, applying current values",
+                        entity_id,
+                    )
+                    was_off = False
+                    last_ct = None
+                    last_br = None
 
                 sun_state = get_sun_state(self.hass)
                 if sun_state is None:

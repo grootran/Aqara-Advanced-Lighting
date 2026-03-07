@@ -411,7 +411,10 @@ class EntityController:
                 DATA_CCT_SEQUENCE_MANAGER
             )
             if cct and cct.is_sequence_running(entity_id):
-                await cct.stop_sequence(entity_id)
+                # Solar sequences persist through off/on cycles;
+                # the solar loop skips updates while the light is off
+                if not cct.is_solar_sequence(entity_id):
+                    await cct.stop_sequence(entity_id)
 
             seg: SegmentSequenceManager | None = instance_data.get(
                 DATA_SEGMENT_SEQUENCE_MANAGER
