@@ -331,81 +331,108 @@ def test_bare_turn_on_only_reads_preference(controller, mock_hass):
     assert controller._get_bare_turn_on_only() is True
 
 
-async def test_apply_solar_no_override_applies_both(controller, mock_hass):
-    """With no overrides, solar apply sends both color_temp and brightness."""
+async def test_apply_solar_on_turn_on_calls_force_apply(controller, mock_hass):
+    """Turn-on delegates to cct.force_apply_current()."""
     cct = MagicMock()
     cct.is_solar_sequence = MagicMock(return_value=True)
-    cct.get_current_solar_values = MagicMock(return_value=(4000, 128))
+    cct.force_apply_current = AsyncMock(return_value=True)
     mock_hass.data[DOMAIN]["entries"] = {
         "entry1": {DATA_CCT_SEQUENCE_MANAGER: cct},
     }
-    mock_hass.services.async_call = AsyncMock()
 
     await controller._apply_solar_on_turn_on("light.test")
 
-    mock_hass.services.async_call.assert_called_once()
-    call_args = mock_hass.services.async_call.call_args
-    service_data = call_args[0][2]
-    assert "color_temp_kelvin" in service_data
-    assert "brightness" in service_data
-    assert service_data["color_temp_kelvin"] == 4000
-    assert service_data["brightness"] == 128
+    cct.force_apply_current.assert_called_once_with("light.test")
 
 
-async def test_apply_solar_brightness_overridden_applies_color_only(controller, mock_hass):
-    """With BRIGHTNESS overridden, solar apply sends only color_temp."""
+async def test_apply_solar_on_turn_on_skips_non_solar(controller, mock_hass):
+    """Turn-on is a no-op for non-solar sequences."""
     cct = MagicMock()
-    cct.is_solar_sequence = MagicMock(return_value=True)
-    cct.get_current_solar_values = MagicMock(return_value=(4000, 128))
+    cct.is_solar_sequence = MagicMock(return_value=False)
+    cct.force_apply_current = AsyncMock()
     mock_hass.data[DOMAIN]["entries"] = {
         "entry1": {DATA_CCT_SEQUENCE_MANAGER: cct},
     }
-    mock_hass.services.async_call = AsyncMock()
-    controller._externally_paused["light.test"] = OverrideAttributes.BRIGHTNESS
 
     await controller._apply_solar_on_turn_on("light.test")
 
-    mock_hass.services.async_call.assert_called_once()
-    call_args = mock_hass.services.async_call.call_args
-    service_data = call_args[0][2]
-    assert "color_temp_kelvin" in service_data
-    assert "brightness" not in service_data
+    cct.force_apply_current.assert_not_called()
 
 
-async def test_apply_solar_color_overridden_applies_brightness_only(controller, mock_hass):
-    """With COLOR overridden, solar apply sends only brightness."""
+# -- Resume with immediate force-apply tests --
+
+
+async def test_resume_solar_calls_force_apply(controller, mock_hass):
+    """Resuming a solar entity immediately applies current values."""
     cct = MagicMock()
     cct.is_solar_sequence = MagicMock(return_value=True)
-    cct.get_current_solar_values = MagicMock(return_value=(4000, 128))
+    cct.is_sequence_running = MagicMock(return_value=True)
+    cct.force_apply_current = AsyncMock(return_value=True)
     mock_hass.data[DOMAIN]["entries"] = {
         "entry1": {DATA_CCT_SEQUENCE_MANAGER: cct},
     }
-    mock_hass.services.async_call = AsyncMock()
-    controller._externally_paused["light.test"] = OverrideAttributes.COLOR
-
-    await controller._apply_solar_on_turn_on("light.test")
-
-    mock_hass.services.async_call.assert_called_once()
-    call_args = mock_hass.services.async_call.call_args
-    service_data = call_args[0][2]
-    assert "brightness" in service_data
-    assert "color_temp_kelvin" not in service_data
-
-
-async def test_apply_solar_all_overridden_skips(controller, mock_hass):
-    """With ALL overridden, solar apply is skipped entirely."""
-    cct = MagicMock()
-    cct.is_solar_sequence = MagicMock(return_value=True)
-    cct.get_current_solar_values = MagicMock(return_value=(4000, 128))
-    mock_hass.data[DOMAIN]["entries"] = {
-        "entry1": {DATA_CCT_SEQUENCE_MANAGER: cct},
-    }
-    mock_hass.services.async_call = AsyncMock()
     controller._externally_paused["light.test"] = OverrideAttributes.ALL
 
-    await controller._apply_solar_on_turn_on("light.test")
+    result = await controller.resume_entity("light.test")
 
-    mock_hass.services.async_call.assert_not_called()
+    assert result is True
+    cct.resume_sequence.assert_called_once_with("light.test")
+    cct.force_apply_current.assert_called_once_with("light.test")
+
+
+async def test_resume_partial_override_solar_force_applies(controller, mock_hass):
+    """Resuming a partially overridden solar entity force-applies without resuming loop."""
+    cct = MagicMock()
+    cct.is_solar_sequence = MagicMock(return_value=True)
+    cct.is_sequence_running = MagicMock(return_value=True)
+    cct.force_apply_current = AsyncMock(return_value=True)
+    mock_hass.data[DOMAIN]["entries"] = {
+        "entry1": {DATA_CCT_SEQUENCE_MANAGER: cct},
+    }
+    controller._externally_paused["light.test"] = OverrideAttributes.BRIGHTNESS
+
+    result = await controller.resume_entity("light.test")
+
+    assert result is True
+    # Not fully paused, so resume_sequence should NOT be called
+    cct.resume_sequence.assert_not_called()
+    # But force_apply IS called to push current values
+    cct.force_apply_current.assert_called_once_with("light.test")
+
+
+async def test_resume_scene_calls_force_apply(controller, mock_hass):
+    """Resuming a scene entity immediately applies current color."""
+    dsm = MagicMock()
+    dsm.is_scene_running = MagicMock(return_value=True)
+    dsm.force_apply_current = AsyncMock(return_value=True)
+    mock_hass.data[DOMAIN]["entries"] = {
+        "entry1": {DATA_DYNAMIC_SCENE_MANAGER: dsm},
+    }
+    controller._externally_paused["light.test"] = OverrideAttributes.ALL
+
+    result = await controller.resume_entity("light.test")
+
+    assert result is True
+    dsm.externally_resume_entity.assert_called_once_with("light.test")
+    dsm.force_apply_current.assert_called_once_with("light.test")
+
+
+async def test_resume_non_solar_cct_no_force_apply(controller, mock_hass):
+    """Resuming a non-solar CCT sequence does not force-apply."""
+    cct = MagicMock()
+    cct.is_solar_sequence = MagicMock(return_value=False)
+    cct.is_sequence_running = MagicMock(return_value=True)
+    cct.force_apply_current = AsyncMock()
+    mock_hass.data[DOMAIN]["entries"] = {
+        "entry1": {DATA_CCT_SEQUENCE_MANAGER: cct},
+    }
+    controller._externally_paused["light.test"] = OverrideAttributes.ALL
+
+    result = await controller.resume_entity("light.test")
+
+    assert result is True
+    cct.resume_sequence.assert_called_once_with("light.test")
+    cct.force_apply_current.assert_not_called()
 
 
 # -- Drift detection tests --

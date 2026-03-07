@@ -468,6 +468,10 @@ class EntityController:
     async def resume_entity(self, entity_id: str) -> bool:
         """Resume control of an externally paused entity.
 
+        After clearing overrides, immediately applies the current values
+        from the active manager so the entity doesn't wait for the next
+        loop cycle (up to 60s for solar).
+
         Returns True if the entity was resumed, False if it wasn't paused.
         """
         if self._externally_paused.get(entity_id, OverrideAttributes.NONE) == OverrideAttributes.NONE:
@@ -481,29 +485,34 @@ class EntityController:
         if timer := self._auto_resume_timers.pop(entity_id, None):
             timer.cancel()
 
-        # Resume in the controlling manager
-        if was_fully_paused:
-            for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():
-                dsm: DynamicSceneManager | None = instance_data.get(
-                    DATA_DYNAMIC_SCENE_MANAGER
-                )
-                if dsm and dsm.is_scene_running(entity_id):
+        # Resume in the controlling manager and immediately push values
+        for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():
+            dsm: DynamicSceneManager | None = instance_data.get(
+                DATA_DYNAMIC_SCENE_MANAGER
+            )
+            if dsm and dsm.is_scene_running(entity_id):
+                if was_fully_paused:
                     dsm.externally_resume_entity(entity_id)
-                    break
+                await dsm.force_apply_current(entity_id)
+                break
 
-                cct: CCTSequenceManager | None = instance_data.get(
-                    DATA_CCT_SEQUENCE_MANAGER
-                )
-                if cct and cct.is_sequence_running(entity_id):
+            cct: CCTSequenceManager | None = instance_data.get(
+                DATA_CCT_SEQUENCE_MANAGER
+            )
+            if cct and cct.is_sequence_running(entity_id):
+                if was_fully_paused:
                     cct.resume_sequence(entity_id)
-                    break
+                if cct.is_solar_sequence(entity_id):
+                    await cct.force_apply_current(entity_id)
+                break
 
-                seg: SegmentSequenceManager | None = instance_data.get(
-                    DATA_SEGMENT_SEQUENCE_MANAGER
-                )
-                if seg and seg.is_sequence_running(entity_id):
+            seg: SegmentSequenceManager | None = instance_data.get(
+                DATA_SEGMENT_SEQUENCE_MANAGER
+            )
+            if seg and seg.is_sequence_running(entity_id):
+                if was_fully_paused:
                     seg.resume_sequence(entity_id)
-                    break
+                break
 
         self.hass.bus.async_fire(
             EVENT_ENTITY_CONTROL_RESUMED,
@@ -750,46 +759,7 @@ class EntityController:
             if not cct or not cct.is_solar_sequence(entity_id):
                 continue
 
-            values = cct.get_current_solar_values(entity_id)
-            if values is None:
-                return
-
-            ct, br = values
-
-            # When bare_turn_on_only is enabled, the service call listener
-            # may have already marked some attributes as overridden for a
-            # parameterized turn-on. Only apply non-overridden values.
-            override = self.get_override_attributes(entity_id)
-            if override == OverrideAttributes.ALL:
-                _LOGGER.info(
-                    "Skipping solar apply on turn-on for %s "
-                    "(fully overridden by parameterized turn-on)",
-                    entity_id,
-                )
-                return
-
-            service_data: dict[str, Any] = {"entity_id": entity_id}
-            if OverrideAttributes.COLOR not in override:
-                service_data["color_temp_kelvin"] = ct
-            if OverrideAttributes.BRIGHTNESS not in override:
-                service_data["brightness"] = br
-
-            if len(service_data) == 1:
-                # Only entity_id, nothing to apply
-                return
-
-            _LOGGER.info(
-                "Applying solar values on turn-on for %s: %s",
-                entity_id,
-                {k: v for k, v in service_data.items() if k != "entity_id"},
-            )
-            await self.hass.services.async_call(
-                "light",
-                "turn_on",
-                service_data,
-                blocking=False,
-                context=self.create_context(),
-            )
+            await cct.force_apply_current(entity_id)
             return
 
     async def _stop_entity_action(self, entity_id: str, reason: str) -> None:

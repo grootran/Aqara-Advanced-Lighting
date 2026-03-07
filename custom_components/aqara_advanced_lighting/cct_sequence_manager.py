@@ -96,6 +96,53 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
             return seq_data.get("auto_resume_delay", 0)
         return 0
 
+    async def force_apply_current(self, entity_id: str) -> bool:
+        """Immediately apply current solar values to an entity.
+
+        Used for instant resume and proactive turn-on adaptation so the
+        entity gets correct values without waiting for the next poll cycle.
+        Respects per-attribute overrides.
+
+        Returns True if values were applied.
+        """
+        values = self.get_current_solar_values(entity_id)
+        if values is None:
+            return False
+
+        ct, br = values
+        ec = self.hass.data.get(DOMAIN, {}).get(DATA_ENTITY_CONTROLLER)
+
+        override = OverrideAttributes.NONE
+        if ec:
+            override = ec.get_override_attributes(entity_id)
+
+        if override == OverrideAttributes.ALL:
+            return False
+
+        service_data: dict[str, Any] = {"entity_id": entity_id}
+        if OverrideAttributes.COLOR not in override:
+            service_data["color_temp_kelvin"] = ct
+        if OverrideAttributes.BRIGHTNESS not in override:
+            service_data["brightness"] = br
+
+        if len(service_data) == 1:
+            return False
+
+        context = ec.create_context() if ec else None
+        await self.hass.services.async_call(
+            "light",
+            "turn_on",
+            service_data,
+            blocking=False,
+            context=context,
+        )
+        _LOGGER.info(
+            "Force-applied solar values for %s: %s",
+            entity_id,
+            {k: v for k, v in service_data.items() if k != "entity_id"},
+        )
+        return True
+
     # -- BaseSequenceManager hooks --
 
     def _get_start_step(

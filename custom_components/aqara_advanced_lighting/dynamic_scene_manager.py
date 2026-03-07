@@ -588,6 +588,77 @@ class DynamicSceneManager:
                 "Entity %s resumed in scene %s", entity_id, scene_id
             )
 
+    async def force_apply_current(self, entity_id: str) -> bool:
+        """Immediately apply current scene color to an entity.
+
+        Used for instant resume so the entity gets correct values without
+        waiting for the next color cycle. Respects per-attribute overrides
+        and capability profiles.
+
+        Returns True if values were applied.
+        """
+        scene_id = self._entity_to_scene.get(entity_id)
+        if not scene_id:
+            return False
+
+        scene_state = self._scene_states.get(scene_id)
+        if not scene_state:
+            return False
+
+        # Get the entity's current assigned color
+        position = scene_state.light_color_indices.get(entity_id)
+        if position is None:
+            return False
+
+        scene = scene_state.scene
+        if scene.distribution_mode == "shuffle_rotate" and scene_state.hue_sorted_indices:
+            color_index = scene_state.hue_sorted_indices[position]
+        else:
+            color_index = position
+        color = scene.colors[color_index]
+
+        effective_brightness = brightness_percent_to_device(color.brightness_pct)
+
+        profile = scene_state.capability_profiles.get(entity_id)
+        if profile and profile.level == LightCapabilityLevel.ON_OFF_ONLY:
+            return False
+
+        service_data = self._build_adapted_service_data(
+            entity_id, color.x, color.y, effective_brightness, profile, transition=0,
+        )
+        if not service_data:
+            return False
+
+        # Filter overridden attributes
+        override = OverrideAttributes.NONE
+        if self._entity_controller:
+            override = self._entity_controller.get_override_attributes(entity_id)
+
+        if override != OverrideAttributes.NONE:
+            if OverrideAttributes.BRIGHTNESS in override:
+                service_data.pop("brightness", None)
+            if OverrideAttributes.COLOR in override:
+                service_data.pop("xy_color", None)
+                service_data.pop("color_temp_kelvin", None)
+            value_keys = {"brightness", "xy_color", "color_temp_kelvin"}
+            if not (set(service_data.keys()) & value_keys):
+                return False
+
+        context = (
+            self._entity_controller.create_context()
+            if self._entity_controller
+            else None
+        )
+        await self.hass.services.async_call(
+            "light", "turn_on", service_data, blocking=False, context=context,
+        )
+        _LOGGER.info(
+            "Force-applied scene color for %s (color index %d)",
+            entity_id,
+            color_index,
+        )
+        return True
+
     def get_scene_preset(self, entity_id: str) -> str | None:
         """Get the preset name for a running scene on an entity."""
         scene_id = self._entity_to_scene.get(entity_id)
