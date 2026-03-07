@@ -41,6 +41,8 @@
     "override_mode_pause_changed": "Pause changed only",
     "bare_turn_on_only_label": "Treat parameterized turn-on as override",
     "bare_turn_on_only_hint": "When enabled, turning on a light with specific brightness or color overrides those attributes instead of applying solar values.",
+    "detect_non_ha_changes_label": "Detect non-HA changes",
+    "detect_non_ha_changes_hint": "Detect changes made outside Home Assistant (manufacturer app, physical dimmer) by comparing entity state against last-applied values.",
     "paused_brightness_only": "Brightness overridden",
     "paused_color_only": "Color overridden",
     "distribution_mode_override_label": "Scene color assignment",

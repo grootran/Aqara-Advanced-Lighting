@@ -128,6 +128,30 @@ def _detect_service_call_attributes(service_data: dict[str, Any]) -> OverrideAtt
     return attributes
 
 
+NON_HA_BRIGHTNESS_THRESHOLD = 25   # ~10% of 0-255 range
+NON_HA_COLOR_TEMP_THRESHOLD = 100  # 100K
+
+
+def detect_drift(
+    expected_ct: int,
+    expected_br: int,
+    actual_ct: int | None,
+    actual_br: int | None,
+) -> OverrideAttributes:
+    """Detect significant drift between expected and actual values.
+
+    Uses wider thresholds than _detect_changed_attributes since we're
+    comparing against values we sent, not consecutive state reports.
+    Hardware rounding and transition timing can cause small differences.
+    """
+    override = OverrideAttributes.NONE
+    if actual_br is not None and abs(actual_br - expected_br) > NON_HA_BRIGHTNESS_THRESHOLD:
+        override |= OverrideAttributes.BRIGHTNESS
+    if actual_ct is not None and abs(actual_ct - expected_ct) > NON_HA_COLOR_TEMP_THRESHOLD:
+        override |= OverrideAttributes.COLOR
+    return override
+
+
 class AutoResumeTimer:
     """Cancellable single-shot timer for automatic resume after manual override."""
 
@@ -422,6 +446,17 @@ class EntityController:
             if seg and seg.is_sequence_running(entity_id):
                 await seg.stop_sequence(entity_id)
 
+    def pause_entity(
+        self,
+        entity_id: str,
+        attributes: OverrideAttributes = OverrideAttributes.ALL,
+    ) -> None:
+        """Pause control of an entity due to detected drift or external change.
+
+        Public API for managers (e.g. solar loop drift detection).
+        """
+        self._pause_entity(entity_id, attributes)
+
     def is_entity_externally_paused(self, entity_id: str) -> bool:
         """Check if an entity is paused due to external change."""
         return self._externally_paused.get(entity_id, OverrideAttributes.NONE) != OverrideAttributes.NONE
@@ -577,6 +612,15 @@ class EntityController:
         store = self.hass.data.get(DOMAIN, {}).get(DATA_USER_PREFERENCES_STORE)
         if store:
             return bool(store.get_global_preference("bare_turn_on_only"))
+        return False
+
+    def get_detect_non_ha_changes(self) -> bool:
+        """Get the detect_non_ha_changes preference."""
+        store = self.hass.data.get(DOMAIN, {}).get(DATA_USER_PREFERENCES_STORE)
+        if store:
+            if store.get_global_preference("ignore_external_changes"):
+                return False
+            return bool(store.get_global_preference("detect_non_ha_changes"))
         return False
 
     def _supports_partial_override(self, entity_id: str) -> bool:

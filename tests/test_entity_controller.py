@@ -18,6 +18,7 @@ from custom_components.aqara_advanced_lighting.entity_controller import (
     _detect_changed_attributes,
     _detect_service_call_attributes,
     _state_attributes_equal,
+    detect_drift,
 )
 
 
@@ -405,3 +406,99 @@ async def test_apply_solar_all_overridden_skips(controller, mock_hass):
     await controller._apply_solar_on_turn_on("light.test")
 
     mock_hass.services.async_call.assert_not_called()
+
+
+# -- Drift detection tests --
+
+
+def test_drift_no_change():
+    """No drift when values match exactly."""
+    assert detect_drift(4000, 128, 4000, 128) == OverrideAttributes.NONE
+
+
+def test_drift_within_brightness_threshold():
+    """Small brightness difference within threshold returns NONE."""
+    assert detect_drift(4000, 128, 4000, 148) == OverrideAttributes.NONE
+
+
+def test_drift_exceeds_brightness_threshold():
+    """Brightness drift beyond threshold returns BRIGHTNESS."""
+    assert detect_drift(4000, 128, 4000, 200) == OverrideAttributes.BRIGHTNESS
+
+
+def test_drift_within_color_temp_threshold():
+    """Small color temp difference within threshold returns NONE."""
+    assert detect_drift(4000, 128, 4080, 128) == OverrideAttributes.NONE
+
+
+def test_drift_exceeds_color_temp_threshold():
+    """Color temp drift beyond threshold returns COLOR."""
+    assert detect_drift(4000, 128, 4200, 128) == OverrideAttributes.COLOR
+
+
+def test_drift_both_exceed():
+    """Both exceeding thresholds returns ALL."""
+    assert detect_drift(4000, 128, 4200, 200) == OverrideAttributes.ALL
+
+
+def test_drift_none_actual_values():
+    """None actual values are ignored (no drift)."""
+    assert detect_drift(4000, 128, None, None) == OverrideAttributes.NONE
+
+
+def test_drift_none_brightness_only():
+    """None brightness with color drift returns COLOR only."""
+    assert detect_drift(4000, 128, 4200, None) == OverrideAttributes.COLOR
+
+
+def test_drift_none_color_temp_only():
+    """None color temp with brightness drift returns BRIGHTNESS only."""
+    assert detect_drift(4000, 128, None, 200) == OverrideAttributes.BRIGHTNESS
+
+
+def test_detect_non_ha_changes_default_false(controller, mock_hass):
+    """detect_non_ha_changes defaults to False."""
+    assert controller.get_detect_non_ha_changes() is False
+
+
+def test_detect_non_ha_changes_reads_preference(controller, mock_hass):
+    """detect_non_ha_changes reads from preferences store."""
+    store = MagicMock()
+    store.get_global_preference = MagicMock(side_effect=lambda k: {
+        "detect_non_ha_changes": True,
+    }.get(k))
+    mock_hass.data[DOMAIN][DATA_USER_PREFERENCES_STORE] = store
+
+    assert controller.get_detect_non_ha_changes() is True
+
+
+def test_detect_non_ha_changes_disabled_by_ignore_external(controller, mock_hass):
+    """detect_non_ha_changes returns False when ignore_external_changes is on."""
+    store = MagicMock()
+    store.get_global_preference = MagicMock(side_effect=lambda k: {
+        "detect_non_ha_changes": True,
+        "ignore_external_changes": True,
+    }.get(k))
+    mock_hass.data[DOMAIN][DATA_USER_PREFERENCES_STORE] = store
+
+    assert controller.get_detect_non_ha_changes() is False
+
+
+def test_pause_entity_public_api(controller, mock_hass):
+    """Public pause_entity delegates to _pause_entity."""
+    store = MagicMock()
+    store.get_global_preference = MagicMock(side_effect=lambda k: {
+        "override_control_mode": "pause_changed",
+    }.get(k))
+    mock_hass.data[DOMAIN][DATA_USER_PREFERENCES_STORE] = store
+
+    cct = MagicMock()
+    cct.is_solar_sequence = MagicMock(return_value=True)
+    cct.is_sequence_running = MagicMock(return_value=True)
+    cct.get_auto_resume_delay = MagicMock(return_value=0)
+    mock_hass.data[DOMAIN]["entries"] = {
+        "entry1": {DATA_CCT_SEQUENCE_MANAGER: cct},
+    }
+
+    controller.pause_entity("light.test", OverrideAttributes.BRIGHTNESS)
+    assert controller.get_override_attributes("light.test") == OverrideAttributes.BRIGHTNESS

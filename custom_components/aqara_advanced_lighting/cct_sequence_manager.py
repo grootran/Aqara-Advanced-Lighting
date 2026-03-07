@@ -22,6 +22,7 @@ from .const import (
     OverrideAttributes,
     SEQUENCE_TYPE_CCT,
 )
+from .entity_controller import detect_drift
 from .models import CCTSequence, CCTSequenceStep
 from .sun_utils import SolarStep, get_sun_state, interpolate_solar_values
 
@@ -449,6 +450,36 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
                         break
                     except asyncio.TimeoutError:
                         continue
+
+                # Detect non-HA drift (opt-in): compare current entity
+                # state against what we last applied. If someone changed
+                # the light outside HA, the state will have drifted.
+                if (
+                    ec
+                    and override == OverrideAttributes.NONE
+                    and last_ct is not None
+                    and last_br is not None
+                    and ec.get_detect_non_ha_changes()
+                ):
+                    state = self.hass.states.get(entity_id)
+                    if state and state.state not in ("off", "unavailable"):
+                        actual_ct = state.attributes.get("color_temp_kelvin")
+                        actual_br = state.attributes.get("brightness")
+                        drift = detect_drift(last_ct, last_br, actual_ct, actual_br)
+                        if drift != OverrideAttributes.NONE:
+                            _LOGGER.info(
+                                "Non-HA drift detected on %s (drift: %s), pausing",
+                                entity_id,
+                                drift,
+                            )
+                            ec.pause_entity(entity_id, drift)
+                            try:
+                                await asyncio.wait_for(
+                                    stop_event.wait(), timeout=SOLAR_POLL_INTERVAL
+                                )
+                                break
+                            except asyncio.TimeoutError:
+                                continue
 
                 # Filter overridden attributes
                 apply_ct = ct if OverrideAttributes.COLOR not in override else last_ct

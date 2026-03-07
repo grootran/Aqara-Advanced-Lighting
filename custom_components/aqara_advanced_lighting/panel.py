@@ -1032,11 +1032,20 @@ class GlobalPreferencesView(HomeAssistantView):
                 )
             bare_turn_on_only = data["bare_turn_on_only"]
 
+        detect_non_ha_changes = None
+        if "detect_non_ha_changes" in data:
+            if not isinstance(data["detect_non_ha_changes"], bool):
+                return web.Response(
+                    status=400, text="detect_non_ha_changes must be a boolean"
+                )
+            detect_non_ha_changes = data["detect_non_ha_changes"]
+
         if (
             ignore_external_changes is None
             and software_transition_entities is None
             and override_control_mode is None
             and bare_turn_on_only is None
+            and detect_non_ha_changes is None
         ):
             return web.json_response(store.get_global_preferences())
 
@@ -1045,6 +1054,7 @@ class GlobalPreferencesView(HomeAssistantView):
             software_transition_entities=software_transition_entities,
             override_control_mode=override_control_mode,
             bare_turn_on_only=bare_turn_on_only,
+            detect_non_ha_changes=detect_non_ha_changes,
         )
         return web.json_response(preferences)
 

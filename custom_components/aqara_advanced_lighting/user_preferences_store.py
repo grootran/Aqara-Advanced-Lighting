@@ -57,6 +57,7 @@ class GlobalPreferences(TypedDict):
     software_transition_entities: list[str]
     override_control_mode: str
     bare_turn_on_only: bool
+    detect_non_ha_changes: bool
 
 
 DEFAULT_GLOBAL_PREFERENCES: GlobalPreferences = {
@@ -64,6 +65,7 @@ DEFAULT_GLOBAL_PREFERENCES: GlobalPreferences = {
     "software_transition_entities": [],
     "override_control_mode": "pause_changed",
     "bare_turn_on_only": False,
+    "detect_non_ha_changes": False,
 }
 
 
@@ -259,6 +261,7 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
         software_transition_entities: list[str] | None = None,
         override_control_mode: str | None = None,
         bare_turn_on_only: bool | None = None,
+        detect_non_ha_changes: bool | None = None,
     ) -> GlobalPreferences:
         """Update integration-wide global preferences.
 
@@ -275,6 +278,9 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
 
         if bare_turn_on_only is not None:
             self._global_data["bare_turn_on_only"] = bare_turn_on_only
+
+        if detect_non_ha_changes is not None:
+            self._global_data["detect_non_ha_changes"] = detect_non_ha_changes
 
         await self.async_save()
         _LOGGER.debug("Updated global preferences")
