@@ -1,5 +1,6 @@
 """Constants for the Aqara Advanced Lighting integration."""
 
+from enum import IntFlag, auto
 from typing import Final
 
 # Integration domain
@@ -379,6 +380,18 @@ SERVICE_START_CIRCADIAN_MODE: Final = "start_circadian_mode"
 SERVICE_STOP_CIRCADIAN_MODE: Final = "stop_circadian_mode"
 DATA_CIRCADIAN_MANAGER: Final = "circadian_manager"
 ENTITY_CONTROL_GRACE_SECONDS: Final = 8.0
+
+
+class OverrideAttributes(IntFlag):
+    """Attributes that can be individually overridden by external changes."""
+
+    NONE = 0
+    BRIGHTNESS = auto()
+    COLOR = auto()
+    ALL = BRIGHTNESS | COLOR
+
+
+DEFAULT_OVERRIDE_CONTROL_MODE: Final = "pause_all"
 
 # Music sync event types
 EVENT_MUSIC_SYNC_ENABLED: Final = f"{DOMAIN}_music_sync_enabled"
