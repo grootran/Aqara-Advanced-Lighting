@@ -4,22 +4,58 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any
+import uuid
+from typing import Any
+
+from homeassistant.helpers.storage import Store
 
 from .base_sequence_manager import BaseSequenceManager
-from .const import SEQUENCE_TYPE_CCT
-from .models import CCTSequence
-
-if TYPE_CHECKING:
-    from .models import CCTSequenceStep
+from .const import (
+    DOMAIN,
+    EVENT_ATTR_ENTITY_ID,
+    EVENT_ATTR_PRESET,
+    EVENT_ATTR_SEQUENCE_ID,
+    EVENT_ATTR_SEQUENCE_TYPE,
+    EVENT_ATTR_TOTAL_STEPS,
+    EVENT_SEQUENCE_STARTED,
+    SEQUENCE_TYPE_CCT,
+)
+from .models import CCTSequence, CCTSequenceStep
+from .sun_utils import SolarStep, get_sun_state, interpolate_solar_values
 
 _LOGGER = logging.getLogger(__name__)
+
+SOLAR_POLL_INTERVAL: float = 60.0
+SOLAR_STORAGE_VERSION = 1
+SOLAR_STORAGE_KEY = f"{DOMAIN}.solar_sequences"
 
 
 class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
     """Manages CCT sequence execution as background tasks."""
 
     _sequence_type = SEQUENCE_TYPE_CCT
+
+    def __init__(
+        self, *args: Any, entry_id: str = "", **kwargs: Any
+    ) -> None:
+        """Initialize the CCT sequence manager with solar persistence."""
+        super().__init__(*args, **kwargs)
+        storage_key = (
+            f"{SOLAR_STORAGE_KEY}.{entry_id}" if entry_id else SOLAR_STORAGE_KEY
+        )
+        self._solar_store: Store[dict[str, Any]] = Store(
+            self.hass, SOLAR_STORAGE_VERSION, storage_key
+        )
+        self._solar_sequences: dict[str, dict[str, Any]] = {}
+        self._shutting_down: bool = False
+
+    def set_shutting_down(self) -> None:
+        """Mark the manager as shutting down to preserve solar persistence."""
+        self._shutting_down = True
+
+    def is_solar_sequence(self, entity_id: str) -> bool:
+        """Check if the running sequence for an entity is solar mode."""
+        return entity_id in self._solar_sequences
 
     # -- BaseSequenceManager hooks --
 
@@ -83,3 +119,245 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
             )
 
         return True
+
+    # -- Solar mode support --
+
+    async def start_sequence(
+        self,
+        entity_id: str,
+        sequence: CCTSequence,
+        preset: str | None = None,
+    ) -> str:
+        """Start a CCT sequence, routing solar mode to a dedicated loop."""
+        if sequence.mode != "solar":
+            return await super().start_sequence(entity_id, sequence, preset)
+
+        # Solar mode: replicate base start_sequence setup but use _run_solar_loop
+        try:
+            await self.stop_sequence(entity_id)
+        except Exception as ex:
+            _LOGGER.debug("Error stopping existing sequence for %s: %s", entity_id, ex)
+
+        sequence_id = str(uuid.uuid4())
+        self._sequence_ids[entity_id] = sequence_id
+        self._sequence_presets[entity_id] = preset
+
+        stop_event = asyncio.Event()
+        pause_event = asyncio.Event()
+        self._stop_flags[entity_id] = stop_event
+        self._pause_flags[entity_id] = pause_event
+
+        self._sequence_state[entity_id] = {
+            "paused": False,
+            "current_step": 0,
+            "total_steps": len(sequence.solar_steps),
+            "loop_iteration": 1,
+            "loop_mode": "continuous",
+            "loop_count": None,
+        }
+
+        task = asyncio.create_task(
+            self._run_solar_loop(
+                entity_id, sequence, stop_event, pause_event, sequence_id
+            )
+        )
+        self._active_sequences[entity_id] = task
+
+        self.hass.bus.async_fire(
+            EVENT_SEQUENCE_STARTED,
+            {
+                EVENT_ATTR_ENTITY_ID: entity_id,
+                EVENT_ATTR_SEQUENCE_ID: sequence_id,
+                EVENT_ATTR_TOTAL_STEPS: len(sequence.solar_steps),
+                EVENT_ATTR_SEQUENCE_TYPE: self._sequence_type,
+                EVENT_ATTR_PRESET: preset,
+            },
+        )
+
+        # Persist solar sequence for restart recovery
+        await self._persist_solar_sequence(entity_id, sequence, preset)
+
+        _LOGGER.info(
+            "Started solar CCT sequence for %s (sequence_id=%s)",
+            entity_id,
+            sequence_id,
+        )
+        return sequence_id
+
+    # -- Solar persistence --
+
+    async def _persist_solar_sequence(
+        self,
+        entity_id: str,
+        sequence: CCTSequence,
+        preset: str | None,
+    ) -> None:
+        """Save a running solar sequence to persistent storage."""
+        self._solar_sequences[entity_id] = {
+            "preset": preset,
+            "solar_steps": [
+                {
+                    "sun_elevation": s.sun_elevation,
+                    "color_temp": s.color_temp,
+                    "brightness": s.brightness,
+                    "phase": s.phase,
+                }
+                for s in sequence.solar_steps
+            ],
+        }
+        await self._solar_store.async_save(
+            {"sequences": self._solar_sequences}
+        )
+
+    async def _remove_solar_persistence(self, entity_id: str) -> None:
+        """Remove a solar sequence from persistent storage."""
+        if entity_id in self._solar_sequences:
+            del self._solar_sequences[entity_id]
+            await self._solar_store.async_save(
+                {"sequences": self._solar_sequences}
+            )
+
+    async def stop_sequence(self, entity_id: str) -> None:
+        """Stop a running sequence and clear solar persistence if not shutting down."""
+        was_solar = entity_id in self._solar_sequences
+        await super().stop_sequence(entity_id)
+        if was_solar and not self._shutting_down:
+            await self._remove_solar_persistence(entity_id)
+
+    async def async_restore_solar_sequences(self) -> None:
+        """Restore persisted solar sequences after HA restart."""
+        data = await self._solar_store.async_load()
+        if not data:
+            _LOGGER.debug("No persisted solar sequences to restore")
+            return
+
+        sequences = data.get("sequences", {})
+        if not sequences:
+            _LOGGER.debug("Persisted solar storage is empty")
+            return
+
+        _LOGGER.info(
+            "Restoring %d persisted solar sequence(s): %s",
+            len(sequences),
+            ", ".join(sequences.keys()),
+        )
+
+        self._solar_sequences = dict(sequences)
+
+        restored = 0
+        failed_entities = []
+        for entity_id, seq_data in sequences.items():
+            # Verify entity still exists
+            state = self.hass.states.get(entity_id)
+            if state is None:
+                _LOGGER.warning(
+                    "Skipping solar restore for %s: entity not found in HA state registry",
+                    entity_id,
+                )
+                failed_entities.append(entity_id)
+                continue
+
+            try:
+                solar_steps = [
+                    SolarStep(
+                        sun_elevation=s["sun_elevation"],
+                        color_temp=s["color_temp"],
+                        brightness=s["brightness"],
+                        phase=s.get("phase", "any"),
+                    )
+                    for s in seq_data["solar_steps"]
+                ]
+                sequence = CCTSequence(
+                    steps=[],
+                    loop_mode="continuous",
+                    end_behavior="maintain",
+                    mode="solar",
+                    solar_steps=solar_steps,
+                )
+                await self.start_sequence(
+                    entity_id, sequence, seq_data.get("preset")
+                )
+                restored += 1
+            except Exception:
+                _LOGGER.warning(
+                    "Failed to restore solar sequence for %s",
+                    entity_id,
+                    exc_info=True,
+                )
+                failed_entities.append(entity_id)
+
+        # Clean up entries for entities that failed to restore
+        for entity_id in failed_entities:
+            self._solar_sequences.pop(entity_id, None)
+        if failed_entities:
+            await self._solar_store.async_save(
+                {"sequences": self._solar_sequences}
+            )
+
+        if restored:
+            _LOGGER.info("Restored %d solar CCT sequence(s)", restored)
+
+    async def _run_solar_loop(
+        self,
+        entity_id: str,
+        sequence: CCTSequence,
+        stop_event: asyncio.Event,
+        pause_event: asyncio.Event,
+        sequence_id: str,
+    ) -> None:
+        """Execute solar CCT mode by polling sun elevation."""
+        last_ct: int | None = None
+        last_br: int | None = None
+
+        try:
+            while not stop_event.is_set():
+                # Check for pause
+                while pause_event.is_set() and not stop_event.is_set():
+                    await asyncio.sleep(0.1)
+
+                if stop_event.is_set():
+                    break
+
+                sun_state = get_sun_state(self.hass)
+                if sun_state is None:
+                    _LOGGER.debug(
+                        "Sun entity not available, retrying in %ss",
+                        SOLAR_POLL_INTERVAL,
+                    )
+                    try:
+                        await asyncio.wait_for(
+                            stop_event.wait(), timeout=SOLAR_POLL_INTERVAL
+                        )
+                        break
+                    except asyncio.TimeoutError:
+                        continue
+
+                ct, br = interpolate_solar_values(sequence.solar_steps, sun_state)
+
+                if ct != last_ct or br != last_br:
+                    transition = min(SOLAR_POLL_INTERVAL, 30.0)
+                    step = CCTSequenceStep(
+                        color_temp=ct,
+                        brightness=br,
+                        transition=transition,
+                        hold=0,
+                    )
+                    completed = await self._apply_step(
+                        entity_id, sequence, step,
+                        step_index=0, stop_event=stop_event,
+                    )
+                    if not completed:
+                        break
+                    last_ct = ct
+                    last_br = br
+
+                # Interruptible wait for next poll
+                try:
+                    await asyncio.wait_for(
+                        stop_event.wait(), timeout=SOLAR_POLL_INTERVAL
+                    )
+                    break  # stop_event was set
+                except asyncio.TimeoutError:
+                    pass  # Normal: poll again
+        finally:
+            self._cleanup_entity(entity_id)

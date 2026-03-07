@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Any, TypeAlias
 
 from homeassistant.config_entries import ConfigEntry
 
+from .sun_utils import SolarStep
+
 if TYPE_CHECKING:
     pass  # TypeAlias import used for type definitions
 
@@ -450,12 +452,22 @@ class CCTSequence:
     loop_count: int | None = None  # Number of loops if mode is "count"
     end_behavior: str = "maintain"  # "maintain", "turn_off", or "restore"
     skip_first_in_loop: bool = False  # Skip first step when looping (after first iteration)
+    mode: str = "standard"  # "standard" or "solar"
+    solar_steps: list[SolarStep] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         """Validate sequence parameters."""
-        _validate_sequence_params(
-            len(self.steps), self.loop_mode, self.loop_count, self.end_behavior
-        )
+        if self.mode == "solar":
+            if len(self.solar_steps) < 2:
+                msg = "Solar mode requires at least 2 solar steps"
+                raise ValueError(msg)
+            if self.end_behavior != "maintain":
+                msg = "Solar mode only supports end_behavior='maintain'"
+                raise ValueError(msg)
+        else:
+            _validate_sequence_params(
+                len(self.steps), self.loop_mode, self.loop_count, self.end_behavior
+            )
 
 
 @dataclass

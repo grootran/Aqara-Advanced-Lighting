@@ -122,12 +122,19 @@ from .const import (
     SERVICE_SET_MUSIC_SYNC,
     SERVICE_SET_SEGMENT_PATTERN,
     SERVICE_START_CCT_SEQUENCE,
+    SERVICE_START_CIRCADIAN_MODE,
+    SERVICE_STOP_CIRCADIAN_MODE,
+    DATA_CIRCADIAN_MANAGER,
     SERVICE_START_SEGMENT_SEQUENCE,
     SERVICE_STOP_CCT_SEQUENCE,
     SERVICE_STOP_EFFECT,
     SERVICE_STOP_SEGMENT_SEQUENCE,
+    CCT_MODE_SOLAR,
+    CCT_MODE_STANDARD,
     T1_STRIP_DEFAULT_SEGMENT_COUNT,
     T1_STRIP_SEGMENTS_PER_METER,
+    VALID_CCT_MODES,
+    VALID_SOLAR_PHASES,
     brightness_percent_to_device,
 )
 from .presets import (
@@ -168,6 +175,7 @@ from .segment_utils import (
     scale_segment_pattern,
 )
 from .state_manager import StateManager
+from .sun_utils import SolarStep
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -183,6 +191,26 @@ def _get_context_and_record(hass: HomeAssistant, entity_id: str) -> Context | No
         ec.record_command(entity_id)
         return ec.create_context()
     return None
+
+
+def _build_solar_sequence(solar_steps_data: list[dict[str, Any]]) -> CCTSequence:
+    """Build a solar CCTSequence from raw step data."""
+    solar_steps = [
+        SolarStep(
+            sun_elevation=s["sun_elevation"],
+            color_temp=s["color_temp"],
+            brightness=s["brightness"],
+            phase=s.get("phase", "any"),
+        )
+        for s in solar_steps_data
+    ]
+    return CCTSequence(
+        steps=[],
+        loop_mode="continuous",
+        end_behavior="maintain",
+        mode="solar",
+        solar_steps=solar_steps,
+    )
 
 
 # RGB color schema (for dict format - backward compatibility)
@@ -430,6 +458,28 @@ _cct_sequence_schema_dict[vol.Optional(ATTR_SKIP_FIRST_IN_LOOP, default=False)] 
 )
 _cct_sequence_schema_dict[vol.Optional(ATTR_Z2M_BASE_TOPIC)] = cv.string
 
+SOLAR_STEP_SCHEMA = vol.Schema(
+    {
+        vol.Required("sun_elevation"): vol.All(
+            vol.Coerce(float), vol.Range(min=-90.0, max=90.0)
+        ),
+        vol.Required("color_temp"): vol.All(
+            vol.Coerce(int), vol.Range(min=MIN_COLOR_TEMP_KELVIN, max=MAX_COLOR_TEMP_KELVIN)
+        ),
+        vol.Required("brightness"): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=255)
+        ),
+        vol.Optional("phase", default="any"): vol.In(VALID_SOLAR_PHASES),
+    }
+)
+
+_cct_sequence_schema_dict[vol.Optional("mode", default=CCT_MODE_STANDARD)] = vol.In(
+    VALID_CCT_MODES
+)
+_cct_sequence_schema_dict[vol.Optional("solar_steps")] = vol.All(
+    cv.ensure_list, [SOLAR_STEP_SCHEMA], vol.Length(min=2, max=20)
+)
+
 SERVICE_START_CCT_SEQUENCE_SCHEMA = vol.Schema(_cct_sequence_schema_dict)
 
 SERVICE_STOP_CCT_SEQUENCE_SCHEMA = vol.Schema(
@@ -582,6 +632,22 @@ SERVICE_SET_MUSIC_SYNC_SCHEMA = vol.Schema(
         vol.Optional(ATTR_AUDIO_EFFECT, default=MUSIC_SYNC_EFFECT_RANDOM): vol.In(
             VALID_MUSIC_SYNC_EFFECTS
         ),
+    }
+)
+
+SERVICE_START_CIRCADIAN_MODE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+        vol.Optional(ATTR_PRESET): cv.string,
+        vol.Optional("solar_steps"): vol.All(
+            cv.ensure_list, [SOLAR_STEP_SCHEMA], vol.Length(min=2, max=20)
+        ),
+    }
+)
+
+SERVICE_STOP_CIRCADIAN_MODE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
     }
 )
 
@@ -2232,47 +2298,67 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 )
 
             if user_preset:
-                # Validate required preset fields
-                try:
-                    # Convert step brightness from percentage (1-100) to device
-                    # value (1-255) since user presets store percentages
-                    converted_steps = [
-                        {
-                            **step,
-                            "brightness": brightness_percent_to_device(
-                                step["brightness"]
+                if user_preset.get("mode") == CCT_MODE_SOLAR:
+                    # Solar user preset - pass through as-is
+                    preset_data = {
+                        "mode": CCT_MODE_SOLAR,
+                        "solar_steps": user_preset.get("solar_steps", []),
+                    }
+                    if not preset_data["solar_steps"]:
+                        raise ServiceValidationError(
+                            translation_domain=DOMAIN,
+                            translation_key="solar_steps_required",
+                        )
+                    _LOGGER.debug(
+                        "Using user solar CCT preset '%s' with %d solar steps",
+                        preset,
+                        len(preset_data["solar_steps"]),
+                    )
+                else:
+                    # Standard user preset - validate and convert
+                    try:
+                        # Convert step brightness from percentage (1-100) to device
+                        # value (1-255) since user presets store percentages
+                        converted_steps = [
+                            {
+                                **step,
+                                "brightness": brightness_percent_to_device(
+                                    step["brightness"]
+                                ),
+                            }
+                            for step in user_preset["steps"]
+                        ]
+                        preset_data = {
+                            "steps": converted_steps,
+                            "loop_mode": user_preset["loop_mode"],
+                            "loop_count": user_preset.get("loop_count"),
+                            "end_behavior": user_preset["end_behavior"],
+                            "skip_first_in_loop": user_preset.get(
+                                "skip_first_in_loop", False
                             ),
                         }
-                        for step in user_preset["steps"]
-                    ]
-                    preset_data = {
-                        "steps": converted_steps,
-                        "loop_mode": user_preset["loop_mode"],
-                        "loop_count": user_preset.get("loop_count"),
-                        "end_behavior": user_preset["end_behavior"],
-                        "skip_first_in_loop": user_preset.get(
-                            "skip_first_in_loop", False
-                        ),
-                    }
-                except KeyError as ex:
-                    raise ServiceValidationError(
-                        translation_domain=DOMAIN,
-                        translation_key="user_preset_missing_field",
-                        translation_placeholders={"preset": preset, "field": str(ex)},
-                    ) from ex
+                    except KeyError as ex:
+                        raise ServiceValidationError(
+                            translation_domain=DOMAIN,
+                            translation_key="user_preset_missing_field",
+                            translation_placeholders={
+                                "preset": preset,
+                                "field": str(ex),
+                            },
+                        ) from ex
 
-                if not preset_data["steps"]:
-                    raise ServiceValidationError(
-                        translation_domain=DOMAIN,
-                        translation_key="user_preset_no_steps",
-                        translation_placeholders={"preset": preset},
+                    if not preset_data["steps"]:
+                        raise ServiceValidationError(
+                            translation_domain=DOMAIN,
+                            translation_key="user_preset_no_steps",
+                            translation_placeholders={"preset": preset},
+                        )
+
+                    _LOGGER.debug(
+                        "Using user CCT sequence preset '%s' with %d steps",
+                        preset,
+                        len(preset_data["steps"]),
                     )
-
-                _LOGGER.debug(
-                    "Using user CCT sequence preset '%s' with %d steps",
-                    preset,
-                    len(preset_data["steps"]),
-                )
             elif preset in CCT_SEQUENCE_PRESETS:
                 preset_data = CCT_SEQUENCE_PRESETS[preset]
             else:
@@ -2282,79 +2368,20 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     translation_placeholders={"preset": preset},
                 )
 
-            # Create CCTSequenceStep objects from preset step data
-            sequence_steps = []
-            for step_data in preset_data["steps"]:
-                try:
-                    step = CCTSequenceStep(
-                        color_temp=step_data["color_temp"],
-                        brightness=step_data["brightness"],
-                        transition=step_data["transition"],
-                        hold=step_data["hold"],
-                    )
-                    sequence_steps.append(step)
-                except ValueError as ex:
-                    raise ServiceValidationError(
-                        translation_domain=DOMAIN,
-                        translation_key="invalid_sequence_configuration",
-                        translation_placeholders={"error": str(ex)},
-                    ) from ex
-
-            # Get loop and end behavior from preset
-            loop_mode: str = preset_data["loop_mode"]
-            loop_count: int | None = preset_data.get("loop_count")
-            end_behavior: str = preset_data["end_behavior"]
-            skip_first_in_loop: bool = preset_data.get(
-                "skip_first_in_loop", False
-            )
-        else:
-            # Manual configuration - extract from service call parameters
-            loop_mode = call.data.get(ATTR_LOOP_MODE, LOOP_MODE_ONCE)
-            loop_count = call.data.get(ATTR_LOOP_COUNT)
-            end_behavior = call.data.get(ATTR_END_BEHAVIOR, END_BEHAVIOR_MAINTAIN)
-            skip_first_in_loop = call.data.get(ATTR_SKIP_FIRST_IN_LOOP, False)
-
-            # Validate loop_count is provided when loop_mode is "count"
-            if loop_mode == LOOP_MODE_COUNT and loop_count is None:
-                raise ServiceValidationError(
-                    translation_domain=DOMAIN,
-                    translation_key="loop_count_required",
-                )
-
-            # Extract steps from individual field inputs
-            sequence_steps = []
-            for step_num in range(1, MAX_SEQUENCE_STEPS + 1):
-                color_temp_key = f"step_{step_num}_color_temp"
-                brightness_key = f"step_{step_num}_brightness"
-                transition_key = f"step_{step_num}_transition"
-                hold_key = f"step_{step_num}_hold"
-
-                # Check if this step is provided (all 4 fields must be present)
-                if color_temp_key in call.data:
-                    # Validate all required fields for this step are present
-                    if not all(
-                        key in call.data
-                        for key in [brightness_key, transition_key, hold_key]
-                    ):
-                        raise ServiceValidationError(
-                            translation_domain=DOMAIN,
-                            translation_key="step_incomplete",
-                            translation_placeholders={"step": str(step_num)},
-                        )
-
-                    transition_val = call.data[transition_key]
-                    hold_val = call.data[hold_key]
-
-                    # Convert brightness percentage to device value (1-255)
-                    brightness_percent = call.data[brightness_key]
-                    brightness_device = brightness_percent_to_device(brightness_percent)
-
+            # Check if this is a solar mode preset
+            if preset_data.get("mode") == CCT_MODE_SOLAR:
+                solar_steps_data = preset_data.get("solar_steps", [])
+                sequence = _build_solar_sequence(solar_steps_data)
+            else:
+                # Create CCTSequenceStep objects from preset step data
+                sequence_steps = []
+                for step_data in preset_data["steps"]:
                     try:
                         step = CCTSequenceStep(
-                            color_temp=call.data[color_temp_key],
-                            brightness=brightness_device,
-                            transition=transition_val,
-                            hold=hold_val,
+                            color_temp=step_data["color_temp"],
+                            brightness=step_data["brightness"],
+                            transition=step_data["transition"],
+                            hold=step_data["hold"],
                         )
                         sequence_steps.append(step)
                     except ValueError as ex:
@@ -2364,28 +2391,133 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                             translation_placeholders={"error": str(ex)},
                         ) from ex
 
-            # Validate we have at least one step
-            if not sequence_steps:
-                raise ServiceValidationError(
-                    translation_domain=DOMAIN,
-                    translation_key="step_required",
+                # Get loop and end behavior from preset
+                loop_mode: str = preset_data["loop_mode"]
+                loop_count: int | None = preset_data.get("loop_count")
+                end_behavior: str = preset_data["end_behavior"]
+                skip_first_in_loop: bool = preset_data.get(
+                    "skip_first_in_loop", False
                 )
 
-        # Create CCT sequence
-        try:
-            sequence = CCTSequence(
-                steps=sequence_steps,
-                loop_mode=loop_mode,
-                loop_count=loop_count,
-                end_behavior=end_behavior,
-                skip_first_in_loop=skip_first_in_loop,
-            )
-        except ValueError as ex:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="invalid_sequence_configuration",
-                translation_placeholders={"error": str(ex)},
-            ) from ex
+                # Create CCT sequence from standard preset
+                try:
+                    sequence = CCTSequence(
+                        steps=sequence_steps,
+                        loop_mode=loop_mode,
+                        loop_count=loop_count,
+                        end_behavior=end_behavior,
+                        skip_first_in_loop=skip_first_in_loop,
+                    )
+                except ValueError as ex:
+                    raise ServiceValidationError(
+                        translation_domain=DOMAIN,
+                        translation_key="invalid_sequence_configuration",
+                        translation_placeholders={"error": str(ex)},
+                    ) from ex
+        else:
+            # Manual configuration - extract from service call parameters
+            mode = call.data.get("mode", CCT_MODE_STANDARD)
+
+            if mode == CCT_MODE_SOLAR:
+                # Manual solar mode from service call
+                solar_steps_data = call.data.get("solar_steps", [])
+                if not solar_steps_data:
+                    raise ServiceValidationError(
+                        translation_domain=DOMAIN,
+                        translation_key="solar_steps_required",
+                    )
+                sequence = _build_solar_sequence(solar_steps_data)
+            else:
+                # Standard manual mode
+                loop_mode = call.data.get(ATTR_LOOP_MODE, LOOP_MODE_ONCE)
+                loop_count = call.data.get(ATTR_LOOP_COUNT)
+                end_behavior = call.data.get(
+                    ATTR_END_BEHAVIOR, END_BEHAVIOR_MAINTAIN
+                )
+                skip_first_in_loop = call.data.get(
+                    ATTR_SKIP_FIRST_IN_LOOP, False
+                )
+
+                # Validate loop_count is provided when loop_mode is "count"
+                if loop_mode == LOOP_MODE_COUNT and loop_count is None:
+                    raise ServiceValidationError(
+                        translation_domain=DOMAIN,
+                        translation_key="loop_count_required",
+                    )
+
+                # Extract steps from individual field inputs
+                sequence_steps = []
+                for step_num in range(1, MAX_SEQUENCE_STEPS + 1):
+                    color_temp_key = f"step_{step_num}_color_temp"
+                    brightness_key = f"step_{step_num}_brightness"
+                    transition_key = f"step_{step_num}_transition"
+                    hold_key = f"step_{step_num}_hold"
+
+                    # Check if this step is provided (all 4 fields must be present)
+                    if color_temp_key in call.data:
+                        # Validate all required fields for this step are present
+                        if not all(
+                            key in call.data
+                            for key in [
+                                brightness_key,
+                                transition_key,
+                                hold_key,
+                            ]
+                        ):
+                            raise ServiceValidationError(
+                                translation_domain=DOMAIN,
+                                translation_key="step_incomplete",
+                                translation_placeholders={
+                                    "step": str(step_num)
+                                },
+                            )
+
+                        transition_val = call.data[transition_key]
+                        hold_val = call.data[hold_key]
+
+                        # Convert brightness percentage to device value (1-255)
+                        brightness_percent = call.data[brightness_key]
+                        brightness_device = brightness_percent_to_device(
+                            brightness_percent
+                        )
+
+                        try:
+                            step = CCTSequenceStep(
+                                color_temp=call.data[color_temp_key],
+                                brightness=brightness_device,
+                                transition=transition_val,
+                                hold=hold_val,
+                            )
+                            sequence_steps.append(step)
+                        except ValueError as ex:
+                            raise ServiceValidationError(
+                                translation_domain=DOMAIN,
+                                translation_key="invalid_sequence_configuration",
+                                translation_placeholders={"error": str(ex)},
+                            ) from ex
+
+                # Validate we have at least one step
+                if not sequence_steps:
+                    raise ServiceValidationError(
+                        translation_domain=DOMAIN,
+                        translation_key="step_required",
+                    )
+
+                # Create CCT sequence from manual steps
+                try:
+                    sequence = CCTSequence(
+                        steps=sequence_steps,
+                        loop_mode=loop_mode,
+                        loop_count=loop_count,
+                        end_behavior=end_behavior,
+                        skip_first_in_loop=skip_first_in_loop,
+                    )
+                except ValueError as ex:
+                    raise ServiceValidationError(
+                        translation_domain=DOMAIN,
+                        translation_key="invalid_sequence_configuration",
+                        translation_placeholders={"error": str(ex)},
+                    ) from ex
 
         # Group Aqara entities by their CCT manager instance for synchronized starting
         instance_groups: dict[
@@ -2514,10 +2646,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         try:
             await asyncio.gather(*start_tasks)
             _LOGGER.info(
-                "Started CCT sequences for %d Aqara + %d generic entities: loop_mode=%s",
+                "Started CCT sequences for %d Aqara + %d generic entities: mode=%s",
                 len(aqara_entity_ids),
                 len(generic_entity_ids),
-                loop_mode,
+                sequence.mode,
             )
         except Exception as ex:
             all_entities = aqara_entity_ids + generic_entity_ids
@@ -3350,6 +3482,66 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     entity_id,
                 )
 
+    async def handle_start_circadian_mode(call: ServiceCall) -> None:
+        """Handle start_circadian_mode service call."""
+        entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+        preset_name: str | None = call.data.get(ATTR_PRESET)
+
+        circadian_mgr = hass.data.get(DOMAIN, {}).get(DATA_CIRCADIAN_MANAGER)
+        if not circadian_mgr:
+            _LOGGER.warning("Circadian manager not initialized")
+            return
+
+        # Load solar steps from preset or service call
+        if preset_name:
+            # Look up from CCT_SEQUENCE_PRESETS where mode == "solar"
+            preset_data = CCT_SEQUENCE_PRESETS.get(preset_name)
+            if not preset_data or preset_data.get("mode") != "solar":
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="invalid_solar_preset",
+                    translation_placeholders={"preset": preset_name},
+                )
+            solar_steps = [
+                SolarStep(
+                    sun_elevation=s["sun_elevation"],
+                    color_temp=s["color_temp"],
+                    brightness=s["brightness"],
+                    phase=s.get("phase", "any"),
+                )
+                for s in preset_data["solar_steps"]
+            ]
+        else:
+            solar_steps_data = call.data.get("solar_steps", [])
+            if not solar_steps_data:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="solar_steps_required",
+                )
+            solar_steps = [
+                SolarStep(
+                    sun_elevation=s["sun_elevation"],
+                    color_temp=s["color_temp"],
+                    brightness=s["brightness"],
+                    phase=s.get("phase", "any"),
+                )
+                for s in solar_steps_data
+            ]
+
+        for entity_id in entity_ids:
+            circadian_mgr.start_circadian(entity_id, solar_steps, preset_name)
+
+    async def handle_stop_circadian_mode(call: ServiceCall) -> None:
+        """Handle stop_circadian_mode service call."""
+        entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+
+        circadian_mgr = hass.data.get(DOMAIN, {}).get(DATA_CIRCADIAN_MANAGER)
+        if not circadian_mgr:
+            return
+
+        for entity_id in entity_ids:
+            circadian_mgr.stop_circadian(entity_id)
+
     # Register services
     hass.services.async_register(
         DOMAIN,
@@ -3488,6 +3680,20 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         schema=SERVICE_SET_MUSIC_SYNC_SCHEMA,
     )
 
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_START_CIRCADIAN_MODE,
+        handle_start_circadian_mode,
+        schema=SERVICE_START_CIRCADIAN_MODE_SCHEMA,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_STOP_CIRCADIAN_MODE,
+        handle_stop_circadian_mode,
+        schema=SERVICE_STOP_CIRCADIAN_MODE_SCHEMA,
+    )
+
     _LOGGER.info("Aqara Advanced Lighting services registered")
 
 
@@ -3512,6 +3718,13 @@ async def async_unload_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(DOMAIN, SERVICE_RESUME_DYNAMIC_SCENE)
     hass.services.async_remove(DOMAIN, SERVICE_SET_MUSIC_SYNC)
     hass.services.async_remove(DOMAIN, SERVICE_RESUME_ENTITY_CONTROL)
+    hass.services.async_remove(DOMAIN, SERVICE_START_CIRCADIAN_MODE)
+    hass.services.async_remove(DOMAIN, SERVICE_STOP_CIRCADIAN_MODE)
+
+    # Stop circadian overlays (integration-level)
+    circadian_mgr = hass.data.get(DOMAIN, {}).get(DATA_CIRCADIAN_MANAGER)
+    if circadian_mgr:
+        circadian_mgr.stop_all()
 
     # Stop all running sequences across all instances
     entries = hass.data.get(DOMAIN, {}).get("entries", {})

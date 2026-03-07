@@ -40,6 +40,7 @@
     "activation_overrides_title": "Activation overrides",
     "effect_button": "Effect",
     "cct_button": "CCT",
+    "solar_cct_button": "Solar CCT",
     "segment_button": "Segment",
     "scene_button": "Scene",
     "running_operations_label": "Running presets",
@@ -62,7 +63,8 @@
     "capability_cct": "CCT",
     "capability_brightness": "Brightness",
     "capability_on_off": "On/off",
-    "capability_software_transition": "Software transition"
+    "capability_software_transition": "Software transition",
+    "circadian_label": "Circadian"
   },
   "devices": {
     "t2_bulb": "T2 Bulb",
@@ -243,7 +245,10 @@
     "activation_ping_pong": "Ping pong",
     "activation_center_out": "Center out",
     "activation_edges_in": "Edges in",
-    "activation_paired": "Paired"
+    "activation_paired": "Paired",
+    "phase_rising": "Rising (sun going up)",
+    "phase_setting": "Setting (sun going down)",
+    "phase_any": "Any direction"
   },
   "editors": {
     "name_label": "Name",
@@ -320,7 +325,17 @@
     "tooltip_light_no_cct": "Selected light does not support color temperature",
     "tooltip_fix_gradient_errors": "Fix gradient validation errors first",
     "turn_off_unspecified_label": "Turn off unspecified segments",
-    "incompatible_cct_endpoints": "One or more selected lights do not support color temperature control. CCT sequences require lights with color_temp capability. For T1M devices, select the white/CCT endpoint instead of the RGB ring endpoint."
+    "incompatible_cct_endpoints": "One or more selected lights do not support color temperature control. CCT sequences require lights with color_temp capability. For T1M devices, select the white/CCT endpoint instead of the RGB ring endpoint.",
+    "mode_label": "Mode",
+    "mode_standard": "Standard",
+    "mode_solar": "Solar",
+    "sun_elevation_label": "Sun elevation ({value} degrees)",
+    "phase_label": "Phase",
+    "phase_rising": "Rising",
+    "phase_setting": "Setting",
+    "phase_any": "Any",
+    "solar_mode_hint": "Solar mode automatically adjusts color temperature and brightness based on sun position.",
+    "solar_steps_label": "Solar steps (2-20)"
   },
   "color_history": {
     "recent_colors": "Recent colors",

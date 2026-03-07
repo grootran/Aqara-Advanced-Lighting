@@ -2241,6 +2241,8 @@ export class AqaraPanel extends LitElement {
         return this._renderSceneOp(op);
       case 'music_sync':
         return this._renderMusicSyncOp(op);
+      case 'circadian':
+        return this._renderCircadianOp(op);
       default:
         return '';
     }
@@ -2278,10 +2280,13 @@ export class AqaraPanel extends LitElement {
     const entityName = this._getEntityName(op.entity_id!);
     const preset = this._resolvePresetInfo(op.preset_id);
     const isCCT = op.type === 'cct_sequence';
-    const fallbackIcon = isCCT ? 'mdi:thermometer' : 'mdi:led-strip-variant';
-    const typeLabel = isCCT
-      ? this._localize('target.cct_button')
-      : this._localize('target.segment_button');
+    const isSolar = isCCT && op.mode === 'solar';
+    const fallbackIcon = isSolar ? 'mdi:white-balance-sunny' : isCCT ? 'mdi:thermometer' : 'mdi:led-strip-variant';
+    const typeLabel = isSolar
+      ? this._localize('target.solar_cct_button')
+      : isCCT
+        ? this._localize('target.cct_button')
+        : this._localize('target.segment_button');
     const isPaused = op.paused || op.externally_paused;
 
     return html`
@@ -4385,16 +4390,21 @@ export class AqaraPanel extends LitElement {
   }
 
   private _duplicateBuiltinCCTSequencePreset(preset: CCTSequencePreset): void {
+    const isSolar = (preset as any).mode === 'solar';
     const userPreset: UserCCTSequencePreset = {
       id: '',
       name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
-      steps: preset.steps.map((step) => ({
+      steps: isSolar ? [] : preset.steps.map((step) => ({
         ...step,
         brightness: Math.round(step.brightness / 255 * 100),
       })),
       loop_mode: preset.loop_mode,
       loop_count: preset.loop_count,
       end_behavior: preset.end_behavior,
+      ...(isSolar ? { mode: 'solar', solar_steps: ((preset as any).solar_steps || []).map((s: any) => ({
+        ...s,
+        brightness: Math.round(s.brightness / 255 * 100),
+      })) } : {}),
       created_at: '',
       modified_at: '',
     };
@@ -4777,6 +4787,41 @@ export class AqaraPanel extends LitElement {
       entity_id: [entityId],
       enabled: false,
     });
+  }
+
+  private _renderCircadianOp(op: RunningOperation) {
+    const entityName = this._getEntityName(op.entity_id!);
+    const preset = this._resolvePresetInfo(op.preset_id);
+    return html`
+      <div class="running-op-card">
+        <div class="running-op-info">
+          <ha-icon class="running-op-icon" icon="${preset.icon || 'mdi:white-balance-sunny'}"></ha-icon>
+          <div class="running-op-details">
+            <span class="running-op-name">${preset.name || this._localize('target.circadian_label')}</span>
+            <span class="running-op-entity">
+              ${preset.name ? html`<span class="running-op-type">${this._localize('target.circadian_label')}</span>` : ''}
+              <span class="running-op-entity-name">${entityName}</span>
+              ${op.current_color_temp ? html`<span class="running-op-status">${op.current_color_temp}K</span>` : ''}
+            </span>
+          </div>
+        </div>
+        <div class="running-op-actions">
+          <ha-icon-button
+            .label=${this._localize('target.stop')}
+            @click=${() => this._stopCircadian(op.entity_id!)}
+          >
+            <ha-icon icon="mdi:stop"></ha-icon>
+          </ha-icon-button>
+        </div>
+      </div>
+    `;
+  }
+
+  private async _stopCircadian(entityId: string): Promise<void> {
+    await this.hass.callService('aqara_advanced_lighting', 'stop_circadian_mode', {
+      entity_id: [entityId],
+    });
+    await this._loadRunningOperations();
   }
 
   private _renderSegmentPatternsSection(title: string, builtinPresets: SegmentPatternPreset[], deviceType: string) {

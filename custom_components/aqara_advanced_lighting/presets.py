@@ -52,8 +52,10 @@ from .const import (
     MODEL_T2_BULB_GU10_230V,
     PRESET_CCT_CIRCADIAN,
     PRESET_CCT_GOODNIGHT,
-    PRESET_CCT_POWER_NAP,
     PRESET_CCT_MINDFUL_BREATHING,
+    PRESET_CCT_POWER_NAP,
+    PRESET_CCT_SOLAR_PRODUCTIVE,
+    PRESET_CCT_SOLAR_WARM,
     PRESET_CCT_WAKEUP,
     PRESET_SEGMENT_1,
     PRESET_SEGMENT_2,
@@ -600,39 +602,45 @@ CCT_SEQUENCE_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_CCT_CIRCADIAN: {
         "name": "Circadian Rhythm",
         "icon": "mdi:sun-clock",
-        "steps": [
-            {
-                "color_temp": 2700,  # Warm morning light
-                "brightness": 100,
-                "transition": 5.0,
-                "hold": 7200.0,  # Hold for 2 hours
-            },
-            {
-                "color_temp": 4000,  # Midday neutral
-                "brightness": 200,
-                "transition": 10.0,
-                "hold": 14400.0,  # Hold for 4 hours
-            },
-            {
-                "color_temp": 5500,  # Afternoon cool
-                "brightness": 255,
-                "transition": 10.0,
-                "hold": 10800.0,  # Hold for 3 hours
-            },
-            {
-                "color_temp": 3500,  # Evening warm
-                "brightness": 150,
-                "transition": 10.0,
-                "hold": 7200.0,  # Hold for 2 hours
-            },
-            {
-                "color_temp": 2700,  # Night warm dim
-                "brightness": 50,
-                "transition": 5.0,
-                "hold": 3600.0,  # Hold for 1 hour
-            },
+        "mode": "solar",
+        "solar_steps": [
+            {"sun_elevation": -6, "color_temp": 2700, "brightness": 50, "phase": "rising"},
+            {"sun_elevation": 5, "color_temp": 3200, "brightness": 150, "phase": "rising"},
+            {"sun_elevation": 20, "color_temp": 4500, "brightness": 220, "phase": "rising"},
+            {"sun_elevation": 45, "color_temp": 5500, "brightness": 255, "phase": "any"},
+            {"sun_elevation": 20, "color_temp": 4000, "brightness": 220, "phase": "setting"},
+            {"sun_elevation": 5, "color_temp": 3000, "brightness": 130, "phase": "setting"},
+            {"sun_elevation": -6, "color_temp": 2700, "brightness": 60, "phase": "setting"},
         ],
-        "loop_mode": LOOP_MODE_ONCE,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_MAINTAIN,
+    },
+    PRESET_CCT_SOLAR_WARM: {
+        "name": "Solar Warm",
+        "icon": "mdi:weather-sunset",
+        "mode": "solar",
+        "solar_steps": [
+            {"sun_elevation": -6, "color_temp": 2700, "brightness": 40, "phase": "rising"},
+            {"sun_elevation": 10, "color_temp": 3000, "brightness": 180, "phase": "rising"},
+            {"sun_elevation": 45, "color_temp": 4000, "brightness": 240, "phase": "any"},
+            {"sun_elevation": 10, "color_temp": 2900, "brightness": 160, "phase": "setting"},
+            {"sun_elevation": -6, "color_temp": 2700, "brightness": 40, "phase": "setting"},
+        ],
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_MAINTAIN,
+    },
+    PRESET_CCT_SOLAR_PRODUCTIVE: {
+        "name": "Solar Productive",
+        "icon": "mdi:desk-lamp",
+        "mode": "solar",
+        "solar_steps": [
+            {"sun_elevation": -6, "color_temp": 2700, "brightness": 60, "phase": "rising"},
+            {"sun_elevation": 10, "color_temp": 5000, "brightness": 230, "phase": "rising"},
+            {"sun_elevation": 20, "color_temp": 6500, "brightness": 255, "phase": "any"},
+            {"sun_elevation": 10, "color_temp": 4500, "brightness": 200, "phase": "setting"},
+            {"sun_elevation": -6, "color_temp": 2700, "brightness": 60, "phase": "setting"},
+        ],
+        "loop_mode": LOOP_MODE_CONTINUOUS,
         "end_behavior": END_BEHAVIOR_MAINTAIN,
     },
 }

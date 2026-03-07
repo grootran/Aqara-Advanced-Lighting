@@ -41,6 +41,7 @@ from .const import (
     DATA_CCT_SEQUENCE_MANAGER,
     DATA_DYNAMIC_SCENE_MANAGER,
     DATA_ACTIVE_MUSIC_SYNC,
+    DATA_CIRCADIAN_MANAGER,
     DATA_ENTITY_CONTROLLER,
     DATA_FAVORITES_STORE,
     DATA_SEGMENT_SEQUENCE_MANAGER,
@@ -334,17 +335,20 @@ def _build_presets_data() -> dict[str, Any]:
     # Build CCT sequences
     cct_sequences = []
     for preset_id, preset_data in CCT_SEQUENCE_PRESETS.items():
-        cct_sequences.append(
-            {
-                "id": preset_id,
-                "name": preset_data["name"],
-                "icon": preset_data.get("icon"),
-                "steps": preset_data["steps"],
-                "loop_mode": preset_data["loop_mode"],
-                "loop_count": preset_data.get("loop_count"),
-                "end_behavior": preset_data["end_behavior"],
-            }
-        )
+        entry: dict[str, Any] = {
+            "id": preset_id,
+            "name": preset_data["name"],
+            "icon": preset_data.get("icon"),
+            "loop_mode": preset_data["loop_mode"],
+            "loop_count": preset_data.get("loop_count"),
+            "end_behavior": preset_data["end_behavior"],
+        }
+        if preset_data.get("mode") == "solar":
+            entry["mode"] = "solar"
+            entry["solar_steps"] = preset_data["solar_steps"]
+        else:
+            entry["steps"] = preset_data["steps"]
+        cct_sequences.append(entry)
 
     # Build segment sequences
     segment_sequences = []
@@ -1768,6 +1772,7 @@ class RunningOperationsView(HomeAssistantView):
                             "externally_paused": ext_paused,
                             "current_step": status.get("current_step", 0),
                             "total_steps": status.get("total_steps", 0),
+                            "mode": "solar" if cct_mgr.is_solar_sequence(entity_id) else "standard",
                         }
                     )
 
@@ -1827,6 +1832,20 @@ class RunningOperationsView(HomeAssistantView):
                         "paused": False,
                         "sensitivity": sync_info.get("sensitivity", "low"),
                         "audio_effect": sync_info.get("audio_effect", "random"),
+                    }
+                )
+
+        # Circadian overlays (integration-level, not per-instance)
+        circadian_mgr = hass.data.get(DOMAIN, {}).get(DATA_CIRCADIAN_MANAGER)
+        if circadian_mgr:
+            for info in circadian_mgr.get_active_info():
+                operations.append(
+                    {
+                        "type": "circadian",
+                        "entity_id": info["entity_id"],
+                        "preset_id": info.get("preset_name"),
+                        "current_color_temp": info["current_color_temp"],
+                        "current_brightness": info["current_brightness"],
                     }
                 )
 

@@ -8,6 +8,14 @@ interface EditableStep extends CCTSequenceStep {
   id: string;
 }
 
+interface EditableSolarStep {
+  id: string;
+  sun_elevation: number;
+  color_temp: number;
+  brightness: number;
+  phase: 'rising' | 'setting' | 'any';
+}
+
 @customElement('cct-sequence-editor')
 export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
   @property({ attribute: false }) public hass!: HomeAssistant;
@@ -28,6 +36,8 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
   @state() private _loopCount = 3;
   @state() private _endBehavior = 'maintain';
   @state() private _skipFirstInLoop = false;
+  @state() private _mode: 'standard' | 'solar' = 'standard';
+  @state() private _solarSteps: EditableSolarStep[] = [];
   @state() private _saving = false;
   @state() private _previewing = false;
   @state() private _hasUserInteraction = false;
@@ -45,6 +55,21 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
       { value: 'maintain', label: this._localize('options.end_behavior_maintain') },
       { value: 'turn_off', label: this._localize('options.end_behavior_turn_off') },
       { value: 'restore', label: this._localize('options.end_behavior_restore') },
+    ];
+  }
+
+  private get _modeOptions() {
+    return [
+      { value: 'standard', label: this._localize('editors.mode_standard') },
+      { value: 'solar', label: this._localize('editors.mode_solar') },
+    ];
+  }
+
+  private get _phaseOptions() {
+    return [
+      { value: 'rising', label: this._localize('options.phase_rising') },
+      { value: 'setting', label: this._localize('options.phase_setting') },
+      { value: 'any', label: this._localize('options.phase_any') },
     ];
   }
 
@@ -197,8 +222,11 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
 
   connectedCallback(): void {
     super.connectedCallback();
-    if (this._steps.length === 0 && !this.preset) {
+    if (this._steps.length === 0 && !this.preset && this._mode === 'standard') {
       this._addDefaultStep();
+    }
+    if (this._solarSteps.length === 0 && !this.preset && this._mode === 'solar') {
+      this._addSolarStep();
     }
   }
 
@@ -221,10 +249,22 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
     this._loopCount = preset.loop_count || 3;
     this._endBehavior = preset.end_behavior;
     this._skipFirstInLoop = preset.skip_first_in_loop || false;
-    this._steps = preset.steps.map((step, index) => ({
-      ...step,
-      id: `step-${index}-${Date.now()}`,
-    }));
+
+    if (preset.mode === 'solar' && preset.solar_steps) {
+      this._mode = 'solar';
+      this._solarSteps = preset.solar_steps.map((step, index) => ({
+        ...step,
+        id: `solar-${index}-${Date.now()}`,
+      }));
+      this._loopMode = 'continuous';
+      this._endBehavior = 'maintain';
+    } else {
+      this._mode = 'standard';
+      this._steps = preset.steps.map((step, index) => ({
+        ...step,
+        id: `step-${index}-${Date.now()}`,
+      }));
+    }
   }
 
   public getDraftState(): CCTEditorDraft {
@@ -242,23 +282,28 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
       endBehavior: this._endBehavior,
       skipFirstInLoop: this._skipFirstInLoop,
       hasUserInteraction: this._hasUserInteraction,
+      mode: this._mode,
+      solarSteps: this._solarSteps.map(({ id, ...step }) => step),
     };
   }
 
   public resetToDefaults(): void {
     this._name = '';
     this._icon = '';
+    this._mode = 'standard';
     this._loopMode = 'once';
     this._loopCount = 3;
     this._endBehavior = 'maintain';
     this._skipFirstInLoop = false;
     this._hasUserInteraction = false;
+    this._solarSteps = [];
     this._addDefaultStep();
   }
 
   private _restoreDraft(draft: CCTEditorDraft): void {
     this._name = draft.name;
     this._icon = draft.icon;
+    this._mode = draft.mode || 'standard';
     this._loopMode = draft.loopMode;
     this._loopCount = draft.loopCount;
     this._endBehavior = draft.endBehavior;
@@ -266,6 +311,10 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
     this._steps = draft.steps.map((step, index) => ({
       ...step,
       id: `step-${index}-${Date.now()}`,
+    }));
+    this._solarSteps = (draft.solarSteps || []).map((step, index) => ({
+      ...step,
+      id: `solar-${index}-${Date.now()}`,
     }));
     this._hasUserInteraction = draft.hasUserInteraction ?? false;
   }
@@ -410,19 +459,26 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
   }
 
   private _getPresetData(): Record<string, unknown> {
-    const steps = this._steps.map(({ id, ...step }) => step);
-
     const data: Record<string, unknown> = {
       name: this._name,
       icon: this._icon || undefined,
-      steps,
-      loop_mode: this._loopMode,
-      end_behavior: this._endBehavior,
-      skip_first_in_loop: this._skipFirstInLoop,
     };
 
-    if (this._loopMode === 'count') {
-      data.loop_count = this._loopCount;
+    if (this._mode === 'solar') {
+      data.mode = 'solar';
+      data.solar_steps = this._solarSteps.map(({ id, ...step }) => step);
+      data.loop_mode = 'continuous';
+      data.end_behavior = 'maintain';
+    } else {
+      const steps = this._steps.map(({ id, ...step }) => step);
+      data.steps = steps;
+      data.loop_mode = this._loopMode;
+      data.end_behavior = this._endBehavior;
+      data.skip_first_in_loop = this._skipFirstInLoop;
+
+      if (this._loopMode === 'count') {
+        data.loop_count = this._loopCount;
+      }
     }
 
     return data;
@@ -455,7 +511,8 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
   }
 
   private async _save(): Promise<void> {
-    if (!this._name.trim() || this._steps.length === 0) return;
+    const hasSteps = this._mode === 'standard' ? this._steps.length > 0 : this._solarSteps.length > 0;
+    if (!this._name.trim() || !hasSteps) return;
 
     this._saving = true;
     try {
@@ -479,6 +536,207 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
         composed: true,
       })
     );
+  }
+
+  private _handleModeChange(e: CustomEvent): void {
+    const newMode = (e.detail.value || 'standard') as 'standard' | 'solar';
+    if (newMode === this._mode) return;
+    this._mode = newMode;
+    if (newMode === 'solar') {
+      this._loopMode = 'continuous';
+      this._endBehavior = 'maintain';
+      if (this._solarSteps.length === 0) {
+        this._addSolarStep();
+      }
+    }
+    this._hasUserInteraction = true;
+  }
+
+  private _addSolarStep(): void {
+    if (this._solarSteps.length >= 20) return;
+    const previousStep = this._solarSteps[this._solarSteps.length - 1];
+    const newStep: EditableSolarStep = {
+      id: `solar-${this._solarSteps.length}-${Date.now()}`,
+      sun_elevation: previousStep?.sun_elevation ?? 45,
+      color_temp: previousStep?.color_temp ?? 4000,
+      brightness: previousStep?.brightness ?? 50,
+      phase: previousStep?.phase ?? 'any',
+    };
+    this._solarSteps = [...this._solarSteps, newStep];
+    this._hasUserInteraction = true;
+  }
+
+  private _removeSolarStep(stepId: string): void {
+    if (this._solarSteps.length <= 1) return;
+    this._solarSteps = this._solarSteps.filter(s => s.id !== stepId);
+    this._hasUserInteraction = true;
+  }
+
+  private _handleSolarStepFieldChange(stepId: string, field: keyof Omit<EditableSolarStep, 'id'>, e: CustomEvent): void {
+    this._solarSteps = this._solarSteps.map(step =>
+      step.id === stepId ? { ...step, [field]: e.detail.value } : step
+    );
+    this._hasUserInteraction = true;
+  }
+
+  private _handleSolarStepColorTempChange(stepId: string, e: CustomEvent): void {
+    const kelvin = Math.round(e.detail.value / 100) * 100;
+    this._solarSteps = this._solarSteps.map(step =>
+      step.id === stepId ? { ...step, color_temp: kelvin } : step
+    );
+    this._hasUserInteraction = true;
+  }
+
+  protected override _reorderStep(fromIndex: number, toIndex: number): void {
+    if (this._mode === 'solar') {
+      const newSteps = [...this._solarSteps];
+      const [moved] = newSteps.splice(fromIndex, 1);
+      const insertAt = fromIndex < toIndex ? toIndex - 1 : toIndex;
+      newSteps.splice(insertAt, 0, moved!);
+      this._solarSteps = newSteps;
+      this._hasUserInteraction = true;
+    } else {
+      super._reorderStep(fromIndex, toIndex);
+    }
+  }
+
+  private _moveSolarStepUp(index: number): void {
+    if (index <= 0) return;
+    const newSteps = [...this._solarSteps];
+    const temp = newSteps[index - 1]!;
+    newSteps[index - 1] = newSteps[index]!;
+    newSteps[index] = temp;
+    this._solarSteps = newSteps;
+    this._hasUserInteraction = true;
+  }
+
+  private _moveSolarStepDown(index: number): void {
+    if (index >= this._solarSteps.length - 1) return;
+    const newSteps = [...this._solarSteps];
+    const temp = newSteps[index]!;
+    newSteps[index] = newSteps[index + 1]!;
+    newSteps[index + 1] = temp;
+    this._solarSteps = newSteps;
+    this._hasUserInteraction = true;
+  }
+
+  private _duplicateSolarStep(step: EditableSolarStep): void {
+    if (this._solarSteps.length >= 20) return;
+    const newStep: EditableSolarStep = {
+      ...step,
+      id: `solar-${this._solarSteps.length}-${Date.now()}`,
+    };
+    const index = this._solarSteps.findIndex(s => s.id === step.id);
+    const newSteps = [...this._solarSteps];
+    newSteps.splice(index + 1, 0, newStep);
+    this._solarSteps = newSteps;
+    this._hasUserInteraction = true;
+  }
+
+  private _renderSolarStep(step: EditableSolarStep, index: number) {
+    return html`
+      <div class="step-item">
+        <div class="step-header">
+          ${this._renderDragHandle(index)}
+          <span class="step-number">Step ${index + 1}</span>
+          <div class="step-actions">
+            <ha-icon-button
+              @click=${() => this._moveSolarStepUp(index)}
+              .disabled=${index === 0}
+              title="${this._localize('tooltips.step_move_up')}"
+            >
+              <ha-icon icon="mdi:arrow-up"></ha-icon>
+            </ha-icon-button>
+            <ha-icon-button
+              @click=${() => this._moveSolarStepDown(index)}
+              .disabled=${index === this._solarSteps.length - 1}
+              title="${this._localize('tooltips.step_move_down')}"
+            >
+              <ha-icon icon="mdi:arrow-down"></ha-icon>
+            </ha-icon-button>
+            <ha-icon-button
+              @click=${() => this._duplicateSolarStep(step)}
+              .disabled=${this._solarSteps.length >= 20}
+              title="${this._localize('tooltips.step_duplicate')}"
+            >
+              <ha-icon icon="mdi:content-copy"></ha-icon>
+            </ha-icon-button>
+            <ha-icon-button
+              class="step-delete"
+              @click=${() => this._removeSolarStep(step.id)}
+              .disabled=${this._solarSteps.length <= 1}
+              title="${this._localize('tooltips.step_remove')}"
+            >
+              <ha-icon icon="mdi:delete"></ha-icon>
+            </ha-icon-button>
+          </div>
+        </div>
+        <div class="step-fields">
+          <div class="step-field">
+            <span class="step-field-label">${this._localize('editors.sun_elevation_label', { value: step.sun_elevation.toString() })}</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{
+                number: {
+                  min: -10,
+                  max: 90,
+                  step: 1,
+                  mode: 'slider',
+                  unit_of_measurement: '\u00B0',
+                },
+              }}
+              .value=${step.sun_elevation}
+              @value-changed=${(e: CustomEvent) => this._handleSolarStepFieldChange(step.id, 'sun_elevation', e)}
+            ></ha-selector>
+          </div>
+          <div class="step-field">
+            <span class="step-field-label">${this._localize('editors.phase_label')}</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{
+                select: {
+                  options: this._phaseOptions,
+                  mode: 'dropdown',
+                },
+              }}
+              .value=${step.phase}
+              @value-changed=${(e: CustomEvent) => this._handleSolarStepFieldChange(step.id, 'phase', e)}
+            ></ha-selector>
+          </div>
+          <div class="step-field">
+            <span class="step-field-label">${this._localize('editors.color_temperature_label', { value: step.color_temp.toString() })}</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{
+                color_temp: {
+                  unit: 'kelvin',
+                  min: 2700,
+                  max: 6500,
+                },
+              }}
+              .value=${step.color_temp}
+              @value-changed=${(e: CustomEvent) => this._handleSolarStepColorTempChange(step.id, e)}
+            ></ha-selector>
+          </div>
+          <div class="step-field">
+            <span class="step-field-label">${this._localize('editors.brightness_percent_label')}</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{
+                number: {
+                  min: 1,
+                  max: 100,
+                  mode: 'slider',
+                  unit_of_measurement: '%',
+                },
+              }}
+              .value=${step.brightness}
+              @value-changed=${(e: CustomEvent) => this._handleSolarStepFieldChange(step.id, 'brightness', e)}
+            ></ha-selector>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   private _renderStep(step: EditableStep, index: number) {
@@ -630,94 +888,146 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
           </div>
         </div>
 
+        <div class="form-row">
+          <div class="form-field">
+            <span class="form-label">${this._localize('editors.mode_label')}</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{
+                select: {
+                  options: this._modeOptions,
+                  mode: 'dropdown',
+                },
+              }}
+              .value=${this._mode}
+              @value-changed=${this._handleModeChange}
+            ></ha-selector>
+          </div>
+        </div>
+
+        ${this._mode === 'solar' ? html`
+          <div class="form-hint">${this._localize('editors.solar_mode_hint')}</div>
+        ` : ''}
+
         <div class="form-row-pair">
-          <div class="form-field">
-            <span class="form-label">${this._localize('editors.loop_mode_label')}</span>
-            <ha-selector
-              .hass=${this.hass}
-              .selector=${{
-                select: {
-                  options: this._loopModeOptions,
-                  mode: 'dropdown',
-                },
-              }}
-              .value=${this._loopMode}
-              @value-changed=${this._handleLoopModeChange}
-            ></ha-selector>
+            <div class="form-field">
+              <span class="form-label">${this._localize('editors.loop_mode_label')}</span>
+              <ha-selector
+                .hass=${this.hass}
+                .selector=${{
+                  select: {
+                    options: this._loopModeOptions,
+                    mode: 'dropdown',
+                  },
+                }}
+                .value=${this._mode === 'solar' ? 'continuous' : this._loopMode}
+                .disabled=${this._mode === 'solar'}
+                @value-changed=${this._handleLoopModeChange}
+              ></ha-selector>
+            </div>
+            <div class="form-field">
+              <span class="form-label">${this._localize('editors.end_behavior_label')}</span>
+              <ha-selector
+                .hass=${this.hass}
+                .selector=${{
+                  select: {
+                    options: this._endBehaviorOptions,
+                    mode: 'dropdown',
+                  },
+                }}
+                .value=${this._mode === 'solar' ? 'maintain' : this._endBehavior}
+                .disabled=${this._mode === 'solar'}
+                @value-changed=${this._handleEndBehaviorChange}
+              ></ha-selector>
+            </div>
           </div>
-          <div class="form-field">
-            <span class="form-label">${this._localize('editors.end_behavior_label')}</span>
-            <ha-selector
-              .hass=${this.hass}
-              .selector=${{
-                select: {
-                  options: this._endBehaviorOptions,
-                  mode: 'dropdown',
-                },
-              }}
-              .value=${this._endBehavior}
-              @value-changed=${this._handleEndBehaviorChange}
-            ></ha-selector>
-          </div>
-        </div>
 
-        ${this._loopMode === 'count'
-          ? html`
-              <div class="form-row">
-                <span class="form-label">${this._localize('editors.loop_count_label')}</span>
-                <div class="form-input">
-                  <ha-selector
-                    .hass=${this.hass}
-                    .selector=${{
-                      number: {
-                        min: 1,
-                        max: 100,
-                        mode: 'box',
-                      },
-                    }}
-                    .value=${this._loopCount}
-                    @value-changed=${this._handleLoopCountChange}
-                  ></ha-selector>
-                </div>
-              </div>
-            `
-          : ''}
-
-        <div class="form-section toggle-row">
-          <div class="toggle-item">
-            <span class="toggle-label">${this._localize('editors.skip_first_step_label')}</span>
-            <ha-switch
-              .checked=${this._skipFirstInLoop}
-              @change=${this._handleSkipFirstInLoopChange}
-            ></ha-switch>
-          </div>
-        </div>
-
-        <div class="form-section">
-          <span class="form-label">${this._localize('editors.steps_label')}</span>
-          <div class="step-list">
-            ${this._steps.length === 0
-              ? html`
-                  <div class="empty-steps">
-                    ${this._localize('editors.no_steps_message')}
+          ${this._mode === 'standard' && this._loopMode === 'count'
+            ? html`
+                <div class="form-row">
+                  <span class="form-label">${this._localize('editors.loop_count_label')}</span>
+                  <div class="form-input">
+                    <ha-selector
+                      .hass=${this.hass}
+                      .selector=${{
+                        number: {
+                          min: 1,
+                          max: 100,
+                          mode: 'box',
+                        },
+                      }}
+                      .value=${this._loopCount}
+                      @value-changed=${this._handleLoopCountChange}
+                    ></ha-selector>
                   </div>
-                `
-              : this._steps.map((step, index) => html`
-                  ${this._renderDropIndicator(index)}
-                  ${this._renderStep(step, index)}
-                `)}
-            ${this._renderDropIndicator(this._steps.length)}
+                </div>
+              `
+            : ''}
 
-            <button
-              class="add-step-btn ${this._steps.length >= 20 ? 'disabled' : ''}"
-              @click=${this._addStep}
-              ?disabled=${this._steps.length >= 20}
-            >
-              <ha-icon icon="mdi:plus"></ha-icon>
-              ${this._localize('editors.add_step_button')}
-            </button>
+          <div class="form-section toggle-row">
+            <div class="toggle-item">
+              <span class="toggle-label">${this._localize('editors.skip_first_step_label')}</span>
+              <ha-switch
+                .checked=${this._skipFirstInLoop}
+                .disabled=${this._mode === 'solar'}
+                @change=${this._handleSkipFirstInLoopChange}
+              ></ha-switch>
+            </div>
           </div>
-        </div>
+
+          ${this._mode === 'standard' ? html`
+          <div class="form-section">
+            <span class="form-label">${this._localize('editors.steps_label')}</span>
+            <div class="step-list">
+              ${this._steps.length === 0
+                ? html`
+                    <div class="empty-steps">
+                      ${this._localize('editors.no_steps_message')}
+                    </div>
+                  `
+                : this._steps.map((step, index) => html`
+                    ${this._renderDropIndicator(index)}
+                    ${this._renderStep(step, index)}
+                  `)}
+              ${this._renderDropIndicator(this._steps.length)}
+
+              <button
+                class="add-step-btn ${this._steps.length >= 20 ? 'disabled' : ''}"
+                @click=${this._addStep}
+                ?disabled=${this._steps.length >= 20}
+              >
+                <ha-icon icon="mdi:plus"></ha-icon>
+                ${this._localize('editors.add_step_button')}
+              </button>
+            </div>
+          </div>
+          ` : html`
+          <div class="form-section">
+            <span class="form-label">${this._localize('editors.solar_steps_label')}</span>
+            <div class="step-list">
+              ${this._solarSteps.length === 0
+                ? html`
+                    <div class="empty-steps">
+                      ${this._localize('editors.no_steps_message')}
+                    </div>
+                  `
+                : this._solarSteps.map((step, index) => html`
+                    ${this._renderDropIndicator(index)}
+                    ${this._renderSolarStep(step, index)}
+                  `)}
+              ${this._renderDropIndicator(this._solarSteps.length)}
+
+              <button
+                class="add-step-btn ${this._solarSteps.length >= 20 ? 'disabled' : ''}"
+                @click=${this._addSolarStep}
+                ?disabled=${this._solarSteps.length >= 20}
+              >
+                <ha-icon icon="mdi:plus"></ha-icon>
+                ${this._localize('editors.add_step_button')}
+              </button>
+            </div>
+          </div>
+          `}
 
         ${this._hasIncompatibleEndpoints()
           ? html`
@@ -757,7 +1067,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
             : html`
                 <ha-button
                   @click=${this._preview}
-                  .disabled=${this._previewing || this._steps.length === 0 || !this.hasSelectedEntities || !this.isCompatible || this._hasIncompatibleEndpoints()}
+                  .disabled=${this._previewing || (this._mode === 'standard' ? this._steps.length === 0 : this._solarSteps.length === 0) || !this.hasSelectedEntities || !this.isCompatible || this._hasIncompatibleEndpoints()}
                   title=${!this.hasSelectedEntities ? this._localize('editors.tooltip_select_lights_first') : !this.isCompatible ? this._localize('editors.tooltip_light_not_compatible') : this._hasIncompatibleEndpoints() ? this._localize('editors.tooltip_light_no_cct') : ''}
                 >
                   <ha-icon icon="mdi:play"></ha-icon>
@@ -766,7 +1076,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
               `}
           <ha-button
             @click=${this._save}
-            .disabled=${!this._name.trim() || this._steps.length === 0 || this._saving}
+            .disabled=${!this._name.trim() || (this._mode === 'standard' ? this._steps.length === 0 : this._solarSteps.length === 0) || this._saving}
           >
             <ha-icon icon="mdi:content-save"></ha-icon>
             <span class="btn-text">${this.editMode ? this._localize('editors.update_button') : this._localize('editors.save_button')}</span>

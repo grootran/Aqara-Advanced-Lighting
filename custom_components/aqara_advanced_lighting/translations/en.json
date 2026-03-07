@@ -219,6 +219,12 @@
     },
     "music_sync_t1_strip_only": {
       "message": "Music sync is only supported on T1 LED Strip devices. Device {device} (model: {model}) does not support this feature."
+    },
+    "solar_steps_required": {
+      "message": "Solar mode requires at least 2 solar steps to be defined."
+    },
+    "invalid_solar_preset": {
+      "message": "Preset `{preset}` is not a valid solar preset."
     }
   },
   "services": {

@@ -484,6 +484,24 @@ start_cct_sequence:
       default: true
       selector:
         boolean:
+    mode:
+      name: Sequence mode
+      description: "Standard mode uses timed steps. Solar mode adjusts color temperature based on the sun's position."
+      required: false
+      default: standard
+      selector:
+        select:
+          options:
+            - label: "Standard"
+              value: "standard"
+            - label: "Solar"
+              value: "solar"
+    solar_steps:
+      name: Solar steps
+      description: "Solar elevation steps for solar mode. Each step defines the target color temperature and brightness at a given sun elevation angle. Requires at least 2 steps."
+      required: false
+      selector:
+        object:
     step_1:
       name: "Step 1 (Required)"
       collapsed: false
@@ -2454,6 +2472,63 @@ resume_entity_control:
     entity_id:
       name: Entity
       description: The light entity or entities to resume control for
+      required: true
+      selector:
+        entity:
+          multiple: true
+          filter:
+            domain: light
+
+start_circadian_mode:
+  name: Start circadian mode
+  description: >-
+    Start a passive circadian overlay on target lights. Automatically applies
+    sun-appropriate color temperature and brightness when a light turns on.
+  target:
+    entity:
+      domain: light
+  fields:
+    entity_id:
+      name: Light entity
+      description: The light entity or entities to apply circadian mode to.
+      required: true
+      selector:
+        entity:
+          multiple: true
+          filter:
+            domain: light
+    preset:
+      name: Preset
+      description: Name of a solar CCT preset to use (circadian, solar_warm, or solar_productive).
+      required: false
+      selector:
+        select:
+          options:
+            - label: "Circadian Rhythm"
+              value: "circadian"
+            - label: "Solar Warm"
+              value: "solar_warm"
+            - label: "Solar Productive"
+              value: "solar_productive"
+          mode: dropdown
+          custom_value: true
+    solar_steps:
+      name: Solar steps
+      description: Custom solar elevation steps (alternative to preset). Requires at least 2 steps.
+      required: false
+      selector:
+        object:
+
+stop_circadian_mode:
+  name: Stop circadian mode
+  description: Stop the passive circadian overlay on target lights.
+  target:
+    entity:
+      domain: light
+  fields:
+    entity_id:
+      name: Light entity
+      description: The light entity or entities to stop circadian mode for.
       required: true
       selector:
         entity:

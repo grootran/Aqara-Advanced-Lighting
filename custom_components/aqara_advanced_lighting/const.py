@@ -375,6 +375,9 @@ EVENT_ENTITY_EXTERNALLY_CONTROLLED: Final = f"{DOMAIN}_entity_externally_control
 EVENT_ENTITY_CONTROL_RESUMED: Final = f"{DOMAIN}_entity_control_resumed"
 SERVICE_SET_MUSIC_SYNC: Final = "set_music_sync"
 SERVICE_RESUME_ENTITY_CONTROL: Final = "resume_entity_control"
+SERVICE_START_CIRCADIAN_MODE: Final = "start_circadian_mode"
+SERVICE_STOP_CIRCADIAN_MODE: Final = "stop_circadian_mode"
+DATA_CIRCADIAN_MANAGER: Final = "circadian_manager"
 ENTITY_CONTROL_GRACE_SECONDS: Final = 8.0
 
 # Music sync event types
@@ -592,6 +595,16 @@ PRESET_CCT_WAKEUP: Final = "wakeup"
 PRESET_CCT_POWER_NAP: Final = "power_nap"
 PRESET_CCT_MINDFUL_BREATHING: Final = "mindful_breathing"
 PRESET_CCT_CIRCADIAN: Final = "circadian"
+PRESET_CCT_SOLAR_WARM: Final = "solar_warm"
+PRESET_CCT_SOLAR_PRODUCTIVE: Final = "solar_productive"
+
+CCT_MODE_STANDARD: Final = "standard"
+CCT_MODE_SOLAR: Final = "solar"
+VALID_CCT_MODES: Final = [CCT_MODE_STANDARD, CCT_MODE_SOLAR]
+SOLAR_STEP_PHASE_RISING: Final = "rising"
+SOLAR_STEP_PHASE_SETTING: Final = "setting"
+SOLAR_STEP_PHASE_ANY: Final = "any"
+VALID_SOLAR_PHASES: Final = [SOLAR_STEP_PHASE_RISING, SOLAR_STEP_PHASE_SETTING, SOLAR_STEP_PHASE_ANY]
 
 # Preset definitions
 # Built-in preset dictionaries have been moved to presets.py
