@@ -181,14 +181,13 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _get_context_and_record(hass: HomeAssistant, entity_id: str) -> Context | None:
-    """Get integration context and record command timestamp.
+    """Get integration context for tagging service calls as internal.
 
     Call before any hass.services.async_call targeting a controlled entity
     to ensure the entity controller recognizes it as an internal command.
     """
     ec = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
     if ec:
-        ec.record_command(entity_id)
         return ec.create_context()
     return None
 
@@ -1491,14 +1490,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
         # Send effects to all devices, grouped by instance
         all_entities_published: list[tuple[str, DynamicEffect, StateManager]] = []
-
-        # Record command timestamps before sending effects so device state
-        # reports from the writes are suppressed by the grace window
-        ec = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
-        if ec:
-            for group_data in instance_groups.values():
-                for eid, _ in group_data["entities"]:
-                    ec.record_command(eid)
 
         for entry_id, group_data in instance_groups.items():
             group_backend = group_data["backend"]

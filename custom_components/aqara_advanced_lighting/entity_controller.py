@@ -15,7 +15,7 @@ import time
 from collections.abc import Callable, Coroutine
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.const import STATE_OFF
+from homeassistant.const import STATE_OFF, STATE_UNAVAILABLE
 from homeassistant.core import Context, Event, HomeAssistant, State, callback
 
 from .const import (
@@ -25,7 +25,6 @@ from .const import (
     DATA_STATE_MANAGER,
     DATA_USER_PREFERENCES_STORE,
     DOMAIN,
-    ENTITY_CONTROL_GRACE_SECONDS,
     EVENT_ATTR_ENTITY_ID,
     EVENT_ATTR_PRESET,
     EVENT_ATTR_REASON,
@@ -57,18 +56,47 @@ def _state_attributes_equal(old_state: State, new_state: State) -> bool:
 
 
 def _detect_changed_attributes(old_state: State, new_state: State) -> OverrideAttributes:
-    """Detect which attribute categories changed between two states."""
-    changed = OverrideAttributes.NONE
+    """Detect which attribute categories changed between two states.
 
-    if old_state.attributes.get("brightness") != new_state.attributes.get("brightness"):
-        changed |= OverrideAttributes.BRIGHTNESS
+    Uses tolerance thresholds so that hardware side-effects (e.g. a small
+    brightness shift when only color temp was changed) are not counted as
+    an independent attribute change.
+    """
+    old_br = old_state.attributes.get("brightness")
+    new_br = new_state.attributes.get("brightness")
+    brightness_changed = old_br != new_br
 
+    color_changed = False
     color_attrs = ("color_temp_kelvin", "xy_color", "rgb_color", "hs_color")
     for attr in color_attrs:
         if old_state.attributes.get(attr) != new_state.attributes.get(attr):
-            changed |= OverrideAttributes.COLOR
+            color_changed = True
             break
 
+    if not brightness_changed and not color_changed:
+        return OverrideAttributes.NONE
+
+    # When both changed, check if one is just a hardware side-effect.
+    # Zigbee lights often report small brightness shifts when color temp
+    # changes, or small color temp rounding when brightness changes.
+    if brightness_changed and color_changed:
+        br_delta = abs((new_br or 0) - (old_br or 0))
+        old_ct = old_state.attributes.get("color_temp_kelvin")
+        new_ct = new_state.attributes.get("color_temp_kelvin")
+        ct_delta = abs((new_ct or 0) - (old_ct or 0)) if old_ct and new_ct else None
+
+        # Small brightness drift alongside a color change: treat as color-only
+        if br_delta <= 5 and (ct_delta is None or ct_delta > 50):
+            return OverrideAttributes.COLOR
+        # Small color temp drift alongside a brightness change: treat as brightness-only
+        if ct_delta is not None and ct_delta <= 50 and br_delta > 5:
+            return OverrideAttributes.BRIGHTNESS
+
+    changed = OverrideAttributes.NONE
+    if brightness_changed:
+        changed |= OverrideAttributes.BRIGHTNESS
+    if color_changed:
+        changed |= OverrideAttributes.COLOR
     return changed
 
 
@@ -135,9 +163,8 @@ class EntityController:
     def __init__(self, hass: HomeAssistant) -> None:
         """Initialize the entity controller."""
         self.hass = hass
-        self._externally_paused: set[str] = set()
+        self._externally_paused: dict[str, OverrideAttributes] = {}
         self._pending_restore: set[str] = set()
-        self._last_command_time: dict[str, float] = {}
         self._auto_resume_timers: dict[str, AutoResumeTimer] = {}
         self._state_listener_remove: Any | None = None
 
@@ -172,27 +199,20 @@ class EntityController:
             if not self._is_entity_controlled(entity_id):
                 return
 
-            # Check if the state change came from this integration
+            # Context-based detection: if the state change originated from
+            # this integration, ignore it. All our commands are tagged with
+            # INTEGRATION_CONTEXT_PARENT_ID via create_context().
             if event.context.parent_id == INTEGRATION_CONTEXT_PARENT_ID:
                 return
 
-            # Suppress state echoes within the grace window after our commands
-            last_cmd = self._last_command_time.get(entity_id)
-            if last_cmd is not None:
-                elapsed = time.monotonic() - last_cmd
-                if elapsed < ENTITY_CONTROL_GRACE_SECONDS:
-                    _LOGGER.debug(
-                        "Ignoring state echo on %s (%.1fs after command)",
-                        entity_id,
-                        elapsed,
-                    )
-                    return
-
-            # External off always stops the controlling action,
-            # regardless of the ignore_external_changes toggle
-            if new_state.state == STATE_OFF:
+            # External off/unavailable always stops the controlling action,
+            # regardless of the ignore_external_changes toggle.
+            # "unavailable" covers physical switches that cut power to the
+            # bulb — the device can't send a Zigbee off report so HA marks
+            # it unavailable after a timeout.
+            if new_state.state in (STATE_OFF, STATE_UNAVAILABLE):
                 _LOGGER.info(
-                    "Light %s turned off externally, stopping controlling action",
+                    "Light %s turned off/unavailable externally, stopping controlling action",
                     entity_id,
                 )
                 self.hass.async_create_task(
@@ -200,8 +220,18 @@ class EntityController:
                 )
                 return
 
-            # Skip no-op attribute changes (state unchanged)
+            # When a light transitions from off/unavailable to on, the
+            # startup attributes are device defaults, not a user override.
+            # For solar sequences, immediately apply the correct values
+            # so the user doesn't get blinded by cold/bright defaults.
             old_state = event.data.get("old_state")
+            if old_state and old_state.state in (STATE_OFF, STATE_UNAVAILABLE):
+                self.hass.async_create_task(
+                    self._apply_solar_on_turn_on(entity_id)
+                )
+                return
+
+            # Skip no-op attribute changes (state unchanged)
             if old_state and _state_attributes_equal(old_state, new_state):
                 _LOGGER.debug(
                     "Ignoring no-op state change on %s",
@@ -220,50 +250,22 @@ class EntityController:
                 )
                 return
 
-            # Already paused — restart auto-resume timer if running
-            if entity_id in self._externally_paused:
-                timer = self._auto_resume_timers.get(entity_id)
-                if timer and timer.is_running:
-                    _LOGGER.debug(
-                        "Restarting auto-resume timer for %s", entity_id
-                    )
-                    timer.start()
+            # Detect which attributes changed and pause
+            changed = _detect_changed_attributes(old_state, new_state)
+            if changed == OverrideAttributes.NONE:
                 return
 
-            # Attribute change (brightness, color, etc.) - pause entity
             _LOGGER.info(
-                "External change detected on %s, pausing entity control",
+                "External change detected on %s (attributes: %s), pausing",
                 entity_id,
+                changed,
             )
-            self._pause_entity(entity_id)
+            self._pause_entity(entity_id, changed)
 
         self._state_listener_remove = self.hass.bus.async_listen(
             "state_changed", _async_state_changed
         )
         _LOGGER.debug("Entity controller state listener registered")
-
-    def record_command(
-        self, entity_id: str, expected_duration: float = 0
-    ) -> None:
-        """Record that this integration just sent a command to an entity.
-
-        Call this before any hass.services.async_call that targets a
-        controlled entity. The timestamp suppresses state echo events
-        within the grace window.
-
-        Args:
-            entity_id: The entity being commanded.
-            expected_duration: How long the device will be busy executing
-                this command (e.g. a hardware transition). The grace
-                window is anchored to the *end* of this duration so that
-                asynchronous Zigbee state reports arriving during or
-                shortly after a long transition are not mistaken for
-                external changes.
-        """
-        effective_time = time.monotonic() + expected_duration
-        self._last_command_time[entity_id] = max(
-            self._last_command_time.get(entity_id, 0), effective_time
-        )
 
     def create_context(self) -> Context:
         """Create a Context tagged with the integration marker.
@@ -284,7 +286,7 @@ class EntityController:
         Also clears effect_active flag so the frontend stops showing
         one-time actions (effects, patterns) as active.
         """
-        self._externally_paused.discard(entity_id)
+        self._externally_paused.pop(entity_id, None)
         self._pending_restore.discard(entity_id)
         if timer := self._auto_resume_timers.pop(entity_id, None):
             timer.cancel()
@@ -318,45 +320,51 @@ class EntityController:
 
     def is_entity_externally_paused(self, entity_id: str) -> bool:
         """Check if an entity is paused due to external change."""
-        return entity_id in self._externally_paused
+        return self._externally_paused.get(entity_id, OverrideAttributes.NONE) != OverrideAttributes.NONE
+
+    def get_override_attributes(self, entity_id: str) -> OverrideAttributes:
+        """Get the override attribute flags for an entity."""
+        return self._externally_paused.get(entity_id, OverrideAttributes.NONE)
 
     async def resume_entity(self, entity_id: str) -> bool:
         """Resume control of an externally paused entity.
 
         Returns True if the entity was resumed, False if it wasn't paused.
         """
-        if entity_id not in self._externally_paused:
+        if self._externally_paused.get(entity_id, OverrideAttributes.NONE) == OverrideAttributes.NONE:
             _LOGGER.debug("Entity %s is not externally paused", entity_id)
             return False
 
-        self._externally_paused.discard(entity_id)
+        was_fully_paused = self._externally_paused.get(entity_id) == OverrideAttributes.ALL
+        self._externally_paused.pop(entity_id, None)
 
         # Cancel auto-resume timer (manual or automatic resume)
         if timer := self._auto_resume_timers.pop(entity_id, None):
             timer.cancel()
 
         # Resume in the controlling manager
-        for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():
-            dsm: DynamicSceneManager | None = instance_data.get(
-                DATA_DYNAMIC_SCENE_MANAGER
-            )
-            if dsm and dsm.is_scene_running(entity_id):
-                dsm.externally_resume_entity(entity_id)
-                break
+        if was_fully_paused:
+            for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():
+                dsm: DynamicSceneManager | None = instance_data.get(
+                    DATA_DYNAMIC_SCENE_MANAGER
+                )
+                if dsm and dsm.is_scene_running(entity_id):
+                    dsm.externally_resume_entity(entity_id)
+                    break
 
-            cct: CCTSequenceManager | None = instance_data.get(
-                DATA_CCT_SEQUENCE_MANAGER
-            )
-            if cct and cct.is_sequence_running(entity_id):
-                cct.resume_sequence(entity_id)
-                break
+                cct: CCTSequenceManager | None = instance_data.get(
+                    DATA_CCT_SEQUENCE_MANAGER
+                )
+                if cct and cct.is_sequence_running(entity_id):
+                    cct.resume_sequence(entity_id)
+                    break
 
-            seg: SegmentSequenceManager | None = instance_data.get(
-                DATA_SEGMENT_SEQUENCE_MANAGER
-            )
-            if seg and seg.is_sequence_running(entity_id):
-                seg.resume_sequence(entity_id)
-                break
+                seg: SegmentSequenceManager | None = instance_data.get(
+                    DATA_SEGMENT_SEQUENCE_MANAGER
+                )
+                if seg and seg.is_sequence_running(entity_id):
+                    seg.resume_sequence(entity_id)
+                    break
 
         self.hass.bus.async_fire(
             EVENT_ENTITY_CONTROL_RESUMED,
@@ -371,9 +379,8 @@ class EntityController:
 
         Called by managers during cleanup to remove stale tracking.
         """
-        self._externally_paused.discard(entity_id)
+        self._externally_paused.pop(entity_id, None)
         self._pending_restore.discard(entity_id)
-        self._last_command_time.pop(entity_id, None)
         if timer := self._auto_resume_timers.pop(entity_id, None):
             timer.cancel()
 
@@ -387,7 +394,6 @@ class EntityController:
             self._state_listener_remove = None
         self._externally_paused.clear()
         self._pending_restore.clear()
-        self._last_command_time.clear()
         for timer in self._auto_resume_timers.values():
             timer.cancel()
         self._auto_resume_timers.clear()
@@ -450,27 +456,36 @@ class EntityController:
                 return cct.get_auto_resume_delay(entity_id)
         return 0
 
-    def _pause_entity(self, entity_id: str) -> None:
-        """Pause control of a single entity due to external change."""
-        if entity_id in self._externally_paused:
-            return
+    def _get_override_control_mode(self) -> str:
+        """Get the override control mode preference."""
+        store = self.hass.data.get(DOMAIN, {}).get(DATA_USER_PREFERENCES_STORE)
+        if store:
+            return store.get_global_preference("override_control_mode") or "pause_all"
+        return "pause_all"
 
-        self._externally_paused.add(entity_id)
+    def _supports_partial_override(self, entity_id: str) -> bool:
+        """Check if the entity's controlling action supports per-attribute overrides.
 
-        # Start auto-resume timer only for solar sequences with a per-preset delay
-        delay = self._get_solar_auto_resume_delay(entity_id)
-        if delay > 0:
-            timer = AutoResumeTimer(
-                delay,
-                lambda eid=entity_id: self.resume_entity(eid),
+        Only solar CCT sequences and dynamic scenes support partial overrides.
+        Standard CCT/segment sequences always use full pause.
+        """
+        for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():
+            cct: CCTSequenceManager | None = instance_data.get(
+                DATA_CCT_SEQUENCE_MANAGER
             )
-            self._auto_resume_timers[entity_id] = timer
-            timer.start()
-            _LOGGER.debug(
-                "Auto-resume timer started for %s (%.0fs)", entity_id, delay
-            )
+            if cct and cct.is_solar_sequence(entity_id):
+                return True
 
-        # Pause in the controlling manager
+            dsm: DynamicSceneManager | None = instance_data.get(
+                DATA_DYNAMIC_SCENE_MANAGER
+            )
+            if dsm and dsm.is_scene_running(entity_id):
+                return True
+
+        return False
+
+    def _pause_in_manager(self, entity_id: str) -> None:
+        """Pause the entity in its controlling manager (full pause only)."""
         for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():
             dsm: DynamicSceneManager | None = instance_data.get(
                 DATA_DYNAMIC_SCENE_MANAGER
@@ -493,13 +508,107 @@ class EntityController:
                 seg.pause_sequence(entity_id)
                 break
 
-        self.hass.bus.async_fire(
-            EVENT_ENTITY_EXTERNALLY_CONTROLLED,
-            {
-                EVENT_ATTR_ENTITY_ID: entity_id,
-                EVENT_ATTR_REASON: "external_change",
-            },
-        )
+    def _pause_entity(
+        self,
+        entity_id: str,
+        attributes: OverrideAttributes = OverrideAttributes.ALL,
+    ) -> None:
+        """Pause control of a single entity due to external change.
+
+        In pause_changed mode, only the specified attributes are overridden
+        for solar sequences and dynamic scenes. Standard CCT/segment
+        sequences always use full pause regardless of mode.
+        """
+        mode = self._get_override_control_mode()
+        supports_partial = self._supports_partial_override(entity_id)
+
+        if mode != "pause_changed" or not supports_partial:
+            attributes = OverrideAttributes.ALL
+
+        current = self._externally_paused.get(entity_id, OverrideAttributes.NONE)
+        merged = current | attributes
+
+        if merged == current and current != OverrideAttributes.NONE:
+            # No change -- restart auto-resume timer if running
+            timer = self._auto_resume_timers.get(entity_id)
+            if timer and timer.is_running:
+                timer.start()
+            return
+
+        was_none = current == OverrideAttributes.NONE
+        self._externally_paused[entity_id] = merged
+
+        # Start/restart auto-resume timer
+        delay = self._get_solar_auto_resume_delay(entity_id)
+        if delay > 0:
+            timer = self._auto_resume_timers.get(entity_id)
+            if timer and timer.is_running:
+                timer.start()
+            else:
+                timer = AutoResumeTimer(
+                    delay,
+                    lambda eid=entity_id: self.resume_entity(eid),
+                )
+                self._auto_resume_timers[entity_id] = timer
+                timer.start()
+                _LOGGER.debug(
+                    "Auto-resume timer started for %s (%.0fs)",
+                    entity_id,
+                    delay,
+                )
+
+        # Only pause in manager when transitioning to full override
+        # (partial overrides let the loop continue with filtered output)
+        if merged == OverrideAttributes.ALL and current != OverrideAttributes.ALL:
+            self._pause_in_manager(entity_id)
+
+        if was_none:
+            self.hass.bus.async_fire(
+                EVENT_ENTITY_EXTERNALLY_CONTROLLED,
+                {
+                    EVENT_ATTR_ENTITY_ID: entity_id,
+                    EVENT_ATTR_REASON: "external_change",
+                },
+            )
+
+    async def _apply_solar_on_turn_on(self, entity_id: str) -> None:
+        """Instantly apply current solar values when a light turns on.
+
+        Called when a controlled light transitions from off/unavailable to on.
+        For solar sequences this prevents the user seeing the bulb's cold/bright
+        startup defaults before the solar loop's next 60-second poll.
+        Non-solar entities are silently ignored.
+        """
+        for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():
+            cct: CCTSequenceManager | None = instance_data.get(
+                DATA_CCT_SEQUENCE_MANAGER
+            )
+            if not cct or not cct.is_solar_sequence(entity_id):
+                continue
+
+            values = cct.get_current_solar_values(entity_id)
+            if values is None:
+                return
+
+            ct, br = values
+            _LOGGER.info(
+                "Applying solar values on turn-on for %s: %dK, brightness %d",
+                entity_id,
+                ct,
+                br,
+            )
+            await self.hass.services.async_call(
+                "light",
+                "turn_on",
+                {
+                    "entity_id": entity_id,
+                    "color_temp_kelvin": ct,
+                    "brightness": br,
+                },
+                blocking=False,
+                context=self.create_context(),
+            )
+            return
 
     async def _stop_entity_action(self, entity_id: str, reason: str) -> None:
         """Stop the controlling action for an entity entirely.
@@ -510,7 +619,7 @@ class EntityController:
         firmware (writing effect_type=0 is not universal -- on T1M, 0 means
         flow1, not off).
         """
-        self._externally_paused.discard(entity_id)
+        self._externally_paused.pop(entity_id, None)
 
         for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():
             # Clear effect/pattern active flag and schedule restore on next turn-on
@@ -586,7 +695,6 @@ class EntityController:
             _LOGGER.info(
                 "Restoring previous state for %s after effect cleared", entity_id
             )
-            self.record_command(entity_id)
             await state_mgr.async_restore_entity_state(
                 entity_id,
                 blocking=True,

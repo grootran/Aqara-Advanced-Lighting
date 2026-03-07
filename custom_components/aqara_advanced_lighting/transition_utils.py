@@ -157,9 +157,6 @@ def make_service_apply_callback(
 
         context: Context | None = None
         if entity_controller:
-            entity_controller.record_command(
-                entity_id, expected_duration=transition or 0
-            )
             context = entity_controller.create_context()
 
         await hass.services.async_call(

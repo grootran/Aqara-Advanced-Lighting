@@ -11,6 +11,7 @@ from homeassistant.helpers.storage import Store
 
 from .base_sequence_manager import BaseSequenceManager
 from .const import (
+    DATA_ENTITY_CONTROLLER,
     DOMAIN,
     EVENT_ATTR_ENTITY_ID,
     EVENT_ATTR_PRESET,
@@ -18,6 +19,7 @@ from .const import (
     EVENT_ATTR_SEQUENCE_TYPE,
     EVENT_ATTR_TOTAL_STEPS,
     EVENT_SEQUENCE_STARTED,
+    OverrideAttributes,
     SEQUENCE_TYPE_CCT,
 )
 from .models import CCTSequence, CCTSequenceStep
@@ -56,6 +58,31 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
     def is_solar_sequence(self, entity_id: str) -> bool:
         """Check if the running sequence for an entity is solar mode."""
         return entity_id in self._solar_sequences
+
+    def get_current_solar_values(
+        self, entity_id: str,
+    ) -> tuple[int, int] | None:
+        """Get the current solar color temp and brightness for an entity.
+
+        Returns (color_temp_kelvin, brightness) or None if the entity
+        is not running a solar sequence or sun state is unavailable.
+        """
+        seq_data = self._solar_sequences.get(entity_id)
+        if not seq_data:
+            return None
+        sun_state = get_sun_state(self.hass)
+        if sun_state is None:
+            return None
+        solar_steps = [
+            SolarStep(
+                sun_elevation=s["sun_elevation"],
+                color_temp=s["color_temp"],
+                brightness=s["brightness"],
+                phase=s.get("phase", "any"),
+            )
+            for s in seq_data["solar_steps"]
+        ]
+        return interpolate_solar_values(solar_steps, sun_state)
 
     def get_auto_resume_delay(self, entity_id: str) -> float:
         """Get the auto-resume delay for a running solar sequence.
@@ -407,22 +434,63 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
 
                 ct, br = interpolate_solar_values(sequence.solar_steps, sun_state)
 
-                if ct != last_ct or br != last_br:
-                    transition = min(SOLAR_POLL_INTERVAL, 30.0)
-                    step = CCTSequenceStep(
-                        color_temp=ct,
-                        brightness=br,
-                        transition=transition,
-                        hold=0,
-                    )
-                    completed = await self._apply_step(
-                        entity_id, sequence, step,
-                        step_index=0, stop_event=stop_event,
-                    )
-                    if not completed:
+                # Check for per-attribute overrides
+                ec = self.hass.data.get(DOMAIN, {}).get(DATA_ENTITY_CONTROLLER)
+                override = OverrideAttributes.NONE
+                if ec:
+                    override = ec.get_override_attributes(entity_id)
+
+                if override == OverrideAttributes.ALL:
+                    # Fully overridden -- skip this cycle
+                    try:
+                        await asyncio.wait_for(
+                            stop_event.wait(), timeout=SOLAR_POLL_INTERVAL
+                        )
                         break
-                    last_ct = ct
-                    last_br = br
+                    except asyncio.TimeoutError:
+                        continue
+
+                # Filter overridden attributes
+                apply_ct = ct if OverrideAttributes.COLOR not in override else last_ct
+                apply_br = br if OverrideAttributes.BRIGHTNESS not in override else last_br
+
+                if apply_ct != last_ct or apply_br != last_br:
+                    transition = min(SOLAR_POLL_INTERVAL, 30.0)
+
+                    if override != OverrideAttributes.NONE:
+                        # Partial override: build filtered service call directly
+                        service_data: dict[str, Any] = {"entity_id": entity_id}
+                        if OverrideAttributes.COLOR not in override:
+                            service_data["color_temp_kelvin"] = ct
+                        if OverrideAttributes.BRIGHTNESS not in override:
+                            service_data["brightness"] = br
+                        service_data["transition"] = transition
+
+                        context = ec.create_context() if ec else None
+                        await self.hass.services.async_call(
+                            "light",
+                            "turn_on",
+                            service_data,
+                            blocking=False,
+                            context=context,
+                        )
+                    else:
+                        # No override: use existing _apply_step path
+                        step = CCTSequenceStep(
+                            color_temp=ct,
+                            brightness=br,
+                            transition=transition,
+                            hold=0,
+                        )
+                        completed = await self._apply_step(
+                            entity_id, sequence, step,
+                            step_index=0, stop_event=stop_event,
+                        )
+                        if not completed:
+                            break
+
+                    last_ct = apply_ct
+                    last_br = apply_br
 
                 # Interruptible wait for next poll
                 try:

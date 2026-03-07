@@ -55,11 +55,13 @@ class GlobalPreferences(TypedDict):
 
     ignore_external_changes: bool
     software_transition_entities: list[str]
+    override_control_mode: str
 
 
 DEFAULT_GLOBAL_PREFERENCES: GlobalPreferences = {
     "ignore_external_changes": False,
     "software_transition_entities": [],
+    "override_control_mode": "pause_all",
 }
 
 
@@ -84,6 +86,10 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
                     ),
                     "software_transition_entities": raw_global.get(
                         "software_transition_entities", []
+                    ),
+                    "override_control_mode": raw_global.get(
+                        "override_control_mode",
+                        DEFAULT_GLOBAL_PREFERENCES["override_control_mode"],
                     ),
                 }
             else:
@@ -249,6 +255,7 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
         self,
         ignore_external_changes: bool | None = None,
         software_transition_entities: list[str] | None = None,
+        override_control_mode: str | None = None,
     ) -> GlobalPreferences:
         """Update integration-wide global preferences.
 
@@ -259,6 +266,9 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
 
         if software_transition_entities is not None:
             self._global_data["software_transition_entities"] = software_transition_entities
+
+        if override_control_mode is not None:
+            self._global_data["override_control_mode"] = override_control_mode
 
         await self.async_save()
         _LOGGER.debug("Updated global preferences")

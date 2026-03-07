@@ -77,8 +77,6 @@ class SegmentSequenceManager(BaseSequenceManager[SegmentSequence]):
                 for seg in range(1, total_segments + 1)
             ]
             try:
-                if self._entity_controller:
-                    self._entity_controller.record_command(entity_id)
                 await self.backend.async_send_segment_pattern(
                     entity_id, clear_segments
                 )
@@ -148,8 +146,6 @@ class SegmentSequenceManager(BaseSequenceManager[SegmentSequence]):
         # Apply activation pattern
         if seg_step.activation_pattern == "all":
             try:
-                if self._entity_controller:
-                    self._entity_controller.record_command(entity_id)
                 await self.backend.async_send_segment_pattern(
                     entity_id, segment_colors
                 )
@@ -200,8 +196,6 @@ class SegmentSequenceManager(BaseSequenceManager[SegmentSequence]):
                         segment=segment, color=color_map[segment]
                     )
                     try:
-                        if self._entity_controller:
-                            self._entity_controller.record_command(entity_id)
                         await self.backend.async_send_segment_pattern(
                             entity_id, [segment_color]
                         )

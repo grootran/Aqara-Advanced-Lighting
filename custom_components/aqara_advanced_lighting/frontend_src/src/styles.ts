@@ -329,6 +329,19 @@ export const panelStyles = css`
     color: var(--warning-color, #ff9800);
   }
 
+  .running-op-pause-row {
+    font-size: var(--ha-font-size-s, 12px);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .running-op-status.override-detail {
+    color: var(--warning-color, #ff9800);
+    font-style: italic;
+  }
+
   .running-op-actions {
     display: flex;
     align-items: center;

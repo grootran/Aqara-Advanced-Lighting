@@ -373,6 +373,7 @@ export interface UserPreferences {
 export interface GlobalPreferences {
   ignore_external_changes?: boolean;
   software_transition_entities?: string[];
+  override_control_mode?: 'pause_all' | 'pause_changed';
 }
 
 // Draft state types for editor tab caching (in-memory only, not persisted)
@@ -549,6 +550,10 @@ export interface RunningOperation {
   current_brightness?: number;
   // Auto-resume countdown (seconds remaining, present when externally paused)
   auto_resume_remaining?: number;
+  override_attributes?: {
+    brightness: boolean;
+    color: boolean;
+  } | Record<string, { brightness: boolean; color: boolean }>;
 }
 
 export interface RunningOperationsResponse {

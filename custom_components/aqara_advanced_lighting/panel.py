@@ -50,6 +50,7 @@ from .const import (
     DATA_USER_PREFERENCES_STORE,
     DEFAULT_EXTRACTED_COLORS,
     DOMAIN,
+    OverrideAttributes,
     MAX_COLOR_HISTORY_SIZE,
     MAX_IMAGE_SIZE_BYTES,
     THUMBNAIL_STORAGE_DIR,
@@ -1015,15 +1016,25 @@ class GlobalPreferencesView(HomeAssistantView):
                 )
             software_transition_entities = entities
 
+        override_control_mode = data.get("override_control_mode")
+        if override_control_mode is not None:
+            if override_control_mode not in ("pause_all", "pause_changed"):
+                return web.Response(
+                    status=400,
+                    text="override_control_mode must be 'pause_all' or 'pause_changed'",
+                )
+
         if (
             ignore_external_changes is None
             and software_transition_entities is None
+            and override_control_mode is None
         ):
             return web.json_response(store.get_global_preferences())
 
         preferences = await store.update_global_preferences(
             ignore_external_changes=ignore_external_changes,
             software_transition_entities=software_transition_entities,
+            override_control_mode=override_control_mode,
         )
         return web.json_response(preferences)
 
@@ -1777,6 +1788,16 @@ class RunningOperationsView(HomeAssistantView):
                         "preset_id": cct_mgr.get_sequence_preset(entity_id),
                         "paused": status.get("paused", False),
                         "externally_paused": ext_paused,
+                        "override_attributes": {
+                            "brightness": bool(
+                                entity_controller.get_override_attributes(entity_id)
+                                & OverrideAttributes.BRIGHTNESS
+                            ) if entity_controller else False,
+                            "color": bool(
+                                entity_controller.get_override_attributes(entity_id)
+                                & OverrideAttributes.COLOR
+                            ) if entity_controller else False,
+                        },
                         "current_step": status.get("current_step", 0),
                         "total_steps": status.get("total_steps", 0),
                         "mode": "solar" if cct_mgr.is_solar_sequence(entity_id) else "standard",
@@ -1823,6 +1844,21 @@ class RunningOperationsView(HomeAssistantView):
                         "preset_id": scene_info.preset_name,
                         "paused": scene_info.paused,
                         "externally_paused_entities": ext_paused_entities,
+                        "override_attributes": {
+                            eid: {
+                                "brightness": bool(
+                                    entity_controller.get_override_attributes(eid)
+                                    & OverrideAttributes.BRIGHTNESS
+                                ),
+                                "color": bool(
+                                    entity_controller.get_override_attributes(eid)
+                                    & OverrideAttributes.COLOR
+                                ),
+                            }
+                            for eid in scene_info.entity_ids
+                            if entity_controller
+                            and entity_controller.is_entity_externally_paused(eid)
+                        },
                         "entity_capabilities": scene_info.entity_capabilities,
                     })
 

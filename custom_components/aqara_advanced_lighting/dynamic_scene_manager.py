@@ -31,6 +31,7 @@ from .const import (
     MAX_COLOR_TEMP_KELVIN,
     MIN_COLOR_TEMP_KELVIN,
     MIN_TRANSITION_STEPS,
+    OverrideAttributes,
     SEQUENCE_TYPE_DYNAMIC_SCENE,
     SOFTWARE_TRANSITION_MODELS,
     brightness_percent_to_device,
@@ -1030,6 +1031,11 @@ class DynamicSceneManager:
             if entity_id in scene_state.externally_paused_entities:
                 continue
 
+            # Check for partial attribute overrides
+            override = OverrideAttributes.NONE
+            if self._entity_controller:
+                override = self._entity_controller.get_override_attributes(entity_id)
+
             # Resolve capability profile for this entity early so we can
             # skip ON_OFF_ONLY entities before waiting on the offset delay.
             profile = scene_state.capability_profiles.get(entity_id)
@@ -1064,7 +1070,7 @@ class DynamicSceneManager:
 
             # Check if this entity needs software-interpolated transitions
             model_id = scene_state.software_transition_entities.get(entity_id)
-            if model_id and transition_time > 0:
+            if model_id and transition_time > 0 and override == OverrideAttributes.NONE:
                 # Launch async task for software interpolation
                 task = asyncio.create_task(
                     self._software_color_transition(
@@ -1093,13 +1099,6 @@ class DynamicSceneManager:
                 )
             else:
                 # Hardware transition path (T2, generic, or initial instant)
-                # Record command with transition duration so the grace
-                # window covers the full hardware transition period.
-                if self._entity_controller:
-                    self._entity_controller.record_command(
-                        entity_id, expected_duration=transition_time
-                    )
-
                 # Build service data adapted to entity capability
                 service_data = self._build_adapted_service_data(
                     entity_id,
@@ -1111,6 +1110,18 @@ class DynamicSceneManager:
                 )
                 # ON_OFF_ONLY already filtered above, so service_data
                 # will not be None here.
+
+                # Filter overridden attributes from service data
+                if override != OverrideAttributes.NONE and service_data:
+                    if OverrideAttributes.BRIGHTNESS in override:
+                        service_data.pop("brightness", None)
+                    if OverrideAttributes.COLOR in override:
+                        service_data.pop("xy_color", None)
+                        service_data.pop("color_temp_kelvin", None)
+                    # If all value keys removed, skip this entity
+                    value_keys = {"brightness", "xy_color", "color_temp_kelvin"}
+                    if not (set(service_data.keys()) & value_keys):
+                        continue
 
                 await self.hass.services.async_call(
                     "light",
@@ -1151,12 +1162,6 @@ class DynamicSceneManager:
                 pass  # Normal - transition time elapsed
 
             # Refresh grace window after transition completes so the
-            # subsequent hold period is covered against late state reports.
-            if self._entity_controller:
-                for eid in light_order:
-                    if eid not in scene_state.externally_paused_entities:
-                        self._entity_controller.record_command(eid)
-
     async def _software_color_transition(
         self,
         entity_id: str,
@@ -1192,8 +1197,6 @@ class DynamicSceneManager:
             _LOGGER.debug(
                 "Entity %s unavailable, applying target directly", entity_id
             )
-            if self._entity_controller:
-                self._entity_controller.record_command(entity_id)
             # Build adapted service data for unavailable fallback
             fallback_data = self._build_adapted_service_data(
                 entity_id,
@@ -1268,10 +1271,6 @@ class DynamicSceneManager:
                 start_brightness
                 + (target_brightness - start_brightness) * eased_t
             )
-
-            # Record command and send without transition parameter
-            if self._entity_controller:
-                self._entity_controller.record_command(entity_id)
 
             # Build adapted service data for this step
             step_data = self._build_adapted_service_data(

@@ -87,7 +87,7 @@ def test_detect_xy_color_change(mock_state):
 
 
 def test_detect_both_changes(mock_state):
-    """Both brightness and color changed returns ALL."""
+    """Both brightness and color changed significantly returns ALL."""
     old = mock_state(brightness=128, color_temp_kelvin=4000)
     new = mock_state(brightness=200, color_temp_kelvin=3000)
     assert _detect_changed_attributes(old, new) == OverrideAttributes.ALL
@@ -98,3 +98,130 @@ def test_detect_no_change(mock_state):
     old = mock_state(brightness=128, color_temp_kelvin=4000)
     new = mock_state(brightness=128, color_temp_kelvin=4000)
     assert _detect_changed_attributes(old, new) == OverrideAttributes.NONE
+
+
+def test_detect_color_change_with_brightness_drift(mock_state):
+    """Small brightness drift alongside color temp change is COLOR only."""
+    old = mock_state(brightness=128, color_temp_kelvin=4000)
+    new = mock_state(brightness=131, color_temp_kelvin=3000)
+    assert _detect_changed_attributes(old, new) == OverrideAttributes.COLOR
+
+
+def test_detect_brightness_change_with_color_temp_drift(mock_state):
+    """Small color temp drift alongside brightness change is BRIGHTNESS only."""
+    old = mock_state(brightness=128, color_temp_kelvin=4000)
+    new = mock_state(brightness=200, color_temp_kelvin=4030)
+    assert _detect_changed_attributes(old, new) == OverrideAttributes.BRIGHTNESS
+
+
+def test_detect_both_significant_changes(mock_state):
+    """Large changes to both attributes returns ALL."""
+    old = mock_state(brightness=128, color_temp_kelvin=4000)
+    new = mock_state(brightness=200, color_temp_kelvin=3000)
+    assert _detect_changed_attributes(old, new) == OverrideAttributes.ALL
+
+
+def test_get_override_attributes_default(controller):
+    """Unpaused entity returns NONE."""
+    assert controller.get_override_attributes("light.test") == OverrideAttributes.NONE
+
+
+def test_get_override_attributes_after_set(controller):
+    """Paused entity returns stored override flags."""
+    controller._externally_paused["light.test"] = OverrideAttributes.BRIGHTNESS
+    assert controller.get_override_attributes("light.test") == OverrideAttributes.BRIGHTNESS
+
+
+def test_is_externally_paused_with_dict(controller):
+    """is_entity_externally_paused works with dict storage."""
+    assert not controller.is_entity_externally_paused("light.test")
+    controller._externally_paused["light.test"] = OverrideAttributes.ALL
+    assert controller.is_entity_externally_paused("light.test")
+
+
+def test_clear_entity_with_dict(controller):
+    """clear_entity removes from dict."""
+    controller._externally_paused["light.test"] = OverrideAttributes.ALL
+    controller.clear_entity("light.test")
+    assert not controller.is_entity_externally_paused("light.test")
+
+
+def test_pause_entity_pause_all_mode(controller, mock_hass):
+    """In pause_all mode, any change results in ALL override."""
+    store = MagicMock()
+    store.get_global_preference = MagicMock(side_effect=lambda k: {
+        "ignore_external_changes": False,
+        "override_control_mode": "pause_all",
+    }.get(k))
+    mock_hass.data[DOMAIN][DATA_USER_PREFERENCES_STORE] = store
+
+    controller._pause_entity("light.test", OverrideAttributes.BRIGHTNESS)
+    assert controller.get_override_attributes("light.test") == OverrideAttributes.ALL
+
+
+def test_pause_entity_pause_changed_solar(controller, mock_hass):
+    """In pause_changed mode, solar sequence gets partial override."""
+    store = MagicMock()
+    store.get_global_preference = MagicMock(side_effect=lambda k: {
+        "ignore_external_changes": False,
+        "override_control_mode": "pause_changed",
+    }.get(k))
+    mock_hass.data[DOMAIN][DATA_USER_PREFERENCES_STORE] = store
+
+    cct = MagicMock()
+    cct.is_solar_sequence = MagicMock(return_value=True)
+    cct.is_sequence_running = MagicMock(return_value=True)
+    cct.get_auto_resume_delay = MagicMock(return_value=0)
+    mock_hass.data[DOMAIN]["entries"] = {
+        "entry1": {DATA_CCT_SEQUENCE_MANAGER: cct},
+    }
+
+    controller._pause_entity("light.test", OverrideAttributes.BRIGHTNESS)
+    assert controller.get_override_attributes("light.test") == OverrideAttributes.BRIGHTNESS
+    cct.pause_sequence.assert_not_called()
+
+
+def test_pause_entity_pause_changed_standard_cct(controller, mock_hass):
+    """In pause_changed mode, standard CCT sequence still gets full pause."""
+    store = MagicMock()
+    store.get_global_preference = MagicMock(side_effect=lambda k: {
+        "ignore_external_changes": False,
+        "override_control_mode": "pause_changed",
+    }.get(k))
+    mock_hass.data[DOMAIN][DATA_USER_PREFERENCES_STORE] = store
+
+    cct = MagicMock()
+    cct.is_solar_sequence = MagicMock(return_value=False)
+    cct.is_sequence_running = MagicMock(return_value=True)
+    cct.get_auto_resume_delay = MagicMock(return_value=0)
+    mock_hass.data[DOMAIN]["entries"] = {
+        "entry1": {DATA_CCT_SEQUENCE_MANAGER: cct},
+    }
+
+    controller._pause_entity("light.test", OverrideAttributes.BRIGHTNESS)
+    assert controller.get_override_attributes("light.test") == OverrideAttributes.ALL
+    cct.pause_sequence.assert_called_once_with("light.test")
+
+
+def test_pause_entity_merges_attributes(controller, mock_hass):
+    """Subsequent pauses merge attribute flags."""
+    store = MagicMock()
+    store.get_global_preference = MagicMock(side_effect=lambda k: {
+        "override_control_mode": "pause_changed",
+    }.get(k))
+    mock_hass.data[DOMAIN][DATA_USER_PREFERENCES_STORE] = store
+
+    cct = MagicMock()
+    cct.is_solar_sequence = MagicMock(return_value=True)
+    cct.is_sequence_running = MagicMock(return_value=True)
+    cct.get_auto_resume_delay = MagicMock(return_value=0)
+    mock_hass.data[DOMAIN]["entries"] = {
+        "entry1": {DATA_CCT_SEQUENCE_MANAGER: cct},
+    }
+
+    controller._pause_entity("light.test", OverrideAttributes.BRIGHTNESS)
+    assert controller.get_override_attributes("light.test") == OverrideAttributes.BRIGHTNESS
+
+    controller._pause_entity("light.test", OverrideAttributes.COLOR)
+    assert controller.get_override_attributes("light.test") == OverrideAttributes.ALL
+    cct.pause_sequence.assert_called_once_with("light.test")

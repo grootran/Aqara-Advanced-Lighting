@@ -379,7 +379,6 @@ SERVICE_RESUME_ENTITY_CONTROL: Final = "resume_entity_control"
 SERVICE_START_CIRCADIAN_MODE: Final = "start_circadian_mode"
 SERVICE_STOP_CIRCADIAN_MODE: Final = "stop_circadian_mode"
 DATA_CIRCADIAN_MANAGER: Final = "circadian_manager"
-ENTITY_CONTROL_GRACE_SECONDS: Final = 8.0
 
 
 class OverrideAttributes(IntFlag):

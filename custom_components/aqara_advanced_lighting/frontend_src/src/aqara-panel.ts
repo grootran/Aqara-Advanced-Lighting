@@ -69,6 +69,7 @@ export class AqaraPanel extends LitElement {
   @state() private _useCustomBrightness = false;
   @state() private _useStaticSceneMode = false;
   @state() private _ignoreExternalChanges = false;
+  @state() private _overrideControlMode: string = 'pause_all';
   @state() private _softwareTransitionEntities: string[] = [];
   @state() private _useDistributionModeOverride = false;
   @state() private _distributionModeOverride = 'shuffle_rotate';
@@ -379,11 +380,14 @@ export class AqaraPanel extends LitElement {
 
     // Load global preferences (separate endpoint, not per-user)
     try {
-      const globalPrefs = await this.hass.callApi<{ignore_external_changes?: boolean; software_transition_entities?: string[]}>(
+      const globalPrefs = await this.hass.callApi<{ignore_external_changes?: boolean; software_transition_entities?: string[]; override_control_mode?: string}>(
         'GET', 'aqara_advanced_lighting/global_preferences'
       );
       if (globalPrefs.ignore_external_changes !== undefined) {
         this._ignoreExternalChanges = globalPrefs.ignore_external_changes;
+      }
+      if (globalPrefs.override_control_mode) {
+        this._overrideControlMode = globalPrefs.override_control_mode;
       }
       if (globalPrefs.software_transition_entities) {
         this._softwareTransitionEntities = globalPrefs.software_transition_entities;
@@ -1976,6 +1980,11 @@ export class AqaraPanel extends LitElement {
     this._saveGlobalPreferences();
   }
 
+  private _handleOverrideControlModeChanged(e: CustomEvent): void {
+    this._overrideControlMode = e.detail.value;
+    this._saveGlobalPreferences();
+  }
+
   private _handleDistributionModeOverrideToggle(e: Event): void {
     this._useDistributionModeOverride = (e.target as HTMLInputElement).checked;
     this._saveUserPreferences();
@@ -1998,6 +2007,7 @@ export class AqaraPanel extends LitElement {
     try {
       await this.hass.callApi('PUT', 'aqara_advanced_lighting/global_preferences', {
         ignore_external_changes: this._ignoreExternalChanges,
+        override_control_mode: this._overrideControlMode,
         software_transition_entities: this._softwareTransitionEntities,
       });
     } catch (err) {
@@ -2317,9 +2327,20 @@ export class AqaraPanel extends LitElement {
             <span class="running-op-entity">
               ${preset.name ? html`<span class="running-op-type">${typeLabel}</span>` : ''}
               <span class="running-op-entity-name">${entityName}</span>
-              ${op.paused ? html`<span class="running-op-status paused-text">${this._localize('target.paused')}</span>` : ''}
-              ${op.externally_paused ? html`<span class="running-op-status externally-paused-text">${this._localize('target.externally_paused')}${op.auto_resume_remaining ? html` (${this._formatAutoResumeRemaining(op.auto_resume_remaining)})` : ''}</span>` : ''}
             </span>
+            ${op.paused || op.externally_paused ? html`
+              <span class="running-op-pause-row">
+                ${op.paused ? html`<span class="running-op-status paused-text">${this._localize('target.paused')}</span>` : ''}
+                ${op.externally_paused ? html`<span class="running-op-status externally-paused-text">${this._localize('target.externally_paused')}${op.auto_resume_remaining ? html` (${this._formatAutoResumeRemaining(op.auto_resume_remaining)})` : ''}</span>` : ''}
+                ${op.override_attributes && 'brightness' in op.override_attributes && (op.override_attributes as {brightness: boolean; color: boolean}).brightness !== (op.override_attributes as {brightness: boolean; color: boolean}).color
+                  ? html`<span class="running-op-status override-detail">${
+                      (op.override_attributes as {brightness: boolean; color: boolean}).brightness
+                        ? this._localize('target.paused_brightness_only')
+                        : this._localize('target.paused_color_only')
+                    }</span>`
+                  : ''}
+              </span>
+            ` : ''}
           </div>
         </div>
         <div class="running-op-actions">
@@ -2384,15 +2405,18 @@ export class AqaraPanel extends LitElement {
             <ha-icon class="running-op-icon" icon="${preset.icon || fallbackIcon}"></ha-icon>
             <div class="running-op-details">
               <span class="running-op-name">${preset.name || typeLabel}</span>
-              <span class="running-op-entity">
-                ${preset.name ? html`<span class="running-op-type">${typeLabel}</span>` : ''}
-                ${anyPaused ? html`<span class="running-op-status paused-text">${this._localize('target.paused')}</span>` : ''}
-                ${extPausedOps.length > 0
-                  ? html`<span class="running-op-status externally-paused-text">
-                      ${this._localize('target.entities_externally_paused', { count: String(extPausedOps.length) })}
-                    </span>`
-                  : ''}
-              </span>
+              ${preset.name ? html`<span class="running-op-entity"><span class="running-op-type">${typeLabel}</span></span>` : ''}
+              ${anyPaused || extPausedOps.length > 0 ? html`
+                <span class="running-op-pause-row">
+                  ${anyPaused ? html`<span class="running-op-status paused-text">${this._localize('target.paused')}</span>` : ''}
+                  ${extPausedOps.length > 0
+                    ? html`<span class="running-op-status externally-paused-text">
+                        ${this._localize('target.entities_externally_paused', { count: String(extPausedOps.length) })}
+                      </span>`
+                    : ''}
+                  ${this._renderGroupedOverrideDetail(extPausedOps)}
+                </span>
+              ` : ''}
             </div>
           </div>
           <div class="running-op-actions">
@@ -2458,15 +2482,18 @@ export class AqaraPanel extends LitElement {
             <ha-icon class="running-op-icon" icon="${preset.icon || 'mdi:palette-swatch-variant'}"></ha-icon>
             <div class="running-op-details">
               <span class="running-op-name">${preset.name || this._localize('target.scene_button')}</span>
-              <span class="running-op-entity">
-                ${preset.name ? html`<span class="running-op-type">${this._localize('target.scene_button')}</span>` : ''}
-                ${op.paused ? html`<span class="running-op-status paused-text">${this._localize('target.paused')}</span>` : ''}
-                ${extPausedEntities.length > 0
-                  ? html`<span class="running-op-status externally-paused-text">
-                      ${this._localize('target.entities_externally_paused', { count: String(extPausedEntities.length) })}
-                    </span>`
-                  : ''}
-              </span>
+              ${preset.name ? html`<span class="running-op-entity"><span class="running-op-type">${this._localize('target.scene_button')}</span></span>` : ''}
+              ${op.paused || extPausedEntities.length > 0 ? html`
+                <span class="running-op-pause-row">
+                  ${op.paused ? html`<span class="running-op-status paused-text">${this._localize('target.paused')}</span>` : ''}
+                  ${extPausedEntities.length > 0
+                    ? html`<span class="running-op-status externally-paused-text">
+                        ${this._localize('target.entities_externally_paused', { count: String(extPausedEntities.length) })}
+                      </span>`
+                    : ''}
+                  ${this._renderSceneOverrideDetail(op, extPausedEntities)}
+                </span>
+              ` : ''}
             </div>
           </div>
           <div class="running-op-actions">
@@ -2499,6 +2526,63 @@ export class AqaraPanel extends LitElement {
         </div>
       </div>
     `;
+  }
+
+  private _renderGroupedOverrideDetail(extPausedOps: RunningOperation[]) {
+    // Summarize per-attribute overrides across grouped externally-paused ops
+    if (extPausedOps.length === 0) return '';
+    let brightnessCount = 0;
+    let colorCount = 0;
+    for (const op of extPausedOps) {
+      const attrs = op.override_attributes as {brightness: boolean; color: boolean} | undefined;
+      if (attrs) {
+        if (attrs.brightness) brightnessCount++;
+        if (attrs.color) colorCount++;
+      }
+    }
+    // Only show detail when there's a partial override (not both or neither)
+    const hasPartial = extPausedOps.some(op => {
+      const attrs = op.override_attributes as {brightness: boolean; color: boolean} | undefined;
+      return attrs && (attrs.brightness !== attrs.color);
+    });
+    if (!hasPartial) return '';
+    const parts: unknown[] = [];
+    if (brightnessCount > 0 && brightnessCount < extPausedOps.length) {
+      parts.push(html`<span class="running-op-status override-detail">${brightnessCount} ${this._localize('target.paused_brightness_only').toLowerCase()}</span>`);
+    }
+    if (colorCount > 0 && colorCount < extPausedOps.length) {
+      parts.push(html`<span class="running-op-status override-detail">${colorCount} ${this._localize('target.paused_color_only').toLowerCase()}</span>`);
+    }
+    return parts;
+  }
+
+  private _renderSceneOverrideDetail(op: RunningOperation, extPausedEntities: string[]) {
+    if (extPausedEntities.length === 0) return '';
+    // Scene override_attributes is keyed by entity_id
+    const overrideMap = op.override_attributes as Record<string, {brightness: boolean; color: boolean}> | undefined;
+    if (!overrideMap) return '';
+    let brightnessCount = 0;
+    let colorCount = 0;
+    for (const eid of extPausedEntities) {
+      const attrs = overrideMap[eid];
+      if (attrs) {
+        if (attrs.brightness) brightnessCount++;
+        if (attrs.color) colorCount++;
+      }
+    }
+    const hasPartial = extPausedEntities.some(eid => {
+      const attrs = overrideMap[eid];
+      return attrs && (attrs.brightness !== attrs.color);
+    });
+    if (!hasPartial) return '';
+    const parts: unknown[] = [];
+    if (brightnessCount > 0 && brightnessCount < extPausedEntities.length) {
+      parts.push(html`<span class="running-op-status override-detail">${brightnessCount} ${this._localize('target.paused_brightness_only').toLowerCase()}</span>`);
+    }
+    if (colorCount > 0 && colorCount < extPausedEntities.length) {
+      parts.push(html`<span class="running-op-status override-detail">${colorCount} ${this._localize('target.paused_color_only').toLowerCase()}</span>`);
+    }
+    return parts;
   }
 
   private async _stopRunningEffect(entityId: string): Promise<void> {
@@ -3181,6 +3265,26 @@ export class AqaraPanel extends LitElement {
                       .checked=${this._ignoreExternalChanges}
                       @change=${this._handleIgnoreExternalChangesToggle}
                     ></ha-switch>
+                  </div>
+
+                  <div class="override-item">
+                    <span class="form-label">${this._localize('target.override_control_mode_label')}</span>
+                    <ha-selector
+                      .hass=${this.hass}
+                      .selector=${{
+                        select: {
+                          options: [
+                            { value: 'pause_all', label: this._localize('target.override_mode_pause_all') },
+                            { value: 'pause_changed', label: this._localize('target.override_mode_pause_changed') },
+                          ],
+                          mode: 'dropdown',
+                        },
+                      }}
+                      .value=${this._overrideControlMode}
+                      .disabled=${this._ignoreExternalChanges}
+                      @value-changed=${this._handleOverrideControlModeChanged}
+                    ></ha-selector>
+                    <span class="form-hint">${this._localize('target.override_control_mode_hint')}</span>
                   </div>
                 </div>
 
