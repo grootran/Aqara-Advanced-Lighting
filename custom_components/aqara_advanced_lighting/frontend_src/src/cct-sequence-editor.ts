@@ -355,6 +355,12 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
       color: var(--primary-text-color);
       white-space: nowrap;
     }
+
+    @media (max-width: 600px) {
+      .timeline-labels {
+        display: none;
+      }
+    }
   `];
 
   connectedCallback(): void {

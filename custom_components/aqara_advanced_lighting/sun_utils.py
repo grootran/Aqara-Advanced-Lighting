@@ -88,10 +88,16 @@ def resolve_step_time(time_str: str, sun_state: State) -> float:
         attr_key = "next_setting"
         offset_str = time_str[len("sunset"):]
 
-    sun_dt = sun_state.attributes.get(attr_key)
-    if sun_dt is None:
+    sun_val = sun_state.attributes.get(attr_key)
+    if sun_val is None:
         msg = f"Sun entity missing attribute {attr_key!r}"
         raise ValueError(msg)
+
+    # HA stores next_rising/next_setting as ISO strings; parse if needed
+    if isinstance(sun_val, str):
+        sun_dt = datetime.fromisoformat(sun_val)
+    else:
+        sun_dt = sun_val
 
     base_minutes = sun_dt.hour * 60 + sun_dt.minute
     offset = int(offset_str)

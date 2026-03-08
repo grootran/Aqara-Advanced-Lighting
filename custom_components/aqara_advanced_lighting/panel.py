@@ -1831,7 +1831,7 @@ class RunningOperationsView(HomeAssistantView):
                         },
                         "current_step": status.get("current_step", 0),
                         "total_steps": status.get("total_steps", 0),
-                        "mode": "solar" if cct_mgr.is_solar_sequence(entity_id) else "standard",
+                        "mode": cct_mgr.get_adaptive_mode(entity_id) or "standard",
                     }
                     if auto_resume is not None:
                         op_data["auto_resume_remaining"] = round(auto_resume)

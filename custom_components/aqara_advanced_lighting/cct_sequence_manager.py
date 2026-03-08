@@ -66,6 +66,13 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
         """Check if the running sequence for an entity is adaptive (solar or schedule)."""
         return entity_id in self._solar_sequences
 
+    def get_adaptive_mode(self, entity_id: str) -> str | None:
+        """Get the adaptive mode for a running entity, or None if not adaptive."""
+        seq_data = self._solar_sequences.get(entity_id)
+        if seq_data is None:
+            return None
+        return seq_data.get("mode", "solar")
+
     # Keep alias for backward compatibility
     is_solar_sequence = is_adaptive_sequence
 

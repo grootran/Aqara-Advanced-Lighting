@@ -2330,12 +2330,15 @@ export class AqaraPanel extends LitElement {
     const preset = this._resolvePresetInfo(op.preset_id);
     const isCCT = op.type === 'cct_sequence';
     const isSolar = isCCT && op.mode === 'solar';
-    const fallbackIcon = isSolar ? 'mdi:white-balance-sunny' : isCCT ? 'mdi:thermometer' : 'mdi:led-strip-variant';
+    const isSchedule = isCCT && op.mode === 'schedule';
+    const fallbackIcon = isSolar ? 'mdi:white-balance-sunny' : isSchedule ? 'mdi:clock-outline' : isCCT ? 'mdi:thermometer' : 'mdi:led-strip-variant';
     const typeLabel = isSolar
       ? this._localize('target.solar_cct_button')
-      : isCCT
-        ? this._localize('target.cct_button')
-        : this._localize('target.segment_button');
+      : isSchedule
+        ? this._localize('target.schedule_cct_button')
+        : isCCT
+          ? this._localize('target.cct_button')
+          : this._localize('target.segment_button');
     const isPaused = op.paused || op.externally_paused;
 
     return html`
@@ -2398,16 +2401,21 @@ export class AqaraPanel extends LitElement {
     const preset = this._resolvePresetInfo(first.preset_id);
     const isCCT = first.type === 'cct_sequence';
     const isSolar = isCCT && first.mode === 'solar';
+    const isSchedule = isCCT && first.mode === 'schedule';
     const fallbackIcon = isSolar
       ? 'mdi:white-balance-sunny'
-      : isCCT
-        ? 'mdi:thermometer'
-        : 'mdi:led-strip-variant';
+      : isSchedule
+        ? 'mdi:clock-outline'
+        : isCCT
+          ? 'mdi:thermometer'
+          : 'mdi:led-strip-variant';
     const typeLabel = isSolar
       ? this._localize('target.solar_cct_button')
-      : isCCT
-        ? this._localize('target.cct_button')
-        : this._localize('target.segment_button');
+      : isSchedule
+        ? this._localize('target.schedule_cct_button')
+        : isCCT
+          ? this._localize('target.cct_button')
+          : this._localize('target.segment_button');
 
     const entityChips = ops.map(op => {
       const name = this._getEntityName(op.entity_id!);

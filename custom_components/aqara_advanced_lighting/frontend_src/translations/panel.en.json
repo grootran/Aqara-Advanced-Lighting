@@ -52,6 +52,7 @@
     "effect_button": "Effect",
     "cct_button": "CCT",
     "solar_cct_button": "Solar CCT",
+    "schedule_cct_button": "Schedule CCT",
     "segment_button": "Segment",
     "scene_button": "Scene",
     "running_operations_label": "Running presets",
