@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, TypeAlias
 
 from homeassistant.config_entries import ConfigEntry
 
-from .sun_utils import SolarStep
+from .sun_utils import ScheduleStep, SolarStep
 
 if TYPE_CHECKING:
     pass  # TypeAlias import used for type definitions
@@ -449,12 +449,13 @@ class CCTSequence:
 
     steps: list[CCTSequenceStep]  # 1-20 steps
     loop_mode: str  # "once", "count", "continuous"
-    loop_count: int | None = None  # Number of loops if mode is "count"
-    end_behavior: str = "maintain"  # "maintain", "turn_off", or "restore"
-    skip_first_in_loop: bool = False  # Skip first step when looping (after first iteration)
-    mode: str = "standard"  # "standard" or "solar"
+    loop_count: int | None = None
+    end_behavior: str = "maintain"
+    skip_first_in_loop: bool = False
+    mode: str = "standard"  # "standard", "solar", or "schedule"
     solar_steps: list[SolarStep] = field(default_factory=list)
-    auto_resume_delay: float = 0  # Seconds before auto-resuming after external override (solar only, 0 = disabled)
+    schedule_steps: list[ScheduleStep] = field(default_factory=list)
+    auto_resume_delay: float = 0
 
     def __post_init__(self) -> None:
         """Validate sequence parameters."""
@@ -464,6 +465,13 @@ class CCTSequence:
                 raise ValueError(msg)
             if self.end_behavior != "maintain":
                 msg = "Solar mode only supports end_behavior='maintain'"
+                raise ValueError(msg)
+        elif self.mode == "schedule":
+            if len(self.schedule_steps) < 2:
+                msg = "Schedule mode requires at least 2 schedule steps"
+                raise ValueError(msg)
+            if self.end_behavior != "maintain":
+                msg = "Schedule mode only supports end_behavior='maintain'"
                 raise ValueError(msg)
         else:
             _validate_sequence_params(

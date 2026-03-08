@@ -347,6 +347,17 @@ def _build_presets_data() -> dict[str, Any]:
         if preset_data.get("mode") == "solar":
             entry["mode"] = "solar"
             entry["solar_steps"] = preset_data["solar_steps"]
+        elif preset_data.get("mode") == "schedule":
+            entry["mode"] = "schedule"
+            entry["schedule_steps"] = [
+                {
+                    "time": s["time"],
+                    "color_temp": s["color_temp"],
+                    "brightness": s["brightness"],
+                    "label": s.get("label", ""),
+                }
+                for s in preset_data["schedule_steps"]
+            ]
         else:
             entry["steps"] = preset_data["steps"]
         cct_sequences.append(entry)

@@ -24,7 +24,13 @@ from .const import (
 )
 from .entity_controller import detect_drift
 from .models import CCTSequence, CCTSequenceStep
-from .sun_utils import SolarStep, get_sun_state, interpolate_solar_values
+from .sun_utils import (
+    ScheduleStep,
+    SolarStep,
+    get_sun_state,
+    interpolate_schedule_values,
+    interpolate_solar_values,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -56,24 +62,42 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
         """Mark the manager as shutting down to preserve solar persistence."""
         self._shutting_down = True
 
-    def is_solar_sequence(self, entity_id: str) -> bool:
-        """Check if the running sequence for an entity is solar mode."""
+    def is_adaptive_sequence(self, entity_id: str) -> bool:
+        """Check if the running sequence for an entity is adaptive (solar or schedule)."""
         return entity_id in self._solar_sequences
 
-    def get_current_solar_values(
+    # Keep alias for backward compatibility
+    is_solar_sequence = is_adaptive_sequence
+
+    def get_current_adaptive_values(
         self, entity_id: str,
     ) -> tuple[int, int] | None:
-        """Get the current solar color temp and brightness for an entity.
+        """Get the current adaptive color temp and brightness for an entity.
 
-        Returns (color_temp_kelvin, brightness) or None if the entity
-        is not running a solar sequence or sun state is unavailable.
+        Works for both solar and schedule modes.
+        Returns (color_temp_kelvin, brightness) or None if unavailable.
         """
         seq_data = self._solar_sequences.get(entity_id)
         if not seq_data:
             return None
+
         sun_state = get_sun_state(self.hass)
         if sun_state is None:
             return None
+
+        mode = seq_data.get("mode", "solar")
+        if mode == "schedule":
+            schedule_steps = [
+                ScheduleStep(
+                    time=s["time"],
+                    color_temp=s["color_temp"],
+                    brightness=s["brightness"],
+                    label=s.get("label", ""),
+                )
+                for s in seq_data["schedule_steps"]
+            ]
+            return interpolate_schedule_values(schedule_steps, sun_state)
+
         solar_steps = [
             SolarStep(
                 sun_elevation=s["sun_elevation"],
@@ -84,6 +108,9 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
             for s in seq_data["solar_steps"]
         ]
         return interpolate_solar_values(solar_steps, sun_state)
+
+    # Keep alias for backward compatibility
+    get_current_solar_values = get_current_adaptive_values
 
     def get_auto_resume_delay(self, entity_id: str) -> float:
         """Get the auto-resume delay for a running solar sequence.
@@ -105,7 +132,7 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
 
         Returns True if values were applied.
         """
-        values = self.get_current_solar_values(entity_id)
+        values = self.get_current_adaptive_values(entity_id)
         if values is None:
             return False
 
@@ -137,7 +164,7 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
             context=context,
         )
         _LOGGER.info(
-            "Force-applied solar values for %s: %s",
+            "Force-applied adaptive values for %s: %s",
             entity_id,
             {k: v for k, v in service_data.items() if k != "entity_id"},
         )
@@ -219,7 +246,7 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
         Solar sequences each poll sun elevation independently so group
         barrier synchronization is unnecessary.
         """
-        if sequence.mode != "solar":
+        if sequence.mode not in ("solar", "schedule"):
             return await super().start_synchronized_group(
                 entity_ids, sequence, preset
             )
@@ -236,11 +263,11 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
         sequence: CCTSequence,
         preset: str | None = None,
     ) -> str:
-        """Start a CCT sequence, routing solar mode to a dedicated loop."""
-        if sequence.mode != "solar":
+        """Start a CCT sequence, routing adaptive modes to a dedicated loop."""
+        if sequence.mode not in ("solar", "schedule"):
             return await super().start_sequence(entity_id, sequence, preset)
 
-        # Solar mode: replicate base start_sequence setup but use _run_solar_loop
+        # Adaptive mode: replicate base start_sequence setup but use _run_adaptive_loop
         try:
             await self.stop_sequence(entity_id)
         except Exception as ex:
@@ -258,14 +285,14 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
         self._sequence_state[entity_id] = {
             "paused": False,
             "current_step": 0,
-            "total_steps": len(sequence.solar_steps),
+            "total_steps": len(sequence.solar_steps or sequence.schedule_steps),
             "loop_iteration": 1,
             "loop_mode": "continuous",
             "loop_count": None,
         }
 
         task = asyncio.create_task(
-            self._run_solar_loop(
+            self._run_adaptive_loop(
                 entity_id, sequence, stop_event, pause_event, sequence_id
             )
         )
@@ -276,7 +303,7 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
             {
                 EVENT_ATTR_ENTITY_ID: entity_id,
                 EVENT_ATTR_SEQUENCE_ID: sequence_id,
-                EVENT_ATTR_TOTAL_STEPS: len(sequence.solar_steps),
+                EVENT_ATTR_TOTAL_STEPS: len(sequence.solar_steps or sequence.schedule_steps),
                 EVENT_ATTR_SEQUENCE_TYPE: self._sequence_type,
                 EVENT_ATTR_PRESET: preset,
             },
@@ -286,7 +313,7 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
         await self._persist_solar_sequence(entity_id, sequence, preset)
 
         _LOGGER.info(
-            "Started solar CCT sequence for %s (sequence_id=%s)",
+            "Started adaptive CCT sequence for %s (sequence_id=%s)",
             entity_id,
             sequence_id,
         )
@@ -300,10 +327,24 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
         sequence: CCTSequence,
         preset: str | None,
     ) -> None:
-        """Save a running solar sequence to persistent storage."""
-        solar_data: dict[str, Any] = {
+        """Save a running adaptive sequence to persistent storage."""
+        seq_data: dict[str, Any] = {
             "preset": preset,
-            "solar_steps": [
+            "mode": sequence.mode,
+        }
+
+        if sequence.mode == "schedule":
+            seq_data["schedule_steps"] = [
+                {
+                    "time": s.time,
+                    "color_temp": s.color_temp,
+                    "brightness": s.brightness,
+                    "label": s.label,
+                }
+                for s in sequence.schedule_steps
+            ]
+        else:
+            seq_data["solar_steps"] = [
                 {
                     "sun_elevation": s.sun_elevation,
                     "color_temp": s.color_temp,
@@ -311,11 +352,11 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
                     "phase": s.phase,
                 }
                 for s in sequence.solar_steps
-            ],
-        }
+            ]
+
         if sequence.auto_resume_delay > 0:
-            solar_data["auto_resume_delay"] = sequence.auto_resume_delay
-        self._solar_sequences[entity_id] = solar_data
+            seq_data["auto_resume_delay"] = sequence.auto_resume_delay
+        self._solar_sequences[entity_id] = seq_data
         await self._solar_store.async_save(
             {"sequences": self._solar_sequences}
         )
@@ -369,23 +410,43 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
                 continue
 
             try:
-                solar_steps = [
-                    SolarStep(
-                        sun_elevation=s["sun_elevation"],
-                        color_temp=s["color_temp"],
-                        brightness=s["brightness"],
-                        phase=s.get("phase", "any"),
+                mode = seq_data.get("mode", "solar")
+                if mode == "schedule":
+                    schedule_steps = [
+                        ScheduleStep(
+                            time=s["time"],
+                            color_temp=s["color_temp"],
+                            brightness=s["brightness"],
+                            label=s.get("label", ""),
+                        )
+                        for s in seq_data["schedule_steps"]
+                    ]
+                    sequence = CCTSequence(
+                        steps=[],
+                        loop_mode="continuous",
+                        end_behavior="maintain",
+                        mode="schedule",
+                        schedule_steps=schedule_steps,
+                        auto_resume_delay=seq_data.get("auto_resume_delay", 0),
                     )
-                    for s in seq_data["solar_steps"]
-                ]
-                sequence = CCTSequence(
-                    steps=[],
-                    loop_mode="continuous",
-                    end_behavior="maintain",
-                    mode="solar",
-                    solar_steps=solar_steps,
-                    auto_resume_delay=seq_data.get("auto_resume_delay", 0),
-                )
+                else:
+                    solar_steps = [
+                        SolarStep(
+                            sun_elevation=s["sun_elevation"],
+                            color_temp=s["color_temp"],
+                            brightness=s["brightness"],
+                            phase=s.get("phase", "any"),
+                        )
+                        for s in seq_data["solar_steps"]
+                    ]
+                    sequence = CCTSequence(
+                        steps=[],
+                        loop_mode="continuous",
+                        end_behavior="maintain",
+                        mode="solar",
+                        solar_steps=solar_steps,
+                        auto_resume_delay=seq_data.get("auto_resume_delay", 0),
+                    )
                 await self.start_sequence(
                     entity_id, sequence, seq_data.get("preset")
                 )
@@ -414,7 +475,23 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
         state = self.hass.states.get(entity_id)
         return state is not None and state.state == "on"
 
-    async def _run_solar_loop(
+    def _calc_adaptive_target(
+        self, sequence: CCTSequence,
+    ) -> tuple[int, int] | None:
+        """Calculate target color temp and brightness for the current moment.
+
+        Returns (color_temp, brightness) or None if sun state is unavailable.
+        Dispatches to the correct interpolation strategy based on sequence mode.
+        """
+        sun_state = get_sun_state(self.hass)
+        if sun_state is None:
+            return None
+
+        if sequence.mode == "schedule":
+            return interpolate_schedule_values(sequence.schedule_steps, sun_state)
+        return interpolate_solar_values(sequence.solar_steps, sun_state)
+
+    async def _run_adaptive_loop(
         self,
         entity_id: str,
         sequence: CCTSequence,
@@ -422,10 +499,10 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
         pause_event: asyncio.Event,
         sequence_id: str,
     ) -> None:
-        """Execute solar CCT mode by polling sun elevation.
+        """Execute adaptive CCT mode by polling sun elevation.
 
-        Skips updates while the light is off and immediately applies
-        when the light comes back on.
+        Handles both solar and schedule modes. Skips updates while the
+        light is off and immediately applies when the light comes back on.
         """
         last_ct: int | None = None
         last_br: int | None = None
@@ -466,8 +543,8 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
                     last_ct = None
                     last_br = None
 
-                sun_state = get_sun_state(self.hass)
-                if sun_state is None:
+                result = self._calc_adaptive_target(sequence)
+                if result is None:
                     _LOGGER.debug(
                         "Sun entity not available, retrying in %ss",
                         SOLAR_POLL_INTERVAL,
@@ -480,7 +557,7 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
                     except asyncio.TimeoutError:
                         continue
 
-                ct, br = interpolate_solar_values(sequence.solar_steps, sun_state)
+                ct, br = result
 
                 # Check for per-attribute overrides
                 ec = self.hass.data.get(DOMAIN, {}).get(DATA_ENTITY_CONTROLLER)

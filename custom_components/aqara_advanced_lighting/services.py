@@ -129,6 +129,7 @@ from .const import (
     SERVICE_STOP_CCT_SEQUENCE,
     SERVICE_STOP_EFFECT,
     SERVICE_STOP_SEGMENT_SEQUENCE,
+    CCT_MODE_SCHEDULE,
     CCT_MODE_SOLAR,
     CCT_MODE_STANDARD,
     T1_STRIP_DEFAULT_SEGMENT_COUNT,
@@ -175,7 +176,7 @@ from .segment_utils import (
     scale_segment_pattern,
 )
 from .state_manager import StateManager
-from .sun_utils import SolarStep
+from .sun_utils import ScheduleStep, SolarStep
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -212,6 +213,30 @@ def _build_solar_sequence(
         end_behavior="maintain",
         mode="solar",
         solar_steps=solar_steps,
+        auto_resume_delay=max(0, auto_resume_delay),
+    )
+
+
+def _build_schedule_sequence(
+    schedule_steps_data: list[dict[str, Any]],
+    auto_resume_delay: float = 0,
+) -> CCTSequence:
+    """Build a schedule CCTSequence from raw step data."""
+    schedule_steps = [
+        ScheduleStep(
+            time=s["time"],
+            color_temp=s["color_temp"],
+            brightness=s["brightness"],
+            label=s.get("label", ""),
+        )
+        for s in schedule_steps_data
+    ]
+    return CCTSequence(
+        steps=[],
+        loop_mode="continuous",
+        end_behavior="maintain",
+        mode="schedule",
+        schedule_steps=schedule_steps,
         auto_resume_delay=max(0, auto_resume_delay),
     )
 
@@ -476,11 +501,27 @@ SOLAR_STEP_SCHEMA = vol.Schema(
     }
 )
 
+SCHEDULE_STEP_SCHEMA = vol.Schema(
+    {
+        vol.Required("time"): cv.string,
+        vol.Required("color_temp"): vol.All(
+            vol.Coerce(int), vol.Range(min=MIN_COLOR_TEMP_KELVIN, max=MAX_COLOR_TEMP_KELVIN)
+        ),
+        vol.Required("brightness"): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=255)
+        ),
+        vol.Optional("label", default=""): cv.string,
+    }
+)
+
 _cct_sequence_schema_dict[vol.Optional("mode", default=CCT_MODE_STANDARD)] = vol.In(
     VALID_CCT_MODES
 )
 _cct_sequence_schema_dict[vol.Optional("solar_steps")] = vol.All(
     cv.ensure_list, [SOLAR_STEP_SCHEMA], vol.Length(min=2, max=20)
+)
+_cct_sequence_schema_dict[vol.Optional("schedule_steps")] = vol.All(
+    cv.ensure_list, [SCHEDULE_STEP_SCHEMA], vol.Length(min=2, max=20)
 )
 
 SERVICE_START_CCT_SEQUENCE_SCHEMA = vol.Schema(_cct_sequence_schema_dict)
@@ -2293,7 +2334,24 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 )
 
             if user_preset:
-                if user_preset.get("mode") == CCT_MODE_SOLAR:
+                if user_preset.get("mode") == CCT_MODE_SCHEDULE:
+                    # Schedule user preset - pass through schedule fields
+                    preset_data = {
+                        "mode": CCT_MODE_SCHEDULE,
+                        "schedule_steps": user_preset.get("schedule_steps", []),
+                        "auto_resume_delay": user_preset.get("auto_resume_delay", 0),
+                    }
+                    if not preset_data["schedule_steps"]:
+                        raise ServiceValidationError(
+                            translation_domain=DOMAIN,
+                            translation_key="schedule_steps_required",
+                        )
+                    _LOGGER.debug(
+                        "Using user schedule CCT preset '%s' with %d schedule steps",
+                        preset,
+                        len(preset_data["schedule_steps"]),
+                    )
+                elif user_preset.get("mode") == CCT_MODE_SOLAR:
                     # Solar user preset - pass through solar fields
                     preset_data = {
                         "mode": CCT_MODE_SOLAR,
@@ -2364,8 +2422,14 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     translation_placeholders={"preset": preset},
                 )
 
-            # Check if this is a solar mode preset
-            if preset_data.get("mode") == CCT_MODE_SOLAR:
+            # Check if this is an adaptive mode preset
+            if preset_data.get("mode") == CCT_MODE_SCHEDULE:
+                schedule_steps_data = preset_data.get("schedule_steps", [])
+                sequence = _build_schedule_sequence(
+                    schedule_steps_data,
+                    auto_resume_delay=preset_data.get("auto_resume_delay", 0),
+                )
+            elif preset_data.get("mode") == CCT_MODE_SOLAR:
                 solar_steps_data = preset_data.get("solar_steps", [])
                 sequence = _build_solar_sequence(
                     solar_steps_data,
@@ -2426,6 +2490,14 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         translation_key="solar_steps_required",
                     )
                 sequence = _build_solar_sequence(solar_steps_data)
+            elif mode == CCT_MODE_SCHEDULE:
+                schedule_steps_data = call.data.get("schedule_steps", [])
+                if not schedule_steps_data:
+                    raise ServiceValidationError(
+                        translation_domain=DOMAIN,
+                        translation_key="schedule_steps_required",
+                    )
+                sequence = _build_schedule_sequence(schedule_steps_data)
             else:
                 # Standard manual mode
                 loop_mode = call.data.get(ATTR_LOOP_MODE, LOOP_MODE_ONCE)

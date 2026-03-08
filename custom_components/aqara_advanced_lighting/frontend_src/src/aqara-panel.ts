@@ -3786,8 +3786,14 @@ export class AqaraPanel extends LitElement {
       serviceData.loop_count = data.loop_count;
     }
 
-    // Convert steps array to individual step fields
-    if (data.steps && Array.isArray(data.steps)) {
+    if (data.mode === 'schedule' && data.schedule_steps) {
+      serviceData.mode = 'schedule';
+      serviceData.schedule_steps = data.schedule_steps;
+    } else if (data.mode === 'solar' && data.solar_steps) {
+      serviceData.mode = 'solar';
+      serviceData.solar_steps = data.solar_steps;
+    } else if (data.steps && Array.isArray(data.steps)) {
+      // Standard mode: convert steps array to individual step fields
       data.steps.forEach((step: { color_temp: number; brightness: number; transition: number; hold: number }, index: number) => {
         const stepNum = index + 1;
         if (stepNum <= 20) {
@@ -4675,18 +4681,22 @@ export class AqaraPanel extends LitElement {
   }
 
   private _duplicateBuiltinCCTSequencePreset(preset: CCTSequencePreset): void {
-    const isSolar = (preset as any).mode === 'solar';
+    const mode = (preset as any).mode as string | undefined;
     const userPreset: UserCCTSequencePreset = {
       id: '',
       name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
-      steps: isSolar ? [] : preset.steps.map((step) => ({
+      steps: mode ? [] : (preset.steps || []).map((step) => ({
         ...step,
         brightness: Math.round(step.brightness / 255 * 100),
       })),
       loop_mode: preset.loop_mode,
       loop_count: preset.loop_count,
       end_behavior: preset.end_behavior,
-      ...(isSolar ? { mode: 'solar', solar_steps: ((preset as any).solar_steps || []).map((s: any) => ({
+      ...(mode === 'solar' ? { mode: 'solar', solar_steps: ((preset as any).solar_steps || []).map((s: any) => ({
+        ...s,
+        brightness: Math.round(s.brightness / 255 * 100),
+      })) } : {}),
+      ...(mode === 'schedule' ? { mode: 'schedule', schedule_steps: ((preset as any).schedule_steps || []).map((s: any) => ({
         ...s,
         brightness: Math.round(s.brightness / 255 * 100),
       })) } : {}),

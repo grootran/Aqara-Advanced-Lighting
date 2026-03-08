@@ -85,12 +85,28 @@ export interface SolarStep {
   phase: 'rising' | 'setting' | 'any';
 }
 
+export interface ScheduleStep {
+  time: string;
+  color_temp: number;
+  brightness: number;
+  label: string;
+}
+
 export interface SolarCCTPreset {
   id: string;
   name: string;
   icon: string;
   mode: 'solar';
   solar_steps: SolarStep[];
+  end_behavior: string;
+}
+
+export interface ScheduleCCTPreset {
+  id: string;
+  name: string;
+  icon: string;
+  mode: 'schedule';
+  schedule_steps: ScheduleStep[];
   end_behavior: string;
 }
 
@@ -268,6 +284,7 @@ export interface UserCCTSequencePreset {
   skip_first_in_loop?: boolean;
   mode?: string;
   solar_steps?: SolarStep[];
+  schedule_steps?: ScheduleStep[];
   auto_resume_delay?: number;
   created_at: string;
   modified_at: string;
@@ -417,8 +434,9 @@ export interface CCTEditorDraft {
   endBehavior: string;
   skipFirstInLoop: boolean;
   hasUserInteraction: boolean;
-  mode: 'standard' | 'solar';
+  mode: 'standard' | 'solar' | 'schedule';
   solarSteps: SolarStep[];
+  scheduleSteps: ScheduleStep[];
   autoResumeDelay: number;
 }
 
