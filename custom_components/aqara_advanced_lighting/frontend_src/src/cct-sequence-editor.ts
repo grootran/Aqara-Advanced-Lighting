@@ -398,6 +398,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
       this._autoResumeDelay = preset.auto_resume_delay || 0;
       this._scheduleSteps = preset.schedule_steps.map((step, index) => ({
         ...step,
+        brightness: Math.round(step.brightness / 2.55),
         id: `sched-${index}-${Date.now()}`,
       }));
       this._loopMode = 'continuous';
