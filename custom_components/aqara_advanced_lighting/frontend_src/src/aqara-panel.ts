@@ -3272,7 +3272,7 @@ export class AqaraPanel extends LitElement {
         ? html`
             <ha-expansion-panel
               outlined
-              .expanded=${!this._collapsed['activation_overrides']}
+              .expanded=${this._collapsed['activation_overrides'] === undefined ? false : !this._collapsed['activation_overrides']}
               @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange('activation_overrides', e)}
             >
               <div slot="header" class="section-header">
@@ -3384,7 +3384,6 @@ export class AqaraPanel extends LitElement {
                       .disabled=${this._ignoreExternalChanges}
                       @value-changed=${this._handleOverrideControlModeChanged}
                     ></ha-selector>
-                    <span class="form-hint">${this._localize('target.override_control_mode_hint')}</span>
                   </div>
 
                   <div class="override-item">
@@ -3394,7 +3393,6 @@ export class AqaraPanel extends LitElement {
                       .disabled=${this._ignoreExternalChanges}
                       @change=${this._handleBareTurnOnOnlyToggle}
                     ></ha-switch>
-                    <span class="form-hint">${this._localize('target.bare_turn_on_only_hint')}</span>
                   </div>
 
                   <div class="override-item">
@@ -3404,7 +3402,6 @@ export class AqaraPanel extends LitElement {
                       .disabled=${this._ignoreExternalChanges}
                       @change=${this._handleDetectNonHaChangesToggle}
                     ></ha-switch>
-                    <span class="form-hint">${this._localize('target.detect_non_ha_changes_hint')}</span>
                   </div>
                 </div>
               </div>

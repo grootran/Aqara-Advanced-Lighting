@@ -988,7 +988,7 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
                 </ha-icon-button>
               ` : ''}
             </div>
-            ${!this._icon ? html`<span class="form-hint">${this._localize('editors.icon_auto_hint')}</span>` : ''}
+            <span class="form-hint">${this._localize('editors.icon_auto_hint')}</span>
           </div>
           <div class="form-field">
             <span class="form-label">${this._localize('editors.device_type_label')}</span>

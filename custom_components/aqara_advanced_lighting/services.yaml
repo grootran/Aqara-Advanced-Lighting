@@ -2506,9 +2506,9 @@ start_circadian_mode:
           options:
             - label: "Circadian Rhythm"
               value: "circadian"
-            - label: "Solar Warm"
+            - label: "Warm Day"
               value: "solar_warm"
-            - label: "Solar Productive"
+            - label: "Productive Day"
               value: "solar_productive"
           mode: dropdown
           custom_value: true

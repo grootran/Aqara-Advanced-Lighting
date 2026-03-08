@@ -1540,7 +1540,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
                 </ha-icon-button>
               ` : ''}
             </div>
-            ${!this._icon ? html`<span class="form-hint">${this._localize('editors.icon_auto_hint')}</span>` : ''}
+            <span class="form-hint">${this._localize('editors.icon_auto_hint')}</span>
           </div>
         </div>
 

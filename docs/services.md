@@ -33,6 +33,8 @@ A UI will pop up showing the parameters for configuring the action. To edit the 
 - [17. Resume dynamic scene](#17-resume-dynamic-scene)
 - [18. Set music sync](#18-set-music-sync)
 - [19. Resume entity control](#19-resume-entity-control)
+- [20. Start circadian mode](#20-start-circadian-mode)
+- [21. Stop circadian mode](#21-stop-circadian-mode)
 - [Working with light groups](#working-with-light-groups)
 - [Custom icons for presets](#custom-icons-for-presets)
 
@@ -235,17 +237,20 @@ data:
 
 ## 6. Start CCT sequence
 
-Create and run dynamic CCT (color temperature) sequences with up to 20 customizable steps, or use built-in presets for common scenarios.
+Create and run dynamic CCT (color temperature) sequences with up to 20 customizable steps, or use built-in presets for common scenarios. Supports three modes: standard (timed steps), schedule (time-of-day adaptation), and solar (sun elevation tracking).
 
 **Service:** `aqara_advanced_lighting.start_cct_sequence`
 
-**Usage:** Choose a preset from the dropdown, or use the Home Assistant UI to configure each step individually. Step 1 is required, steps 2-20 are optional and collapsed by default (click "Show advanced fields" to access them).
+**Usage:** Choose a preset from the dropdown, or use the Home Assistant UI to configure each step individually. For standard mode, step 1 is required, steps 2-20 are optional and collapsed by default (click "Show advanced fields" to access them). For solar mode, provide `solar_steps` as an object.
 
 **Available presets:**
 
 - **Goodnight**: Gently fade from neutral white to warm dim light over 30 minutes, ideal for falling asleep
 - **Wakeup**: Gradually brighten from warm dim to cool daylight over 30 minutes, simulating sunrise
 - **Mindful breathing**: Smooth breathing pattern alternating between warm and cool tones, continuous loop
+- **Circadian**: Full circadian rhythm schedule using sun-relative times, from dawn (2700K) through midday (5500K) to night (2700K)
+- **Warm day**: Warm-toned schedule for comfortable ambiance with evening warmth emphasis
+- **Productive day**: Cool, bright schedule optimized for focus and productivity
 
 **Example YAML (using a preset):**
 
@@ -258,7 +263,7 @@ data:
   turn_on: true              # Turn on light before starting sequence
 ```
 
-**Example YAML (custom sequence):**
+**Example YAML (standard mode -- custom sequence):**
 
 ```yaml
 service: aqara_advanced_lighting.start_cct_sequence
@@ -283,28 +288,66 @@ data:
   end_behavior: "maintain"
 ```
 
+**Example YAML (solar mode):**
+
+```yaml
+service: aqara_advanced_lighting.start_cct_sequence
+target:
+  entity_id:
+    - light.aqara_ceiling_light
+    - light.hue_bulb            # Works with any CCT light
+data:
+  mode: "solar"
+  turn_on: true
+  solar_steps:
+    - sun_elevation: -6         # Civil twilight
+      color_temp: 2700
+      brightness: 80
+      phase: "any"
+    - sun_elevation: 0          # Horizon
+      color_temp: 3000
+      brightness: 150
+      phase: "rising"
+    - sun_elevation: 30         # Mid-morning
+      color_temp: 5000
+      brightness: 255
+      phase: "any"
+    - sun_elevation: 0          # Sunset
+      color_temp: 3000
+      brightness: 120
+      phase: "setting"
+```
+
 **Parameters:**
 
-- `entity_id` (required): Light entity or group to control
-- `preset` (optional): Use a built-in preset ("goodnight", "wakeup", "mindful_breathing", "circadian") -- dropdown selector with 4 built-in presets. You can also type the name of a custom CCT sequence preset you created in the frontend panel (case-insensitive). When preset is selected, manual step/loop/end_behavior parameters are ignored
+- `entity_id` (required): Light entity or group to control. Works with any CCT-capable light, not just Aqara devices
+- `preset` (optional): Use a built-in preset ("goodnight", "wakeup", "mindful_breathing", "power_nap", "circadian", "solar_warm", "solar_productive") -- dropdown selector with 7 built-in presets. You can also type the name of a custom CCT sequence preset you created in the frontend panel (case-insensitive). When preset is selected, manual step/loop/end_behavior parameters are ignored
 - `turn_on` (optional): Turn light on before starting sequence (default: false)
-- **Step 1 fields** (required if not using preset):
+- `mode` (optional): Sequence execution mode (default: "standard")
+  - `"standard"`: Timed step-by-step sequence with transition and hold timing
+  - `"solar"`: Adapts color temperature based on the sun's elevation angle, polling every 60 seconds
+- `solar_steps` (optional, required for solar mode): List of solar elevation steps. Each step is an object with:
+  - `sun_elevation` (required): Sun angle in degrees (-90 to 90)
+  - `color_temp` (required): Color temperature in kelvin (1000-10000)
+  - `brightness` (required): Brightness level (1-255)
+  - `phase` (optional): When the step applies -- `"rising"` (sun ascending), `"setting"` (sun descending), or `"any"` (both). Default: `"any"`
+- **Step 1 fields** (required for standard mode if not using preset):
   - `step_1_color_temp`: Color temperature in kelvin (2700-6500)
   - `step_1_brightness`: Brightness level (1-255)
   - `step_1_transition`: Time in seconds to transition to this step (0-3600)
   - `step_1_hold`: Time to hold at this step after transition completes (0-3600)
 - **Steps 2-20 fields** (optional): Same format as step 1, access via "Show advanced fields" in UI
-- `loop_mode` (optional): How to loop the sequence (default: "once", ignored when using preset)
+- `loop_mode` (optional): How to loop the sequence (default: "once", ignored when using preset or solar mode)
   - `"once"`: Run sequence one time
   - `"count"`: Loop X times (requires loop_count)
   - `"continuous"`: Loop indefinitely until stopped
 - `loop_count` (optional): Number of times to repeat (1-1000, required when loop_mode is "count", ignored when using preset)
-- `end_behavior` (optional): Action when sequence completes (default: "maintain", ignored when using preset)
+- `end_behavior` (optional): Action when sequence completes (default: "maintain", ignored when using preset or solar mode)
   - `"maintain"`: Keep light at last step's settings
   - `"turn_off"`: Turn off the light
   - `"restore"`: Restore light to its pre-sequence state
 
-**Note:** Each step consists of a transition period followed by a hold period. For example, if transition is 2s and hold is 10s, the light will fade for 2s then remain at those settings for 10s before the next step starts. Transitions use smooth step-based interpolation for gradual brightness and color temperature changes.
+**Note:** In standard mode, each step consists of a transition period followed by a hold period. For example, if transition is 2s and hold is 10s, the light will fade for 2s then remain at those settings for 10s before the next step starts. In solar mode, the integration continuously interpolates between the two nearest steps based on the current sun elevation and updates your lights every 60 seconds. Solar and schedule sequences persist across Home Assistant restarts.
 
 ---
 
@@ -720,6 +763,71 @@ data:
 **Parameters:**
 
 - `entity_id` (required): Light entity or entities to resume control for
+
+---
+
+## 20. Start circadian mode
+
+Start a passive circadian overlay on target lights. Automatically applies sun-appropriate color temperature and brightness when a light turns on, without needing a continuously running sequence.
+
+**Service:** `aqara_advanced_lighting.start_circadian_mode`
+
+**Example (using a preset):**
+
+```yaml
+service: aqara_advanced_lighting.start_circadian_mode
+target:
+  entity_id: light.bedroom_ceiling
+data:
+  preset: "circadian"
+```
+
+**Example (custom solar steps):**
+
+```yaml
+service: aqara_advanced_lighting.start_circadian_mode
+target:
+  entity_id:
+    - light.living_room
+    - light.kitchen
+data:
+  solar_steps:
+    - sun_elevation: -6
+      color_temp: 2700
+      brightness: 80
+    - sun_elevation: 10
+      color_temp: 4000
+      brightness: 200
+    - sun_elevation: 45
+      color_temp: 5500
+      brightness: 255
+```
+
+**Parameters:**
+
+- `entity_id` (required): Light entity or entities to apply circadian mode to
+- `preset` (optional): Use a built-in preset ("circadian", "solar_warm", "solar_productive") -- dropdown selector. You can also type the name of a custom preset (case-insensitive). When preset is selected, solar_steps are ignored
+- `solar_steps` (optional): Custom solar elevation steps (alternative to preset). Same format as the [start CCT sequence](#6-start-cct-sequence) solar_steps parameter. Requires at least 2 steps
+
+---
+
+## 21. Stop circadian mode
+
+Stop the passive circadian overlay on target lights.
+
+**Service:** `aqara_advanced_lighting.stop_circadian_mode`
+
+**Example:**
+
+```yaml
+service: aqara_advanced_lighting.stop_circadian_mode
+target:
+  entity_id: light.bedroom_ceiling
+```
+
+**Parameters:**
+
+- `entity_id` (required): Light entity or entities to stop circadian mode for
 
 ---
 

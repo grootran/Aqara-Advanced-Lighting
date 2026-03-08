@@ -8,7 +8,7 @@
 
 ![Aqara Advanced Lighting](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/main/images/aqara-advanced-lighting.png "Aqara Advanced Lighting")
 
-**Aqara Advanced Lighting** is a [Home Assistant](https://www.home-assistant.io/) integration that unlocks the full potential of **Aqara T1M Ceiling Light**, **Aqara T1 LED Strip**, and **Aqara T2 RGB & CCT bulbs** -- dynamic RGB effects, per-segment colors and gradients, animated sequences, multi-step color temperature transitions, dynamic scenes, and more. All the features of the Aqara Home app and more, without an Aqara Hub.
+**Aqara Advanced Lighting** is a [Home Assistant](https://www.home-assistant.io/) integration that unlocks the full potential of **Aqara T1M Ceiling Light**, **Aqara T1 LED Strip**, and **Aqara T2 RGB & CCT bulbs** -- dynamic RGB effects, per-segment colors and gradients, animated sequences, multi-step color temperature transitions, dynamic scenes, circadian adaptive lighting, and more. All the features of the Aqara Home app and more, without an Aqara Hub.
 
 Works with both **Zigbee2MQTT** and **ZHA** (Zigbee Home Automation).
 
@@ -34,13 +34,13 @@ _If you want to show your support please_
 
 ## Features
 
-**Lighting control** -- 13 dynamic RGB effects, per-segment colors and gradients, RGB segment sequences (up to 20 steps with 8 activation patterns), CCT sequences (up to 20 steps), dynamic scenes with slow color transitions across multiple lights, pause/resume/stop control, and flexible segment selection.
+**Lighting control** -- 13 dynamic RGB effects, per-segment colors and gradients, RGB segment sequences (up to 20 steps with 8 activation patterns), CCT sequences (up to 20 steps with standard, schedule, and solar modes), circadian lighting with sun-tracking and time-based schedules, dynamic scenes with slow color transitions across multiple lights, pause/resume/stop control, change detection with per-attribute override tracking, and flexible segment selection.
 
-**100+ presets** -- 20 effects, 12 segment patterns, 4 CCT sequences, 6 segment sequences, 58 dynamic scenes. Create up to 250 custom presets per type (1,250 total) with the visual editors, back them up, and reuse them everywhere.
+**100+ presets** -- 20 effects, 12 segment patterns, 7 CCT sequences (including circadian, warm day, and productive day), 6 segment sequences, 58 dynamic scenes. Create up to 250 custom presets per type (1,250 total) with the visual editors, back them up, and reuse them everywhere.
 
-**Frontend panel** -- Sidebar-accessible UI with visual editors for every feature type, favorite lights, active presets monitoring, activation overrides, T1 Strip music sync control, and per-device configuration.
+**Frontend panel** -- Sidebar-accessible UI with visual editors for every feature type, favorite lights, active presets monitoring with per-attribute override status, activation overrides, change detection settings, generic light configuration, T1 Strip music sync control, and per-device configuration.
 
-**Automations** -- 19 service actions, 22 device triggers, 8 device conditions, REST API trigger endpoint, light group support with automatic entity expansion, and multi-instance routing.
+**Automations** -- 21 service actions, 22 device triggers, 8 device conditions, REST API trigger endpoint, light group support with automatic entity expansion, and multi-instance routing.
 
 **Dual backend** -- Zigbee2MQTT and ZHA side by side, multiple Z2M instances, automatic device discovery, and cross-backend entity routing.
 
@@ -74,9 +74,9 @@ See the [Getting started guide](docs/getting-started.md) for detailed installati
 | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
 | [Getting started](docs/getting-started.md)           | Installation, updating, backend configuration (Z2M and ZHA), multi-instance setup, removal         |
 | [Frontend panel](docs/frontend-panel.md)             | Sidebar panel, favorites, light selection, active presets, activation overrides, preset management |
-| [Visual editors](docs/visual-editors.md)             | Dynamic scene, effect, segment pattern, CCT sequence, and RGB segment sequence editors             |
-| [Device configuration](docs/device-configuration.md) | T2 transition curves, initial brightness, dimming settings, segment zones, strip length            |
-| [Services reference](docs/services.md)               | All 19 backend service actions with parameters, examples, and light group support                  |
+| [Visual editors](docs/visual-editors.md)             | Dynamic scene, effect, segment pattern, CCT sequence (standard, schedule, solar), and RGB segment sequence editors |
+| [Device configuration](docs/device-configuration.md) | T2 transition curves, initial brightness, dimming settings, segment zones, strip length, generic light configuration |
+| [Services reference](docs/services.md)               | All 21 backend service actions with parameters, examples, and light group support                  |
 | [Automations](docs/automations.md)                   | Device triggers, device conditions, and automation examples                                        |
 | [REST API](docs/rest-api.md)                         | HTTP trigger endpoint for Node-RED, iOS Shortcuts, voice assistants, and external systems          |
 | [Troubleshooting](docs/troubleshooting.md)           | Common issues, backend-specific fixes, firmware info, diagnostics                                  |

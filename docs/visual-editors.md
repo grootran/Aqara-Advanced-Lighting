@@ -77,6 +77,18 @@ Create custom effects and patterns with interactive builders accessible from the
 ![Aqara Advanced Lighting CCT Sequencer](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/cct.png "Aqara Advanced Lighting CCT Sequencer")
 
 - Give each sequence a name and optional icon for easy identification
+- Select a **mode** to control how the sequence runs:
+  - **Standard**: Timed step-by-step sequences with manual transition and hold timing
+  - **Schedule**: Time-based adaptation using wall-clock or sunrise/sunset-relative times
+  - **Solar**: Sun elevation-based adaptation that tracks the sun's position in the sky
+- Works with any CCT light entity (not limited to Aqara Zigbee devices)
+- Validates that selected entities support color temperature mode and warns about incompatible lights
+- Save sequences as custom presets
+
+### Standard mode
+
+Step-by-step mode with manual timing control:
+
 - Build multi-step sequences (up to 20 steps)
 - Set color temperature (2700-6500K) and brightness (1-100%) per step
 - Reorder steps with drag-and-drop, or use the step controls to move, duplicate, and delete steps
@@ -86,10 +98,57 @@ Create custom effects and patterns with interactive builders accessible from the
 - Choose loop mode: once, count (1-100 loops), or continuous
 - Set end behavior: maintain last state, turn off, or restore to previous state
 - Visual timeline shows sequence flow
-- Validates that selected entities support color temperature mode and warns about incompatible lights
-- Works with any CCT light entity (not limited to Aqara devices)
 - Preview the sequence before saving to see how it runs on your lights
-- Save sequences as custom presets
+
+### Schedule mode
+
+Automatically adjust color temperature and brightness based on the time of day. Instead of manually triggering sequences, the integration continuously adapts your lights to match a schedule you define. These sequences run continuously in the background and persist Home Assistant restarts.
+
+- Add 2-20 schedule steps, each with:
+  - **Time**: A fixed time (e.g., `12:00`) or a sun-relative offset (e.g., `sunrise+30`, `sunset-60`). Sun-relative times are resolved dynamically using your Home Assistant location, so the schedule adapts to seasonal changes automatically
+  - **Color temperature**: Target color temperature (2700-6500K)
+  - **Brightness**: Target brightness (1-100%)
+  - **Label** (optional): A friendly name for the step (e.g., "Morning", "Midday", "Evening") shown in the active presets display
+- The integration reads the current sun elevation from Home Assistant's `sun.sun` entity and adapts the sunrise and sunset timnes throughout the year
+- The integration interpolates smoothly between steps on a 24-hour cycle, so your lights transition gradually rather than jumping between values
+- Loop mode and end behavior are locked to continuous/maintain since schedule mode runs indefinitely
+- When a light turns on, the current schedule values are applied immediately without waiting for the next poll cycle
+- Preview is not available for schedule mode since it runs continuously in the background
+- **Auto-resume delay**: Optionally set a delay (in seconds) before the schedule automatically resumes after you manually change a light. Set to 0 for manual-only resume
+
+**Built-in schedule presets:**
+
+- **Circadian**: Full circadian rhythm adaptation from dawn to night. Uses sun-relative times (sunrise-30 through sunset+90) with color temperatures ranging from 2700K to 5500K
+- **Warm day**: Warm-toned schedule for comfortable ambiance with lower peak brightness and evening warmth emphasis
+- **Productive day**: Cool, bright schedule optimized for focus and productivity with higher color temperatures throughout the day
+
+### Solar mode
+
+Automatically adjust color temperature and brightness based on the sun's elevation angle. These sequences run continuously in the background and persist Home Assistant restarts.
+
+- Add 2-20 solar steps, each with:
+  - **Sun elevation**: The sun's angle above or below the horizon (-90 to 90 degrees). Negative values represent below the horizon (e.g., -6 to 0 degrees is twilight), 0 degrees is the horizon, and positive values are above (e.g., 45+ degrees is high midday sun)
+  - **Phase**: When this step applies based on the sun's direction:
+    - **Rising**: Only when the sun is ascending (morning)
+    - **Setting**: Only when the sun is descending (evening)
+    - **Any**: Applies in both directions
+  - **Color temperature**: Target color temperature (2700-6500K)
+  - **Brightness**: Target brightness (1-100%)
+- The integration reads the current sun elevation from Home Assistant's `sun.sun` entity and interpolates between the two nearest steps
+- Using separate rising and setting phases lets you define different lighting for morning vs. evening at the same sun elevation (e.g., brighter in the morning, dimmer in the evening)
+- Loop mode and end behavior are locked to continuous/maintain since solar mode runs indefinitely
+- When a light turns on, the current solar values are applied immediately
+- Preview is not available for solar mode since it runs continuously in the background
+- **Auto-resume delay**: Same as schedule mode -- optionally auto-resume after manual changes
+
+### Adaptive mode behavior
+
+Schedule and solar modes share these behaviors:
+
+- **Background polling**: The integration checks the current time or sun position every 60 seconds and updates your lights
+- **Per-attribute override detection**: If you manually change brightness, only brightness pauses while color temperature keeps adapting (or vice versa). See [change detection](frontend-panel.md#change-detection) for configuration
+- **Persistence**: Running schedule and solar sequences survive Home Assistant restarts and resume automatically
+- **Turn-on awareness**: When a light turns on, the integration immediately applies the current adaptive values without waiting for the next poll
 
 ## RGB segment sequence editor
 
