@@ -373,7 +373,7 @@ export function renderSegmentSequenceThumbnail(
 /** Arc geometry for the solar thumbnail. */
 const ARC_CY = 290;
 const ARC_OUTER = 180;
-const ARC_INNER = 130;
+const ARC_INNER = 80;
 
 /**
  * Order solar steps into a sunrise-to-sunset narrative.
@@ -480,11 +480,12 @@ function parseScheduleMinutes(time: string): number {
 }
 
 /**
- * Schedule CCT preset -- vertical stacked color bands.
+ * Schedule CCT preset -- smooth vertical gradient.
  *
- * Each schedule step becomes a horizontal band whose height is proportional
- * to the time gap until the next step. Hard edges between bands communicate
- * discrete scheduled time slots. A clipPath provides rounded corners.
+ * Renders a top-to-bottom gradient with stops positioned proportionally
+ * to each step's time-of-day. The vertical flow reads as a timeline
+ * (morning at top, evening at bottom), distinct from standard mode's
+ * horizontal gradient and dynamic scene's diagonal gradient.
  */
 function renderScheduleThumbnail(
   preset: UserCCTSequencePreset,
@@ -506,34 +507,26 @@ function renderScheduleThumbnail(
     ))}`;
   }
 
-  // Calculate proportional band heights from time gaps
+  // Position gradient stops proportionally by time-of-day
   const minutes = sorted.map((s) => parseScheduleMinutes(s.time));
-  const gaps: number[] = [];
-  for (let i = 0; i < minutes.length; i++) {
-    const next = i < minutes.length - 1 ? minutes[i + 1]! : minutes[i]! + 60;
-    gaps.push(Math.max(next - minutes[i]!, 1));
-  }
-  const totalGap = gaps.reduce((sum, g) => sum + g, 0);
+  const minTime = minutes[0]!;
+  const maxTime = minutes[minutes.length - 1]!;
+  const span = maxTime - minTime;
 
-  // Build stacked rectangles clipped to a rounded rect
-  const clipId = `sched-clip-${preset.id}`;
-  const bandHeight = 380; // total available height
-  let y = 10; // starting y position (matches rect inset)
-  const rects = temps
+  const gradientId = `sched-${preset.id}`;
+  const stops = temps
     .map((t, i) => {
-      const h = Math.max(Math.round((gaps[i]! / totalGap) * bandHeight), 2);
-      const hex = kelvinToHex(t);
-      const rect = `<rect fill="${hex}" x="10" y="${y}" width="380" height="${h}" />`;
-      y += h;
-      return rect;
+      const offset = span > 0
+        ? Math.round(((minutes[i]! - minTime) / span) * 100)
+        : Math.round((i / (temps.length - 1)) * 100);
+      return `<stop offset="${offset}%" stop-color="${kelvinToHex(t)}" />`;
     })
     .join('');
 
+  // Vertical gradient (top to bottom)
   const inner =
-    `<defs><clipPath id="${clipId}">` +
-    `<rect x="10" y="10" width="380" height="380" rx="8" />` +
-    `</clipPath></defs>` +
-    `<g clip-path="url(#${clipId})">${rects}</g>`;
+    `<defs><linearGradient id="${gradientId}" x1="0" y1="0" x2="0" y2="1">${stops}</linearGradient></defs>` +
+    `<rect fill="url(#${gradientId})" x="10" y="10" width="380" height="380" rx="8" />`;
 
   return html`${unsafeSvg(wrapGradientSvg(inner))}`;
 }
