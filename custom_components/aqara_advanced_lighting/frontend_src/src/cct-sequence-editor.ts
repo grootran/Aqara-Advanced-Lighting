@@ -781,6 +781,18 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
     this._hasUserInteraction = true;
   }
 
+  protected override _onDragHandlePointerDown(e: PointerEvent, index: number): void {
+    // Mixin checks _steps.length which is only the standard steps array.
+    // Temporarily set _steps to the active array so the length guard passes.
+    const activeSteps = this._mode === 'solar' ? this._solarSteps
+      : this._mode === 'schedule' ? this._scheduleSteps
+      : this._steps;
+    const saved = this._steps;
+    this._steps = activeSteps as any;
+    super._onDragHandlePointerDown(e, index);
+    this._steps = saved;
+  }
+
   protected override _reorderStep(fromIndex: number, toIndex: number): void {
     if (this._mode === 'solar') {
       const newSteps = [...this._solarSteps];

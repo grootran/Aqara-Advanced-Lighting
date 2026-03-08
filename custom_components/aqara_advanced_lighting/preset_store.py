@@ -83,6 +83,7 @@ _ALLOWED_FIELDS: dict[str, set[str]] = {
         "end_behavior",
         "mode",
         "solar_steps",
+        "schedule_steps",
         "skip_first_in_loop",
         "auto_resume_delay",
     },
