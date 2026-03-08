@@ -533,9 +533,9 @@ def test_trigger_event_map_effects_have_no_sequence_type() -> None:
         )
 
 
-def test_all_trigger_types_have_14_entries() -> None:
-    """Test that we have exactly 14 trigger types."""
-    assert len(TRIGGER_TYPES) == 14
+def test_all_trigger_types_have_22_entries() -> None:
+    """Test that we have exactly 22 trigger types."""
+    assert len(TRIGGER_TYPES) == 22
 
 
 # --- Tests for merged devices (multiple identifiers) ---

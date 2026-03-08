@@ -8,7 +8,6 @@ from custom_components.aqara_advanced_lighting.segment_utils import (
     generate_block_colors,
     expand_segment_colors,
 )
-from custom_components.aqara_advanced_lighting.models import RGBColor, SegmentColor
 
 
 def test_parse_segment_range_single():
@@ -92,90 +91,80 @@ def test_parse_segment_range_invalid_segment():
 def test_generate_gradient_colors_two_colors():
     """Test generating gradient with two colors."""
     colors = [
-        RGBColor(r=255, g=0, b=0),  # Red
-        RGBColor(r=0, g=0, b=255),  # Blue
+        {"r": 255, "g": 0, "b": 0},  # Red
+        {"r": 0, "g": 0, "b": 255},  # Blue
     ]
-    segments = [1, 2, 3, 4, 5]
 
-    result = generate_gradient_colors(colors, segments)
+    result = generate_gradient_colors(colors, 5)
 
     assert len(result) == 5
-    assert result[0].segment == 1
-    assert result[0].color.r == 255
-    assert result[0].color.g == 0
-    assert result[0].color.b == 0
-    assert result[-1].segment == 5
-    assert result[-1].color.r == 0
-    assert result[-1].color.g == 0
-    assert result[-1].color.b == 255
+    assert result[0]["segment"] == 1
+    assert result[0]["color"]["r"] == 255
+    assert result[0]["color"]["g"] == 0
+    assert result[0]["color"]["b"] == 0
+    assert result[-1]["segment"] == 5
+    assert result[-1]["color"]["r"] == 0
+    assert result[-1]["color"]["g"] == 0
+    assert result[-1]["color"]["b"] == 255
 
 
 def test_generate_gradient_colors_three_colors():
     """Test generating gradient with three colors."""
     colors = [
-        RGBColor(r=255, g=0, b=0),    # Red
-        RGBColor(r=0, g=255, b=0),    # Green
-        RGBColor(r=0, g=0, b=255),    # Blue
+        {"r": 255, "g": 0, "b": 0},  # Red
+        {"r": 0, "g": 255, "b": 0},  # Green
+        {"r": 0, "g": 0, "b": 255},  # Blue
     ]
-    segments = list(range(1, 11))  # 10 segments
 
-    result = generate_gradient_colors(colors, segments)
+    result = generate_gradient_colors(colors, 10)
 
     assert len(result) == 10
-    assert result[0].segment == 1
-    assert result[-1].segment == 10
+    assert result[0]["segment"] == 1
+    assert result[-1]["segment"] == 10
 
 
 def test_generate_block_colors_repeat():
-    """Test generating block colors with repeat mode."""
+    """Test generating block colors with repeat (alternating) mode."""
     colors = [
-        RGBColor(r=255, g=0, b=0),  # Red
-        RGBColor(r=0, g=255, b=0),  # Green
+        {"r": 255, "g": 0, "b": 0},  # Red
+        {"r": 0, "g": 255, "b": 0},  # Green
     ]
-    segments = list(range(1, 9))  # 8 segments
 
-    result = generate_block_colors(colors, segments, expand=False)
+    result = generate_block_colors(colors, 8, expand=False)
 
     assert len(result) == 8
-    # Should create blocks: RRRRGGGG
-    assert result[0].color.r == 255  # Red
-    assert result[4].color.g == 255  # Green
+    # Alternates: R, G, R, G, R, G, R, G
+    assert result[0]["color"]["r"] == 255  # Red
+    assert result[1]["color"]["g"] == 255  # Green
+    assert result[2]["color"]["r"] == 255  # Red
 
 
 def test_generate_block_colors_expand():
-    """Test generating block colors with expand mode."""
+    """Test generating block colors with expand (block) mode."""
     colors = [
-        RGBColor(r=255, g=0, b=0),  # Red
-        RGBColor(r=0, g=255, b=0),  # Green
+        {"r": 255, "g": 0, "b": 0},  # Red
+        {"r": 0, "g": 255, "b": 0},  # Green
     ]
-    segments = list(range(1, 9))  # 8 segments
 
-    result = generate_block_colors(colors, segments, expand=True)
+    result = generate_block_colors(colors, 8, expand=True)
 
     assert len(result) == 8
-    # Should alternate: RGRGRGRG
-    assert result[0].color.r == 255  # Red
-    assert result[1].color.g == 255  # Green
-    assert result[2].color.r == 255  # Red
+    # Blocks: RRRRGGGG
+    assert result[0]["color"]["r"] == 255  # Red
+    assert result[3]["color"]["r"] == 255  # Red (still in first block)
+    assert result[4]["color"]["g"] == 255  # Green (second block)
 
 
 def test_expand_segment_colors():
-    """Test expanding segment colors to specific segments."""
+    """Test expanding segment color ranges into individual segments."""
     segment_colors = [
-        SegmentColor(segment=1, color=RGBColor(r=255, g=0, b=0)),
-        SegmentColor(segment=2, color=RGBColor(r=0, g=255, b=0)),
+        {"segment": "1-2", "color": {"r": 255, "g": 0, "b": 0}},
+        {"segment": "4", "color": {"r": 0, "g": 255, "b": 0}},
     ]
-    target_segments = [1, 2, 3, 4]
 
-    result = expand_segment_colors(segment_colors, target_segments)
+    result = expand_segment_colors(segment_colors, max_segments=20)
 
-    assert len(result) == 4
-    assert result[0].segment == 1
-    assert result[0].color.r == 255
-    assert result[1].segment == 2
-    assert result[1].color.g == 255
-    # Segments 3 and 4 should cycle back to the first colors
-    assert result[2].segment == 3
-    assert result[2].color.r == 255
-    assert result[3].segment == 4
-    assert result[3].color.g == 255
+    assert len(result) == 3
+    assert result[0] == {"segment": 1, "color": {"r": 255, "g": 0, "b": 0}}
+    assert result[1] == {"segment": 2, "color": {"r": 255, "g": 0, "b": 0}}
+    assert result[2] == {"segment": 4, "color": {"r": 0, "g": 255, "b": 0}}

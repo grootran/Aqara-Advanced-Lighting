@@ -53,9 +53,17 @@ def parse_segment_range(
         half = max_segments // 2
         return list(range(1, half + 1))
 
-    if segment_str == "second-half":
+    if segment_str in ("second-half", "last-half"):
         half = max_segments // 2
         return list(range(half + 1, max_segments + 1))
+
+    if segment_str == "first-third":
+        third = max_segments // 3
+        return list(range(1, third + 1))
+
+    if segment_str == "last-third":
+        third = max_segments // 3
+        return list(range(max_segments - third + 1, max_segments + 1))
 
     if segment_str == "all":
         return list(range(1, max_segments + 1))
@@ -81,12 +89,13 @@ def parse_segment_range(
             if range_match:
                 start = int(range_match.group(1))
                 end = int(range_match.group(2))
-                if start <= end:
-                    segments.extend(range(start, end + 1))
-                else:
-                    _LOGGER.warning(
-                        "Invalid range %s: start > end, skipping", part
-                    )
+                if start > end:
+                    msg = f"Invalid segment range: {part} (start > end)"
+                    raise ValueError(msg)
+                if start < 1 or end > max_segments:
+                    msg = f"Invalid segment range: {part} (out of bounds 1-{max_segments})"
+                    raise ValueError(msg)
+                segments.extend(range(start, end + 1))
             else:
                 _LOGGER.warning("Invalid range format: %s, skipping", part)
         else:
@@ -100,8 +109,11 @@ def parse_segment_range(
     # Remove duplicates and sort
     segments = sorted(set(segments))
 
-    # Filter out segments beyond max_segments
-    segments = [s for s in segments if 0 < s <= max_segments]
+    # Validate segments are within range
+    for s in segments:
+        if s < 1 or s > max_segments:
+            msg = f"Segment {s} is out of range (1-{max_segments})"
+            raise ValueError(msg)
 
     return segments
 
