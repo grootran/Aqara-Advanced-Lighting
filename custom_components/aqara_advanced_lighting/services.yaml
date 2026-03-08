@@ -2499,7 +2499,7 @@ start_circadian_mode:
             domain: light
     preset:
       name: Preset
-      description: Name of a solar CCT preset to use (circadian, solar_warm, or solar_productive).
+      description: Choose a built-in or user-saved adaptive preset. Schedule presets adjust by time of day, solar presets by sun elevation.
       required: false
       selector:
         select:

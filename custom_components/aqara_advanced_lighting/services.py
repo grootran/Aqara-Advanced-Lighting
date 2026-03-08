@@ -3558,20 +3558,73 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
         preset_name: str | None = call.data.get(ATTR_PRESET)
 
+        # Resolve preset data from user presets first, then built-in
+        preset_data = None
+        if preset_name:
+            preset_store = get_preset_store(hass)
+            if preset_store:
+                preset_data = preset_store.get_preset_by_name(
+                    PRESET_TYPE_CCT_SEQUENCE, preset_name
+                )
+            if not preset_data:
+                preset_data = CCT_SEQUENCE_PRESETS.get(preset_name)
+            if not preset_data:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="invalid_preset",
+                    translation_placeholders={"preset": preset_name},
+                )
+
+        mode = preset_data.get("mode") if preset_data else None
+
+        if preset_data and mode == CCT_MODE_SCHEDULE:
+            # Schedule mode presets route through the CCT sequence manager
+            schedule_steps_data = preset_data.get("schedule_steps", [])
+            if not schedule_steps_data:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="schedule_steps_required",
+                )
+            sequence = _build_schedule_sequence(
+                schedule_steps_data,
+                auto_resume_delay=preset_data.get("auto_resume_delay", 0),
+            )
+            manager_pair = _get_any_cct_manager(hass)
+            if not manager_pair:
+                raise HomeAssistantError(
+                    "No integration instance available. "
+                    "Please ensure at least one Aqara Advanced Lighting "
+                    "instance is configured."
+                )
+            cct_manager, _ = manager_pair
+
+            # Stop conflicting continuous actions
+            entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+            if entity_controller:
+                for entity_id in entity_ids:
+                    await entity_controller.stop_all_for_entity(entity_id)
+
+            await cct_manager.start_synchronized_group(
+                entity_ids, sequence, preset_name,
+            )
+            _LOGGER.info(
+                "Started schedule sequence via circadian service for %d entities",
+                len(entity_ids),
+            )
+            return
+
+        # Solar mode - use circadian manager for passive overlay
         circadian_mgr = hass.data.get(DOMAIN, {}).get(DATA_CIRCADIAN_MANAGER)
         if not circadian_mgr:
             _LOGGER.warning("Circadian manager not initialized")
             return
 
-        # Load solar steps from preset or service call
-        if preset_name:
-            # Look up from CCT_SEQUENCE_PRESETS where mode == "solar"
-            preset_data = CCT_SEQUENCE_PRESETS.get(preset_name)
-            if not preset_data or preset_data.get("mode") != "solar":
+        if preset_data:
+            if mode != CCT_MODE_SOLAR:
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
                     translation_key="invalid_solar_preset",
-                    translation_placeholders={"preset": preset_name},
+                    translation_placeholders={"preset": preset_name or ""},
                 )
             solar_steps = [
                 SolarStep(
