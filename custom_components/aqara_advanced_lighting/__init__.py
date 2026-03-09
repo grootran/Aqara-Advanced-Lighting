@@ -334,6 +334,7 @@ async def async_setup_entry(
     # Initialize state manager and load persisted states
     state_manager = StateManager(hass)
     await state_manager.async_load()
+    state_manager.start_tracking()
 
     # Initialize CCT sequence manager (needs backend for device communication)
     cct_sequence_manager = CCTSequenceManager(
@@ -418,6 +419,10 @@ async def async_unload_entry(
         if dynamic_scene_manager:
             # Stop all running scenes and cleanup (cleanup is synchronous)
             dynamic_scene_manager.cleanup()
+
+        state_mgr = instance_data.get("state_manager")
+        if state_mgr:
+            state_mgr.stop_tracking()
 
         # Shut down backend
         backend = instance_data.get("backend")
