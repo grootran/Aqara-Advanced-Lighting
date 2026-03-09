@@ -63,9 +63,9 @@ See the [Getting started guide](docs/getting-started.md) for detailed installati
 | ![Aqara Advanced Lighting Panel](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/activate.png) | ![Aqara Advanced Lighting Editors](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/segments.png) |
 
 
-| Preset management                                                                                                 | Device configuration                                                                                             |
+| Adaptive Lighting                                                                                                 | Device configuration                                                                                             |
 | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| ![Aqara Advanced Lighting Presets](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/presets.png) | ![Aqara Advanced Lighting Config](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/devices.png) |
+| ![Aqara Advanced Lighting Adaptive](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/cct.png) | ![Aqara Advanced Lighting Config](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/devices.png) |
 
 ## Documentation
 
