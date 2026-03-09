@@ -2824,12 +2824,12 @@ export class AqaraPanel extends LitElement {
   private async _activateUserCCTSequencePreset(preset: UserCCTSequencePreset): Promise<void> {
     if (!this._selectedEntities.length) return;
 
-    // Solar presets are resolved by name on the backend
-    if (preset.mode === 'solar') {
+    // Adaptive presets (solar/schedule) are resolved by name on the backend.
+    // Don't turn on lights -- the loop waits for them to be turned on.
+    if (preset.mode === 'solar' || preset.mode === 'schedule') {
       await this.hass.callService('aqara_advanced_lighting', 'start_cct_sequence', {
         entity_id: this._selectedEntities,
         preset: preset.name,
-        turn_on: true,
         sync: true,
       });
       await this._loadRunningOperations();
@@ -3777,12 +3777,13 @@ export class AqaraPanel extends LitElement {
     }
 
     const data = e.detail;
+    const isAdaptive = (data.mode === 'schedule' && data.schedule_steps) || (data.mode === 'solar' && data.solar_steps);
     const serviceData: Record<string, unknown> = {
       entity_id: compatibleEntities,
       loop_mode: data.loop_mode,
       end_behavior: data.end_behavior,
       skip_first_in_loop: data.skip_first_in_loop || false,
-      turn_on: true,
+      turn_on: !isAdaptive,
       sync: true,
     };
 
