@@ -517,6 +517,9 @@ SCHEDULE_STEP_SCHEMA = vol.Schema(
 _cct_sequence_schema_dict[vol.Optional("mode", default=CCT_MODE_STANDARD)] = vol.In(
     VALID_CCT_MODES
 )
+_cct_sequence_schema_dict[vol.Optional("auto_resume_delay")] = vol.All(
+    vol.Coerce(float), vol.Range(min=0)
+)
 _cct_sequence_schema_dict[vol.Optional("solar_steps")] = vol.All(
     cv.ensure_list, [SOLAR_STEP_SCHEMA], vol.Length(min=2, max=20)
 )
@@ -685,6 +688,12 @@ SERVICE_START_CIRCADIAN_MODE_SCHEMA = vol.Schema(
         vol.Optional(ATTR_PRESET): cv.string,
         vol.Optional("solar_steps"): vol.All(
             cv.ensure_list, [SOLAR_STEP_SCHEMA], vol.Length(min=2, max=20)
+        ),
+        vol.Optional("schedule_steps"): vol.All(
+            cv.ensure_list, [SCHEDULE_STEP_SCHEMA], vol.Length(min=2, max=20)
+        ),
+        vol.Optional("auto_resume_delay"): vol.All(
+            vol.Coerce(float), vol.Range(min=0)
         ),
     }
 )
@@ -1776,7 +1785,15 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         },
                     )
 
-            # Ensure light is on if requested
+            # Stop all conflicting continuous actions (sequences, scenes)
+            entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+            if entity_controller:
+                await entity_controller.stop_all_for_entity(entity_id)
+
+            # Capture state before turning on so off state is preserved for restore
+            entity_state_manager.capture_state(entity_id, aqara_device.name)
+
+            # Ensure light is on if requested (after capture)
             await _ensure_light_on(hass, entity_id, turn_on)
 
             # For T1 Strip, set brightness BEFORE sending segment pattern
@@ -1866,15 +1883,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 )
                 for sc in expanded_data
             ]
-
-            # Stop all conflicting continuous actions (sequences, scenes)
-            instance_data = hass.data[DOMAIN]["entries"].get(entry_id, {})
-            entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
-            if entity_controller:
-                await entity_controller.stop_all_for_entity(entity_id)
-
-            # Capture state before applying pattern
-            entity_state_manager.capture_state(entity_id, aqara_device.name)
 
             try:
                 await entity_backend.async_send_segment_pattern(
@@ -2481,6 +2489,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             # Manual configuration - extract from service call parameters
             mode = call.data.get("mode", CCT_MODE_STANDARD)
 
+            auto_resume_delay = call.data.get("auto_resume_delay", 0)
+
             if mode == CCT_MODE_SOLAR:
                 # Manual solar mode from service call
                 solar_steps_data = call.data.get("solar_steps", [])
@@ -2489,7 +2499,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         translation_domain=DOMAIN,
                         translation_key="solar_steps_required",
                     )
-                sequence = _build_solar_sequence(solar_steps_data)
+                sequence = _build_solar_sequence(
+                    solar_steps_data, auto_resume_delay=auto_resume_delay
+                )
             elif mode == CCT_MODE_SCHEDULE:
                 schedule_steps_data = call.data.get("schedule_steps", [])
                 if not schedule_steps_data:
@@ -2497,7 +2509,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         translation_domain=DOMAIN,
                         translation_key="schedule_steps_required",
                     )
-                sequence = _build_schedule_sequence(schedule_steps_data)
+                sequence = _build_schedule_sequence(
+                    schedule_steps_data, auto_resume_delay=auto_resume_delay
+                )
             else:
                 # Standard manual mode
                 loop_mode = call.data.get(ATTR_LOOP_MODE, LOOP_MODE_ONCE)

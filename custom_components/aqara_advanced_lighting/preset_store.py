@@ -537,6 +537,16 @@ class PresetStore(BaseStore[PresetsData]):
                 translation_key="preset_name_too_long",
             )
 
+        # Enforce name uniqueness within the same preset type
+        if name:
+            existing = self._data[key]
+            if any(p.get("name") == name for p in existing):
+                raise ServiceValidationError(
+                    f"A {preset_type} preset named '{name}' already exists",
+                    translation_domain=DOMAIN,
+                    translation_key="preset_name_duplicate",
+                )
+
         filtered_data = self._filter_preset_fields(preset_data, preset_type)
         timestamp = self._get_timestamp()
 
@@ -581,6 +591,18 @@ class PresetStore(BaseStore[PresetsData]):
 
         key = self._get_storage_key(preset_type)
         presets = self._data.get(key, [])
+
+        # Enforce name uniqueness (excluding the preset being updated)
+        name = preset_data.get("name", "")
+        if name:
+            if any(
+                p.get("name") == name and p["id"] != preset_id for p in presets
+            ):
+                raise ServiceValidationError(
+                    f"A {preset_type} preset named '{name}' already exists",
+                    translation_domain=DOMAIN,
+                    translation_key="preset_name_duplicate",
+                )
 
         for i, preset in enumerate(presets):
             if preset["id"] == preset_id:

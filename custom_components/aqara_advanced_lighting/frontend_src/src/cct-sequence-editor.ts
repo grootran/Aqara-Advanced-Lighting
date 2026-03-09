@@ -415,6 +415,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
       this._autoResumeDelay = preset.auto_resume_delay || 0;
       this._solarSteps = preset.solar_steps.map((step, index) => ({
         ...step,
+        brightness: Math.round(step.brightness / 2.55),
         id: `solar-${index}-${Date.now()}`,
       }));
       this._loopMode = 'continuous';
@@ -652,7 +653,10 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
       }
     } else if (this._mode === 'solar') {
       data.mode = 'solar';
-      data.solar_steps = this._solarSteps.map(({ id, ...step }) => step);
+      data.solar_steps = this._solarSteps.map(({ id, ...step }) => ({
+        ...step,
+        brightness: Math.round(step.brightness * 2.55),
+      }));
       data.loop_mode = 'continuous';
       data.end_behavior = 'maintain';
       if (this._autoResumeDelay > 0) {

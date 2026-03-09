@@ -2095,10 +2095,11 @@ export class AqaraPanel extends LitElement {
   private async _activateCCTSequence(preset: CCTSequencePreset): Promise<void> {
     if (!this._selectedEntities.length) return;
 
+    const isAdaptive = preset.mode === 'solar' || preset.mode === 'schedule';
     await this.hass.callService('aqara_advanced_lighting', 'start_cct_sequence', {
       entity_id: this._selectedEntities,
       preset: preset.id,
-      turn_on: true,
+      ...(!isAdaptive && { turn_on: true }),
       sync: true,
     });
     await this._loadRunningOperations();

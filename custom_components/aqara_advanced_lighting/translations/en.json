@@ -112,6 +112,9 @@
     "invalid_preset": {
       "message": "Invalid preset: {preset}. Please select a valid preset from the list."
     },
+    "preset_name_duplicate": {
+      "message": "A preset with this name already exists. Please choose a different name."
+    },
     "effect_required": {
       "message": "Effect type is required when not using a preset. Please specify the effect type to use."
     },

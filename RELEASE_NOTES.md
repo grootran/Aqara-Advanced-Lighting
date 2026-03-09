@@ -70,6 +70,7 @@ Version 1.1.0 adds solar and schedule-based adaptive circadian CCT sequences, ca
 - Fix Auth errors on API calls
 - Fix active presets panel not updating after activation
 - Fix last-half, first-third, last-third keywords to parse_segment_range
+- Fix segment patterns not restoring off state when stopped
 
 ## Full Changelog
 

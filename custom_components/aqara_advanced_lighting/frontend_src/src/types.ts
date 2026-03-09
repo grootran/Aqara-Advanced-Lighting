@@ -118,6 +118,7 @@ export interface CCTSequencePreset {
   loop_mode: string;
   loop_count?: number;
   end_behavior: string;
+  mode?: string;
 }
 
 export interface SegmentSequenceStep {
