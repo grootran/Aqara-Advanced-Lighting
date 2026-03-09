@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Any, TypeAlias
 
 from homeassistant.config_entries import ConfigEntry
 
+from .sun_utils import ScheduleStep, SolarStep
+
 if TYPE_CHECKING:
     pass  # TypeAlias import used for type definitions
 
@@ -447,14 +449,34 @@ class CCTSequence:
 
     steps: list[CCTSequenceStep]  # 1-20 steps
     loop_mode: str  # "once", "count", "continuous"
-    loop_count: int | None = None  # Number of loops if mode is "count"
-    end_behavior: str = "maintain"  # "maintain", "turn_off", or "restore"
+    loop_count: int | None = None
+    end_behavior: str = "maintain"
+    skip_first_in_loop: bool = False
+    mode: str = "standard"  # "standard", "solar", or "schedule"
+    solar_steps: list[SolarStep] = field(default_factory=list)
+    schedule_steps: list[ScheduleStep] = field(default_factory=list)
+    auto_resume_delay: float = 0
 
     def __post_init__(self) -> None:
         """Validate sequence parameters."""
-        _validate_sequence_params(
-            len(self.steps), self.loop_mode, self.loop_count, self.end_behavior
-        )
+        if self.mode == "solar":
+            if len(self.solar_steps) < 2:
+                msg = "Solar mode requires at least 2 solar steps"
+                raise ValueError(msg)
+            if self.end_behavior != "maintain":
+                msg = "Solar mode only supports end_behavior='maintain'"
+                raise ValueError(msg)
+        elif self.mode == "schedule":
+            if len(self.schedule_steps) < 2:
+                msg = "Schedule mode requires at least 2 schedule steps"
+                raise ValueError(msg)
+            if self.end_behavior != "maintain":
+                msg = "Schedule mode only supports end_behavior='maintain'"
+                raise ValueError(msg)
+        else:
+            _validate_sequence_params(
+                len(self.steps), self.loop_mode, self.loop_count, self.end_behavior
+            )
 
 
 @dataclass
@@ -539,7 +561,7 @@ class DynamicScene:
     random_order: bool  # Randomize light order for offset
     loop_mode: str  # "once", "count", "continuous"
     loop_count: int | None = None  # Number of loops if mode is "count"
-    end_behavior: str = "maintain"  # "maintain" or "restore"
+    end_behavior: str = "maintain"  # "maintain", "turn_off", or "restore"
 
     def __post_init__(self) -> None:
         """Validate scene parameters."""
@@ -574,8 +596,8 @@ class DynamicScene:
             msg = "Loop count must be >= 1 when loop_mode is 'count'"
             raise ValueError(msg)
 
-        if self.end_behavior not in ("maintain", "restore"):
-            msg = f"End behavior must be 'maintain' or 'restore', got {self.end_behavior}"
+        if self.end_behavior not in ("maintain", "turn_off", "restore"):
+            msg = f"End behavior must be 'maintain', 'turn_off', or 'restore', got {self.end_behavior}"
             raise ValueError(msg)
 
 

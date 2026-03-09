@@ -13,6 +13,8 @@ export interface HomeAssistant {
     path: string,
     data?: Record<string, unknown>
   ) => Promise<T>;
+  fetchWithAuth: (path: string, init?: RequestInit) => Promise<Response>;
+  callWS: <T>(msg: Record<string, unknown>) => Promise<T>;
   states: Record<string, HassEntity>;
   localize: (key: string) => string;
   user?: {
@@ -76,6 +78,38 @@ export interface CCTSequenceStep {
   hold: number;
 }
 
+export interface SolarStep {
+  sun_elevation: number;
+  color_temp: number;
+  brightness: number;
+  phase: 'rising' | 'setting' | 'any';
+}
+
+export interface ScheduleStep {
+  time: string;
+  color_temp: number;
+  brightness: number;
+  label: string;
+}
+
+export interface SolarCCTPreset {
+  id: string;
+  name: string;
+  icon: string;
+  mode: 'solar';
+  solar_steps: SolarStep[];
+  end_behavior: string;
+}
+
+export interface ScheduleCCTPreset {
+  id: string;
+  name: string;
+  icon: string;
+  mode: 'schedule';
+  schedule_steps: ScheduleStep[];
+  end_behavior: string;
+}
+
 export interface CCTSequencePreset {
   id: string;
   name: string;
@@ -84,6 +118,7 @@ export interface CCTSequencePreset {
   loop_mode: string;
   loop_count?: number;
   end_behavior: string;
+  mode?: string;
 }
 
 export interface SegmentSequenceStep {
@@ -247,6 +282,11 @@ export interface UserCCTSequencePreset {
   loop_mode: string;
   loop_count?: number;
   end_behavior: string;
+  skip_first_in_loop?: boolean;
+  mode?: string;
+  solar_steps?: SolarStep[];
+  schedule_steps?: ScheduleStep[];
+  auto_resume_delay?: number;
   created_at: string;
   modified_at: string;
 }
@@ -350,6 +390,8 @@ export interface UserPreferences {
 // Integration-wide preferences (not per-user)
 export interface GlobalPreferences {
   ignore_external_changes?: boolean;
+  software_transition_entities?: string[];
+  override_control_mode?: 'pause_all' | 'pause_changed';
 }
 
 // Draft state types for editor tab caching (in-memory only, not persisted)
@@ -391,7 +433,12 @@ export interface CCTEditorDraft {
   loopMode: string;
   loopCount: number;
   endBehavior: string;
+  skipFirstInLoop: boolean;
   hasUserInteraction: boolean;
+  mode: 'standard' | 'solar' | 'schedule';
+  solarSteps: SolarStep[];
+  scheduleSteps: ScheduleStep[];
+  autoResumeDelay: number;
 }
 
 export interface SegmentSequenceEditorDraft {
@@ -493,7 +540,7 @@ export interface HassEvent {
 }
 
 // Running operation types for the active presets display
-export type RunningOperationType = 'effect' | 'cct_sequence' | 'segment_sequence' | 'dynamic_scene' | 'music_sync';
+export type RunningOperationType = 'effect' | 'cct_sequence' | 'segment_sequence' | 'dynamic_scene' | 'music_sync' | 'circadian';
 
 export interface RunningOperation {
   type: RunningOperationType;
@@ -513,6 +560,19 @@ export interface RunningOperation {
   // Music sync
   sensitivity?: string;
   audio_effect?: string;
+  // Capability indicators for dynamic scene entities
+  entity_capabilities?: Record<string, string>;
+  // CCT sequence mode
+  mode?: string;
+  // Circadian/solar operation state
+  current_color_temp?: number;
+  current_brightness?: number;
+  // Auto-resume countdown (seconds remaining, present when externally paused)
+  auto_resume_remaining?: number;
+  override_attributes?: {
+    brightness: boolean;
+    color: boolean;
+  } | Record<string, { brightness: boolean; color: boolean }>;
 }
 
 export interface RunningOperationsResponse {

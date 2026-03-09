@@ -42,9 +42,18 @@ Monitor and control all currently running effects, sequences, and scenes from a 
 **Operation types tracked:**
 
 - Dynamic RGB effects
-- CCT sequences
+- CCT sequences (standard, schedule, and solar modes)
 - RGB segment sequences
 - Dynamic scenes
+
+**Override status indicators**: When a running adaptive sequence (schedule or solar mode) detects that you manually changed a light, the active preset card shows the override status:
+
+- **Paused**: You manually paused the sequence
+- **Externally paused**: An external change was detected and the sequence paused automatically. If auto-resume is configured, a countdown shows the remaining seconds (e.g., "Externally paused (resuming in 45s)")
+- **Brightness overridden**: You changed the brgihtness manually; color continues adapting
+- **Color overridden**: You changed the color temperature manually; brightness continues adapting
+
+You can click **Resume** on any paused preset to immediately resume control, or wait for the auto-resume timer if one is configured.
 
 The Active Presets section appears when you have lights selected or operations running, making it easy to manage all your lighting automation from one place.
 
@@ -62,12 +71,19 @@ Customize how presets are applied with optional overrides:
   - Lights remain at the assigned colors without cycling
 - **Scene color assignment**: For dynamic scenes only
   - Change the way colors are assigned to lights from the method specified in the preset
-- **Ignore external changes**: For dynamic scenes and sequences
-  - By default, when a light has changes applied to it through other HA services such as the user manually changing the color, this integration's sequences are paused or stopped. Enabling this toggle will ignore those changes and keep the sequence running.
-  - This is a **persistent global preference** -- once enabled, it remains active across sessions and restarts until you turn it off. It is not a per-activation override like the other options above.
-  - When a light is paused due to external changes, use the [resume entity control](services.md#19-resume-entity-control) service to re-add it to the running sequence.
 
 These overrides apply when activating presets from the panel and provide quick ways to adjust preset behavior without editing the preset itself.
+
+## Change detection
+
+The change detection panel controls how the integration responds when your lights are changed outside of a running sequence -- for example, by a physical dimmer, the manufacturer app, another automation, or manual control in Home Assistant.
+
+- **Ignore external changes**: Toggle off all change detection. When enabled, running sequences and scenes continue without interruption regardless of external changes. This is a **persistent global preference** that remains active across sessions and restarts until you turn it off. When a light is paused due to external changes, use the [resume entity control](services.md#19-resume-entity-control) service to re-add it to the running sequence.
+- **Detect non-HA changes**: Detect changes made outside Home Assistant (manufacturer app, physical dimmer) by comparing the light's current state against the last values the integration applied. This catches changes that don't come through Home Assistant's service call system
+- **Change control mode**: Controls what happens when a change is detected during an adaptive (schedule or solar) sequence:
+  - **Pause all**: Pauses the entire sequence for that light when any attribute changes
+  - **Pause changed only**: Pauses only the attribute that was changed, allowing the other to keep adapting. For example, if you manually adjust brightness, brightness pauses but color temperature continues following the schedule
+- **Treat parameterized turn-on as override**: When enabled, turning on a light with specific parameters (e.g., `light.turn_on` with brightness or color_temp) overrides those attributes instead of applying the current adaptive values. When disabled, only a bare `light.turn_on` (with no parameters) applies adaptive values
 
 ## Preset management
 
@@ -79,7 +95,7 @@ Create, organize, and use custom presets for all features.
 
 - 20 effect presets from the Aqara Home app
 - 12 segment pattern presets
-- 4 CCT sequence presets (Goodnight, Wakeup, Mindful Breathing, Circadian)
+- 7 CCT sequence presets (Goodnight, Wakeup, Mindful Breathing, Power Nap, Circadian, Warm Day, Productive Day)
 - 6 RGB segment sequence presets (Loading Bar, Wave, Sparkle, Theater Chase, Rainbow Fill, Comet)
 - 58 dynamic scene presets (Sunset Glow, Ocean Waves, Northern Lights, Fireplace, and many more)
 

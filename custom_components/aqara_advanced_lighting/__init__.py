@@ -7,17 +7,20 @@ import logging
 from homeassistant.components import mqtt
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.start import async_at_started
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv, device_registry as dr
 
 from .cct_sequence_manager import CCTSequenceManager
+from .circadian_manager import CircadianManager
 from .const import (
     BACKEND_Z2M,
     BACKEND_ZHA,
     CONF_BACKEND_TYPE,
     CONF_Z2M_BASE_TOPIC,
     DATA_CCT_SEQUENCE_MANAGER,
+    DATA_CIRCADIAN_MANAGER,
     DATA_DYNAMIC_SCENE_MANAGER,
     DATA_ENTITY_CONTROLLER,
     DATA_FAVORITES_STORE,
@@ -190,6 +193,11 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         hass.data[DOMAIN][DATA_ENTITY_CONTROLLER] = entity_controller
         _LOGGER.debug("Entity controller initialized")
 
+    # Initialize circadian manager (integration-level singleton)
+    if DATA_CIRCADIAN_MANAGER not in hass.data[DOMAIN]:
+        hass.data[DOMAIN][DATA_CIRCADIAN_MANAGER] = CircadianManager(hass)
+        _LOGGER.debug("Circadian manager initialized")
+
     # Register services
     await async_setup_services(hass)
 
@@ -330,6 +338,7 @@ async def async_setup_entry(
     # Initialize CCT sequence manager (needs backend for device communication)
     cct_sequence_manager = CCTSequenceManager(
         hass, backend, entity_controller, state_manager,
+        entry_id=entry.entry_id,
     )
 
     # Initialize segment sequence manager (needs backend for device communication)
@@ -366,6 +375,16 @@ async def async_setup_entry(
         backend_type,
     )
 
+    # Restore persisted solar CCT sequences after HA is fully started
+    # (entities must be registered before we can restore sequences)
+    @callback
+    def _schedule_solar_restore(_event: object) -> None:
+        hass.async_create_task(
+            cct_sequence_manager.async_restore_solar_sequences()
+        )
+
+    entry.async_on_unload(async_at_started(hass, _schedule_solar_restore))
+
     return True
 
 
@@ -381,6 +400,8 @@ async def async_unload_entry(
         # Get managers from instance data and cleanup
         cct_manager = instance_data.get(DATA_CCT_SEQUENCE_MANAGER)
         if cct_manager:
+            # Preserve solar persistence across HA restarts
+            cct_manager.set_shutting_down()
             # Stop all running sequences
             await cct_manager.stop_all_sequences()
             # Cleanup state listeners
@@ -416,13 +437,19 @@ async def async_unload_entry(
     for entity_id in entities_to_remove:
         del entity_routing[entity_id]
 
-    # Clean up entity controller when the last config entry is unloaded
+    # Clean up integration-level singletons when the last config entry is unloaded
     if not hass.data[DOMAIN].get("entries"):
         entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
         if entity_controller:
             entity_controller.cleanup()
             del hass.data[DOMAIN][DATA_ENTITY_CONTROLLER]
             _LOGGER.debug("Entity controller cleaned up (last entry unloaded)")
+
+        circadian_mgr = hass.data[DOMAIN].get(DATA_CIRCADIAN_MANAGER)
+        if circadian_mgr:
+            circadian_mgr.stop_all()
+            del hass.data[DOMAIN][DATA_CIRCADIAN_MANAGER]
+            _LOGGER.debug("Circadian manager cleaned up (last entry unloaded)")
 
     # NOTE: Services are NOT unloaded here because they are integration-level
     # (registered in async_setup) and should persist even when config entries

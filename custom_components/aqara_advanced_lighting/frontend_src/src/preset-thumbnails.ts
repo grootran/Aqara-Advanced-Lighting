@@ -14,6 +14,7 @@ import type {
   DynamicSceneColor,
   DynamicScenePreset,
   RGBColor,
+  SolarStep,
   XYColor,
   UserDynamicScenePreset,
   UserEffectPreset,
@@ -365,18 +366,193 @@ export function renderSegmentSequenceThumbnail(
   return html`${unsafeSvg(wrapSvg(arcs))}`;
 }
 
+// ---------------------------------------------------------------------------
+// Solar mode -- arc gradient representing the sun's path
+// ---------------------------------------------------------------------------
+
+/** Arc geometry for the solar thumbnail. */
+const ARC_CY = 290;
+const ARC_OUTER = 180;
+const ARC_INNER = 80;
+
 /**
- * CCT sequence preset -- warm-to-cool horizontal gradient.
+ * Order solar steps into a sunrise-to-sunset narrative.
+ * Rising steps are sorted by elevation ascending (dawn to midday), followed
+ * by any-phase steps at their natural elevation, then setting steps sorted by
+ * elevation descending (midday back to dusk).
+ */
+function orderSolarSteps(steps: SolarStep[]): SolarStep[] {
+  const rising = steps
+    .filter((s) => s.phase === 'rising')
+    .sort((a, b) => a.sun_elevation - b.sun_elevation);
+  const any = steps
+    .filter((s) => s.phase === 'any')
+    .sort((a, b) => a.sun_elevation - b.sun_elevation);
+  const setting = steps
+    .filter((s) => s.phase === 'setting')
+    .sort((a, b) => b.sun_elevation - a.sun_elevation);
+  return [...rising, ...any, ...setting];
+}
+
+/**
+ * Solar CCT preset -- semicircular arc gradient.
  *
- * Maps each step's color_temp (Kelvin) to an approximate white-point color
- * and renders them as gradient stops in a rounded rectangle.
+ * Renders the color temperature steps as a thick arc band evoking the sun's
+ * path from horizon to horizon. A thin horizon line sits below the arc.
+ * Steps are ordered sunrise-to-sunset: rising (ascending elevation), any-phase,
+ * then setting (descending elevation).
+ */
+function renderSolarThumbnail(
+  preset: UserCCTSequencePreset,
+): TemplateResult | null {
+  const steps = preset.solar_steps ?? [];
+  if (steps.length === 0) return null;
+
+  const ordered = orderSolarSteps(steps);
+  const temps = ordered.map((s) => s.color_temp);
+
+  // Single temperature -- solid-fill arc
+  if (temps.length === 1) {
+    const hex = kelvinToHex(temps[0]!);
+    const arcPath =
+      `M ${CX - ARC_OUTER},${ARC_CY} ` +
+      `A ${ARC_OUTER},${ARC_OUTER} 0 0,1 ${CX + ARC_OUTER},${ARC_CY} ` +
+      `L ${CX + ARC_INNER},${ARC_CY} ` +
+      `A ${ARC_INNER},${ARC_INNER} 0 0,0 ${CX - ARC_INNER},${ARC_CY} Z`;
+    const horizon =
+      `<line x1="15" y1="${ARC_CY}" x2="385" y2="${ARC_CY}" ` +
+      `stroke="var(--secondary-text-color, #888)" stroke-width="2" stroke-opacity="0.4" />`;
+    return html`${unsafeSvg(wrapGradientSvg(
+      `<path fill="${hex}" d="${arcPath}" />${horizon}`,
+    ))}`;
+  }
+
+  const gradientId = `solar-${preset.id}`;
+  const stops = temps
+    .map((t, i) => {
+      const offset = Math.round((i / (temps.length - 1)) * 100);
+      return `<stop offset="${offset}%" stop-color="${kelvinToHex(t)}" />`;
+    })
+    .join('');
+
+  // Horizontal gradient mapped onto the arc band
+  const arcPath =
+    `M ${CX - ARC_OUTER},${ARC_CY} ` +
+    `A ${ARC_OUTER},${ARC_OUTER} 0 0,1 ${CX + ARC_OUTER},${ARC_CY} ` +
+    `L ${CX + ARC_INNER},${ARC_CY} ` +
+    `A ${ARC_INNER},${ARC_INNER} 0 0,0 ${CX - ARC_INNER},${ARC_CY} Z`;
+
+  const horizon =
+    `<line x1="15" y1="${ARC_CY}" x2="385" y2="${ARC_CY}" ` +
+    `stroke="var(--secondary-text-color, #888)" stroke-width="2" stroke-opacity="0.4" />`;
+
+  const inner =
+    `<defs><linearGradient id="${gradientId}" x1="0" y1="0" x2="1" y2="0">${stops}</linearGradient></defs>` +
+    `<path fill="url(#${gradientId})" d="${arcPath}" />${horizon}`;
+
+  return html`${unsafeSvg(wrapGradientSvg(inner))}`;
+}
+
+// ---------------------------------------------------------------------------
+// Schedule mode -- vertical stacked bands representing time slots
+// ---------------------------------------------------------------------------
+
+/** Estimated minutes-since-midnight for sunrise/sunset (used only for icon ordering). */
+const SUNRISE_MINUTES = 360;  // 06:00
+const SUNSET_MINUTES = 1080;  // 18:00
+
+/**
+ * Parse a schedule time string into minutes-since-midnight for sorting.
+ * Accepts "HH:MM", "sunrise", "sunset", and offset variants like "sunrise+30".
+ */
+function parseScheduleMinutes(time: string): number {
+  const clock = time.match(/^(\d{1,2}):(\d{2})$/);
+  if (clock) {
+    return parseInt(clock[1]!, 10) * 60 + parseInt(clock[2]!, 10);
+  }
+  const sun = time.match(/^(sunrise|sunset)([+-]\d+)?$/);
+  if (sun) {
+    const base = sun[1] === 'sunrise' ? SUNRISE_MINUTES : SUNSET_MINUTES;
+    const offset = sun[2] ? parseInt(sun[2], 10) : 0;
+    return base + offset;
+  }
+  return 0;
+}
+
+/**
+ * Schedule CCT preset -- smooth vertical gradient.
  *
- * Uses a unique gradient ID per preset to avoid DOM collisions when multiple
- * CCT thumbnails are rendered on the same page.
+ * Renders a top-to-bottom gradient with stops positioned proportionally
+ * to each step's time-of-day. The vertical flow reads as a timeline
+ * (morning at top, evening at bottom), distinct from standard mode's
+ * horizontal gradient and dynamic scene's diagonal gradient.
+ */
+function renderScheduleThumbnail(
+  preset: UserCCTSequencePreset,
+): TemplateResult | null {
+  const steps = preset.schedule_steps ?? [];
+  if (steps.length === 0) return null;
+
+  // Sort chronologically by parsed time
+  const sorted = [...steps].sort(
+    (a, b) => parseScheduleMinutes(a.time) - parseScheduleMinutes(b.time),
+  );
+  const temps = sorted.map((s) => s.color_temp);
+
+  // Single step -- solid fill rectangle
+  if (temps.length === 1) {
+    const hex = kelvinToHex(temps[0]!);
+    return html`${unsafeSvg(wrapGradientSvg(
+      `<rect fill="${hex}" x="10" y="10" width="380" height="380" rx="8" />`,
+    ))}`;
+  }
+
+  // Position gradient stops proportionally by time-of-day
+  const minutes = sorted.map((s) => parseScheduleMinutes(s.time));
+  const minTime = minutes[0]!;
+  const maxTime = minutes[minutes.length - 1]!;
+  const span = maxTime - minTime;
+
+  const gradientId = `sched-${preset.id}`;
+  const stops = temps
+    .map((t, i) => {
+      const offset = span > 0
+        ? Math.round(((minutes[i]! - minTime) / span) * 100)
+        : Math.round((i / (temps.length - 1)) * 100);
+      return `<stop offset="${offset}%" stop-color="${kelvinToHex(t)}" />`;
+    })
+    .join('');
+
+  // Vertical gradient (top to bottom)
+  const inner =
+    `<defs><linearGradient id="${gradientId}" x1="0" y1="0" x2="0" y2="1">${stops}</linearGradient></defs>` +
+    `<rect fill="url(#${gradientId})" x="10" y="10" width="380" height="380" rx="8" />`;
+
+  return html`${unsafeSvg(wrapGradientSvg(inner))}`;
+}
+
+// ---------------------------------------------------------------------------
+// CCT sequence preset -- dispatches to mode-specific renderer
+// ---------------------------------------------------------------------------
+
+/**
+ * CCT sequence preset -- renders based on mode.
+ *
+ * Standard mode: warm-to-cool horizontal gradient.
+ * Solar mode: semicircular arc gradient (sun path).
+ * Schedule mode: vertical stacked color bands (time slots).
+ *
+ * Uses a unique gradient/clip ID per preset to avoid DOM collisions when
+ * multiple CCT thumbnails are rendered on the same page.
  */
 export function renderCCTSequenceThumbnail(
   preset: UserCCTSequencePreset,
 ): TemplateResult | null {
+  // Dispatch to mode-specific renderers
+  if (preset.mode === 'solar') return renderSolarThumbnail(preset);
+  if (preset.mode === 'schedule') return renderScheduleThumbnail(preset);
+
+  // Standard mode: horizontal gradient from step color temperatures
   const temps = (preset.steps ?? [])
     .map((s) => s.color_temp)
     .filter((t): t is number => t !== undefined && t !== null);

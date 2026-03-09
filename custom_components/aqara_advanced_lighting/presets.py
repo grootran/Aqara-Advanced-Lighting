@@ -53,6 +53,9 @@ from .const import (
     PRESET_CCT_CIRCADIAN,
     PRESET_CCT_GOODNIGHT,
     PRESET_CCT_MINDFUL_BREATHING,
+    PRESET_CCT_POWER_NAP,
+    PRESET_CCT_SOLAR_PRODUCTIVE,
+    PRESET_CCT_SOLAR_WARM,
     PRESET_CCT_WAKEUP,
     PRESET_SEGMENT_1,
     PRESET_SEGMENT_2,
@@ -555,6 +558,26 @@ CCT_SEQUENCE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "loop_mode": LOOP_MODE_ONCE,
         "end_behavior": END_BEHAVIOR_MAINTAIN,
     },
+    PRESET_CCT_POWER_NAP: {
+        "name": "Power Nap",
+        "icon": "mdi:sleep",
+        "steps": [
+            {
+                "color_temp": 2700,
+                "brightness": 25,
+                "transition": 60.0,
+                "hold": 1200.0,
+            },
+            {
+                "color_temp": 6500,
+                "brightness": 254,
+                "transition": 10.0,
+                "hold": 60.0,
+            },
+        ],
+        "loop_mode": LOOP_MODE_ONCE,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+    },
     PRESET_CCT_MINDFUL_BREATHING: {
         "name": "Mindful Breathing",
         "icon": "mdi:meditation",
@@ -579,39 +602,46 @@ CCT_SEQUENCE_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_CCT_CIRCADIAN: {
         "name": "Circadian Rhythm",
         "icon": "mdi:sun-clock",
-        "steps": [
-            {
-                "color_temp": 2700,  # Warm morning light
-                "brightness": 100,
-                "transition": 5.0,
-                "hold": 7200.0,  # Hold for 2 hours
-            },
-            {
-                "color_temp": 4000,  # Midday neutral
-                "brightness": 200,
-                "transition": 10.0,
-                "hold": 14400.0,  # Hold for 4 hours
-            },
-            {
-                "color_temp": 5500,  # Afternoon cool
-                "brightness": 255,
-                "transition": 10.0,
-                "hold": 10800.0,  # Hold for 3 hours
-            },
-            {
-                "color_temp": 3500,  # Evening warm
-                "brightness": 150,
-                "transition": 10.0,
-                "hold": 7200.0,  # Hold for 2 hours
-            },
-            {
-                "color_temp": 2700,  # Night warm dim
-                "brightness": 50,
-                "transition": 5.0,
-                "hold": 3600.0,  # Hold for 1 hour
-            },
+        "mode": "schedule",
+        "schedule_steps": [
+            {"time": "sunrise-30", "color_temp": 2700, "brightness": 102, "label": "Dawn"},
+            {"time": "sunrise+30", "color_temp": 3500, "brightness": 178, "label": "Morning"},
+            {"time": "12:00", "color_temp": 5500, "brightness": 255, "label": "Midday"},
+            {"time": "sunset-120", "color_temp": 4500, "brightness": 230, "label": "Afternoon"},
+            {"time": "sunset+0", "color_temp": 3000, "brightness": 153, "label": "Evening"},
+            {"time": "sunset+90", "color_temp": 2700, "brightness": 102, "label": "Night"},
         ],
-        "loop_mode": LOOP_MODE_ONCE,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_MAINTAIN,
+    },
+    PRESET_CCT_SOLAR_WARM: {
+        "name": "Warm Day",
+        "icon": "mdi:weather-sunset",
+        "mode": "schedule",
+        "schedule_steps": [
+            {"time": "sunrise-30", "color_temp": 2700, "brightness": 102, "label": "Dawn"},
+            {"time": "sunrise+30", "color_temp": 3000, "brightness": 153, "label": "Morning"},
+            {"time": "12:00", "color_temp": 4000, "brightness": 240, "label": "Midday"},
+            {"time": "sunset-60", "color_temp": 3200, "brightness": 178, "label": "Afternoon"},
+            {"time": "sunset+0", "color_temp": 2900, "brightness": 128, "label": "Evening"},
+            {"time": "sunset+90", "color_temp": 2700, "brightness": 102, "label": "Night"},
+        ],
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_MAINTAIN,
+    },
+    PRESET_CCT_SOLAR_PRODUCTIVE: {
+        "name": "Productive Day",
+        "icon": "mdi:desk-lamp",
+        "mode": "schedule",
+        "schedule_steps": [
+            {"time": "sunrise-30", "color_temp": 2700, "brightness": 153, "label": "Dawn"},
+            {"time": "sunrise+30", "color_temp": 5000, "brightness": 230, "label": "Morning"},
+            {"time": "12:00", "color_temp": 6500, "brightness": 255, "label": "Midday"},
+            {"time": "sunset-60", "color_temp": 5000, "brightness": 230, "label": "Afternoon"},
+            {"time": "sunset+0", "color_temp": 4500, "brightness": 200, "label": "Evening"},
+            {"time": "sunset+90", "color_temp": 2700, "brightness": 153, "label": "Night"},
+        ],
+        "loop_mode": LOOP_MODE_CONTINUOUS,
         "end_behavior": END_BEHAVIOR_MAINTAIN,
     },
 }

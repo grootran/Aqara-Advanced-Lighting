@@ -607,12 +607,6 @@ class BaseSequenceManager(ABC, Generic[SequenceT]):
                     if not step_completed:
                         return
 
-                    # Refresh grace window after step transition completes
-                    # so the hold period is covered against late Zigbee
-                    # state reports.
-                    if self._entity_controller:
-                        self._entity_controller.record_command(entity_id)
-
                     # Wait for hold time after step completes
                     if step.hold > 0:
                         try:

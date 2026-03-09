@@ -2,6 +2,81 @@
 
 All notable changes to the Aqara Advanced Lighting integration will be documented in this file.
 
+## [1.1.0] - 2026-03-09
+
+### What's New
+
+
+Version 1.1.0 adds solar and schedule-based adaptive circadian CCT sequences, capability-aware light adaptation for any Home Assistant light, and a new more comprehensive override detection system.
+
+### Features
+
+#### **Schedule Mode for Adaptive CCT Sequences**
+
+**Time-of-day schedule mode as an intuitive alternative to sun-elevation solar mode**
+
+  - Schedule steps use fixed times (12:00) or sun-relative times (sunrise+30, sunset-60)
+  - Solar timeline maps elevation to time using sinusoidal sun trajectory with real sunrise/sunset positions
+  - Automatic interpolation between steps on a 24-hour cycle
+  - Dual-track timeline preview showing color temperature and brightness with step markers
+  - New backend services `start_circadian_mode` and `stop_circadian_mode`
+  - Active circadian sequences persist across Home Assistant restarts
+
+#### **Capability-Aware Light Adaptation**
+
+**Imporved support for non-Aqara lights in dynamic scenes and CCT sequences**
+
+  - Capability profiles classify lights as full-color, CCT-only, brightness-only, or on/off-only
+  - Service calls adapted at runtime using XY-to-CCT conversion and color temp clamping
+  - Software transition opt-in for non-Aqara lights via device config panel
+  - Entity chips with capability badges on running scene cards
+
+#### **Override Detection System**
+
+**Context-based override detection with per-attribute control for solar and schedule sequences**
+
+  - Service call listener detects overrides from EVENT_CALL_SERVICE data before state changes arrive
+  - Context-only detection replaces grace window system -- integration commands tagged via Context(parent_id)
+  - Per-attribute change detection with hardware drift tolerance (brightness delta <= 5, color_temp delta <= 50K)
+  - Non-HA drift detection compares entity state against last-applied values with wider thresholds
+  - Bare turn-on adaptation -- parameterized turn-on calls from off state override specified attributes while solar/schedule values fill the rest
+  - Per-attribute pause indicators in frontend for all card types
+  - Override detection controls split into a separate collapsible section in settings
+
+#### **Solar CCT Persistence**
+
+**Solar and schedule sequences now persist across Home Assistant restarts**
+
+  - Running sequences preserved on shutdown and restored on startup after entities are registered
+  - Per-instance storage for sequence state
+
+### Improvements
+
+  - Proactive adaptation: immediate value application on resume and turn-on
+  - Schedule/Solar off/on resilience: skip updates while lights are off, force-apply on turn-on
+  - Per-preset auto-resume delay (moved from global to per-preset)
+  - Turn off light end behavior for dynamic scenes
+  - Skip first step in loop for CCT sequences
+  - Added Power Nap CCT sequence preset
+  - Selective user preset exports
+### Bug Fixes
+
+  - Fix Loop N Times count field in Scenes tab
+  - Fix Signed URL preset export with selective filtering
+  - Fix Preset export using signed URL WebSocket command
+  - Fix Auth errors on API calls
+  - Fix active presets panel not updating after activation
+  - Fix last-half, first-third, last-third keywords to parse_segment_range
+  - Fix segment patterns not restoring off state when stopped
+
+### Code Quality
+
+  - Added entity controller test infrastructure
+  - Added OverrideAttributes IntFlag and override control mode constant
+  - 60+ new tests covering schedule mode, capability detection, override detection, and adaptation
+
+---
+
 ## [1.0.0] - 2026-02-28
 
 ### What's New
@@ -1760,3 +1835,4 @@ One click HACS cutton
 [0.13.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.13.0
 [0.13.1]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.13.1
 [1.0.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v1.0.0
+[1.1.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v1.1.0

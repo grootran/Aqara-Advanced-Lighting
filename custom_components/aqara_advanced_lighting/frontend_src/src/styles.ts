@@ -199,6 +199,19 @@ export const panelStyles = css`
     gap: 8px;
   }
 
+  .running-op-card.scene-op-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .running-op-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
   .running-op-card.op-paused {
     border-left-color: var(--disabled-text-color, #999);
     border-left-style: dashed;
@@ -277,6 +290,33 @@ export const panelStyles = css`
     min-width: 0;
   }
 
+  .entity-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 4px 0 4px 44px;
+  }
+
+  .entity-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--ha-font-size-s, 12px);
+    color: var(--primary-text-color);
+    background: var(--secondary-background-color);
+    padding: 2px 8px;
+    border-radius: 12px;
+    white-space: nowrap;
+  }
+
+  .chip-badge {
+    font-size: 10px;
+    padding: 0 5px;
+    border-radius: 8px;
+    background: rgba(var(--rgb-primary-color), 0.12);
+    color: var(--primary-color);
+  }
+
   .running-op-status {
     font-weight: var(--ha-font-weight-medium, 500);
   }
@@ -287,6 +327,19 @@ export const panelStyles = css`
 
   .running-op-status.externally-paused-text {
     color: var(--warning-color, #ff9800);
+  }
+
+  .running-op-pause-row {
+    font-size: var(--ha-font-size-s, 12px);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .running-op-status.override-detail {
+    color: var(--warning-color, #ff9800);
+    font-style: italic;
   }
 
   .running-op-actions {
@@ -541,6 +594,11 @@ export const panelStyles = css`
     transition: opacity 0.2s ease-in-out;
     z-index: 2;
     pointer-events: none;
+  }
+
+  .favorite-button-actions-left {
+    right: auto;
+    left: 2px;
   }
 
   /* Hover devices: show actions on hover */
@@ -1327,6 +1385,11 @@ export const panelStyles = css`
     bottom: 2px;
   }
 
+  .preset-card-actions-left {
+    right: auto;
+    left: 2px;
+  }
+
   /* Hover devices: show actions on hover */
   @media (hover: hover) {
     .user-preset-card:hover .preset-card-actions,
@@ -1374,6 +1437,48 @@ export const panelStyles = css`
 
   .preset-card-actions .favorite-star.favorited ha-icon {
     color: var(--accent-color, #ffc107);
+  }
+
+  /* Select mode checkbox overlay on preset cards */
+  .preset-select-checkbox {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    z-index: 2;
+    --mdc-icon-size: 20px;
+    color: var(--secondary-text-color);
+    line-height: 0;
+  }
+
+  .user-preset-card.selected {
+    border-color: var(--primary-color);
+    background: color-mix(in srgb, var(--primary-color) 12%, var(--card-background-color, var(--ha-card-background, white)));
+  }
+
+  .user-preset-card.selected .preset-select-checkbox {
+    color: var(--primary-color);
+  }
+
+  .user-preset-card.select-mode:hover {
+    transform: none;
+    box-shadow: none;
+  }
+
+  .user-preset-card.select-mode:hover::before {
+    opacity: 0.05;
+  }
+
+  .user-preset-card.select-mode {
+    cursor: pointer;
+  }
+
+  /* Select mode toolbar highlight */
+  .toolbar-select-mode {
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    background: color-mix(in srgb, var(--primary-color) 8%, var(--card-background-color, var(--ha-card-background, white)));
+    border-radius: var(--ha-card-border-radius, 12px);
+    border: 1px solid var(--primary-color);
   }
 
   /* Music sync section */

@@ -1,5 +1,6 @@
 """Constants for the Aqara Advanced Lighting integration."""
 
+from enum import IntFlag, auto
 from typing import Final
 
 # Integration domain
@@ -375,7 +376,21 @@ EVENT_ENTITY_EXTERNALLY_CONTROLLED: Final = f"{DOMAIN}_entity_externally_control
 EVENT_ENTITY_CONTROL_RESUMED: Final = f"{DOMAIN}_entity_control_resumed"
 SERVICE_SET_MUSIC_SYNC: Final = "set_music_sync"
 SERVICE_RESUME_ENTITY_CONTROL: Final = "resume_entity_control"
-ENTITY_CONTROL_GRACE_SECONDS: Final = 8.0
+SERVICE_START_CIRCADIAN_MODE: Final = "start_circadian_mode"
+SERVICE_STOP_CIRCADIAN_MODE: Final = "stop_circadian_mode"
+DATA_CIRCADIAN_MANAGER: Final = "circadian_manager"
+
+
+class OverrideAttributes(IntFlag):
+    """Attributes that can be individually overridden by external changes."""
+
+    NONE = 0
+    BRIGHTNESS = auto()
+    COLOR = auto()
+    ALL = BRIGHTNESS | COLOR
+
+
+DEFAULT_OVERRIDE_CONTROL_MODE: Final = "pause_all"
 
 # Music sync event types
 EVENT_MUSIC_SYNC_ENABLED: Final = f"{DOMAIN}_music_sync_enabled"
@@ -589,8 +604,20 @@ PRESET_T1_STRIP_COLORFUL: Final = "t1_strip_colorful"
 # CCT sequence presets
 PRESET_CCT_GOODNIGHT: Final = "goodnight"
 PRESET_CCT_WAKEUP: Final = "wakeup"
+PRESET_CCT_POWER_NAP: Final = "power_nap"
 PRESET_CCT_MINDFUL_BREATHING: Final = "mindful_breathing"
 PRESET_CCT_CIRCADIAN: Final = "circadian"
+PRESET_CCT_SOLAR_WARM: Final = "solar_warm"
+PRESET_CCT_SOLAR_PRODUCTIVE: Final = "solar_productive"
+
+CCT_MODE_STANDARD: Final = "standard"
+CCT_MODE_SOLAR: Final = "solar"
+CCT_MODE_SCHEDULE: Final = "schedule"
+VALID_CCT_MODES: Final = [CCT_MODE_STANDARD, CCT_MODE_SOLAR, CCT_MODE_SCHEDULE]
+SOLAR_STEP_PHASE_RISING: Final = "rising"
+SOLAR_STEP_PHASE_SETTING: Final = "setting"
+SOLAR_STEP_PHASE_ANY: Final = "any"
+VALID_SOLAR_PHASES: Final = [SOLAR_STEP_PHASE_RISING, SOLAR_STEP_PHASE_SETTING, SOLAR_STEP_PHASE_ANY]
 
 # Preset definitions
 # Built-in preset dictionaries have been moved to presets.py

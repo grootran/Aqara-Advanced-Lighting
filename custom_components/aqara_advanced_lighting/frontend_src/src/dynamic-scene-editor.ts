@@ -73,6 +73,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   private get _endBehaviorOptions() {
     return [
       { value: 'maintain', label: this._localize('options.end_behavior_maintain') },
+      { value: 'turn_off', label: this._localize('options.end_behavior_turn_off') },
       { value: 'restore', label: this._localize('dynamic_scene.end_behavior_restore') || 'Restore previous state' },
     ];
   }
@@ -563,7 +564,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
       end_behavior: this._endBehavior,
     };
 
-    if (this._loopMode === 'loop') {
+    if (this._loopMode === 'count') {
       data.loop_count = this._loopCount;
     }
 
@@ -741,7 +742,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
                 </ha-icon-button>
               ` : ''}
             </div>
-            ${!this._icon ? html`<span class="form-hint">${this._localize('editors.icon_auto_hint')}</span>` : ''}
+            <span class="form-hint">${this._localize('editors.icon_auto_hint')}</span>
           </div>
         </div>
 
@@ -964,7 +965,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
           </div>
         </div>
 
-        ${this._loopMode === 'loop' ? html`
+        ${this._loopMode === 'count' ? html`
           <div class="form-row">
             <span class="form-label">${this._localize('editors.loop_count_label')}</span>
             <div class="form-input">

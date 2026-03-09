@@ -71,6 +71,13 @@ data:
 - Set T1 Strip length directly from the panel
 - Automatic segment count calculation (5 segments per meter)
 
+## Generic light settings
+
+CCT sequences and dynamic scenes work with any Home Assistant light entity, not just Aqara devices.
+
+- **Software transitions selector**: Some lights don't fully support smooth hardware based color/brightness transitions, select specific lights to use the integration's cubic-easing transition engine instead. This sends incremental `light.turn_on` commands with smooth easing, which produces better results on lights that have jerky or missing hardware transitions
+- The software transitions preference is stored globally and persists across sessions
+
 ## Smart features
 
 - Config tab automatically shows only settings relevant to your selected device type

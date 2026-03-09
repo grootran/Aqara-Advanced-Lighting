@@ -35,6 +35,7 @@ from .const import (
     SERVICE_SET_DYNAMIC_EFFECT,
     SERVICE_SET_SEGMENT_PATTERN,
     SERVICE_START_CCT_SEQUENCE,
+    SERVICE_START_CIRCADIAN_MODE,
     SERVICE_START_DYNAMIC_SCENE,
     SERVICE_START_SEGMENT_SEQUENCE,
 )
@@ -48,16 +49,30 @@ from .presets import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# Map each service to its preset type and the built-in preset dictionary
-_SERVICE_PRESET_CONFIG: dict[str, tuple[str, dict[str, Any]]] = {
-    SERVICE_SET_DYNAMIC_EFFECT: (PRESET_TYPE_EFFECT, EFFECT_PRESETS),
-    SERVICE_SET_SEGMENT_PATTERN: (PRESET_TYPE_SEGMENT_PATTERN, SEGMENT_PATTERN_PRESETS),
-    SERVICE_START_CCT_SEQUENCE: (PRESET_TYPE_CCT_SEQUENCE, CCT_SEQUENCE_PRESETS),
-    SERVICE_START_SEGMENT_SEQUENCE: (
-        PRESET_TYPE_SEGMENT_SEQUENCE,
-        SEGMENT_SEQUENCE_PRESETS,
+# Map each service to its preset type, built-in presets, and optional mode filter.
+# The mode filter (3rd element) restricts which presets appear in the dropdown
+# to only those with a matching "mode" field. None means no filtering.
+_SERVICE_PRESET_CONFIG: dict[
+    str, tuple[str, dict[str, Any], frozenset[str] | None]
+] = {
+    SERVICE_SET_DYNAMIC_EFFECT: (PRESET_TYPE_EFFECT, EFFECT_PRESETS, None),
+    SERVICE_SET_SEGMENT_PATTERN: (
+        PRESET_TYPE_SEGMENT_PATTERN, SEGMENT_PATTERN_PRESETS, None,
     ),
-    SERVICE_START_DYNAMIC_SCENE: (PRESET_TYPE_DYNAMIC_SCENE, DYNAMIC_SCENE_PRESETS),
+    SERVICE_START_CCT_SEQUENCE: (
+        PRESET_TYPE_CCT_SEQUENCE, CCT_SEQUENCE_PRESETS, None,
+    ),
+    SERVICE_START_SEGMENT_SEQUENCE: (
+        PRESET_TYPE_SEGMENT_SEQUENCE, SEGMENT_SEQUENCE_PRESETS, None,
+    ),
+    SERVICE_START_DYNAMIC_SCENE: (
+        PRESET_TYPE_DYNAMIC_SCENE, DYNAMIC_SCENE_PRESETS, None,
+    ),
+    SERVICE_START_CIRCADIAN_MODE: (
+        PRESET_TYPE_CCT_SEQUENCE,
+        CCT_SEQUENCE_PRESETS,
+        frozenset({"solar", "schedule"}),
+    ),
 }
 
 # Device model sets for categorizing effect/pattern/sequence presets
@@ -118,14 +133,16 @@ class ServiceSchemaManager:
             return
 
         updated_count = 0
-        for service_name, (preset_type, builtin_presets) in (
+        for service_name, (preset_type, builtin_presets, mode_filter) in (
             _SERVICE_PRESET_CONFIG.items()
         ):
             service_desc = domain_descriptions.get(service_name)
             if not service_desc:
                 continue
 
-            options = self._build_preset_options(preset_type, builtin_presets)
+            options = self._build_preset_options(
+                preset_type, builtin_presets, mode_filter,
+            )
 
             # Deep-copy to avoid mutating the cached description
             updated_desc = deepcopy(service_desc)
@@ -157,13 +174,18 @@ class ServiceSchemaManager:
         )
 
     def _build_preset_options(
-        self, preset_type: str, builtin_presets: dict[str, Any]
+        self,
+        preset_type: str,
+        builtin_presets: dict[str, Any],
+        mode_filter: frozenset[str] | None = None,
     ) -> list[dict[str, str]]:
         """Build the full list of preset options combining built-in and user presets.
 
         Args:
             preset_type: The preset type identifier
             builtin_presets: Dictionary of built-in presets keyed by preset ID
+            mode_filter: If set, only include presets whose "mode" field
+                matches one of the values in this set
 
         Returns:
             List of option dicts with "value" and "label" keys
@@ -171,6 +193,8 @@ class ServiceSchemaManager:
         options: list[dict[str, str]] = []
 
         for preset_key, preset_data in builtin_presets.items():
+            if mode_filter and preset_data.get("mode") not in mode_filter:
+                continue
             label = self._get_device_label(
                 preset_data["name"], preset_data.get("device_types"),
             )
@@ -182,6 +206,8 @@ class ServiceSchemaManager:
             if storage_key:
                 all_presets = preset_store.get_all_presets()
                 for preset in all_presets.get(storage_key, []):
+                    if mode_filter and preset.get("mode") not in mode_filter:
+                        continue
                     preset_name = preset.get("name")
                     if preset_name:
                         options.append({

@@ -263,7 +263,7 @@ export function ReorderableStepsMixin<T extends Constructor<LitElement>>(
       this._autoScrollRaf = requestAnimationFrame(tick);
     }
 
-    private _reorderStep(fromIndex: number, toIndex: number): void {
+    protected _reorderStep(fromIndex: number, toIndex: number): void {
       const newSteps = [...this._steps];
       const [moved] = newSteps.splice(fromIndex, 1);
       const insertAt = fromIndex < toIndex ? toIndex - 1 : toIndex;

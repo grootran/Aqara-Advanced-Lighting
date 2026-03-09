@@ -69,6 +69,10 @@ export class AqaraPanel extends LitElement {
   @state() private _useCustomBrightness = false;
   @state() private _useStaticSceneMode = false;
   @state() private _ignoreExternalChanges = false;
+  @state() private _overrideControlMode: string = 'pause_changed';
+  @state() private _bareTurnOnOnly = false;
+  @state() private _detectNonHaChanges = false;
+  @state() private _softwareTransitionEntities: string[] = [];
   @state() private _useDistributionModeOverride = false;
   @state() private _distributionModeOverride = 'shuffle_rotate';
   @state() private _collapsed: Record<string, boolean> = { instances: true };
@@ -108,8 +112,11 @@ export class AqaraPanel extends LitElement {
   @state() private _instanceDevicesExpanded: Set<string> = new Set();
   @state() private _localCurvature = 1.0;
   @state() private _applyingCurvature = false;
+  @state() private _curvatureApplied = false;
   @state() private _isExporting = false;
   @state() private _isImporting = false;
+  @state() private _isSelectMode = false;
+  @state() private _selectedPresetIds: Set<string> = new Set();
   @state() private _favoritePresets: FavoritePresetRef[] = [];
   @state() private _runningOperations: RunningOperation[] = [];
   @state() private _musicSyncEnabled = false;
@@ -120,6 +127,8 @@ export class AqaraPanel extends LitElement {
   private _translations: Translations = PANEL_TRANSLATIONS;
   private _fileInputRef: HTMLInputElement | null = null;
   private _eventUnsubscribers: Array<() => void> = [];
+  private _runningOpsDebounceTimer?: ReturnType<typeof setTimeout>;
+  private _runningOpsFetchId = 0;
 
   private _tileCardRef: Ref<HTMLElement> = createRef();
   private _tileCards: Map<string, HaTileCard> = new Map();
@@ -188,6 +197,10 @@ export class AqaraPanel extends LitElement {
     if (this._preferencesSaveTimer !== undefined) {
       clearTimeout(this._preferencesSaveTimer);
       this._preferencesSaveTimer = undefined;
+    }
+    if (this._runningOpsDebounceTimer !== undefined) {
+      clearTimeout(this._runningOpsDebounceTimer);
+      this._runningOpsDebounceTimer = undefined;
     }
     this._stopSetupPolling();
     this._tileCards.clear();
@@ -369,11 +382,23 @@ export class AqaraPanel extends LitElement {
 
     // Load global preferences (separate endpoint, not per-user)
     try {
-      const globalPrefs = await this.hass.callApi<{ignore_external_changes?: boolean}>(
+      const globalPrefs = await this.hass.callApi<{ignore_external_changes?: boolean; software_transition_entities?: string[]; override_control_mode?: string; bare_turn_on_only?: boolean; detect_non_ha_changes?: boolean}>(
         'GET', 'aqara_advanced_lighting/global_preferences'
       );
       if (globalPrefs.ignore_external_changes !== undefined) {
         this._ignoreExternalChanges = globalPrefs.ignore_external_changes;
+      }
+      if (globalPrefs.override_control_mode) {
+        this._overrideControlMode = globalPrefs.override_control_mode;
+      }
+      if (globalPrefs.software_transition_entities) {
+        this._softwareTransitionEntities = globalPrefs.software_transition_entities;
+      }
+      if (globalPrefs.bare_turn_on_only !== undefined) {
+        this._bareTurnOnOnly = globalPrefs.bare_turn_on_only;
+      }
+      if (globalPrefs.detect_non_ha_changes !== undefined) {
+        this._detectNonHaChanges = globalPrefs.detect_non_ha_changes;
       }
     } catch (err) {
       console.warn('Failed to load global preferences:', err);
@@ -694,15 +719,9 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _loadSupportedEntities(): Promise<void> {
+    if (!this.hass) return;
     try {
-      const response = await fetch('/api/aqara_advanced_lighting/supported_entities', {
-        headers: { Authorization: `Bearer ${this.hass?.auth?.data?.access_token}` },
-      });
-      if (!response.ok) {
-        console.warn('Failed to load supported entities:', response.status);
-        return;
-      }
-      const data = await response.json();
+      const data = await this.hass.callApi<{ entities?: any[]; light_groups?: any[]; instances?: any[] }>('GET', 'aqara_advanced_lighting/supported_entities');
       // Build a map for fast lookup
       const entityMap = new Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; ieee_address?: string; segment_count?: number; backend_type?: string; is_group?: boolean; member_count?: number }>();
       for (const entity of data.entities || []) {
@@ -736,14 +755,23 @@ export class AqaraPanel extends LitElement {
     }
   }
 
+  private _scheduleLoadRunningOperations(): void {
+    if (this._runningOpsDebounceTimer !== undefined) {
+      clearTimeout(this._runningOpsDebounceTimer);
+    }
+    this._runningOpsDebounceTimer = setTimeout(() => {
+      this._runningOpsDebounceTimer = undefined;
+      this._loadRunningOperations();
+    }, 100);
+  }
+
   private async _loadRunningOperations(): Promise<void> {
-    if (!this.hass?.auth?.data?.access_token) return;
+    if (!this.hass) return;
+    const fetchId = ++this._runningOpsFetchId;
     try {
-      const response = await fetch('/api/aqara_advanced_lighting/running_operations', {
-        headers: { Authorization: `Bearer ${this.hass.auth.data.access_token}` },
-      });
-      if (!response.ok) return;
-      const data: RunningOperationsResponse = await response.json();
+      const data = await this.hass.callApi<RunningOperationsResponse>('GET', 'aqara_advanced_lighting/running_operations');
+      // Discard stale responses from earlier fetches
+      if (fetchId !== this._runningOpsFetchId) return;
       this._runningOperations = data.operations || [];
 
       // Sync music sync state from running operations
@@ -790,7 +818,7 @@ export class AqaraPanel extends LitElement {
     for (const eventType of eventTypes) {
       try {
         const unsub = await this.hass.connection.subscribeEvents(
-          () => { this._loadRunningOperations(); },
+          () => { this._scheduleLoadRunningOperations(); },
           eventType,
         );
         this._eventUnsubscribers.push(unsub);
@@ -831,12 +859,9 @@ export class AqaraPanel extends LitElement {
    * Load zones for a specific device from the backend.
    */
   private async _loadZonesForDevice(ieeeAddress: string): Promise<void> {
+    if (!this.hass) return;
     try {
-      const response = await fetch(`/api/aqara_advanced_lighting/segment_zones/${encodeURIComponent(ieeeAddress)}`, {
-        headers: { Authorization: `Bearer ${this.hass?.auth?.data?.access_token}` },
-      });
-      if (!response.ok) return;
-      const data = await response.json();
+      const data = await this.hass.callApi<{ zones?: Record<string, string> }>('GET', `aqara_advanced_lighting/segment_zones/${encodeURIComponent(ieeeAddress)}`);
       const zones: Array<{ name: string; segments: string }> = Object.entries(data.zones || {}).map(
         ([name, segments]) => ({ name, segments: segments as string })
       );
@@ -942,23 +967,11 @@ export class AqaraPanel extends LitElement {
 
     this._zoneSaving = true;
     try {
-      const response = await fetch(`/api/aqara_advanced_lighting/segment_zones/${encodeURIComponent(ieeeAddress)}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.hass?.auth?.data?.access_token}`,
-        },
-        body: JSON.stringify({ zones: zonesPayload }),
-      });
-      if (response.ok) {
-        await this._loadZonesForDevice(ieeeAddress);
-        this._showToast(this._localize('config.zone_saved'));
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        this._showToast(errorData.message || this._localize('config.zone_save_error'));
-      }
-    } catch {
-      this._showToast(this._localize('config.zone_save_error'));
+      await this.hass!.callApi('PUT', `aqara_advanced_lighting/segment_zones/${encodeURIComponent(ieeeAddress)}`, { zones: zonesPayload });
+      await this._loadZonesForDevice(ieeeAddress);
+      this._showToast(this._localize('config.zone_saved'));
+    } catch (err: any) {
+      this._showToast(err?.body?.message || this._localize('config.zone_save_error'));
     } finally {
       this._zoneSaving = false;
     }
@@ -988,13 +1001,7 @@ export class AqaraPanel extends LitElement {
       );
       if (isSaved) {
         try {
-          await fetch(
-            `/api/aqara_advanced_lighting/segment_zones/${encodeURIComponent(ieeeAddress)}/${encodeURIComponent(zone.name.trim())}`,
-            {
-              method: 'DELETE',
-              headers: { Authorization: `Bearer ${this.hass?.auth?.data?.access_token}` },
-            }
-          );
+          await this.hass!.callApi('DELETE', `aqara_advanced_lighting/segment_zones/${encodeURIComponent(ieeeAddress)}/${encodeURIComponent(zone.name.trim())}`);
           // Reload saved zones from backend to stay in sync
           await this._loadZonesForDevice(ieeeAddress);
           return;
@@ -1277,6 +1284,9 @@ export class AqaraPanel extends LitElement {
   private _setActiveTab(tab: PanelTab): void {
     if (tab !== this._activeTab) {
       this._cacheCurrentEditorDraft();
+      if (this._isSelectMode) {
+        this._exitSelectMode();
+      }
     }
     this._activeTab = tab;
   }
@@ -1288,6 +1298,9 @@ export class AqaraPanel extends LitElement {
     }
     if (newTab !== this._activeTab) {
       this._cacheCurrentEditorDraft();
+      if (this._isSelectMode) {
+        this._exitSelectMode();
+      }
       this._activeTab = newTab;
     }
   }
@@ -1975,6 +1988,21 @@ export class AqaraPanel extends LitElement {
     this._saveGlobalPreferences();
   }
 
+  private _handleOverrideControlModeChanged(e: CustomEvent): void {
+    this._overrideControlMode = e.detail.value;
+    this._saveGlobalPreferences();
+  }
+
+  private _handleBareTurnOnOnlyToggle(e: Event): void {
+    this._bareTurnOnOnly = (e.target as HTMLInputElement).checked;
+    this._saveGlobalPreferences();
+  }
+
+  private _handleDetectNonHaChangesToggle(e: Event): void {
+    this._detectNonHaChanges = (e.target as HTMLInputElement).checked;
+    this._saveGlobalPreferences();
+  }
+
   private _handleDistributionModeOverrideToggle(e: Event): void {
     this._useDistributionModeOverride = (e.target as HTMLInputElement).checked;
     this._saveUserPreferences();
@@ -1997,6 +2025,10 @@ export class AqaraPanel extends LitElement {
     try {
       await this.hass.callApi('PUT', 'aqara_advanced_lighting/global_preferences', {
         ignore_external_changes: this._ignoreExternalChanges,
+        override_control_mode: this._overrideControlMode,
+        software_transition_entities: this._softwareTransitionEntities,
+        bare_turn_on_only: this._bareTurnOnOnly,
+        detect_non_ha_changes: this._detectNonHaChanges,
       });
     } catch (err) {
       console.warn('Failed to save global preferences:', err);
@@ -2038,6 +2070,7 @@ export class AqaraPanel extends LitElement {
     }
 
     await this.hass.callService('aqara_advanced_lighting', 'set_dynamic_effect', serviceData);
+    await this._loadRunningOperations();
   }
 
   private async _activateSegmentPattern(preset: SegmentPatternPreset): Promise<void> {
@@ -2056,17 +2089,20 @@ export class AqaraPanel extends LitElement {
     }
 
     await this.hass.callService('aqara_advanced_lighting', 'set_segment_pattern', serviceData);
+    await this._loadRunningOperations();
   }
 
   private async _activateCCTSequence(preset: CCTSequencePreset): Promise<void> {
     if (!this._selectedEntities.length) return;
 
+    const isAdaptive = preset.mode === 'solar' || preset.mode === 'schedule';
     await this.hass.callService('aqara_advanced_lighting', 'start_cct_sequence', {
       entity_id: this._selectedEntities,
       preset: preset.id,
-      turn_on: true,
+      ...(!isAdaptive && { turn_on: true }),
       sync: true,
     });
+    await this._loadRunningOperations();
   }
 
   private async _activateSegmentSequence(preset: SegmentSequencePreset): Promise<void> {
@@ -2078,6 +2114,7 @@ export class AqaraPanel extends LitElement {
       turn_on: true,
       sync: true,
     });
+    await this._loadRunningOperations();
   }
 
   private async _activateDynamicScene(preset: DynamicScenePreset): Promise<void> {
@@ -2120,6 +2157,7 @@ export class AqaraPanel extends LitElement {
     }
 
     await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
+    await this._loadRunningOperations();
   }
 
   // --- Running operations rendering and actions ---
@@ -2127,6 +2165,14 @@ export class AqaraPanel extends LitElement {
   private _getEntityName(entityId: string): string {
     const state = this.hass?.states?.[entityId];
     return (state?.attributes?.friendly_name as string) || entityId;
+  }
+
+  private _formatAutoResumeRemaining(seconds: number): string {
+    if (seconds >= 60) {
+      const mins = Math.ceil(seconds / 60);
+      return `${mins}m`;
+    }
+    return `${seconds}s`;
   }
 
   private _resolvePresetInfo(presetId: string | null): { name: string | null; icon: string | null } {
@@ -2183,13 +2229,55 @@ export class AqaraPanel extends LitElement {
       `;
     }
 
+    const displayItems = this._buildDisplayOperations(this._runningOperations);
+
     return html`
       <div class="running-ops-container">
         <div class="running-ops-list">
-          ${this._runningOperations.map(op => this._renderOperationCard(op))}
+          ${displayItems.map(item =>
+            Array.isArray(item)
+              ? this._renderGroupedSequenceOp(item)
+              : this._renderOperationCard(item),
+          )}
         </div>
       </div>
     `;
+  }
+
+  /**
+   * Group sequence operations sharing the same preset into arrays.
+   * Single-entity sequences stay as individual RunningOperation objects.
+   */
+  private _buildDisplayOperations(
+    ops: RunningOperation[],
+  ): (RunningOperation | RunningOperation[])[] {
+    const result: (RunningOperation | RunningOperation[])[] = [];
+    const seqGroupIndex = new Map<string, number>();
+
+    for (const op of ops) {
+      if (
+        (op.type === 'cct_sequence' || op.type === 'segment_sequence') &&
+        op.preset_id
+      ) {
+        const key = `${op.type}:${op.preset_id}`;
+        const idx = seqGroupIndex.get(key);
+        if (idx !== undefined) {
+          const existing = result[idx];
+          if (Array.isArray(existing)) {
+            existing.push(op);
+          } else {
+            result[idx] = [existing as RunningOperation, op];
+          }
+        } else {
+          seqGroupIndex.set(key, result.length);
+          result.push(op);
+        }
+      } else {
+        result.push(op);
+      }
+    }
+
+    return result;
   }
 
   private _renderOperationCard(op: RunningOperation) {
@@ -2203,6 +2291,8 @@ export class AqaraPanel extends LitElement {
         return this._renderSceneOp(op);
       case 'music_sync':
         return this._renderMusicSyncOp(op);
+      case 'circadian':
+        return this._renderCircadianOp(op);
       default:
         return '';
     }
@@ -2240,10 +2330,16 @@ export class AqaraPanel extends LitElement {
     const entityName = this._getEntityName(op.entity_id!);
     const preset = this._resolvePresetInfo(op.preset_id);
     const isCCT = op.type === 'cct_sequence';
-    const fallbackIcon = isCCT ? 'mdi:thermometer' : 'mdi:led-strip-variant';
-    const typeLabel = isCCT
-      ? this._localize('target.cct_button')
-      : this._localize('target.segment_button');
+    const isSolar = isCCT && op.mode === 'solar';
+    const isSchedule = isCCT && op.mode === 'schedule';
+    const fallbackIcon = isSolar ? 'mdi:white-balance-sunny' : isSchedule ? 'mdi:clock-outline' : isCCT ? 'mdi:thermometer' : 'mdi:led-strip-variant';
+    const typeLabel = isSolar
+      ? this._localize('target.solar_cct_button')
+      : isSchedule
+        ? this._localize('target.schedule_cct_button')
+        : isCCT
+          ? this._localize('target.cct_button')
+          : this._localize('target.segment_button');
     const isPaused = op.paused || op.externally_paused;
 
     return html`
@@ -2255,9 +2351,20 @@ export class AqaraPanel extends LitElement {
             <span class="running-op-entity">
               ${preset.name ? html`<span class="running-op-type">${typeLabel}</span>` : ''}
               <span class="running-op-entity-name">${entityName}</span>
-              ${op.paused ? html`<span class="running-op-status paused-text">${this._localize('target.paused')}</span>` : ''}
-              ${op.externally_paused ? html`<span class="running-op-status externally-paused-text">${this._localize('target.externally_paused')}</span>` : ''}
             </span>
+            ${op.paused || op.externally_paused ? html`
+              <span class="running-op-pause-row">
+                ${op.paused ? html`<span class="running-op-status paused-text">${this._localize('target.paused')}</span>` : ''}
+                ${op.externally_paused ? html`<span class="running-op-status externally-paused-text">${this._localize('target.externally_paused')}${op.auto_resume_remaining ? html` (${this._formatAutoResumeRemaining(op.auto_resume_remaining)})` : ''}</span>` : ''}
+                ${op.override_attributes && 'brightness' in op.override_attributes && (op.override_attributes as {brightness: boolean; color: boolean}).brightness !== (op.override_attributes as {brightness: boolean; color: boolean}).color
+                  ? html`<span class="running-op-status override-detail">${
+                      (op.override_attributes as {brightness: boolean; color: boolean}).brightness
+                        ? this._localize('target.paused_brightness_only')
+                        : this._localize('target.paused_color_only')
+                    }</span>`
+                  : ''}
+              </span>
+            ` : ''}
           </div>
         </div>
         <div class="running-op-actions">
@@ -2290,58 +2397,221 @@ export class AqaraPanel extends LitElement {
     `;
   }
 
+  private _renderGroupedSequenceOp(ops: RunningOperation[]) {
+    const first = ops[0]!;
+    const preset = this._resolvePresetInfo(first.preset_id);
+    const isCCT = first.type === 'cct_sequence';
+    const isSolar = isCCT && first.mode === 'solar';
+    const isSchedule = isCCT && first.mode === 'schedule';
+    const fallbackIcon = isSolar
+      ? 'mdi:white-balance-sunny'
+      : isSchedule
+        ? 'mdi:clock-outline'
+        : isCCT
+          ? 'mdi:thermometer'
+          : 'mdi:led-strip-variant';
+    const typeLabel = isSolar
+      ? this._localize('target.solar_cct_button')
+      : isSchedule
+        ? this._localize('target.schedule_cct_button')
+        : isCCT
+          ? this._localize('target.cct_button')
+          : this._localize('target.segment_button');
+
+    const entityChips = ops.map(op => {
+      const name = this._getEntityName(op.entity_id!);
+      return html`<span class="entity-chip">${name}</span>`;
+    });
+
+    const anyPaused = ops.some(op => op.paused);
+    const extPausedOps = ops.filter(op => op.externally_paused);
+    const isPaused = anyPaused || extPausedOps.length > 0;
+
+    return html`
+      <div class="running-op-card scene-op-card ${isPaused ? 'op-paused' : ''}">
+        <div class="running-op-header">
+          <div class="running-op-info">
+            <ha-icon class="running-op-icon" icon="${preset.icon || fallbackIcon}"></ha-icon>
+            <div class="running-op-details">
+              <span class="running-op-name">${preset.name || typeLabel}</span>
+              ${preset.name ? html`<span class="running-op-entity"><span class="running-op-type">${typeLabel}</span></span>` : ''}
+              ${anyPaused || extPausedOps.length > 0 ? html`
+                <span class="running-op-pause-row">
+                  ${anyPaused ? html`<span class="running-op-status paused-text">${this._localize('target.paused')}</span>` : ''}
+                  ${extPausedOps.length > 0
+                    ? html`<span class="running-op-status externally-paused-text">
+                        ${this._localize('target.entities_externally_paused', { count: String(extPausedOps.length) })}
+                      </span>`
+                    : ''}
+                  ${this._renderGroupedOverrideDetail(extPausedOps)}
+                </span>
+              ` : ''}
+            </div>
+          </div>
+          <div class="running-op-actions">
+            ${extPausedOps.length > 0
+              ? html`
+                  <ha-icon-button
+                    .label=${this._localize('target.resume_control')}
+                    @click=${() => this._resumeSceneEntities(extPausedOps.map(op => op.entity_id!))}
+                  >
+                    <ha-icon icon="mdi:play-circle-outline"></ha-icon>
+                  </ha-icon-button>
+                `
+              : ''}
+            <ha-icon-button
+              .label=${anyPaused ? this._localize('target.resume') : this._localize('target.pause')}
+              @click=${() => this._toggleGroupedSequencePause(ops)}
+            >
+              <ha-icon icon="mdi:${anyPaused ? 'play' : 'pause'}"></ha-icon>
+            </ha-icon-button>
+            <ha-icon-button
+              .label=${this._localize('target.stop')}
+              @click=${() => this._stopGroupedSequence(ops)}
+            >
+              <ha-icon icon="mdi:stop"></ha-icon>
+            </ha-icon-button>
+          </div>
+        </div>
+        <div class="entity-chip-list">
+          ${entityChips}
+        </div>
+      </div>
+    `;
+  }
+
   private _renderSceneOp(op: RunningOperation) {
     const preset = this._resolvePresetInfo(op.preset_id);
-    const entityNames = (op.entity_ids || [])
-      .map(id => this._getEntityName(id))
-      .join(', ');
+    const entityChips = (op.entity_ids || []).map(id => {
+      const name = this._getEntityName(id);
+      const cap = op.entity_capabilities?.[id];
+      const isSoftwareTransition = cap?.includes('software_transition');
+      const badges: unknown[] = [];
+      if (cap?.includes('cct_mode')) {
+        badges.push(html`<span class="chip-badge">${this._localize('target.capability_cct')}</span>`);
+      }
+      if (cap?.includes('brightness_only')) {
+        badges.push(html`<span class="chip-badge">${this._localize('target.capability_brightness')}</span>`);
+      }
+      if (cap?.includes('on_off_only')) {
+        badges.push(html`<span class="chip-badge">${this._localize('target.capability_on_off')}</span>`);
+      }
+      if (isSoftwareTransition) {
+        badges.push(html`<span class="chip-badge">${this._localize('target.capability_software_transition')}</span>`);
+      }
+      return html`<span class="entity-chip ${badges.length ? 'has-badge' : ''}">${name}${badges}</span>`;
+    });
     const extPausedEntities = op.externally_paused_entities || [];
     const isPaused = op.paused || extPausedEntities.length > 0;
 
     return html`
-      <div class="running-op-card ${isPaused ? 'op-paused' : ''}">
-        <div class="running-op-info">
-          <ha-icon class="running-op-icon" icon="${preset.icon || 'mdi:palette-swatch-variant'}"></ha-icon>
-          <div class="running-op-details">
-            <span class="running-op-name">${preset.name || this._localize('target.scene_button')}</span>
-            <span class="running-op-entity">
-              ${preset.name ? html`<span class="running-op-type">${this._localize('target.scene_button')}</span>` : ''}
-              <span class="running-op-entity-name">${entityNames}</span>
-              ${op.paused ? html`<span class="running-op-status paused-text">${this._localize('target.paused')}</span>` : ''}
-              ${extPausedEntities.length > 0
-                ? html`<span class="running-op-status externally-paused-text">
-                    ${this._localize('target.entities_externally_paused', { count: String(extPausedEntities.length) })}
-                  </span>`
-                : ''}
-            </span>
+      <div class="running-op-card scene-op-card ${isPaused ? 'op-paused' : ''}">
+        <div class="running-op-header">
+          <div class="running-op-info">
+            <ha-icon class="running-op-icon" icon="${preset.icon || 'mdi:palette-swatch-variant'}"></ha-icon>
+            <div class="running-op-details">
+              <span class="running-op-name">${preset.name || this._localize('target.scene_button')}</span>
+              ${preset.name ? html`<span class="running-op-entity"><span class="running-op-type">${this._localize('target.scene_button')}</span></span>` : ''}
+              ${op.paused || extPausedEntities.length > 0 ? html`
+                <span class="running-op-pause-row">
+                  ${op.paused ? html`<span class="running-op-status paused-text">${this._localize('target.paused')}</span>` : ''}
+                  ${extPausedEntities.length > 0
+                    ? html`<span class="running-op-status externally-paused-text">
+                        ${this._localize('target.entities_externally_paused', { count: String(extPausedEntities.length) })}
+                      </span>`
+                    : ''}
+                  ${this._renderSceneOverrideDetail(op, extPausedEntities)}
+                </span>
+              ` : ''}
+            </div>
+          </div>
+          <div class="running-op-actions">
+            ${extPausedEntities.length > 0
+              ? html`
+                  <ha-icon-button
+                    .label=${this._localize('target.resume_control')}
+                    @click=${() => this._resumeSceneEntities(extPausedEntities)}
+                  >
+                    <ha-icon icon="mdi:play-circle-outline"></ha-icon>
+                  </ha-icon-button>
+                `
+              : ''}
+            <ha-icon-button
+              .label=${op.paused ? this._localize('target.resume') : this._localize('target.pause')}
+              @click=${() => this._toggleScenePause(op)}
+            >
+              <ha-icon icon="mdi:${op.paused ? 'play' : 'pause'}"></ha-icon>
+            </ha-icon-button>
+            <ha-icon-button
+              .label=${this._localize('target.stop')}
+              @click=${() => this._stopRunningScene(op)}
+            >
+              <ha-icon icon="mdi:stop"></ha-icon>
+            </ha-icon-button>
           </div>
         </div>
-        <div class="running-op-actions">
-          ${extPausedEntities.length > 0
-            ? html`
-                <ha-icon-button
-                  .label=${this._localize('target.resume_control')}
-                  @click=${() => this._resumeSceneEntities(extPausedEntities)}
-                >
-                  <ha-icon icon="mdi:play-circle-outline"></ha-icon>
-                </ha-icon-button>
-              `
-            : ''}
-          <ha-icon-button
-            .label=${op.paused ? this._localize('target.resume') : this._localize('target.pause')}
-            @click=${() => this._toggleScenePause(op)}
-          >
-            <ha-icon icon="mdi:${op.paused ? 'play' : 'pause'}"></ha-icon>
-          </ha-icon-button>
-          <ha-icon-button
-            .label=${this._localize('target.stop')}
-            @click=${() => this._stopRunningScene(op)}
-          >
-            <ha-icon icon="mdi:stop"></ha-icon>
-          </ha-icon-button>
+        <div class="entity-chip-list">
+          ${entityChips}
         </div>
       </div>
     `;
+  }
+
+  private _renderGroupedOverrideDetail(extPausedOps: RunningOperation[]) {
+    // Summarize per-attribute overrides across grouped externally-paused ops
+    if (extPausedOps.length === 0) return '';
+    let brightnessCount = 0;
+    let colorCount = 0;
+    for (const op of extPausedOps) {
+      const attrs = op.override_attributes as {brightness: boolean; color: boolean} | undefined;
+      if (attrs) {
+        if (attrs.brightness) brightnessCount++;
+        if (attrs.color) colorCount++;
+      }
+    }
+    // Only show detail when there's a partial override (not both or neither)
+    const hasPartial = extPausedOps.some(op => {
+      const attrs = op.override_attributes as {brightness: boolean; color: boolean} | undefined;
+      return attrs && (attrs.brightness !== attrs.color);
+    });
+    if (!hasPartial) return '';
+    const parts: unknown[] = [];
+    if (brightnessCount > 0 && brightnessCount < extPausedOps.length) {
+      parts.push(html`<span class="running-op-status override-detail">${brightnessCount} ${this._localize('target.paused_brightness_only').toLowerCase()}</span>`);
+    }
+    if (colorCount > 0 && colorCount < extPausedOps.length) {
+      parts.push(html`<span class="running-op-status override-detail">${colorCount} ${this._localize('target.paused_color_only').toLowerCase()}</span>`);
+    }
+    return parts;
+  }
+
+  private _renderSceneOverrideDetail(op: RunningOperation, extPausedEntities: string[]) {
+    if (extPausedEntities.length === 0) return '';
+    // Scene override_attributes is keyed by entity_id
+    const overrideMap = op.override_attributes as Record<string, {brightness: boolean; color: boolean}> | undefined;
+    if (!overrideMap) return '';
+    let brightnessCount = 0;
+    let colorCount = 0;
+    for (const eid of extPausedEntities) {
+      const attrs = overrideMap[eid];
+      if (attrs) {
+        if (attrs.brightness) brightnessCount++;
+        if (attrs.color) colorCount++;
+      }
+    }
+    const hasPartial = extPausedEntities.some(eid => {
+      const attrs = overrideMap[eid];
+      return attrs && (attrs.brightness !== attrs.color);
+    });
+    if (!hasPartial) return '';
+    const parts: unknown[] = [];
+    if (brightnessCount > 0 && brightnessCount < extPausedEntities.length) {
+      parts.push(html`<span class="running-op-status override-detail">${brightnessCount} ${this._localize('target.paused_brightness_only').toLowerCase()}</span>`);
+    }
+    if (colorCount > 0 && colorCount < extPausedEntities.length) {
+      parts.push(html`<span class="running-op-status override-detail">${colorCount} ${this._localize('target.paused_color_only').toLowerCase()}</span>`);
+    }
+    return parts;
   }
 
   private async _stopRunningEffect(entityId: string): Promise<void> {
@@ -2369,6 +2639,26 @@ export class AqaraPanel extends LitElement {
       : 'stop_segment_sequence';
     await this.hass.callService('aqara_advanced_lighting', service, {
       entity_id: [op.entity_id],
+    });
+  }
+
+  private async _toggleGroupedSequencePause(ops: RunningOperation[]): Promise<void> {
+    const isCCT = ops[0]!.type === 'cct_sequence';
+    const anyPaused = ops.some(op => op.paused);
+    const service = anyPaused
+      ? (isCCT ? 'resume_cct_sequence' : 'resume_segment_sequence')
+      : (isCCT ? 'pause_cct_sequence' : 'pause_segment_sequence');
+    await this.hass.callService('aqara_advanced_lighting', service, {
+      entity_id: ops.map(op => op.entity_id!),
+    });
+  }
+
+  private async _stopGroupedSequence(ops: RunningOperation[]): Promise<void> {
+    const service = ops[0]!.type === 'cct_sequence'
+      ? 'stop_cct_sequence'
+      : 'stop_segment_sequence';
+    await this.hass.callService('aqara_advanced_lighting', service, {
+      entity_id: ops.map(op => op.entity_id!),
     });
   }
 
@@ -2487,6 +2777,7 @@ export class AqaraPanel extends LitElement {
     }
 
     await this.hass.callService('aqara_advanced_lighting', 'set_dynamic_effect', serviceData);
+    await this._loadRunningOperations();
   }
 
   private async _activateUserPatternPreset(preset: UserSegmentPatternPreset): Promise<void> {
@@ -2525,6 +2816,7 @@ export class AqaraPanel extends LitElement {
 
     try {
       await this.hass.callService('aqara_advanced_lighting', 'set_segment_pattern', serviceData);
+      await this._loadRunningOperations();
     } catch (err) {
       console.error('Failed to activate pattern preset:', err);
     }
@@ -2532,6 +2824,18 @@ export class AqaraPanel extends LitElement {
 
   private async _activateUserCCTSequencePreset(preset: UserCCTSequencePreset): Promise<void> {
     if (!this._selectedEntities.length) return;
+
+    // Adaptive presets (solar/schedule) are resolved by name on the backend.
+    // Don't turn on lights -- the loop waits for them to be turned on.
+    if (preset.mode === 'solar' || preset.mode === 'schedule') {
+      await this.hass.callService('aqara_advanced_lighting', 'start_cct_sequence', {
+        entity_id: this._selectedEntities,
+        preset: preset.name,
+        sync: true,
+      });
+      await this._loadRunningOperations();
+      return;
+    }
 
     const serviceData: Record<string, unknown> = {
       entity_id: this._selectedEntities,
@@ -2559,6 +2863,7 @@ export class AqaraPanel extends LitElement {
     });
 
     await this.hass.callService('aqara_advanced_lighting', 'start_cct_sequence', serviceData);
+    await this._loadRunningOperations();
   }
 
   private async _activateUserSegmentSequencePreset(preset: UserSegmentSequencePreset): Promise<void> {
@@ -2600,6 +2905,7 @@ export class AqaraPanel extends LitElement {
     });
 
     await this.hass.callService('aqara_advanced_lighting', 'start_segment_sequence', serviceData);
+    await this._loadRunningOperations();
   }
 
   private async _activateUserDynamicScenePreset(preset: UserDynamicScenePreset): Promise<void> {
@@ -2642,6 +2948,7 @@ export class AqaraPanel extends LitElement {
     }
 
     await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
+    await this._loadRunningOperations();
   }
 
   protected render() {
@@ -2734,11 +3041,11 @@ export class AqaraPanel extends LitElement {
           <ha-tab-group-tab slot="nav" panel="segments" .active=${this._activeTab === 'segments'}>
             ${this._localize('tabs.segments')}
           </ha-tab-group-tab>
-          <ha-tab-group-tab slot="nav" panel="presets" .active=${this._activeTab === 'presets'}>
-            ${this._localize('tabs.presets')}
-          </ha-tab-group-tab>
           <ha-tab-group-tab slot="nav" panel="config" .active=${this._activeTab === 'config'}>
             ${this._localize('tabs.config')}
+          </ha-tab-group-tab>
+          <ha-tab-group-tab slot="nav" panel="presets" .active=${this._activeTab === 'presets'}>
+            ${this._localize('tabs.presets')}
           </ha-tab-group-tab>
         </ha-tab-group>
       </div>
@@ -2894,7 +3201,7 @@ export class AqaraPanel extends LitElement {
                                 ? html`<div class="favorite-button-count">${this._localize('target.favorite_lights_count', { count: entityCount.toString() })}</div>`
                                 : ''}
                             </div>
-                            <div class="favorite-button-actions">
+                            <div class="favorite-button-actions favorite-button-actions-left">
                               <ha-icon-button
                                 class="favorite-button-action"
                                 @click=${(e: Event) => this._startRenameFavorite(e, favorite)}
@@ -2902,6 +3209,8 @@ export class AqaraPanel extends LitElement {
                               >
                                 <ha-icon icon="mdi:pencil"></ha-icon>
                               </ha-icon-button>
+                            </div>
+                            <div class="favorite-button-actions">
                               <ha-icon-button
                                 class="favorite-button-action"
                                 @click=${(e: Event) => {
@@ -2941,11 +3250,30 @@ export class AqaraPanel extends LitElement {
         </div>
       </ha-expansion-panel>
 
+      ${hasSelection || this._runningOperations.length > 0
+        ? html`
+            <ha-expansion-panel
+              outlined
+              .expanded=${!this._collapsed['controls']}
+              @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange('controls', e)}
+            >
+              <div slot="header" class="section-header">
+                <div>
+                  <div class="section-title">${this._localize('target.controls_card_title')}</div>
+                </div>
+              </div>
+              <div class="section-content controls-content">
+                ${this._renderRunningOperations()}
+              </div>
+            </ha-expansion-panel>
+          `
+        : ''}
+
       ${hasSelection
         ? html`
             <ha-expansion-panel
               outlined
-              .expanded=${!this._collapsed['activation_overrides']}
+              .expanded=${this._collapsed['activation_overrides'] === undefined ? false : !this._collapsed['activation_overrides']}
               @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange('activation_overrides', e)}
             >
               <div slot="header" class="section-header">
@@ -2976,14 +3304,6 @@ export class AqaraPanel extends LitElement {
                     <ha-switch
                       .checked=${this._useDistributionModeOverride}
                       @change=${this._handleDistributionModeOverrideToggle}
-                    ></ha-switch>
-                  </div>
-
-                  <div class="override-item">
-                    <span class="form-label">${this._localize('target.ignore_external_changes_label')}</span>
-                    <ha-switch
-                      .checked=${this._ignoreExternalChanges}
-                      @change=${this._handleIgnoreExternalChangesToggle}
                     ></ha-switch>
                   </div>
                 </div>
@@ -3027,23 +3347,64 @@ export class AqaraPanel extends LitElement {
                   : ''}
               </div>
             </ha-expansion-panel>
-          `
-        : ''}
 
-      ${hasSelection || this._runningOperations.length > 0
-        ? html`
             <ha-expansion-panel
               outlined
-              .expanded=${!this._collapsed['controls']}
-              @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange('controls', e)}
+              .expanded=${this._collapsed['override_detection'] === undefined ? false : !this._collapsed['override_detection']}
+              @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange('override_detection', e)}
             >
               <div slot="header" class="section-header">
                 <div>
-                  <div class="section-title">${this._localize('target.controls_card_title')}</div>
+                  <div class="section-title">${this._localize('target.override_detection_title')}</div>
                 </div>
               </div>
               <div class="section-content controls-content">
-                ${this._renderRunningOperations()}
+                <div class="overrides-grid">
+                  <div class="override-item">
+                    <span class="form-label">${this._localize('target.ignore_external_changes_label')}</span>
+                    <ha-switch
+                      .checked=${this._ignoreExternalChanges}
+                      @change=${this._handleIgnoreExternalChangesToggle}
+                    ></ha-switch>
+                  </div>
+
+                  <div class="override-item">
+                    <span class="form-label">${this._localize('target.override_control_mode_label')}</span>
+                    <ha-selector
+                      .hass=${this.hass}
+                      .selector=${{
+                        select: {
+                          options: [
+                            { value: 'pause_all', label: this._localize('target.override_mode_pause_all') },
+                            { value: 'pause_changed', label: this._localize('target.override_mode_pause_changed') },
+                          ],
+                          mode: 'dropdown',
+                        },
+                      }}
+                      .value=${this._overrideControlMode}
+                      .disabled=${this._ignoreExternalChanges}
+                      @value-changed=${this._handleOverrideControlModeChanged}
+                    ></ha-selector>
+                  </div>
+
+                  <div class="override-item">
+                    <span class="form-label">${this._localize('target.bare_turn_on_only_label')}</span>
+                    <ha-switch
+                      .checked=${this._bareTurnOnOnly}
+                      .disabled=${this._ignoreExternalChanges}
+                      @change=${this._handleBareTurnOnOnlyToggle}
+                    ></ha-switch>
+                  </div>
+
+                  <div class="override-item">
+                    <span class="form-label">${this._localize('target.detect_non_ha_changes_label')}</span>
+                    <ha-switch
+                      .checked=${this._detectNonHaChanges}
+                      .disabled=${this._ignoreExternalChanges}
+                      @change=${this._handleDetectNonHaChangesToggle}
+                    ></ha-switch>
+                  </div>
+                </div>
               </div>
             </ha-expansion-panel>
           `
@@ -3417,11 +3778,13 @@ export class AqaraPanel extends LitElement {
     }
 
     const data = e.detail;
+    const isAdaptive = (data.mode === 'schedule' && data.schedule_steps) || (data.mode === 'solar' && data.solar_steps);
     const serviceData: Record<string, unknown> = {
       entity_id: compatibleEntities,
       loop_mode: data.loop_mode,
       end_behavior: data.end_behavior,
-      turn_on: true,
+      skip_first_in_loop: data.skip_first_in_loop || false,
+      turn_on: !isAdaptive,
       sync: true,
     };
 
@@ -3430,8 +3793,14 @@ export class AqaraPanel extends LitElement {
       serviceData.loop_count = data.loop_count;
     }
 
-    // Convert steps array to individual step fields
-    if (data.steps && Array.isArray(data.steps)) {
+    if (data.mode === 'schedule' && data.schedule_steps) {
+      serviceData.mode = 'schedule';
+      serviceData.schedule_steps = data.schedule_steps;
+    } else if (data.mode === 'solar' && data.solar_steps) {
+      serviceData.mode = 'solar';
+      serviceData.solar_steps = data.solar_steps;
+    } else if (data.steps && Array.isArray(data.steps)) {
+      // Standard mode: convert steps array to individual step fields
       data.steps.forEach((step: { color_temp: number; brightness: number; transition: number; hold: number }, index: number) => {
         const stepNum = index + 1;
         if (stepNum <= 20) {
@@ -3694,39 +4063,73 @@ export class AqaraPanel extends LitElement {
     this._scenePreviewActive = false;
   }
 
+  private _enterSelectMode(): void {
+    this._selectedPresetIds = new Set();
+    this._isSelectMode = true;
+    this._presetEditModeId = null;
+  }
+
+  private _exitSelectMode(): void {
+    this._isSelectMode = false;
+    this._selectedPresetIds = new Set();
+  }
+
+  private _togglePresetSelection(id: string): void {
+    const next = new Set(this._selectedPresetIds);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    this._selectedPresetIds = next;
+  }
+
+  private _getAllPresetIds(): string[] {
+    if (!this._userPresets) return [];
+    return [
+      ...this._userPresets.effect_presets.map(p => p.id),
+      ...this._userPresets.segment_pattern_presets.map(p => p.id),
+      ...this._userPresets.cct_sequence_presets.map(p => p.id),
+      ...this._userPresets.segment_sequence_presets.map(p => p.id),
+      ...this._userPresets.dynamic_scene_presets.map(p => p.id),
+    ];
+  }
+
+  private _isAllSelected(): boolean {
+    const all = this._getAllPresetIds();
+    return all.length > 0 && all.every(id => this._selectedPresetIds.has(id));
+  }
+
+  private _toggleSelectAll(): void {
+    if (this._isAllSelected()) {
+      this._selectedPresetIds = new Set();
+    } else {
+      this._selectedPresetIds = new Set(this._getAllPresetIds());
+    }
+  }
+
+  private async _handleExportSelected(): Promise<void> {
+    if (!this._userPresets || this._selectedPresetIds.size === 0) return;
+    const exportedCount = this._selectedPresetIds.size;
+    try {
+      await this._exportPresets([...this._selectedPresetIds]);
+      this._exitSelectMode();
+      this._showToast(
+        this._localize('presets.export_selected_success', {
+          count: exportedCount.toString(),
+        }),
+      );
+    } catch (err) {
+      this._showToast(this._localize('presets.export_error_network'));
+      console.error('Export error:', err);
+    }
+  }
+
   private async _handleExportPresets(): Promise<void> {
     this._isExporting = true;
     this.requestUpdate();
-
     try {
-      const response = await fetch('/api/aqara_advanced_lighting/presets/export', {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${this.hass.auth.data.access_token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Export failed: ${response.statusText}`);
-      }
-
-      // Get filename from Content-Disposition header
-      const contentDisposition = response.headers.get('Content-Disposition');
-      const filenameMatch = contentDisposition?.match(/filename="(.+)"/);
-      const filename = filenameMatch?.[1] || 'aqara_presets_backup.json';
-
-      // Download file
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      // Show success toast
+      await this._exportPresets();
       this._showToast(this._localize('presets.export_success'));
     } catch (err) {
       this._showToast(this._localize('presets.export_error_network'));
@@ -3735,6 +4138,28 @@ export class AqaraPanel extends LitElement {
       this._isExporting = false;
       this.requestUpdate();
     }
+  }
+
+  /**
+   * Export presets via a signed backend URL.
+   * Uses HA's sign_path WebSocket command to create a temporary
+   * authenticated URL, then navigates to it. The Content-Disposition
+   * attachment header triggers a download without leaving the page.
+   * This works in both desktop browsers and the HA mobile app WebView
+   * (which cannot handle blob: URLs).
+   */
+  private async _exportPresets(presetIds?: string[]): Promise<void> {
+    let path = '/api/aqara_advanced_lighting/presets/export';
+    if (presetIds?.length) {
+      path += `?preset_ids=${encodeURIComponent(presetIds.join(','))}`;
+    }
+
+    const result = await this.hass.callWS<{ path: string }>({
+      type: 'auth/sign_path',
+      path,
+    });
+
+    window.location.href = result.path;
   }
 
   private _handleImportClick(): void {
@@ -3830,27 +4255,63 @@ export class AqaraPanel extends LitElement {
           </div>
         </div>
         <div class="section-content preset-management-content">
-          <div class="toolbar-actions">
-            <ha-button
-              @click=${this._handleExportPresets}
-              .disabled=${this._isExporting || this._isImporting}
-            >
-              <ha-icon icon="mdi:download" slot="icon"></ha-icon>
-              ${this._isExporting
-                ? this._localize('presets.export_progress')
-                : this._localize('presets.export_button')}
-            </ha-button>
+          ${this._isSelectMode
+            ? html`
+              <div class="toolbar-actions toolbar-select-mode">
+                <ha-button @click=${() => this._exitSelectMode()}>
+                  <ha-icon icon="mdi:close" slot="icon"></ha-icon>
+                  ${this._localize('presets.select_cancel')}
+                </ha-button>
+                <ha-button @click=${() => this._toggleSelectAll()}>
+                  <ha-icon icon=${this._isAllSelected()
+                    ? 'mdi:checkbox-multiple-blank-outline'
+                    : 'mdi:checkbox-multiple-outline'} slot="icon"></ha-icon>
+                  ${this._isAllSelected()
+                    ? this._localize('presets.deselect_all')
+                    : this._localize('presets.select_all')}
+                </ha-button>
+                <ha-button
+                  @click=${() => this._handleExportSelected()}
+                  .disabled=${this._selectedPresetIds.size === 0}
+                >
+                  <ha-icon icon="mdi:download" slot="icon"></ha-icon>
+                  ${this._localize('presets.export_selected_button', {
+                    count: this._selectedPresetIds.size.toString(),
+                  })}
+                </ha-button>
+              </div>
+            `
+            : html`
+              <div class="toolbar-actions">
+                <ha-button
+                  @click=${this._handleExportPresets}
+                  .disabled=${this._isExporting || this._isImporting}
+                >
+                  <ha-icon icon="mdi:download" slot="icon"></ha-icon>
+                  ${this._isExporting
+                    ? this._localize('presets.export_progress')
+                    : this._localize('presets.export_button')}
+                </ha-button>
 
-            <ha-button
-              @click=${this._handleImportClick}
-              .disabled=${this._isExporting || this._isImporting}
-            >
-              <ha-icon icon="mdi:upload" slot="icon"></ha-icon>
-              ${this._isImporting
-                ? this._localize('presets.import_progress')
-                : this._localize('presets.import_button')}
-            </ha-button>
-          </div>
+                <ha-button
+                  @click=${this._handleImportClick}
+                  .disabled=${this._isExporting || this._isImporting}
+                >
+                  <ha-icon icon="mdi:upload" slot="icon"></ha-icon>
+                  ${this._isImporting
+                    ? this._localize('presets.import_progress')
+                    : this._localize('presets.import_button')}
+                </ha-button>
+
+                <ha-button
+                  @click=${() => this._enterSelectMode()}
+                  .disabled=${totalCount === 0 || this._isExporting || this._isImporting}
+                >
+                  <ha-icon icon="mdi:checkbox-multiple-marked-outline" slot="icon"></ha-icon>
+                  ${this._localize('presets.select_button')}
+                </ha-button>
+              </div>
+            `}
         </div>
       </ha-expansion-panel>
 
@@ -4002,6 +4463,7 @@ export class AqaraPanel extends LitElement {
   }
 
   /** Render a single user preset card with action buttons. */
+  /** Render a single user preset card with action buttons or selection checkbox. */
   private _renderPresetCard<T extends { id: string; name: string }>(
     preset: T,
     onEdit: (preset: T) => void,
@@ -4009,6 +4471,30 @@ export class AqaraPanel extends LitElement {
     renderIcon: (preset: T) => unknown,
     onDuplicate: (preset: T) => void,
   ) {
+    if (this._isSelectMode) {
+      const isSelected = this._selectedPresetIds.has(preset.id);
+      return html`
+        <div
+          class="user-preset-card select-mode ${isSelected ? 'selected' : ''}"
+          title="${preset.name}"
+          aria-label="${preset.name}"
+          aria-pressed="${isSelected}"
+          @click=${() => this._togglePresetSelection(preset.id)}
+        >
+          <div class="preset-select-checkbox">
+            <ha-icon icon=${isSelected
+              ? 'mdi:checkbox-marked'
+              : 'mdi:checkbox-blank-outline'}
+            ></ha-icon>
+          </div>
+          <div class="preset-icon">
+            ${renderIcon(preset)}
+          </div>
+          <div class="preset-name">${preset.name}</div>
+        </div>
+      `;
+    }
+
     const isEditMode = this._presetEditModeId === preset.id;
     return html`
       <div
@@ -4017,13 +4503,15 @@ export class AqaraPanel extends LitElement {
         aria-label="${preset.name}"
         @click=${() => { this._presetEditModeId = isEditMode ? null : preset.id; }}
       >
-        <div class="preset-card-actions">
+        <div class="preset-card-actions preset-card-actions-left">
           <ha-icon-button
             @click=${(e: Event) => { e.stopPropagation(); onEdit(preset); }}
             title="${this._localize('tooltips.preset_edit')}"
           >
             <ha-icon icon="mdi:pencil"></ha-icon>
           </ha-icon-button>
+        </div>
+        <div class="preset-card-actions">
           <ha-icon-button
             @click=${(e: Event) => { e.stopPropagation(); onDuplicate(preset); }}
             title="${this._localize('tooltips.preset_duplicate')}"
@@ -4200,16 +4688,25 @@ export class AqaraPanel extends LitElement {
   }
 
   private _duplicateBuiltinCCTSequencePreset(preset: CCTSequencePreset): void {
+    const mode = (preset as any).mode as string | undefined;
     const userPreset: UserCCTSequencePreset = {
       id: '',
       name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
-      steps: preset.steps.map((step) => ({
+      steps: mode ? [] : (preset.steps || []).map((step) => ({
         ...step,
         brightness: Math.round(step.brightness / 255 * 100),
       })),
       loop_mode: preset.loop_mode,
       loop_count: preset.loop_count,
       end_behavior: preset.end_behavior,
+      ...(mode === 'solar' ? { mode: 'solar', solar_steps: ((preset as any).solar_steps || []).map((s: any) => ({
+        ...s,
+        brightness: Math.round(s.brightness / 255 * 100),
+      })) } : {}),
+      ...(mode === 'schedule' ? { mode: 'schedule', schedule_steps: ((preset as any).schedule_steps || []).map((s: any) => ({
+        ...s,
+        brightness: Math.round(s.brightness / 255 * 100),
+      })) } : {}),
       created_at: '',
       modified_at: '',
     };
@@ -4343,7 +4840,7 @@ export class AqaraPanel extends LitElement {
             const isEditMode = this._presetEditModeId === ref.id;
             return html`
             <div class="preset-button ${isUser ? 'user-preset' : 'builtin-preset'} ${isEditMode ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (isEditMode) { this._presetEditModeId = null; } else { this._activateFavoritePreset(ref, preset, isUser); } }} @touchstart=${() => this._handlePresetTouchStart(ref.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-              <div class="preset-card-actions">
+              <div class="preset-card-actions preset-card-actions-left">
                 ${this._renderFavoriteStar(ref.type, ref.id)}
               </div>
               <div class="preset-icon">
@@ -4387,7 +4884,7 @@ export class AqaraPanel extends LitElement {
           ${sortedUserPresets.map(
             (preset) => html`
               <div class="preset-button user-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateUserEffectPreset(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar('effect', preset.id)}
                 </div>
                 <div class="preset-icon">
@@ -4400,8 +4897,10 @@ export class AqaraPanel extends LitElement {
           ${sortedBuiltinPresets.map(
             (preset) => html`
               <div class="preset-button builtin-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateDynamicEffect(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar('effect', preset.id)}
+                </div>
+                <div class="preset-card-actions">
                   <ha-icon-button
                     @click=${(e: Event) => { e.stopPropagation(); this._duplicateBuiltinEffectPreset(preset, deviceType); }}
                     title="${this._localize('tooltips.preset_duplicate')}"
@@ -4592,6 +5091,41 @@ export class AqaraPanel extends LitElement {
     });
   }
 
+  private _renderCircadianOp(op: RunningOperation) {
+    const entityName = this._getEntityName(op.entity_id!);
+    const preset = this._resolvePresetInfo(op.preset_id);
+    return html`
+      <div class="running-op-card">
+        <div class="running-op-info">
+          <ha-icon class="running-op-icon" icon="${preset.icon || 'mdi:white-balance-sunny'}"></ha-icon>
+          <div class="running-op-details">
+            <span class="running-op-name">${preset.name || this._localize('target.circadian_label')}</span>
+            <span class="running-op-entity">
+              ${preset.name ? html`<span class="running-op-type">${this._localize('target.circadian_label')}</span>` : ''}
+              <span class="running-op-entity-name">${entityName}</span>
+              ${op.current_color_temp ? html`<span class="running-op-status">${op.current_color_temp}K</span>` : ''}
+            </span>
+          </div>
+        </div>
+        <div class="running-op-actions">
+          <ha-icon-button
+            .label=${this._localize('target.stop')}
+            @click=${() => this._stopCircadian(op.entity_id!)}
+          >
+            <ha-icon icon="mdi:stop"></ha-icon>
+          </ha-icon-button>
+        </div>
+      </div>
+    `;
+  }
+
+  private async _stopCircadian(entityId: string): Promise<void> {
+    await this.hass.callService('aqara_advanced_lighting', 'stop_circadian_mode', {
+      entity_id: [entityId],
+    });
+    await this._loadRunningOperations();
+  }
+
   private _renderSegmentPatternsSection(title: string, builtinPresets: SegmentPatternPreset[], deviceType: string) {
     const sectionId = `segment_pat_${title.toLowerCase().replace(/\s+/g, '_')}`;
     const isExpanded = !this._collapsed[sectionId];
@@ -4622,7 +5156,7 @@ export class AqaraPanel extends LitElement {
           ${sortedUserPresets.map(
             (preset) => html`
               <div class="preset-button user-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateUserPatternPreset(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar('segment_pattern', preset.id)}
                 </div>
                 <div class="preset-icon">
@@ -4635,8 +5169,10 @@ export class AqaraPanel extends LitElement {
           ${sortedBuiltinPresets.map(
             (preset) => html`
               <div class="preset-button builtin-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateSegmentPattern(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar('segment_pattern', preset.id)}
+                </div>
+                <div class="preset-card-actions">
                   <ha-icon-button
                     @click=${(e: Event) => { e.stopPropagation(); this._duplicateBuiltinPatternPreset(preset, deviceType); }}
                     title="${this._localize('tooltips.preset_duplicate')}"
@@ -4752,7 +5288,7 @@ export class AqaraPanel extends LitElement {
           ${sortedUserPresets.map(
             (preset) => html`
               <div class="preset-button user-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateUserCCTSequencePreset(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar('cct_sequence', preset.id)}
                 </div>
                 <div class="preset-icon">
@@ -4765,8 +5301,10 @@ export class AqaraPanel extends LitElement {
           ${sortedBuiltinPresets.map(
             (preset) => html`
               <div class="preset-button builtin-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateCCTSequence(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar('cct_sequence', preset.id)}
+                </div>
+                <div class="preset-card-actions">
                   <ha-icon-button
                     @click=${(e: Event) => { e.stopPropagation(); this._duplicateBuiltinCCTSequencePreset(preset); }}
                     title="${this._localize('tooltips.preset_duplicate')}"
@@ -4816,7 +5354,7 @@ export class AqaraPanel extends LitElement {
           ${sortedUserPresets.map(
             (preset) => html`
               <div class="preset-button user-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateUserSegmentSequencePreset(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar('segment_sequence', preset.id)}
                 </div>
                 <div class="preset-icon">
@@ -4829,8 +5367,10 @@ export class AqaraPanel extends LitElement {
           ${sortedBuiltinPresets.map(
             (preset) => html`
               <div class="preset-button builtin-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateSegmentSequence(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar('segment_sequence', preset.id)}
+                </div>
+                <div class="preset-card-actions">
                   <ha-icon-button
                     @click=${(e: Event) => { e.stopPropagation(); this._duplicateBuiltinSegmentSequencePreset(preset, deviceType); }}
                     title="${this._localize('tooltips.preset_duplicate')}"
@@ -4881,7 +5421,7 @@ export class AqaraPanel extends LitElement {
           ${sortedUserPresets.map(
             (preset) => html`
               <div class="preset-button user-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateUserDynamicScenePreset(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar('dynamic_scene', preset.id)}
                 </div>
                 <div class="preset-icon">
@@ -4894,8 +5434,10 @@ export class AqaraPanel extends LitElement {
           ${sortedBuiltinPresets.map(
             (preset) => html`
               <div class="preset-button builtin-preset ${this._presetEditModeId === preset.id ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (this._presetEditModeId === preset.id) { this._presetEditModeId = null; } else { this._activateDynamicScene(preset); } }} @touchstart=${() => this._handlePresetTouchStart(preset.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
-                <div class="preset-card-actions">
+                <div class="preset-card-actions preset-card-actions-left">
                   ${this._renderFavoriteStar('dynamic_scene', preset.id)}
+                </div>
+                <div class="preset-card-actions">
                   <ha-icon-button
                     @click=${(e: Event) => { e.stopPropagation(); this._duplicateBuiltinDynamicScenePreset(preset); }}
                     title="${this._localize('tooltips.preset_duplicate')}"
@@ -5056,6 +5598,30 @@ export class AqaraPanel extends LitElement {
         </div>
       </ha-expansion-panel>
 
+      <!-- Generic Lights Section -->
+      <ha-expansion-panel
+        outlined
+        .expanded=${this._collapsed['generic_lights'] === undefined ? false : !this._collapsed['generic_lights']}
+        @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange('generic_lights', e)}
+      >
+        <div slot="header" class="section-header">
+          <div>
+            <div class="section-title">${this._localize('config.generic_lights_title')}</div>
+            <div class="section-subtitle">${this._localize('config.generic_lights_subtitle')}</div>
+          </div>
+        </div>
+        <div class="section-content" style="display: block; padding: 16px;">
+          <p style="margin: 0 0 16px 0; font-size: var(--ha-font-size-s, 12px); color: var(--secondary-text-color);">${this._localize('config.software_transitions_description')}</p>
+          <ha-selector
+            .hass=${this.hass}
+            .selector=${{ entity: { domain: 'light', multiple: true } }}
+            .value=${this._softwareTransitionEntities}
+            .label=${this._localize('config.software_transitions_label')}
+            @value-changed=${this._softwareTransitionEntitiesChanged}
+          ></ha-selector>
+        </div>
+      </ha-expansion-panel>
+
       ${!hasSelection
         ? html`
             <ha-card class="controls">
@@ -5118,9 +5684,13 @@ export class AqaraPanel extends LitElement {
                             ></ha-selector>
                             <ha-button
                               @click=${this._applyCurvature}
-                              ?disabled=${!transitionCurveEntity || this._applyingCurvature}
+                              ?disabled=${!transitionCurveEntity || this._applyingCurvature || this._curvatureApplied}
                             >
-                              ${this._applyingCurvature ? this._localize('config.applying_button') : this._localize('config.apply_button')}
+                              ${this._curvatureApplied
+                                ? html`<ha-svg-icon .path=${'M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z'}></ha-svg-icon> ${this._localize('config.curvature_applied_button')}`
+                                : this._applyingCurvature
+                                  ? this._localize('config.applying_button')
+                                  : this._localize('config.apply_button')}
                             </ha-button>
                           </div>
                         </div>
@@ -5330,7 +5900,13 @@ export class AqaraPanel extends LitElement {
         : ''}
 
       ${hasSegmentDevice ? this._renderSegmentZonesSection() : ''}
+
     `;
+  }
+
+  private _softwareTransitionEntitiesChanged(e: CustomEvent): void {
+    this._softwareTransitionEntities = e.detail.value || [];
+    this._saveGlobalPreferences();
   }
 
   private _renderSegmentZonesSection() {
@@ -5797,8 +6373,15 @@ export class AqaraPanel extends LitElement {
           )
         );
       }
+
+      this._curvatureApplied = true;
+      this._showToast(this._localize('config.curvature_applied'));
+      setTimeout(() => {
+        this._curvatureApplied = false;
+      }, 2000);
     } catch (err) {
       console.error('Failed to set transition curve curvature:', err);
+      this._showToast(this._localize('config.curvature_apply_error'));
     } finally {
       this._applyingCurvature = false;
     }

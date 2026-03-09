@@ -54,10 +54,18 @@ class GlobalPreferences(TypedDict):
     """Integration-wide preferences (not per-user)."""
 
     ignore_external_changes: bool
+    software_transition_entities: list[str]
+    override_control_mode: str
+    bare_turn_on_only: bool
+    detect_non_ha_changes: bool
 
 
 DEFAULT_GLOBAL_PREFERENCES: GlobalPreferences = {
     "ignore_external_changes": False,
+    "software_transition_entities": [],
+    "override_control_mode": "pause_changed",
+    "bare_turn_on_only": False,
+    "detect_non_ha_changes": False,
 }
 
 
@@ -79,6 +87,13 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
                 self._global_data = {
                     "ignore_external_changes": raw_global.get(
                         "ignore_external_changes", False
+                    ),
+                    "software_transition_entities": raw_global.get(
+                        "software_transition_entities", []
+                    ),
+                    "override_control_mode": raw_global.get(
+                        "override_control_mode",
+                        DEFAULT_GLOBAL_PREFERENCES["override_control_mode"],
                     ),
                 }
             else:
@@ -243,6 +258,10 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
     async def update_global_preferences(
         self,
         ignore_external_changes: bool | None = None,
+        software_transition_entities: list[str] | None = None,
+        override_control_mode: str | None = None,
+        bare_turn_on_only: bool | None = None,
+        detect_non_ha_changes: bool | None = None,
     ) -> GlobalPreferences:
         """Update integration-wide global preferences.
 
@@ -250,6 +269,18 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
         """
         if ignore_external_changes is not None:
             self._global_data["ignore_external_changes"] = ignore_external_changes
+
+        if software_transition_entities is not None:
+            self._global_data["software_transition_entities"] = software_transition_entities
+
+        if override_control_mode is not None:
+            self._global_data["override_control_mode"] = override_control_mode
+
+        if bare_turn_on_only is not None:
+            self._global_data["bare_turn_on_only"] = bare_turn_on_only
+
+        if detect_non_ha_changes is not None:
+            self._global_data["detect_non_ha_changes"] = detect_non_ha_changes
 
         await self.async_save()
         _LOGGER.debug("Updated global preferences")

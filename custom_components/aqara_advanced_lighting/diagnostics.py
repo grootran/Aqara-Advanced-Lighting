@@ -152,9 +152,6 @@ async def async_get_config_entry_diagnostics(
             "pending_restore_entities": sorted(
                 entity_controller._pending_restore
             ),
-            "tracked_command_entities": sorted(
-                entity_controller._last_command_time.keys()
-            ),
         }
 
     # Store statistics (integration-level singletons)

@@ -14,6 +14,8 @@ from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant
 
 from .const import (
+    DATA_USER_PREFERENCES_STORE,
+    DOMAIN,
     EVENT_ATTR_ENTITY_ID,
     EVENT_ATTR_LOOP_ITERATION,
     EVENT_ATTR_PRESET,
@@ -26,10 +28,19 @@ from .const import (
     EVENT_DYNAMIC_SCENE_RESUMED,
     EVENT_DYNAMIC_SCENE_STARTED,
     EVENT_DYNAMIC_SCENE_STOPPED,
+    MAX_COLOR_TEMP_KELVIN,
+    MIN_COLOR_TEMP_KELVIN,
     MIN_TRANSITION_STEPS,
+    OverrideAttributes,
     SEQUENCE_TYPE_DYNAMIC_SCENE,
     SOFTWARE_TRANSITION_MODELS,
     brightness_percent_to_device,
+)
+from .capability_profile import (
+    CapabilityProfile,
+    LightCapabilityLevel,
+    adapt_xy_for_cct_light,
+    build_capability_profile,
 )
 from .models import DynamicScene, DynamicSceneColor
 from .transition_utils import (
@@ -55,6 +66,7 @@ class ActiveSceneInfo:
     paused: bool
     loop_iteration: int
     current_color_index: int
+    entity_capabilities: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -79,6 +91,8 @@ class SceneState:
     # T1-family entities needing software-interpolated transitions
     # Maps entity_id -> model_id for per-entity interval calculation
     software_transition_entities: dict[str, str] = field(default_factory=dict)
+    # Capability profiles for adapting service calls per entity
+    capability_profiles: dict[str, CapabilityProfile] = field(default_factory=dict)
 
 
 class DynamicSceneManager:
@@ -156,11 +170,31 @@ class DynamicSceneManager:
             if model_id and model_id in SOFTWARE_TRANSITION_MODELS:
                 software_transition_entities[entity_id] = model_id
 
+        # Check for user-opted software transition entities
+        pref_store = self.hass.data.get(DOMAIN, {}).get(
+            DATA_USER_PREFERENCES_STORE
+        )
+        if pref_store:
+            user_sw_entities = set(
+                pref_store.get_global_preference("software_transition_entities")
+                or []
+            )
+            for eid in light_order:
+                if eid in user_sw_entities and eid not in software_transition_entities:
+                    software_transition_entities[eid] = "generic_software"
+
         if software_transition_entities:
             _LOGGER.debug(
                 "Software transitions for %d entities in scene",
                 len(software_transition_entities),
             )
+
+        # Build capability profiles for all entities
+        capability_profiles: dict[str, CapabilityProfile] = {}
+        for eid in light_order:
+            entity_state = self.hass.states.get(eid)
+            if entity_state:
+                capability_profiles[eid] = build_capability_profile(entity_state)
 
         # Create scene state
         scene_state = SceneState(
@@ -172,6 +206,7 @@ class DynamicSceneManager:
             light_order=light_order,
             hue_sorted_indices=hue_sorted_indices,
             software_transition_entities=software_transition_entities,
+            capability_profiles=capability_profiles,
         )
         self._scene_states[scene_id] = scene_state
 
@@ -553,6 +588,77 @@ class DynamicSceneManager:
                 "Entity %s resumed in scene %s", entity_id, scene_id
             )
 
+    async def force_apply_current(self, entity_id: str) -> bool:
+        """Immediately apply current scene color to an entity.
+
+        Used for instant resume so the entity gets correct values without
+        waiting for the next color cycle. Respects per-attribute overrides
+        and capability profiles.
+
+        Returns True if values were applied.
+        """
+        scene_id = self._entity_to_scene.get(entity_id)
+        if not scene_id:
+            return False
+
+        scene_state = self._scene_states.get(scene_id)
+        if not scene_state:
+            return False
+
+        # Get the entity's current assigned color
+        position = scene_state.light_color_indices.get(entity_id)
+        if position is None:
+            return False
+
+        scene = scene_state.scene
+        if scene.distribution_mode == "shuffle_rotate" and scene_state.hue_sorted_indices:
+            color_index = scene_state.hue_sorted_indices[position]
+        else:
+            color_index = position
+        color = scene.colors[color_index]
+
+        effective_brightness = brightness_percent_to_device(color.brightness_pct)
+
+        profile = scene_state.capability_profiles.get(entity_id)
+        if profile and profile.level == LightCapabilityLevel.ON_OFF_ONLY:
+            return False
+
+        service_data = self._build_adapted_service_data(
+            entity_id, color.x, color.y, effective_brightness, profile, transition=0,
+        )
+        if not service_data:
+            return False
+
+        # Filter overridden attributes
+        override = OverrideAttributes.NONE
+        if self._entity_controller:
+            override = self._entity_controller.get_override_attributes(entity_id)
+
+        if override != OverrideAttributes.NONE:
+            if OverrideAttributes.BRIGHTNESS in override:
+                service_data.pop("brightness", None)
+            if OverrideAttributes.COLOR in override:
+                service_data.pop("xy_color", None)
+                service_data.pop("color_temp_kelvin", None)
+            value_keys = {"brightness", "xy_color", "color_temp_kelvin"}
+            if not (set(service_data.keys()) & value_keys):
+                return False
+
+        context = (
+            self._entity_controller.create_context()
+            if self._entity_controller
+            else None
+        )
+        await self.hass.services.async_call(
+            "light", "turn_on", service_data, blocking=False, context=context,
+        )
+        _LOGGER.info(
+            "Force-applied scene color for %s (color index %d)",
+            entity_id,
+            color_index,
+        )
+        return True
+
     def get_scene_preset(self, entity_id: str) -> str | None:
         """Get the preset name for a running scene on an entity."""
         scene_id = self._entity_to_scene.get(entity_id)
@@ -565,6 +671,22 @@ class DynamicSceneManager:
         """Get all active scenes."""
         result = {}
         for scene_id, state in self._scene_states.items():
+            entity_capabilities: dict[str, str] = {}
+            for eid, profile in state.capability_profiles.items():
+                if profile.level == LightCapabilityLevel.CCT_ONLY:
+                    entity_capabilities[eid] = "cct_mode"
+                elif profile.level == LightCapabilityLevel.BRIGHTNESS_ONLY:
+                    entity_capabilities[eid] = "brightness_only"
+                elif profile.level == LightCapabilityLevel.ON_OFF_ONLY:
+                    entity_capabilities[eid] = "on_off_only"
+
+            # Mark entities using software-interpolated transitions
+            for eid in state.software_transition_entities:
+                if eid not in entity_capabilities:
+                    entity_capabilities[eid] = "software_transition"
+                else:
+                    entity_capabilities[eid] += ",software_transition"
+
             result[scene_id] = ActiveSceneInfo(
                 scene_id=scene_id,
                 entity_ids=state.entity_ids,
@@ -572,6 +694,7 @@ class DynamicSceneManager:
                 paused=state.paused,
                 loop_iteration=state.loop_iteration,
                 current_color_index=state.current_color_index,
+                entity_capabilities=entity_capabilities,
             )
         return result
 
@@ -901,11 +1024,51 @@ class DynamicSceneManager:
                 )
 
                 # Handle end behavior
-                if scene.end_behavior == "restore":
+                if scene.end_behavior == "turn_off":
+                    await self._turn_off_entities(scene_state.entity_ids)
+                elif scene.end_behavior == "restore":
                     await self._restore_states(scene_state.entity_ids)
 
                 # Cleanup
                 self._cleanup_scene(scene_id)
+
+    @staticmethod
+    def _build_adapted_service_data(
+        entity_id: str,
+        x: float,
+        y: float,
+        brightness: int,
+        profile: CapabilityProfile | None,
+        transition: float | None = None,
+    ) -> dict[str, Any] | None:
+        """Build capability-adapted service call data for a light entity.
+
+        Returns None for ON_OFF_ONLY entities (should be skipped).
+        """
+        if profile and profile.level == LightCapabilityLevel.ON_OFF_ONLY:
+            return None
+
+        base: dict[str, Any] = {ATTR_ENTITY_ID: entity_id}
+
+        if profile and profile.level == LightCapabilityLevel.CCT_ONLY:
+            cct = adapt_xy_for_cct_light(
+                x,
+                y,
+                profile.min_color_temp_kelvin or MIN_COLOR_TEMP_KELVIN,
+                profile.max_color_temp_kelvin or MAX_COLOR_TEMP_KELVIN,
+            )
+            base["color_temp_kelvin"] = cct
+            base["brightness"] = brightness
+        elif profile and profile.level == LightCapabilityLevel.BRIGHTNESS_ONLY:
+            base["brightness"] = brightness
+        else:
+            base["xy_color"] = [x, y]
+            base["brightness"] = brightness
+
+        if transition is not None:
+            base["transition"] = transition
+
+        return base
 
     async def _apply_colors_with_offset(
         self,
@@ -939,6 +1102,19 @@ class DynamicSceneManager:
             if entity_id in scene_state.externally_paused_entities:
                 continue
 
+            # Check for partial attribute overrides
+            override = OverrideAttributes.NONE
+            if self._entity_controller:
+                override = self._entity_controller.get_override_attributes(entity_id)
+
+            # Resolve capability profile for this entity early so we can
+            # skip ON_OFF_ONLY entities before waiting on the offset delay.
+            profile = scene_state.capability_profiles.get(entity_id)
+
+            # Skip entities that cannot display color transitions at all
+            if profile and profile.level == LightCapabilityLevel.ON_OFF_ONLY:
+                continue
+
             # Apply offset delay between lights (skip first light, skip on initial)
             if not is_initial and i > 0 and scene.offset_delay > 0:
                 try:
@@ -965,7 +1141,7 @@ class DynamicSceneManager:
 
             # Check if this entity needs software-interpolated transitions
             model_id = scene_state.software_transition_entities.get(entity_id)
-            if model_id and transition_time > 0:
+            if model_id and transition_time > 0 and override == OverrideAttributes.NONE:
                 # Launch async task for software interpolation
                 task = asyncio.create_task(
                     self._software_color_transition(
@@ -977,6 +1153,7 @@ class DynamicSceneManager:
                         model_id,
                         stop_event,
                         context,
+                        profile,
                     )
                 )
                 software_tasks.append(task)
@@ -993,22 +1170,34 @@ class DynamicSceneManager:
                 )
             else:
                 # Hardware transition path (T2, generic, or initial instant)
-                # Record command with transition duration so the grace
-                # window covers the full hardware transition period.
-                if self._entity_controller:
-                    self._entity_controller.record_command(
-                        entity_id, expected_duration=transition_time
-                    )
+                # Build service data adapted to entity capability
+                service_data = self._build_adapted_service_data(
+                    entity_id,
+                    color.x,
+                    color.y,
+                    effective_brightness,
+                    profile,
+                    transition=transition_time,
+                )
+                # ON_OFF_ONLY already filtered above, so service_data
+                # will not be None here.
+
+                # Filter overridden attributes from service data
+                if override != OverrideAttributes.NONE and service_data:
+                    if OverrideAttributes.BRIGHTNESS in override:
+                        service_data.pop("brightness", None)
+                    if OverrideAttributes.COLOR in override:
+                        service_data.pop("xy_color", None)
+                        service_data.pop("color_temp_kelvin", None)
+                    # If all value keys removed, skip this entity
+                    value_keys = {"brightness", "xy_color", "color_temp_kelvin"}
+                    if not (set(service_data.keys()) & value_keys):
+                        continue
 
                 await self.hass.services.async_call(
                     "light",
                     "turn_on",
-                    {
-                        ATTR_ENTITY_ID: entity_id,
-                        "xy_color": [color.x, color.y],
-                        "brightness": effective_brightness,
-                        "transition": transition_time,
-                    },
+                    service_data,
                     blocking=False,
                     context=context,
                 )
@@ -1044,12 +1233,6 @@ class DynamicSceneManager:
                 pass  # Normal - transition time elapsed
 
             # Refresh grace window after transition completes so the
-            # subsequent hold period is covered against late state reports.
-            if self._entity_controller:
-                for eid in light_order:
-                    if eid not in scene_state.externally_paused_entities:
-                        self._entity_controller.record_command(eid)
-
     async def _software_color_transition(
         self,
         entity_id: str,
@@ -1060,6 +1243,7 @@ class DynamicSceneManager:
         model_id: str,
         stop_event: asyncio.Event,
         context: Any | None,
+        profile: CapabilityProfile | None = None,
     ) -> None:
         """Perform software-interpolated color transition for T1-family devices.
 
@@ -1076,6 +1260,7 @@ class DynamicSceneManager:
             model_id: Device model ID for interval selection
             stop_event: Event to signal interruption
             context: HA context for service calls
+            profile: Optional capability profile for color adaptation
         """
         # Read current state as starting point
         state = self.hass.states.get(entity_id)
@@ -1083,16 +1268,20 @@ class DynamicSceneManager:
             _LOGGER.debug(
                 "Entity %s unavailable, applying target directly", entity_id
             )
-            if self._entity_controller:
-                self._entity_controller.record_command(entity_id)
+            # Build adapted service data for unavailable fallback
+            fallback_data = self._build_adapted_service_data(
+                entity_id,
+                target_x,
+                target_y,
+                target_brightness,
+                profile,
+            )
+            if fallback_data is None:
+                return
             await self.hass.services.async_call(
                 "light",
                 "turn_on",
-                {
-                    ATTR_ENTITY_ID: entity_id,
-                    "xy_color": [target_x, target_y],
-                    "brightness": target_brightness,
-                },
+                fallback_data,
                 blocking=False,
                 context=context,
             )
@@ -1154,18 +1343,17 @@ class DynamicSceneManager:
                 + (target_brightness - start_brightness) * eased_t
             )
 
-            # Record command and send without transition parameter
-            if self._entity_controller:
-                self._entity_controller.record_command(entity_id)
+            # Build adapted service data for this step
+            step_data = self._build_adapted_service_data(
+                entity_id, x, y, brightness, profile
+            )
+            if step_data is None:
+                return
 
             await self.hass.services.async_call(
                 "light",
                 "turn_on",
-                {
-                    ATTR_ENTITY_ID: entity_id,
-                    "xy_color": [round(x, 4), round(y, 4)],
-                    "brightness": brightness,
-                },
+                step_data,
                 blocking=False,
                 context=context,
             )
@@ -1252,3 +1440,30 @@ class DynamicSceneManager:
                 _LOGGER.warning(
                     "Failed to restore state for %s", entity_id, exc_info=True
                 )
+
+    async def _turn_off_entities(self, entity_ids: list[str]) -> None:
+        """Turn off lights after scene completes."""
+        context = (
+            self._entity_controller.create_context()
+            if self._entity_controller
+            else None
+        )
+
+        service_data: dict[str, Any] = {ATTR_ENTITY_ID: entity_ids}
+
+        try:
+            await self.hass.services.async_call(
+                "light",
+                "turn_off",
+                service_data,
+                blocking=True,
+                context=context,
+            )
+            _LOGGER.info(
+                "Dynamic scene completed, turned off %d lights", len(entity_ids)
+            )
+        except Exception:
+            _LOGGER.warning(
+                "Failed to turn off lights after dynamic scene",
+                exc_info=True,
+            )

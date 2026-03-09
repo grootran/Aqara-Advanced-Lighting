@@ -41,6 +41,7 @@ from .const import (
     DATA_CCT_SEQUENCE_MANAGER,
     DATA_DYNAMIC_SCENE_MANAGER,
     DATA_ACTIVE_MUSIC_SYNC,
+    DATA_CIRCADIAN_MANAGER,
     DATA_ENTITY_CONTROLLER,
     DATA_FAVORITES_STORE,
     DATA_SEGMENT_SEQUENCE_MANAGER,
@@ -49,6 +50,7 @@ from .const import (
     DATA_USER_PREFERENCES_STORE,
     DEFAULT_EXTRACTED_COLORS,
     DOMAIN,
+    OverrideAttributes,
     MAX_COLOR_HISTORY_SIZE,
     MAX_IMAGE_SIZE_BYTES,
     THUMBNAIL_STORAGE_DIR,
@@ -334,17 +336,31 @@ def _build_presets_data() -> dict[str, Any]:
     # Build CCT sequences
     cct_sequences = []
     for preset_id, preset_data in CCT_SEQUENCE_PRESETS.items():
-        cct_sequences.append(
-            {
-                "id": preset_id,
-                "name": preset_data["name"],
-                "icon": preset_data.get("icon"),
-                "steps": preset_data["steps"],
-                "loop_mode": preset_data["loop_mode"],
-                "loop_count": preset_data.get("loop_count"),
-                "end_behavior": preset_data["end_behavior"],
-            }
-        )
+        entry: dict[str, Any] = {
+            "id": preset_id,
+            "name": preset_data["name"],
+            "icon": preset_data.get("icon"),
+            "loop_mode": preset_data["loop_mode"],
+            "loop_count": preset_data.get("loop_count"),
+            "end_behavior": preset_data["end_behavior"],
+        }
+        if preset_data.get("mode") == "solar":
+            entry["mode"] = "solar"
+            entry["solar_steps"] = preset_data["solar_steps"]
+        elif preset_data.get("mode") == "schedule":
+            entry["mode"] = "schedule"
+            entry["schedule_steps"] = [
+                {
+                    "time": s["time"],
+                    "color_temp": s["color_temp"],
+                    "brightness": s["brightness"],
+                    "label": s.get("label", ""),
+                }
+                for s in preset_data["schedule_steps"]
+            ]
+        else:
+            entry["steps"] = preset_data["steps"]
+        cct_sequences.append(entry)
 
     # Build segment sequences
     segment_sequences = []
@@ -999,11 +1015,57 @@ class GlobalPreferencesView(HomeAssistantView):
                 )
             ignore_external_changes = data["ignore_external_changes"]
 
-        if ignore_external_changes is None:
+        software_transition_entities = None
+        if "software_transition_entities" in data:
+            entities = data["software_transition_entities"]
+            if not isinstance(entities, list) or not all(
+                isinstance(e, str) for e in entities
+            ):
+                return web.Response(
+                    status=400,
+                    text="software_transition_entities must be a list of strings",
+                )
+            software_transition_entities = entities
+
+        override_control_mode = data.get("override_control_mode")
+        if override_control_mode is not None:
+            if override_control_mode not in ("pause_all", "pause_changed"):
+                return web.Response(
+                    status=400,
+                    text="override_control_mode must be 'pause_all' or 'pause_changed'",
+                )
+
+        bare_turn_on_only = None
+        if "bare_turn_on_only" in data:
+            if not isinstance(data["bare_turn_on_only"], bool):
+                return web.Response(
+                    status=400, text="bare_turn_on_only must be a boolean"
+                )
+            bare_turn_on_only = data["bare_turn_on_only"]
+
+        detect_non_ha_changes = None
+        if "detect_non_ha_changes" in data:
+            if not isinstance(data["detect_non_ha_changes"], bool):
+                return web.Response(
+                    status=400, text="detect_non_ha_changes must be a boolean"
+                )
+            detect_non_ha_changes = data["detect_non_ha_changes"]
+
+        if (
+            ignore_external_changes is None
+            and software_transition_entities is None
+            and override_control_mode is None
+            and bare_turn_on_only is None
+            and detect_non_ha_changes is None
+        ):
             return web.json_response(store.get_global_preferences())
 
         preferences = await store.update_global_preferences(
             ignore_external_changes=ignore_external_changes,
+            software_transition_entities=software_transition_entities,
+            override_control_mode=override_control_mode,
+            bare_turn_on_only=bare_turn_on_only,
+            detect_non_ha_changes=detect_non_ha_changes,
         )
         return web.json_response(preferences)
 
@@ -1069,17 +1131,26 @@ class VersionView(HomeAssistantView):
 
 
 class ExportPresetsView(HomeAssistantView):
-    """View to export all user presets as JSON file."""
+    """View to export user presets as a downloadable JSON file.
+
+    Accepts an optional comma-separated list of preset IDs via query
+    parameter to export selectively. If omitted, all presets are exported.
+    Uses GET so the URL can be signed for authenticated downloads that
+    work in the HA mobile app WebView.
+    """
 
     url = f"/api/{DOMAIN}/presets/export"
     name = f"api:{DOMAIN}:presets_export"
     requires_auth = True
 
     async def get(self, request: web.Request) -> web.Response:
-        """Export all user presets.
+        """Export user presets, optionally filtered by ID.
+
+        Query params:
+            preset_ids: Optional comma-separated list of preset IDs
 
         Returns:
-            JSON file download with all user presets
+            JSON file download with selected or all user presets
         """
         hass = request.app["hass"]
 
@@ -1087,15 +1158,18 @@ class ExportPresetsView(HomeAssistantView):
         if not preset_store:
             return web.Response(status=503, text="Preset store not initialized")
 
+        # Parse optional preset_ids from query string
+        preset_ids: list[str] | None = None
+        ids_param = request.query.get("preset_ids")
+        if ids_param:
+            preset_ids = [i.strip() for i in ids_param.split(",") if i.strip()]
+
         try:
-            # Export all presets
-            export_data = await preset_store.export_all_user_presets()
+            export_data = await preset_store.export_user_presets(preset_ids)
 
-            # Generate filename with timestamp
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"aqara_presets_backup_{timestamp}.json"
+            filename = f"aqara_presets_export_{timestamp}.json"
 
-            # Return as downloadable JSON file
             return web.Response(
                 body=json.dumps(export_data, indent=2, ensure_ascii=False),
                 content_type="application/json",
@@ -1734,17 +1808,34 @@ class RunningOperationsView(HomeAssistantView):
                         if entity_controller
                         else False
                     )
-                    operations.append(
-                        {
-                            "type": "cct_sequence",
-                            "entity_id": entity_id,
-                            "preset_id": cct_mgr.get_sequence_preset(entity_id),
-                            "paused": status.get("paused", False),
-                            "externally_paused": ext_paused,
-                            "current_step": status.get("current_step", 0),
-                            "total_steps": status.get("total_steps", 0),
-                        }
+                    auto_resume = (
+                        entity_controller.get_auto_resume_remaining(entity_id)
+                        if entity_controller and ext_paused
+                        else None
                     )
+                    op_data: dict[str, Any] = {
+                        "type": "cct_sequence",
+                        "entity_id": entity_id,
+                        "preset_id": cct_mgr.get_sequence_preset(entity_id),
+                        "paused": status.get("paused", False),
+                        "externally_paused": ext_paused,
+                        "override_attributes": {
+                            "brightness": bool(
+                                entity_controller.get_override_attributes(entity_id)
+                                & OverrideAttributes.BRIGHTNESS
+                            ) if entity_controller else False,
+                            "color": bool(
+                                entity_controller.get_override_attributes(entity_id)
+                                & OverrideAttributes.COLOR
+                            ) if entity_controller else False,
+                        },
+                        "current_step": status.get("current_step", 0),
+                        "total_steps": status.get("total_steps", 0),
+                        "mode": cct_mgr.get_adaptive_mode(entity_id) or "standard",
+                    }
+                    if auto_resume is not None:
+                        op_data["auto_resume_remaining"] = round(auto_resume)
+                    operations.append(op_data)
 
             # Segment sequences
             seg_mgr = instance_data.get(DATA_SEGMENT_SEQUENCE_MANAGER)
@@ -1756,17 +1847,15 @@ class RunningOperationsView(HomeAssistantView):
                         if entity_controller
                         else False
                     )
-                    operations.append(
-                        {
-                            "type": "segment_sequence",
-                            "entity_id": entity_id,
-                            "preset_id": seg_mgr.get_sequence_preset(entity_id),
-                            "paused": status.get("paused", False),
-                            "externally_paused": ext_paused,
-                            "current_step": status.get("current_step", 0),
-                            "total_steps": status.get("total_steps", 0),
-                        }
-                    )
+                    operations.append({
+                        "type": "segment_sequence",
+                        "entity_id": entity_id,
+                        "preset_id": seg_mgr.get_sequence_preset(entity_id),
+                        "paused": status.get("paused", False),
+                        "externally_paused": ext_paused,
+                        "current_step": status.get("current_step", 0),
+                        "total_steps": status.get("total_steps", 0),
+                    })
 
             # Dynamic scenes (grouped by scene, not per-entity)
             scene_mgr = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
@@ -1779,16 +1868,30 @@ class RunningOperationsView(HomeAssistantView):
                             for eid in scene_info.entity_ids
                             if entity_controller.is_entity_externally_paused(eid)
                         ]
-                    operations.append(
-                        {
-                            "type": "dynamic_scene",
-                            "scene_id": scene_id,
-                            "entity_ids": list(scene_info.entity_ids),
-                            "preset_id": scene_info.preset_name,
-                            "paused": scene_info.paused,
-                            "externally_paused_entities": ext_paused_entities,
-                        }
-                    )
+                    operations.append({
+                        "type": "dynamic_scene",
+                        "scene_id": scene_id,
+                        "entity_ids": list(scene_info.entity_ids),
+                        "preset_id": scene_info.preset_name,
+                        "paused": scene_info.paused,
+                        "externally_paused_entities": ext_paused_entities,
+                        "override_attributes": {
+                            eid: {
+                                "brightness": bool(
+                                    entity_controller.get_override_attributes(eid)
+                                    & OverrideAttributes.BRIGHTNESS
+                                ),
+                                "color": bool(
+                                    entity_controller.get_override_attributes(eid)
+                                    & OverrideAttributes.COLOR
+                                ),
+                            }
+                            for eid in scene_info.entity_ids
+                            if entity_controller
+                            and entity_controller.is_entity_externally_paused(eid)
+                        },
+                        "entity_capabilities": scene_info.entity_capabilities,
+                    })
 
             # Music sync (per-entity, firmware-managed)
             active_music_sync = instance_data.get(DATA_ACTIVE_MUSIC_SYNC, {})
@@ -1801,6 +1904,20 @@ class RunningOperationsView(HomeAssistantView):
                         "paused": False,
                         "sensitivity": sync_info.get("sensitivity", "low"),
                         "audio_effect": sync_info.get("audio_effect", "random"),
+                    }
+                )
+
+        # Circadian overlays (integration-level, not per-instance)
+        circadian_mgr = hass.data.get(DOMAIN, {}).get(DATA_CIRCADIAN_MANAGER)
+        if circadian_mgr:
+            for info in circadian_mgr.get_active_info():
+                operations.append(
+                    {
+                        "type": "circadian",
+                        "entity_id": info["entity_id"],
+                        "preset_id": info.get("preset_name"),
+                        "current_color_temp": info["current_color_temp"],
+                        "current_brightness": info["current_brightness"],
                     }
                 )
 

@@ -484,6 +484,24 @@ start_cct_sequence:
       default: true
       selector:
         boolean:
+    mode:
+      name: Sequence mode
+      description: "Standard mode uses timed steps. Solar mode adjusts color temperature based on the sun's position."
+      required: false
+      default: standard
+      selector:
+        select:
+          options:
+            - label: "Standard"
+              value: "standard"
+            - label: "Solar"
+              value: "solar"
+    solar_steps:
+      name: Solar steps
+      description: "Solar elevation steps for solar mode. Each step defines the target color temperature and brightness at a given sun elevation angle. Requires at least 2 steps."
+      required: false
+      selector:
+        object:
     step_1:
       name: "Step 1 (Required)"
       collapsed: false
@@ -968,6 +986,13 @@ start_cct_sequence:
               value: "turn_off"
             - label: "Restore previous state"
               value: "restore"
+    skip_first_in_loop:
+      name: Skip first step in loop
+      description: Skip the first step when looping. Useful for setting an initial state that should not repeat.
+      required: false
+      default: false
+      selector:
+        boolean:
     z2m_base_topic:
       name: Z2M base topic (deprecated)
       description: "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
@@ -2345,6 +2370,8 @@ start_dynamic_scene:
           options:
             - label: "Restore previous state"
               value: "restore"
+            - label: "Turn off light"
+              value: "turn_off"
             - label: "Maintain last color"
               value: "maintain"
     scene_name:
@@ -2445,6 +2472,63 @@ resume_entity_control:
     entity_id:
       name: Entity
       description: The light entity or entities to resume control for
+      required: true
+      selector:
+        entity:
+          multiple: true
+          filter:
+            domain: light
+
+start_circadian_mode:
+  name: Start circadian mode
+  description: >-
+    Start a passive circadian overlay on target lights. Automatically applies
+    sun-appropriate color temperature and brightness when a light turns on.
+  target:
+    entity:
+      domain: light
+  fields:
+    entity_id:
+      name: Light entity
+      description: The light entity or entities to apply circadian mode to.
+      required: true
+      selector:
+        entity:
+          multiple: true
+          filter:
+            domain: light
+    preset:
+      name: Preset
+      description: Choose a built-in or user-saved adaptive preset. Schedule presets adjust by time of day, solar presets by sun elevation.
+      required: false
+      selector:
+        select:
+          options:
+            - label: "Circadian Rhythm"
+              value: "circadian"
+            - label: "Warm Day"
+              value: "solar_warm"
+            - label: "Productive Day"
+              value: "solar_productive"
+          mode: dropdown
+          custom_value: true
+    solar_steps:
+      name: Solar steps
+      description: Custom solar elevation steps (alternative to preset). Requires at least 2 steps.
+      required: false
+      selector:
+        object:
+
+stop_circadian_mode:
+  name: Stop circadian mode
+  description: Stop the passive circadian overlay on target lights.
+  target:
+    entity:
+      domain: light
+  fields:
+    entity_id:
+      name: Light entity
+      description: The light entity or entities to stop circadian mode for.
       required: true
       selector:
         entity:
