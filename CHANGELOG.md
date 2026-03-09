@@ -61,13 +61,14 @@ Version 1.1.0 adds solar and schedule-based adaptive circadian CCT sequences, ca
   - Selective user preset exports
 ### Bug Fixes
 
-  - Fix Loop N Times count field in Scenes tab
-  - Fix Signed URL preset export with selective filtering
-  - Fix Preset export using signed URL WebSocket command
-  - Fix Auth errors on API calls
-  - Fix active presets panel not updating after activation
-  - Fix last-half, first-third, last-third keywords to parse_segment_range
-  - Fix segment patterns not restoring off state when stopped
+  - Loop N Times count field in Scenes tab
+  - Signed URL preset export with selective filtering
+  - Preset export using signed URL WebSocket command
+  - Auth errors on API calls
+  - Active presets panel not updating after activation
+  - last-half, first-third, last-third keywords to parse_segment_range
+  - Segment patterns not restoring off state when stopped
+  - Color restore when activating from an off state
 
 ### Code Quality
 

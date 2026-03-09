@@ -6,13 +6,16 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any
 
+from collections.abc import Callable
+
 from homeassistant.const import (
+    EVENT_STATE_CHANGED,
     STATE_OFF,
     STATE_ON,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
 )
-from homeassistant.core import Context, HomeAssistant
+from homeassistant.core import Context, Event, HomeAssistant, callback
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
@@ -34,8 +37,10 @@ class StateManager:
         """Initialize the state manager."""
         self.hass = hass
         self._states: dict[str, DeviceState] = {}
+        self._last_on_attributes: dict[str, dict[str, Any]] = {}
         self._store: Store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
         self._loaded: bool = False
+        self._unsub_state_listener: Callable[[], None] | None = None
 
     async def async_load(self) -> None:
         """Load stored states from persistent storage."""
@@ -106,6 +111,59 @@ class StateManager:
         except Exception as ex:
             _LOGGER.warning("Failed to save states: %s", ex)
 
+    def start_tracking(self) -> None:
+        """Start tracking light state changes to cache last-known on-state.
+
+        HA's light entity framework strips color attributes when a light is
+        off, so we listen for state changes and cache the attributes while
+        the light is still on. This allows accurate state capture for lights
+        that are off when an effect/scene is started.
+        """
+        if self._unsub_state_listener:
+            return
+
+        @callback
+        def _handle_state_changed(event: Event) -> None:
+            entity_id = event.data.get("entity_id", "")
+            if not entity_id.startswith("light."):
+                return
+            new_state = event.data.get("new_state")
+            if not new_state or new_state.state != STATE_ON:
+                return
+            self._cache_on_attributes(entity_id, new_state.attributes)
+
+        self._unsub_state_listener = self.hass.bus.async_listen(
+            EVENT_STATE_CHANGED, _handle_state_changed
+        )
+
+    def stop_tracking(self) -> None:
+        """Stop tracking light state changes."""
+        if self._unsub_state_listener:
+            self._unsub_state_listener()
+            self._unsub_state_listener = None
+
+    def _cache_on_attributes(
+        self, entity_id: str, attributes: dict[str, Any]
+    ) -> None:
+        """Cache color/brightness attributes from an on-state light."""
+        cached: dict[str, Any] = {}
+
+        if brightness := attributes.get("brightness"):
+            cached["brightness"] = brightness
+        if xy_color := attributes.get("xy_color"):
+            cached["xy_color"] = {"x": xy_color[0], "y": xy_color[1]}
+        if rgb_color := attributes.get("rgb_color"):
+            cached["color"] = {
+                "r": rgb_color[0], "g": rgb_color[1], "b": rgb_color[2],
+            }
+        if color_temp_kelvin := attributes.get("color_temp_kelvin"):
+            cached["color_temp_kelvin"] = color_temp_kelvin
+        if color_mode := attributes.get("color_mode"):
+            cached["color_mode"] = color_mode
+
+        if cached:
+            self._last_on_attributes[entity_id] = cached
+
     def capture_state(
         self, entity_id: str, z2m_friendly_name: str
     ) -> DeviceState | None:
@@ -127,40 +185,41 @@ class StateManager:
 
         # Build state data for restoration
         state_data: dict[str, Any] = {}
+        state_data["state"] = STATE_ON if state.state == STATE_ON else STATE_OFF
 
-        # Capture on/off state
         if state.state == STATE_ON:
-            state_data["state"] = STATE_ON
-
-            # Capture brightness if available
+            # Light is on - read color attributes directly from HA state
+            # and update the cache for future off-state captures
             if brightness := state.attributes.get("brightness"):
                 state_data["brightness"] = brightness
-
-            # Capture XY color if available (preferred for precision)
             if xy_color := state.attributes.get("xy_color"):
                 state_data["xy_color"] = {
                     "x": xy_color[0],
                     "y": xy_color[1],
                 }
-
-            # Capture RGB color if available (fallback)
             if rgb_color := state.attributes.get("rgb_color"):
                 state_data["color"] = {
                     "r": rgb_color[0],
                     "g": rgb_color[1],
                     "b": rgb_color[2],
                 }
-
-            # Capture color temperature in kelvin if available
             if color_temp_kelvin := state.attributes.get("color_temp_kelvin"):
                 state_data["color_temp_kelvin"] = color_temp_kelvin
-
-            # Capture color mode to know whether light was in RGB or CCT mode
             if color_mode := state.attributes.get("color_mode"):
                 state_data["color_mode"] = color_mode
 
+            self._cache_on_attributes(entity_id, state.attributes)
         else:
-            state_data["state"] = STATE_OFF
+            # Light is off - HA strips color attributes for off lights.
+            # Use cached last-known on-state so we can restore the original
+            # color when the effect/scene is stopped.
+            if cached := self._last_on_attributes.get(entity_id):
+                for key in (
+                    "brightness", "xy_color", "color",
+                    "color_temp_kelvin", "color_mode",
+                ):
+                    if key in cached:
+                        state_data[key] = cached[key]
 
         # Create device state object
         device_state = DeviceState(
@@ -258,13 +317,11 @@ class StateManager:
         payload: dict[str, Any] = {}
 
         # Handle on/off state
-        if previous_state.get("state") == STATE_OFF:
-            payload["state"] = STATE_OFF
-            return payload
+        payload["state"] = previous_state.get("state", STATE_OFF)
 
-        # Light was on, restore its properties
-        payload["state"] = STATE_ON
-
+        # Build color/brightness restoration data from captured attributes.
+        # These are populated for both on and off captures (Z2M/ZHA retain
+        # last-known values when off).
         if brightness := previous_state.get("brightness"):
             payload["brightness"] = brightness
 
@@ -320,25 +377,42 @@ class StateManager:
 
         service_data: dict[str, Any] = {"entity_id": entity_id}
 
-        if payload.get("state") == STATE_OFF:
-            await self.hass.services.async_call(
-                "light", "turn_off", service_data,
-                blocking=blocking, context=context,
-            )
-            return True
+        # Build color/brightness fields from payload
+        has_color_data = False
 
         if "brightness" in payload:
             service_data["brightness"] = payload["brightness"]
+            has_color_data = True
 
         if "xy_color" in payload:
             xy = payload["xy_color"]
             service_data["xy_color"] = [xy["x"], xy["y"]]
+            has_color_data = True
         elif "color" in payload:
             color = payload["color"]
             service_data["rgb_color"] = [color["r"], color["g"], color["b"]]
+            has_color_data = True
 
         if "color_temp_kelvin" in payload:
             service_data["color_temp_kelvin"] = payload["color_temp_kelvin"]
+            has_color_data = True
+
+        if payload.get("state") == STATE_OFF:
+            if has_color_data:
+                # Write original color back to hardware before turning off so
+                # the device's registers are reset. Without this, the next
+                # manual turn-on would show whatever color the effect last
+                # programmed. The light is still on from the effect/scene at
+                # this point, so this just updates the color in-place.
+                await self.hass.services.async_call(
+                    "light", "turn_on", service_data,
+                    blocking=True, context=context,
+                )
+            await self.hass.services.async_call(
+                "light", "turn_off", {"entity_id": entity_id},
+                blocking=blocking, context=context,
+            )
+            return True
 
         await self.hass.services.async_call(
             "light", "turn_on", service_data,
