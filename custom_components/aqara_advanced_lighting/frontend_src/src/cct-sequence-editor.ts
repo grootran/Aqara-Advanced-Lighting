@@ -356,9 +356,16 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
       white-space: nowrap;
     }
 
+    .timeline-label .short-label {
+      display: none;
+    }
+
     @media (max-width: 600px) {
-      .timeline-labels {
+      .timeline-label .full-label {
         display: none;
+      }
+      .timeline-label .short-label {
+        display: inline;
       }
     }
   `];
@@ -977,7 +984,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
    * Shared dual-track timeline renderer used by both schedule and solar modes.
    */
   private _renderDualTrackBar(config: {
-    points: Array<{ pct: number; color_temp: number; brightness: number; tooltip: string; label: string }>;
+    points: Array<{ pct: number; color_temp: number; brightness: number; tooltip: string; label: string; shortLabel?: string }>;
     markers?: Array<{ pct: number; icon: string; title: string }>;
     axisLabels: Array<{ pct: number; text: string }>;
     wrapGradient: boolean;
@@ -1034,7 +1041,10 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
         </div>
         <div class="timeline-labels">
           ${points.filter(pt => pt.label).map(pt => html`
-            <span class="timeline-label" style="left: ${pt.pct}%">${pt.label}</span>
+            <span class="timeline-label" style="left: ${pt.pct}%">
+              <span class="full-label">${pt.label}</span>
+              <span class="short-label">${pt.shortLabel ?? pt.label}</span>
+            </span>
           `)}
         </div>
       </div>
@@ -1074,6 +1084,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
       brightness: s.brightness,
       tooltip: `${s.label || ''} (${Math.floor(s.minutes / 60)}:${String(s.minutes % 60).padStart(2, '0')})`.trim(),
       label: s.label,
+      shortLabel: s.label ? s.label[0] : '',
     }));
 
     const sun = this._getSunTimes();
