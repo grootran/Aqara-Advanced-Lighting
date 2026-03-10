@@ -2341,6 +2341,15 @@ export class AqaraPanel extends LitElement {
           ? this._localize('target.cct_button')
           : this._localize('target.segment_button');
     const isPaused = op.paused || op.externally_paused;
+    const pauseClass = this._getEntityPauseClass(
+      op.externally_paused,
+      op.override_attributes as {brightness: boolean; color: boolean} | undefined,
+    );
+    const pauseTitle = this._getEntityPauseTitle(
+      op.externally_paused,
+      op.override_attributes as {brightness: boolean; color: boolean} | undefined,
+      op.auto_resume_remaining,
+    );
 
     return html`
       <div class="running-op-card ${isPaused ? 'op-paused' : ''} ${op.externally_paused ? 'externally-paused' : ''}">
@@ -2350,19 +2359,11 @@ export class AqaraPanel extends LitElement {
             <span class="running-op-name">${preset.name || typeLabel}</span>
             <span class="running-op-entity">
               ${preset.name ? html`<span class="running-op-type">${typeLabel}</span>` : ''}
-              <span class="running-op-entity-name">${entityName}</span>
+              <span class="entity-chip ${pauseClass}" title="${pauseTitle}">${entityName}</span>
             </span>
-            ${op.paused || op.externally_paused ? html`
+            ${op.paused ? html`
               <span class="running-op-pause-row">
-                ${op.paused ? html`<span class="running-op-status paused-text">${this._localize('target.paused')}</span>` : ''}
-                ${op.externally_paused ? html`<span class="running-op-status externally-paused-text">${this._localize('target.externally_paused')}${op.auto_resume_remaining ? html` (${this._formatAutoResumeRemaining(op.auto_resume_remaining)})` : ''}</span>` : ''}
-                ${op.override_attributes && 'brightness' in op.override_attributes && (op.override_attributes as {brightness: boolean; color: boolean}).brightness !== (op.override_attributes as {brightness: boolean; color: boolean}).color
-                  ? html`<span class="running-op-status override-detail">${
-                      (op.override_attributes as {brightness: boolean; color: boolean}).brightness
-                        ? this._localize('target.paused_brightness_only')
-                        : this._localize('target.paused_color_only')
-                    }</span>`
-                  : ''}
+                <span class="running-op-status paused-text">${this._localize('target.paused')}</span>
               </span>
             ` : ''}
           </div>
@@ -2418,14 +2419,23 @@ export class AqaraPanel extends LitElement {
           ? this._localize('target.cct_button')
           : this._localize('target.segment_button');
 
-    const entityChips = ops.map(op => {
-      const name = this._getEntityName(op.entity_id!);
-      return html`<span class="entity-chip">${name}</span>`;
-    });
-
     const anyPaused = ops.some(op => op.paused);
     const extPausedOps = ops.filter(op => op.externally_paused);
     const isPaused = anyPaused || extPausedOps.length > 0;
+
+    const entityChips = ops.map(op => {
+      const name = this._getEntityName(op.entity_id!);
+      const pauseClass = this._getEntityPauseClass(
+        op.externally_paused,
+        op.override_attributes as {brightness: boolean; color: boolean} | undefined,
+      );
+      const pauseTitle = this._getEntityPauseTitle(
+        op.externally_paused,
+        op.override_attributes as {brightness: boolean; color: boolean} | undefined,
+        op.auto_resume_remaining,
+      );
+      return html`<span class="entity-chip ${pauseClass}" title="${pauseTitle}">${name}</span>`;
+    });
 
     return html`
       <div class="running-op-card scene-op-card ${isPaused ? 'op-paused' : ''}">
@@ -2435,15 +2445,9 @@ export class AqaraPanel extends LitElement {
             <div class="running-op-details">
               <span class="running-op-name">${preset.name || typeLabel}</span>
               ${preset.name ? html`<span class="running-op-entity"><span class="running-op-type">${typeLabel}</span></span>` : ''}
-              ${anyPaused || extPausedOps.length > 0 ? html`
+              ${anyPaused ? html`
                 <span class="running-op-pause-row">
-                  ${anyPaused ? html`<span class="running-op-status paused-text">${this._localize('target.paused')}</span>` : ''}
-                  ${extPausedOps.length > 0
-                    ? html`<span class="running-op-status externally-paused-text">
-                        ${this._localize('target.entities_externally_paused', { count: String(extPausedOps.length) })}
-                      </span>`
-                    : ''}
-                  ${this._renderGroupedOverrideDetail(extPausedOps)}
+                  <span class="running-op-status paused-text">${this._localize('target.paused')}</span>
                 </span>
               ` : ''}
             </div>
@@ -2482,10 +2486,18 @@ export class AqaraPanel extends LitElement {
 
   private _renderSceneOp(op: RunningOperation) {
     const preset = this._resolvePresetInfo(op.preset_id);
+    const extPausedEntities = op.externally_paused_entities || [];
+    const overrideMap = op.override_attributes as Record<string, {brightness: boolean; color: boolean}> | undefined;
+    const isPaused = op.paused || extPausedEntities.length > 0;
+
     const entityChips = (op.entity_ids || []).map(id => {
       const name = this._getEntityName(id);
       const cap = op.entity_capabilities?.[id];
       const isSoftwareTransition = cap?.includes('software_transition');
+      const isExtPaused = extPausedEntities.includes(id);
+      const attrs = isExtPaused && overrideMap ? overrideMap[id] : undefined;
+      const pauseClass = this._getEntityPauseClass(isExtPaused, attrs);
+      const pauseTitle = this._getEntityPauseTitle(isExtPaused, attrs);
       const badges: unknown[] = [];
       if (cap?.includes('cct_mode')) {
         badges.push(html`<span class="chip-badge">${this._localize('target.capability_cct')}</span>`);
@@ -2499,10 +2511,8 @@ export class AqaraPanel extends LitElement {
       if (isSoftwareTransition) {
         badges.push(html`<span class="chip-badge">${this._localize('target.capability_software_transition')}</span>`);
       }
-      return html`<span class="entity-chip ${badges.length ? 'has-badge' : ''}">${name}${badges}</span>`;
+      return html`<span class="entity-chip ${pauseClass} ${badges.length ? 'has-badge' : ''}" title="${pauseTitle}">${name}${badges}</span>`;
     });
-    const extPausedEntities = op.externally_paused_entities || [];
-    const isPaused = op.paused || extPausedEntities.length > 0;
 
     return html`
       <div class="running-op-card scene-op-card ${isPaused ? 'op-paused' : ''}">
@@ -2512,15 +2522,9 @@ export class AqaraPanel extends LitElement {
             <div class="running-op-details">
               <span class="running-op-name">${preset.name || this._localize('target.scene_button')}</span>
               ${preset.name ? html`<span class="running-op-entity"><span class="running-op-type">${this._localize('target.scene_button')}</span></span>` : ''}
-              ${op.paused || extPausedEntities.length > 0 ? html`
+              ${op.paused ? html`
                 <span class="running-op-pause-row">
-                  ${op.paused ? html`<span class="running-op-status paused-text">${this._localize('target.paused')}</span>` : ''}
-                  ${extPausedEntities.length > 0
-                    ? html`<span class="running-op-status externally-paused-text">
-                        ${this._localize('target.entities_externally_paused', { count: String(extPausedEntities.length) })}
-                      </span>`
-                    : ''}
-                  ${this._renderSceneOverrideDetail(op, extPausedEntities)}
+                  <span class="running-op-status paused-text">${this._localize('target.paused')}</span>
                 </span>
               ` : ''}
             </div>
@@ -2557,61 +2561,31 @@ export class AqaraPanel extends LitElement {
     `;
   }
 
-  private _renderGroupedOverrideDetail(extPausedOps: RunningOperation[]) {
-    // Summarize per-attribute overrides across grouped externally-paused ops
-    if (extPausedOps.length === 0) return '';
-    let brightnessCount = 0;
-    let colorCount = 0;
-    for (const op of extPausedOps) {
-      const attrs = op.override_attributes as {brightness: boolean; color: boolean} | undefined;
-      if (attrs) {
-        if (attrs.brightness) brightnessCount++;
-        if (attrs.color) colorCount++;
-      }
+  private _getEntityPauseClass(extPaused?: boolean, attrs?: {brightness: boolean; color: boolean}): string {
+    if (!extPaused) return '';
+    if (attrs) {
+      if (attrs.brightness && attrs.color) return 'paused-all';
+      if (attrs.brightness) return 'paused-brightness';
+      if (attrs.color) return 'paused-color';
     }
-    // Only show detail when there's a partial override (not both or neither)
-    const hasPartial = extPausedOps.some(op => {
-      const attrs = op.override_attributes as {brightness: boolean; color: boolean} | undefined;
-      return attrs && (attrs.brightness !== attrs.color);
-    });
-    if (!hasPartial) return '';
-    const parts: unknown[] = [];
-    if (brightnessCount > 0 && brightnessCount < extPausedOps.length) {
-      parts.push(html`<span class="running-op-status override-detail">${brightnessCount} ${this._localize('target.paused_brightness_only').toLowerCase()}</span>`);
-    }
-    if (colorCount > 0 && colorCount < extPausedOps.length) {
-      parts.push(html`<span class="running-op-status override-detail">${colorCount} ${this._localize('target.paused_color_only').toLowerCase()}</span>`);
-    }
-    return parts;
+    return 'paused-all';
   }
 
-  private _renderSceneOverrideDetail(op: RunningOperation, extPausedEntities: string[]) {
-    if (extPausedEntities.length === 0) return '';
-    // Scene override_attributes is keyed by entity_id
-    const overrideMap = op.override_attributes as Record<string, {brightness: boolean; color: boolean}> | undefined;
-    if (!overrideMap) return '';
-    let brightnessCount = 0;
-    let colorCount = 0;
-    for (const eid of extPausedEntities) {
-      const attrs = overrideMap[eid];
-      if (attrs) {
-        if (attrs.brightness) brightnessCount++;
-        if (attrs.color) colorCount++;
-      }
+  private _getEntityPauseTitle(extPaused?: boolean, attrs?: {brightness: boolean; color: boolean}, autoResume?: number): string {
+    if (!extPaused) return '';
+    let detail: string;
+    if (attrs) {
+      if (attrs.brightness && attrs.color) detail = this._localize('target.externally_paused');
+      else if (attrs.brightness) detail = this._localize('target.paused_brightness_only');
+      else if (attrs.color) detail = this._localize('target.paused_color_only');
+      else detail = this._localize('target.externally_paused');
+    } else {
+      detail = this._localize('target.externally_paused');
     }
-    const hasPartial = extPausedEntities.some(eid => {
-      const attrs = overrideMap[eid];
-      return attrs && (attrs.brightness !== attrs.color);
-    });
-    if (!hasPartial) return '';
-    const parts: unknown[] = [];
-    if (brightnessCount > 0 && brightnessCount < extPausedEntities.length) {
-      parts.push(html`<span class="running-op-status override-detail">${brightnessCount} ${this._localize('target.paused_brightness_only').toLowerCase()}</span>`);
+    if (autoResume) {
+      detail += ` (${this._formatAutoResumeRemaining(autoResume)})`;
     }
-    if (colorCount > 0 && colorCount < extPausedEntities.length) {
-      parts.push(html`<span class="running-op-status override-detail">${colorCount} ${this._localize('target.paused_color_only').toLowerCase()}</span>`);
-    }
-    return parts;
+    return detail;
   }
 
   private async _stopRunningEffect(entityId: string): Promise<void> {

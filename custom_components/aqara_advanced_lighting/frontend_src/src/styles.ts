@@ -307,6 +307,25 @@ export const panelStyles = css`
     padding: 2px 8px;
     border-radius: 12px;
     white-space: nowrap;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  .entity-chip.paused-color {
+    background: #d97706;
+    color: #fff;
+    cursor: help;
+  }
+
+  .entity-chip.paused-brightness {
+    background: #3b82f6;
+    color: #fff;
+    cursor: help;
+  }
+
+  .entity-chip.paused-all {
+    background: #dc2626;
+    color: #fff;
+    cursor: help;
   }
 
   .chip-badge {
@@ -315,6 +334,13 @@ export const panelStyles = css`
     border-radius: 8px;
     background: rgba(var(--rgb-primary-color), 0.12);
     color: var(--primary-color);
+  }
+
+  .entity-chip.paused-color .chip-badge,
+  .entity-chip.paused-brightness .chip-badge,
+  .entity-chip.paused-all .chip-badge {
+    background: rgba(255, 255, 255, 0.25);
+    color: #fff;
   }
 
   .running-op-status {
@@ -335,11 +361,6 @@ export const panelStyles = css`
     align-items: center;
     gap: 6px;
     flex-wrap: wrap;
-  }
-
-  .running-op-status.override-detail {
-    color: var(--warning-color, #ff9800);
-    font-style: italic;
   }
 
   .running-op-actions {
