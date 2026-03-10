@@ -1,6 +1,6 @@
-# Aqara Advanced Lighting Panel - Frontend
+# Aqara Advanced Lighting panel - frontend
 
-This directory contains the frontend source code for the Aqara Advanced Lighting sidebar panel built with Lit 3.x and TypeScript. The panel provides a full UI for managing Aqara light presets, effects, patterns, CCT sequences, and segment animations.
+This directory contains the frontend source code for the Aqara Advanced Lighting sidebar panel built with Lit 3.x and TypeScript. The panel provides a full UI for managing Aqara light presets, effects, patterns, CCT sequences, segment animations, and dynamic scenes.
 
 ## Prerequisites
 
@@ -20,7 +20,7 @@ Build the production bundle:
 npm run build
 ```
 
-This creates `aqara_panel.js` in the `../frontend/` directory as a single IIFE bundle.
+This creates `aqara_panel.js` in the `../frontend/` directory as a single IIFE bundle (~477 KB minified).
 
 Other scripts:
 
@@ -31,41 +31,49 @@ Other scripts:
 
 ```
 frontend_src/
-├── package.json
-├── rollup.config.js            # Rollup build config (IIFE output, Terser minification)
-├── tsconfig.json               # TypeScript config (ES2020 target, strict mode)
+├── package.json                       # Dependencies and build scripts
+├── rollup.config.js                   # Rollup build config (IIFE output, Terser minification)
+├── tsconfig.json                      # TypeScript config (ES2020 target, strict mode)
 ├── src/
-│   ├── index.ts                # Entry point - registers panel with HA custom panel system
-│   ├── aqara-panel.ts          # Main panel component - tabs, layout, preset management
-│   ├── types.ts                # TypeScript interfaces, union types, and preset type definitions
-│   ├── styles.ts               # Centralized Lit CSS with HA theme integration
+│   ├── index.ts                       # Entry point - registers panel custom elements
+│   ├── aqara-panel.ts                 # Main panel component (tabs, presets, entities, favorites, state)
+│   ├── types.ts                       # TypeScript interfaces, union types, preset type definitions
+│   ├── styles.ts                      # Centralized Lit CSS with HA theme integration
 │   │
 │   │── Editor components
-│   ├── effect-editor.ts        # Editor for dynamic effect presets
-│   ├── pattern-editor.ts       # Editor for segment pattern presets
-│   ├── cct-sequence-editor.ts  # Editor for CCT (color temperature) sequences
-│   ├── segment-sequence-editor.ts  # Editor for per-segment color animation sequences
-│   ├── dynamic-scene-editor.ts # Editor for dynamic scene presets (multi-light color transitions)
-│   ├── editor-constants.ts     # Shared editor constants (DEVICE_LABELS, form CSS, localize helper)
+│   ├── effect-editor.ts               # Effect presets (type, colors, speed, segment targeting)
+│   ├── pattern-editor.ts              # Segment patterns (individual/gradient/block color modes)
+│   ├── cct-sequence-editor.ts         # CCT sequences (standard/solar/schedule modes)
+│   ├── segment-sequence-editor.ts     # Segment sequences (per-step segment colors, pattern modes)
+│   ├── dynamic-scene-editor.ts        # Dynamic scenes (color reorder, transition/hold/distribution)
+│   ├── editor-constants.ts            # Shared utilities, HA 2026.3 compat helpers, form CSS
 │   │
 │   │── Color and picker components
-│   ├── color-utils.ts          # Color space conversions (XY/CIE 1931, RGB, HSV)
-│   ├── color-history.ts        # localStorage-based recent color history (max 8)
-│   ├── color-history-swatches.ts  # Clickable color swatch component for recent colors
-│   ├── xy-color-picker.ts      # Circular color wheel picker (XY color space + RGB inputs)
-│   ├── image-color-extractor.ts   # Image upload/URL color extraction with thumbnail generation
+│   ├── color-utils.ts                 # Color space conversions (XY/CIE 1931, RGB, Hex, HS)
+│   ├── color-history.ts               # Immutable color history (max 8, server-persisted)
+│   ├── color-history-swatches.ts      # Clickable recent color swatch component
+│   ├── xy-color-picker.ts             # Circular HSL color wheel with RGB text inputs
+│   ├── image-color-extractor.ts       # Image upload/URL color extraction with thumbnail saving
 │   │
 │   │── Segment and interaction components
-│   ├── segment-selector.ts     # Unified segment selector (selection, color, sequence modes)
-│   ├── reorderable-steps-mixin.ts # Drag-and-drop reordering mixin for step lists
-│   ├── transition-curve-editor.ts # Visual curve editor for T2 bulb transitions
+│   ├── segment-selector.ts            # Unified segment selector (selection/color/sequence modes)
+│   ├── reorderable-steps-mixin.ts     # Drag-drop step reordering mixin with auto-scroll
+│   ├── transition-curve-editor.ts     # Canvas-based Bezier curve editor for T2 transitions
 │   │
 │   │── Utilities
-│   ├── preset-thumbnails.ts    # SVG thumbnail generators for preset previews (memoized)
-│   └── panel-translations.ts   # Translation loader - embeds translations in bundle
+│   ├── preset-thumbnails.ts           # SVG thumbnail generators for preset previews (memoized)
+│   └── panel-translations.ts          # Translation loader (embeds translations in bundle)
 └── translations/
-    ├── panel.en.json           # English UI strings
-    └── README.md               # Translation documentation
+    ├── panel.en.json                  # English UI strings
+    └── README.md                      # Translation documentation
+```
+
+Built output:
+
+```
+frontend/
+├── aqara_panel.js                     # Production bundle (~477 KB, minified IIFE)
+└── icons/                             # SVG effect and preset template icons
 ```
 
 ## Architecture
@@ -100,13 +108,35 @@ aqara-panel.ts (main shell)
 ### Key patterns
 
 - **Web components** - Lit 3.x with TypeScript decorators (`@customElement`, `@property`, `@state`)
-- **Color model** - All colors stored and transmitted in XY (CIE 1931); converted to RGB/HSV for the UI
-- **Modular editors** - Each preset type (effects, patterns, CCT, segments, dynamic scenes) has a dedicated editor component
-- **Shared editor infrastructure** - `editor-constants.ts` provides `DEVICE_LABELS`, `DEFAULT_SPEED`, shared form CSS (`editorFormStyles`), and a `localize()` helper used by all editors
+- **Color model** - All colors stored and transmitted in XY (CIE 1931); converted to RGB/Hex/HS for the UI via `color-utils.ts` with proper gamma correction
+- **Modular editors** - Each preset type (effects, patterns, CCT sequences, segment sequences, dynamic scenes) has a dedicated editor component
+- **Shared editor infrastructure** - `editor-constants.ts` provides `DEVICE_LABELS`, `DEFAULT_SPEED`, shared form CSS (`editorFormStyles`), a `localize()` helper, and HA version compatibility detection
 - **Reorderable steps** - `ReorderableStepsMixin` adds pointer-event-based drag-and-drop with auto-scroll to sequence editors
-- **Theme integration** - Styles use Home Assistant CSS custom properties for consistent theming
+- **Theme integration** - Styles use Home Assistant CSS custom properties for consistent theming, with both `--mdc-*` and `--ha-*` variable families for cross-version support
 - **Translation system** - English translations from `translations/panel.en.json` are embedded at build time. Add `panel.{locale}.json` files and update `panel-translations.ts` to support additional languages
 - **Type safety** - Union types (`AnyPreset`, `PresetType`) and a recursive `Translations` interface provide compile-time safety for presets and translations
+
+### Supported device types
+
+`t2_bulb`, `t2_cct`, `t1m`, `t1m_white`, `t1_strip`, `generic_rgb`, `generic_cct`
+
+Preset availability and editor capabilities adapt based on device type. The panel filters incompatible presets and shows warnings when mixed device types are selected.
+
+### Data flow
+
+1. Panel loads presets and device info from the backend API via `hass.connection.sendMessagePromise`
+2. User edits create draft state managed by Lit `@state()` decorators
+3. Save operations call backend API endpoints to persist presets
+4. Activation calls `hass.callService` to trigger sequences, effects, or scenes
+5. User preferences (color history, favorites) are persisted server-side via the `/api/aqara_advanced_lighting/user_preferences` endpoint
+
+### HA 2026.3 compatibility
+
+The frontend supports both pre-2026.3 (MDC-based) and 2026.3+ (WebAwesome-based) Home Assistant dialog and theming APIs:
+
+- **Detection**: `hasNewHaDialog()` in `editor-constants.ts` checks for the new `headerTitle` property and caches the result
+- **Dialogs**: Legacy uses `.heading` property with `slot="primaryAction"`/`slot="secondaryAction"`; new uses `.headerTitle` string with `slot="footer"` and header icon slots
+- **CSS variables**: Both `--mdc-dialog-*` and `--ha-dialog-*` families are set for width/height
 
 ### Performance optimizations
 
@@ -124,13 +154,13 @@ Rollup processes the bundle through these plugins in order:
 3. **Node Resolve** - Resolves npm dependencies for the browser
 4. **CommonJS** - Converts CommonJS modules to ES modules
 5. **TypeScript** - Compiles TypeScript with strict type checking
-6. **Terser** - Minifies output and removes debugger statements
+6. **Terser** - Minifies output, removes console statements and comments
 
 The output is a single IIFE file (`../frontend/aqara_panel.js`) that Home Assistant serves automatically when the integration is loaded. No additional configuration is needed.
 
 ## Technology stack
 
-- **Lit 3.x** - Web component framework
+- **Lit 3.1** - Web component framework
 - **TypeScript 5.x** - Type-safe JavaScript (strict mode, ES2020 target)
-- **Rollup 4.x** - Module bundler
+- **Rollup 4.9** - Module bundler
 - **Terser** - JavaScript minification

@@ -551,8 +551,11 @@ We welcome community-created presets that showcase creative uses of the lights. 
 
 1. **Dynamic Effects** - RGB effects with custom colors and speeds
 2. **Segment Patterns** - Individual segment color configurations
-3. **CCT Sequences** - Color temperature and brightness sequences
-4. **Segment Sequences** - Animated segment sequences with multiple steps
+3. **CCT Sequences (Standard)** - Timed color temperature and brightness step sequences
+4. **CCT Sequences (Solar)** - Color temperature tied to real-time sun elevation
+5. **CCT Sequences (Schedule)** - Color temperature at fixed clock times or sunrise/sunset offsets
+6. **Segment Sequences** - Animated segment sequences with multiple steps
+7. **Dynamic Scenes** - Multi-light color transitions with hold and distribution control
 
 ### Preset Submission Guidelines
 
@@ -569,19 +572,20 @@ We welcome community-created presets that showcase creative uses of the lights. 
 1. Create your preset using the integration UI
 2. Export the preset configuration using one of these methods:
 
-**Method 1: Use the Export Feature (Recommended)**
+**Method 1: Selective Preset Export (Recommended)**
    - Open the Aqara Lighting panel in Home Assistant
    - Navigate to the **My Presets** tab
-   - Click the **Export Presets** button at the top of the page
-   - A JSON backup file will be downloaded to your computer (e.g., `aqara_presets_backup_20260113_123456.json`)
+   - Click the **Select** button at the top of the page to enter selection mode
+   - Select the presets you want to submit using the checkboxes
+   - Click **Export Selected** to download a JSON file containing only your chosen presets
    - Open the downloaded file in a text editor
-   - Find your preset by name in the appropriate section:
+   - Your preset data is organized by category:
      - `effect_presets` - Dynamic RGB effects
      - `segment_pattern_presets` - Segment color patterns
-     - `cct_sequence_presets` - CCT sequences
+     - `cct_sequence_presets` - CCT sequences (standard, solar, and schedule modes)
      - `segment_sequence_presets` - RGB segment sequences
-   - Copy your preset data (all fields like id, name, icon, colors, steps, created_at, modified_at, etc.)
-   - Note: The export file contains all your user-created presets in a clean JSON format
+     - `dynamic_scene_presets` - Dynamic scenes
+   - Copy the preset data for your submission file
 
 **Method 2: Access Storage File (Advanced)**
    - Navigate to your Home Assistant config directory (usually `/config/` or `~/.homeassistant/`)
@@ -596,14 +600,14 @@ We welcome community-created presets that showcase creative uses of the lights. 
      curl -H "Authorization: Bearer YOUR_LONG_LIVED_ACCESS_TOKEN" \
        http://YOUR_HA_IP:8123/api/aqara_advanced_lighting/user_presets?type=effect
      ```
-   - Replace `type=effect` with your preset type: `effect`, `segment_pattern`, `cct_sequence`, or `segment_sequence`
+   - Replace `type=effect` with your preset type: `effect`, `segment_pattern`, `cct_sequence`, `segment_sequence`, or `dynamic_scene`
    - Find your preset in the JSON response and copy the preset data
 
 3. Create a preset submission file in `preset_submissions/` directory:
 
 **File naming**: `preset_type_name.json`
 
-**Example**: `effect_ocean_waves.json`
+**Examples**: `effect_ocean_waves.json`, `cct_solar_daylight_tracking.json`, `scene_sunset_glow.json`
 
 ```json
 {
@@ -637,7 +641,7 @@ We welcome community-created presets that showcase creative uses of the lights. 
 
 ```json
 {
-  "preset_type": "effect|segment_pattern|cct_sequence|segment_sequence",
+  "preset_type": "effect|segment_pattern|cct_sequence|cct_solar|cct_schedule|segment_sequence|dynamic_scene",
   "name": "Preset Name",
   "description": "Detailed description of what the preset does",
   "author": "GitHub username",
@@ -650,12 +654,129 @@ We welcome community-created presets that showcase creative uses of the lights. 
 }
 ```
 
+#### CCT Solar and Schedule Presets
+
+CCT sequences support three modes. Solar and schedule presets use the same `cct_sequence` preset type but include mode-specific fields:
+
+**Solar mode** - Color temperature tracks the sun's elevation in real time:
+```json
+{
+  "preset_type": "cct_solar",
+  "name": "Daylight Tracking",
+  "description": "Adjusts color temperature based on the sun's position throughout the day",
+  "author": "YourGitHubUsername",
+  "device_types": ["t2_bulb", "t2_cct", "t1m", "t1_strip"],
+  "tested_on": ["T2 Bulb"],
+  "icon": "mdi:white-balance-sunny",
+  "preset_data": {
+    "name": "Daylight Tracking",
+    "icon": "mdi:white-balance-sunny",
+    "mode": "solar",
+    "steps": [],
+    "loop_mode": "continuous",
+    "end_behavior": "maintain",
+    "solar_steps": [
+      {"sun_elevation": -6, "color_temp": 2700, "brightness": 50, "phase": "any"},
+      {"sun_elevation": 0, "color_temp": 3200, "brightness": 128, "phase": "any"},
+      {"sun_elevation": 20, "color_temp": 4500, "brightness": 200, "phase": "any"},
+      {"sun_elevation": 45, "color_temp": 6500, "brightness": 255, "phase": "any"}
+    ],
+    "auto_resume_delay": 0
+  }
+}
+```
+
+Solar step fields:
+- `sun_elevation` - Sun angle in degrees (-90 to 90). Values are interpolated between steps.
+- `color_temp` - Color temperature in Kelvin (1000-10000)
+- `brightness` - Brightness level (1-255)
+- `phase` - When this step applies: `"rising"`, `"setting"`, or `"any"` (both)
+
+**Schedule mode** - Color temperature at fixed clock times or sunrise/sunset offsets:
+```json
+{
+  "preset_type": "cct_schedule",
+  "name": "Work Day Rhythm",
+  "description": "Warm morning, bright midday, warm evening based on clock time",
+  "author": "YourGitHubUsername",
+  "device_types": ["t2_bulb", "t2_cct", "t1m", "t1_strip"],
+  "tested_on": ["T2 Bulb"],
+  "icon": "mdi:clock-outline",
+  "preset_data": {
+    "name": "Work Day Rhythm",
+    "icon": "mdi:clock-outline",
+    "mode": "schedule",
+    "steps": [],
+    "loop_mode": "continuous",
+    "end_behavior": "maintain",
+    "schedule_steps": [
+      {"time": "06:00", "color_temp": 2700, "brightness": 102, "label": "Dawn"},
+      {"time": "09:00", "color_temp": 5000, "brightness": 230, "label": "Morning"},
+      {"time": "12:00", "color_temp": 6500, "brightness": 255, "label": "Midday"},
+      {"time": "sunset-30", "color_temp": 3500, "brightness": 180, "label": "Pre-sunset"},
+      {"time": "sunset+90", "color_temp": 2700, "brightness": 102, "label": "Evening"}
+    ],
+    "auto_resume_delay": 0
+  }
+}
+```
+
+Schedule step fields:
+- `time` - Fixed time as `"HH:MM"` or relative to sun as `"sunrise+N"` / `"sunset-N"` (minutes)
+- `color_temp` - Color temperature in Kelvin (1000-10000)
+- `brightness` - Brightness level (1-255)
+- `label` - Display label for the step (optional)
+
+#### Dynamic Scene Presets
+
+Dynamic scenes cycle multiple lights through a set of colors with configurable transitions:
+
+```json
+{
+  "preset_type": "dynamic_scene",
+  "name": "Sunset Glow",
+  "description": "Warm sunset colors that slowly rotate across lights",
+  "author": "YourGitHubUsername",
+  "device_types": ["t2_bulb", "t1m", "t1_strip"],
+  "tested_on": ["T2 Bulb"],
+  "icon": "mdi:weather-sunset",
+  "preset_data": {
+    "name": "Sunset Glow",
+    "icon": "mdi:weather-sunset",
+    "colors": [
+      {"x": 0.5916, "y": 0.3824, "brightness_pct": 70},
+      {"x": 0.6399, "y": 0.3297, "brightness_pct": 70},
+      {"x": 0.5143, "y": 0.4400, "brightness_pct": 70},
+      {"x": 0.4112, "y": 0.2598, "brightness_pct": 70}
+    ],
+    "transition_time": 120.0,
+    "hold_time": 180.0,
+    "distribution_mode": "shuffle_rotate",
+    "offset_delay": 30.0,
+    "random_order": false,
+    "loop_mode": "continuous",
+    "loop_count": null,
+    "end_behavior": "restore"
+  }
+}
+```
+
+Dynamic scene fields:
+- `colors` - 1-8 colors in CIE 1931 XY with per-color `brightness_pct` (1-100)
+- `transition_time` - Seconds to transition between colors
+- `hold_time` - Seconds to hold each color before transitioning
+- `distribution_mode` - How colors are assigned to lights: `"shuffle_rotate"`, `"synchronized"`, or `"random"`
+- `offset_delay` - Seconds between each light starting its transition (0 = all at once)
+- `random_order` - Randomize the color order each cycle
+- `loop_mode` - `"once"`, `"count"`, or `"continuous"`
+- `end_behavior` - What to do when done: `"maintain"`, `"turn_off"`, or `"restore"`
+
 #### Preset Naming Guidelines
 
 - Use clear, descriptive names
 - Avoid generic names like "Cool Effect" or "Pattern 1"
 - Reference what the preset does or looks like
-- Good examples: "Sunset Fade", "Rainbow Chase", "Candlelight Flicker"
+- Good examples: "Sunset Fade", "Rainbow Chase", "Candlelight Flicker", "Daylight Tracking"
 - Bad examples: "My Effect", "Test 1", "Cool Pattern"
 
 #### What Makes a Good Preset

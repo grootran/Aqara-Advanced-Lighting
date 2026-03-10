@@ -8,6 +8,8 @@ body:
       value: |
         Thanks for sharing your custom preset with the community! Please provide details below so others can recreate and enjoy your lighting effect.
 
+        **Tip:** Use the selective preset export feature to get your preset data. Open the Aqara Lighting panel, go to My Presets, click Select, choose the preset(s) you want to share, and click Export Selected.
+
   - type: checkboxes
     id: prerequisites
     attributes:
@@ -26,7 +28,7 @@ body:
     attributes:
       label: Preset Name
       description: A descriptive name for your preset
-      placeholder: "e.g., Ocean Waves, Sunset Fade, Police Lights"
+      placeholder: "e.g., Ocean Waves, Sunset Fade, Daylight Tracking, Work Day Rhythm"
     validations:
       required: true
 
@@ -34,14 +36,17 @@ body:
     id: preset_type
     attributes:
       label: Preset Type
-      description: What type of lighting effect is this?
+      description: What type of lighting preset is this?
       options:
         - RGB Dynamic Effect
         - Segment Pattern
         - Gradient
         - Color Blocks
-        - CCT Sequence
+        - CCT Sequence (Standard)
+        - CCT Sequence (Solar)
+        - CCT Sequence (Schedule)
         - RGB Segment Sequence
+        - Dynamic Scene
         - Mixed/Combination
     validations:
       required: true
@@ -59,6 +64,8 @@ body:
         - T2 RGB/CCT bulb (E26)
         - T2 RGB/CCT bulb (E27)
         - T2 RGB/CCT bulb (GU10)
+        - Any CCT-capable light (for solar/schedule presets)
+        - Any RGB-capable light (for dynamic scene presets)
     validations:
       required: true
 
@@ -82,6 +89,9 @@ body:
       placeholder: |
         Example:
         This preset creates a calming ocean wave effect with blues and teals slowly moving across the segments. It's perfect for relaxation or bedtime routines.
+
+        For solar/schedule presets, describe the daily rhythm:
+        This solar preset tracks the sun to provide warm dim light at dawn/dusk and bright cool daylight at midday. Great for home offices.
     validations:
       required: true
 
@@ -96,6 +106,8 @@ body:
         - Movie watching ambient lighting
         - Party/celebration atmosphere
         - Focus/concentration lighting
+        - All-day adaptive lighting for home office (solar/schedule)
+        - Multi-room ambient scene (dynamic scene)
     validations:
       required: true
 
@@ -104,26 +116,27 @@ body:
     attributes:
       label: Preset Configuration
       description: |
-        Provide the preset data in JSON format. You can export this from the panel or copy from `.storage/aqara_advanced_lighting.presets`
+        Provide the preset data in JSON format. Use the selective preset export feature to get clean data:
 
         **How to export your preset:**
-        1. Open the Aqara Advanced Lighting panel
-        2. Go to Presets tab
-        3. Click on your preset
-        4. Copy the JSON data from the preset details
+        1. Open the Aqara Lighting panel
+        2. Go to My Presets tab
+        3. Click Select to enter selection mode
+        4. Select your preset using the checkbox
+        5. Click Export Selected
+        6. Open the downloaded file and copy the preset data
       placeholder: |
         {
           "name": "Ocean Waves",
-          "type": "rgb_dynamic_effect",
-          "config": {
-            "effect_type": "breathing",
-            "effect_speed": 50,
-            "effect_colors": [
-              {"r": 0, "g": 105, "b": 148},
-              {"r": 0, "g": 150, "b": 199},
-              {"r": 72, "g": 202, "b": 228}
-            ]
-          }
+          "icon": "mdi:waves",
+          "device_type": "t1m",
+          "effect": "flow1",
+          "effect_speed": 25,
+          "effect_brightness": 75,
+          "effect_colors": [
+            {"x": 0.1610, "y": 0.3549},
+            {"x": 0.1566, "y": 0.2854}
+          ]
         }
       render: json
     validations:
@@ -157,7 +170,14 @@ body:
       placeholder: |
         - **Effect Speed (50)**: Slow enough to be calming but not static
         - **Color Palette**: Three shades of blue/teal to mimic ocean depth
-        - **Effect Type (Breathing)**: Gradual fade mimics wave motion
+
+        For solar presets:
+        - **Elevation -6 (civil twilight)**: Warm 2700K at 50 brightness for pre-dawn
+        - **Elevation 45 (high sun)**: Cool 6500K at full brightness for productivity
+
+        For schedule presets:
+        - **sunset-30**: Begin winding down 30 minutes before sunset
+        - **sunrise+60**: Reach full brightness one hour after sunrise
     validations:
       required: false
 
@@ -184,6 +204,7 @@ body:
         - Medium (31-70%)
         - High (71-100%)
         - Any
+        - Varies by time of day (solar/schedule presets)
     validations:
       required: true
 
@@ -206,11 +227,15 @@ body:
     attributes:
       label: Color Palette
       description: |
-        List the colors used with their RGB/HEX values and names
+        List the colors used with their RGB/HEX values and names (for effects, patterns, and dynamic scenes)
       placeholder: |
         1. Deep Ocean Blue - RGB(0, 105, 148) - #006994
         2. Ocean Blue - RGB(0, 150, 199) - #0096C7
         3. Sky Blue - RGB(72, 202, 228) - #48CAE4
+
+        For solar/schedule presets, list color temperature steps instead:
+        1. Dawn: 2700K at 50 brightness
+        2. Midday: 6500K at 255 brightness
       render: markdown
     validations:
       required: false
@@ -225,6 +250,7 @@ body:
         - For warmer tones: Replace blues with orange/red (sunset version)
         - For faster effect: Increase speed to 80
         - For Christmas: Use red and green instead of blues
+        - For higher latitudes: Add more solar steps near the horizon
     validations:
       required: false
 
@@ -257,10 +283,10 @@ body:
       label: Integration Version
       description: What version of Aqara Advanced Lighting did you test with?
       options:
-        - 0.6.2 (latest)
-        - 0.6.1
-        - 0.6.0
-        - 0.5.x
+        - 1.3.x (latest)
+        - 1.2.x
+        - 1.1.x
+        - 1.0.x
         - Older version
     validations:
       required: true
@@ -275,6 +301,7 @@ body:
         - Known limitations
         - Compatibility notes
         - Credits/inspiration sources
+        - For solar presets: your approximate latitude (affects sun angles)
       placeholder: Any additional context or tips
     validations:
       required: false
@@ -295,12 +322,12 @@ body:
       value: |
         ---
 
-        **Thank you for contributing to the community!** 🎨
+        **Thank you for contributing to the community!**
 
         After submission:
         - Maintainers will review and test your preset
         - Community members may provide feedback or suggestions
         - Popular presets may be featured in official documentation
-        - You'll be credited for your contribution
+        - You will be credited for your contribution
 
         **License:** By submitting this preset, you agree to share it under the MIT License, allowing others to use and modify it freely.

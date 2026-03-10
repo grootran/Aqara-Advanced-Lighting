@@ -1,0 +1,51 @@
+{
+  "preset_type": "cct_schedule",
+  "name": "Your Schedule CCT Sequence Name",
+  "description": "Describe the daily lighting schedule. For example: warm wake-up at 6am, bright productive lighting at 9am, gradual wind-down after sunset.",
+  "author": "YourGitHubUsername",
+  "device_types": ["t2_bulb", "t2_cct", "t1m", "t1_strip"],
+  "tested_on": ["T2 Bulb"],
+  "icon": "mdi:clock-outline",
+  "preset_data": {
+    "name": "Your Schedule CCT Sequence Name",
+    "icon": "mdi:clock-outline",
+    "mode": "schedule",
+    "steps": [],
+    "loop_mode": "continuous",
+    "end_behavior": "maintain",
+    "schedule_steps": [
+      {
+        "time": "06:00",
+        "color_temp": 2700,
+        "brightness": 102,
+        "label": "Dawn"
+      },
+      {
+        "time": "09:00",
+        "color_temp": 5000,
+        "brightness": 230,
+        "label": "Morning"
+      },
+      {
+        "time": "12:00",
+        "color_temp": 6500,
+        "brightness": 255,
+        "label": "Midday"
+      },
+      {
+        "time": "sunset-30",
+        "color_temp": 3500,
+        "brightness": 180,
+        "label": "Pre-sunset"
+      },
+      {
+        "time": "sunset+90",
+        "color_temp": 2700,
+        "brightness": 102,
+        "label": "Evening"
+      }
+    ],
+    "auto_resume_delay": 0
+  },
+  "notes": "Explain the intended daily rhythm. Schedule step fields: time ('HH:MM' or 'sunrise+N'/'sunset-N' in minutes), color_temp (1000-10000K), brightness (1-255), label (optional display name). Values are interpolated between steps."
+}
