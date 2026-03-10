@@ -1,0 +1,28 @@
+{
+  "preset_type": "dynamic_scene",
+  "name": "Your Dynamic Scene Name",
+  "description": "Describe the visual effect across multiple lights. For example: warm sunset colors slowly rotating between lights with staggered transitions.",
+  "author": "YourGitHubUsername",
+  "device_types": ["t2_bulb", "t1m", "t1_strip"],
+  "tested_on": ["T2 Bulb"],
+  "icon": "mdi:weather-sunset",
+  "preset_data": {
+    "name": "Your Dynamic Scene Name",
+    "icon": "mdi:weather-sunset",
+    "colors": [
+      {"x": 0.5916, "y": 0.3824, "brightness_pct": 70},
+      {"x": 0.6399, "y": 0.3297, "brightness_pct": 70},
+      {"x": 0.5143, "y": 0.4400, "brightness_pct": 70},
+      {"x": 0.4112, "y": 0.2598, "brightness_pct": 70}
+    ],
+    "transition_time": 120.0,
+    "hold_time": 180.0,
+    "distribution_mode": "shuffle_rotate",
+    "offset_delay": 30.0,
+    "random_order": false,
+    "loop_mode": "continuous",
+    "loop_count": null,
+    "end_behavior": "restore"
+  },
+  "notes": "Explain the mood and best room setup. Color fields use CIE 1931 XY coordinates (use the panel color picker to get values). Distribution modes: 'shuffle_rotate' (each light gets a different color, rotating), 'synchronized' (all lights same color), 'random' (random assignment each cycle). Offset delay staggers transitions for a ripple effect."
+}

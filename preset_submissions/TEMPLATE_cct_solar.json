@@ -1,0 +1,45 @@
+{
+  "preset_type": "cct_solar",
+  "name": "Your Solar CCT Sequence Name",
+  "description": "Describe how this preset tracks the sun. For example: warm light at dawn/dusk, bright cool daylight at midday, with separate rising/setting curves.",
+  "author": "YourGitHubUsername",
+  "device_types": ["t2_bulb", "t2_cct", "t1m", "t1_strip"],
+  "tested_on": ["T2 Bulb"],
+  "icon": "mdi:white-balance-sunny",
+  "preset_data": {
+    "name": "Your Solar CCT Sequence Name",
+    "icon": "mdi:white-balance-sunny",
+    "mode": "solar",
+    "steps": [],
+    "loop_mode": "continuous",
+    "end_behavior": "maintain",
+    "solar_steps": [
+      {
+        "sun_elevation": -6,
+        "color_temp": 2700,
+        "brightness": 50,
+        "phase": "any"
+      },
+      {
+        "sun_elevation": 0,
+        "color_temp": 3200,
+        "brightness": 128,
+        "phase": "any"
+      },
+      {
+        "sun_elevation": 20,
+        "color_temp": 4500,
+        "brightness": 200,
+        "phase": "any"
+      },
+      {
+        "sun_elevation": 45,
+        "color_temp": 6500,
+        "brightness": 255,
+        "phase": "any"
+      }
+    ],
+    "auto_resume_delay": 0
+  },
+  "notes": "Explain the intended use case and your location/latitude context. Solar step fields: sun_elevation (-90 to 90 degrees), color_temp (1000-10000K), brightness (1-255), phase ('rising', 'setting', or 'any'). Values are interpolated between steps."
+}
