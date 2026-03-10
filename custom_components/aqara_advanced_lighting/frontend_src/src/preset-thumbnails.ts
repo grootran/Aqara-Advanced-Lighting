@@ -9,13 +9,12 @@
 
 import { html, TemplateResult } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
-import { xyToRgb, rgbToHex, rgbToHs } from './color-utils';
+import { xyToRgb, rgbToHex, rgbToHs, xyToHex } from './color-utils';
 import type {
   DynamicSceneColor,
   DynamicScenePreset,
   RGBColor,
   SolarStep,
-  XYColor,
   UserDynamicScenePreset,
   UserEffectPreset,
   UserSegmentPatternPreset,
@@ -82,13 +81,6 @@ function donutArc(startDeg: number, endDeg: number, color: string): string {
     `M${x1o},${y1o} A${RING_OUTER},${RING_OUTER} 0 ${large},1 ${x2o},${y2o} ` +
     `L${x2i},${y2i} A${RING_INNER},${RING_INNER} 0 ${large},0 ${x1i},${y1i} Z" />`
   );
-}
-
-/**
- * Convert a CIE 1931 XY color to a hex string at full brightness.
- */
-function xyToHex(c: XYColor): string {
-  return rgbToHex(xyToRgb(c.x, c.y, 255));
 }
 
 /**
@@ -296,7 +288,7 @@ export function renderSegmentPatternThumbnail(
   const slices = mergeSegments(preset.segments);
   const paths = slices.map((s) => pieSlice(s.startDeg, s.endDeg, s.hex)).join('');
 
-  return html`${unsafeSvg(wrapSvg(paths))}`;
+  return html`${unsafeHTML(wrapSvg(paths))}`;
 }
 
 /**
@@ -313,7 +305,7 @@ export function renderEffectThumbnail(
 
   if (colors.length === 1) {
     const hex = xyToHex(colors[0]!);
-    return html`${unsafeSvg(wrapSvg(`<circle cx="${CX}" cy="${CY}" r="${R}" fill="${hex}" />`))}`;
+    return html`${unsafeHTML(wrapSvg(`<circle cx="${CX}" cy="${CY}" r="${R}" fill="${hex}" />`))}`;
   }
 
   const degPer = 360 / colors.length;
@@ -321,7 +313,7 @@ export function renderEffectThumbnail(
     .map((c, i) => pieSlice(i * degPer, (i + 1) * degPer, xyToHex(c)))
     .join('');
 
-  return html`${unsafeSvg(wrapSvg(paths))}`;
+  return html`${unsafeHTML(wrapSvg(paths))}`;
 }
 
 /**
@@ -356,14 +348,14 @@ export function renderSegmentSequenceThumbnail(
       `<circle cx="${CX}" cy="${CY}" r="${RING_OUTER}" fill="${slices[0]!.hex}" />`,
       `<circle cx="${CX}" cy="${CY}" r="${RING_INNER}" fill="var(--card-background-color, #fff)" />`,
     ].join('');
-    return html`${unsafeSvg(wrapSvg(arcs))}`;
+    return html`${unsafeHTML(wrapSvg(arcs))}`;
   }
 
   const arcs = slices
     .map((s) => donutArc(s.startDeg, s.endDeg, s.hex))
     .join('');
 
-  return html`${unsafeSvg(wrapSvg(arcs))}`;
+  return html`${unsafeHTML(wrapSvg(arcs))}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -422,7 +414,7 @@ function renderSolarThumbnail(
     const horizon =
       `<line x1="15" y1="${ARC_CY}" x2="385" y2="${ARC_CY}" ` +
       `stroke="var(--secondary-text-color, #888)" stroke-width="2" stroke-opacity="0.4" />`;
-    return html`${unsafeSvg(wrapGradientSvg(
+    return html`${unsafeHTML(wrapGradientSvg(
       `<path fill="${hex}" d="${arcPath}" />${horizon}`,
     ))}`;
   }
@@ -450,7 +442,7 @@ function renderSolarThumbnail(
     `<defs><linearGradient id="${gradientId}" x1="0" y1="0" x2="1" y2="0">${stops}</linearGradient></defs>` +
     `<path fill="url(#${gradientId})" d="${arcPath}" />${horizon}`;
 
-  return html`${unsafeSvg(wrapGradientSvg(inner))}`;
+  return html`${unsafeHTML(wrapGradientSvg(inner))}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -502,7 +494,7 @@ function renderScheduleThumbnail(
   // Single step -- solid fill rectangle
   if (temps.length === 1) {
     const hex = kelvinToHex(temps[0]!);
-    return html`${unsafeSvg(wrapGradientSvg(
+    return html`${unsafeHTML(wrapGradientSvg(
       `<rect fill="${hex}" x="10" y="10" width="380" height="380" rx="8" />`,
     ))}`;
   }
@@ -528,7 +520,7 @@ function renderScheduleThumbnail(
     `<defs><linearGradient id="${gradientId}" x1="0" y1="0" x2="0" y2="1">${stops}</linearGradient></defs>` +
     `<rect fill="url(#${gradientId})" x="10" y="10" width="380" height="380" rx="8" />`;
 
-  return html`${unsafeSvg(wrapGradientSvg(inner))}`;
+  return html`${unsafeHTML(wrapGradientSvg(inner))}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -561,7 +553,7 @@ export function renderCCTSequenceThumbnail(
   // Single temperature -- solid fill rectangle
   if (temps.length === 1) {
     const hex = kelvinToHex(temps[0]!);
-    return html`${unsafeSvg(wrapGradientSvg(
+    return html`${unsafeHTML(wrapGradientSvg(
       `<rect fill="${hex}" x="10" y="10" width="380" height="380" rx="8" />`,
     ))}`;
   }
@@ -579,7 +571,7 @@ export function renderCCTSequenceThumbnail(
     `<defs><linearGradient id="${gradientId}" x1="0" y1="0" x2="1" y2="0">${stops}</linearGradient></defs>` +
     `<rect fill="url(#${gradientId})" x="10" y="10" width="380" height="380" rx="8" />`;
 
-  return html`${unsafeSvg(wrapGradientSvg(inner))}`;
+  return html`${unsafeHTML(wrapGradientSvg(inner))}`;
 }
 
 /**
@@ -631,7 +623,7 @@ export function renderDynamicSceneThumbnail(
   // Single color -- solid fill rectangle
   if (colors.length === 1) {
     const hex = dynamicSceneColorToHex(colors[0]!);
-    return html`${unsafeSvg(wrapGradientSvg(
+    return html`${unsafeHTML(wrapGradientSvg(
       `<rect fill="${hex}" x="10" y="10" width="380" height="380" rx="8" />`,
     ))}`;
   }
@@ -653,16 +645,6 @@ export function renderDynamicSceneThumbnail(
     `<defs><linearGradient id="${gradientId}" x1="0" y1="0" x2="1" y2="1">${stops}</linearGradient></defs>` +
     `<rect fill="url(#${gradientId})" x="10" y="10" width="380" height="380" rx="8" />`;
 
-  return html`${unsafeSvg(wrapGradientSvg(inner))}`;
+  return html`${unsafeHTML(wrapGradientSvg(inner))}`;
 }
 
-// ---------------------------------------------------------------------------
-// Lit-safe SVG injection
-// ---------------------------------------------------------------------------
-
-/**
- * Wrap unsafeHTML for SVG string injection into Lit templates.
- */
-function unsafeSvg(svgString: string): ReturnType<typeof unsafeHTML> {
-  return unsafeHTML(svgString);
-}

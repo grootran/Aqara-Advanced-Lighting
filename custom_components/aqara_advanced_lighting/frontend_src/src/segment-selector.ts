@@ -22,10 +22,11 @@ import {
   xyToHs,
   hsToXy,
   rgbToHex,
+  xyToHex,
   getComplementaryColor,
 } from './color-utils';
 import { addColorToHistory } from './color-history';
-import { hasNewHaDialog, dialogHeadingLegacy, dialogActions } from './editor-constants';
+import { hasNewHaDialog, dialogHeadingLegacy, dialogActions, localize } from './editor-constants';
 import './color-history-swatches';
 
 // Component mode types
@@ -53,14 +54,6 @@ const DEFAULT_BLOCK_COLORS: XYColor[] = [
   { x: 0.6800, y: 0.3100 },  // Red
   { x: 0.1700, y: 0.7000 },  // Green
 ];
-
-/**
- * Convert XY color to hex string
- */
-function xyToHex(xy: XYColor, brightness: number = 255): string {
-  const rgb = xyToRgb(xy.x, xy.y, brightness);
-  return rgbToHex(rgb);
-}
 
 @customElement('segment-selector')
 export class SegmentSelector extends LitElement {
@@ -909,21 +902,7 @@ export class SegmentSelector extends LitElement {
    * Translation helper
    */
   private _localize(key: string, replacements?: Record<string, string | number>): string {
-    const keys = key.split('.');
-    let value: string | Translations | undefined = this.translations;
-    for (const k of keys) {
-      if (!value || typeof value !== 'object' || !(k in value)) {
-        return key;
-      }
-      value = (value as Translations)[k];
-    }
-    let result = typeof value === 'string' ? value : key;
-    if (replacements) {
-      Object.entries(replacements).forEach(([placeholder, replacement]) => {
-        result = result.replace(`{${placeholder}}`, String(replacement));
-      });
-    }
-    return result;
+    return localize(this.translations, key, replacements as Record<string, string>);
   }
 
   /**

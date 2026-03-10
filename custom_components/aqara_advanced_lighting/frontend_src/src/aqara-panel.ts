@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { ref, createRef, Ref } from 'lit/directives/ref.js';
 import { panelStyles } from './styles';
 import { xyToRgb, rgbToXy } from './color-utils';
+import { localize } from './editor-constants';
 import {
   renderEffectThumbnail,
   renderSegmentPatternThumbnail,
@@ -139,40 +140,9 @@ export class AqaraPanel extends LitElement {
 
   /**
    * Helper method to localize panel strings
-   * Fetches translations from our stored translation object
    */
   private _localize(key: string, values?: Record<string, string>): string {
-    // Navigate through nested translation keys
-    const keys = key.split('.');
-    let translated: string | Translations = this._translations;
-
-    for (const k of keys) {
-      if (typeof translated !== 'object' || !(k in translated)) {
-        return key;
-      }
-      const next: string | Translations | undefined = translated[k];
-      if (next === undefined) return key;
-      translated = next;
-    }
-
-    // Ensure we got a string
-    if (typeof translated !== 'string') {
-      return key;
-    }
-
-    // Replace placeholders like {count} with actual values
-    if (values) {
-      let result = translated;
-      Object.keys(values).forEach(placeholder => {
-        const value = values[placeholder];
-        if (value !== undefined) {
-          result = result.replace(`{${placeholder}}`, value);
-        }
-      });
-      return result;
-    }
-
-    return translated;
+    return localize(this._translations, key, values);
   }
 
   protected firstUpdated(): void {

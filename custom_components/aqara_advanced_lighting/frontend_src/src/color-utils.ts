@@ -13,7 +13,7 @@ import { RGBColor, XYColor, HSColor } from './types';
  * @param value - Coordinate value to round
  * @returns Rounded value to 4 decimal places
  */
-function roundXY(value: number): number {
+export function roundXY(value: number): number {
   return Math.round(value * 10000) / 10000;
 }
 
@@ -147,17 +147,6 @@ export function xyToHex(color: XYColor, brightness: number = 255): string {
 }
 
 /**
- * Convert hex color string to XY
- *
- * @param hex - Hex color string (e.g., "#ff0000" or "ff0000")
- * @returns XY color object
- */
-export function hexToXy(hex: string): XYColor {
-  const rgb = hexToRgb(hex);
-  return rgbToXy(rgb.r, rgb.g, rgb.b);
-}
-
-/**
  * Convert RGB to HS (Hue-Saturation) color
  *
  * @param r - Red value (0-255)
@@ -257,28 +246,6 @@ export function xyToHs(color: XYColor): HSColor {
 export function hsToXy(color: HSColor): XYColor {
   const rgb = hsToRgb(color.h, color.s);
   return rgbToXy(rgb.r, rgb.g, rgb.b);
-}
-
-/**
- * Convert HS color to hex string
- *
- * @param color - HS color object
- * @returns Hex color string
- */
-export function hsToHex(color: HSColor): string {
-  const rgb = hsToRgb(color.h, color.s);
-  return rgbToHex(rgb);
-}
-
-/**
- * Convert hex string to HS color
- *
- * @param hex - Hex color string
- * @returns HS color object
- */
-export function hexToHs(hex: string): HSColor {
-  const rgb = hexToRgb(hex);
-  return rgbToHs(rgb.r, rgb.g, rgb.b);
 }
 
 /**

@@ -8,6 +8,7 @@ import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { xyToHex } from './color-utils';
 import { XYColor, Translations } from './types';
+import { localize } from './editor-constants';
 
 @customElement('color-history-swatches')
 export class ColorHistorySwatches extends LitElement {
@@ -80,18 +81,7 @@ export class ColorHistorySwatches extends LitElement {
   `;
 
   private _localize(key: string): string {
-    const keys = key.split('.');
-    let translated: any = this.translations;
-
-    for (const k of keys) {
-      if (translated && typeof translated === 'object' && k in translated) {
-        translated = translated[k];
-      } else {
-        return key;
-      }
-    }
-
-    return typeof translated === 'string' ? translated : key;
+    return localize(this.translations, key);
   }
 
   private _handleColorClick(color: XYColor): void {

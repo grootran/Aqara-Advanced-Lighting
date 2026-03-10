@@ -217,32 +217,6 @@ export interface DynamicSceneColor {
   brightness_pct: number;
 }
 
-// Color gamut definition per device type
-export interface ColorGamut {
-  red: [number, number];    // [x, y]
-  green: [number, number];
-  blue: [number, number];
-}
-
-// Color gamut triangles for Aqara lights
-export const AQARA_GAMUTS: Record<string, ColorGamut> = {
-  T1M: {
-    red: [0.6800, 0.3100],
-    green: [0.1500, 0.0600],
-    blue: [0.1500, 0.7000],
-  },
-  T1_STRIP: {
-    red: [0.6800, 0.3100],
-    green: [0.1500, 0.0600],
-    blue: [0.1500, 0.7000],
-  },
-  T2_BULB: {
-    red: [0.6800, 0.3100],
-    green: [0.1500, 0.0600],
-    blue: [0.1500, 0.7000],
-  },
-};
-
 // Segment color entry for user presets
 export interface SegmentColorEntry {
   segment: number | string;
@@ -497,22 +471,6 @@ export interface EditorDraftCache {
   scenes?: DynamicSceneEditorDraft;
 }
 
-export const SUPPORTED_MODELS = {
-  T2_BULB: [
-    'lumi.light.agl001',
-    'lumi.light.agl003',
-    'lumi.light.agl005',
-    'lumi.light.agl007',
-  ] as string[],
-  T2_CCT: [
-    'lumi.light.agl002',
-    'lumi.light.agl004',
-    'lumi.light.agl006',
-    'lumi.light.agl008',
-  ] as string[],
-  T1M: ['lumi.light.acn031', 'lumi.light.acn032'] as string[],
-  T1_STRIP: ['lumi.light.acn132'] as string[],
-};
 
 // Segment zone definition for a device
 export interface SegmentZone {

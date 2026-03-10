@@ -287,9 +287,7 @@ export class EffectEditor extends LitElement {
     }
   }
 
-  private _colorToHex(color: XYColor): string {
-    return xyToHex(color, 255);
-  }
+
 
   private _getEffectIconUrl(effect: string): string {
     return `/api/aqara_advanced_lighting/icons/${effect}.svg`;
@@ -521,11 +519,11 @@ export class EffectEditor extends LitElement {
                     class="color-swatch"
                     role="button"
                     tabindex="0"
-                    style="background-color: ${this._colorToHex(color)}"
+                    style="background-color: ${xyToHex(color)}"
                     @click=${() => this._openColorPicker(index)}
                     @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._openColorPicker(index); } }}
                     title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_edit')}"
-                    aria-label="${this._localize('editors.color_label') || 'Color'} ${index + 1}: ${this._colorToHex(color)}"
+                    aria-label="${this._localize('editors.color_label') || 'Color'} ${index + 1}: ${xyToHex(color)}"
                   ></div>
                   ${this._colors.length > 1
                     ? html`
@@ -563,7 +561,7 @@ export class EffectEditor extends LitElement {
             this._editingColor ? html`
               <div
                 class="color-picker-modal-preview"
-                style="background-color: ${this._colorToHex(this._editingColor)}"
+                style="background-color: ${xyToHex(this._editingColor)}"
               ></div>
             ` : undefined,
           ) : undefined}
@@ -574,7 +572,7 @@ export class EffectEditor extends LitElement {
               <div
                 slot="headerActionItems"
                 class="color-picker-modal-preview"
-                style="background-color: ${this._colorToHex(this._editingColor)}"
+                style="background-color: ${xyToHex(this._editingColor)}"
               ></div>
             ` : ''}
           ` : ''}
