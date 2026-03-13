@@ -155,6 +155,7 @@ async def async_register_panel(hass: HomeAssistant) -> None:
 
     # Register running operations endpoint for panel status display
     hass.http.register_view(RunningOperationsView)
+    hass.http.register_view(SceneAudioSensitivityView)
 
     # Register image color extraction and thumbnail endpoints
     hass.http.register_view(ColorExtractView)
@@ -1051,12 +1052,27 @@ class GlobalPreferencesView(HomeAssistantView):
                 )
             detect_non_ha_changes = data["detect_non_ha_changes"]
 
+        entity_audio_config = None
+        if "entity_audio_config" in data:
+            entity_audio_config = data["entity_audio_config"]
+            if not isinstance(entity_audio_config, dict):
+                return web.Response(
+                    status=400, text="entity_audio_config must be a dict"
+                )
+            for entity_id, entity_conf in entity_audio_config.items():
+                if not isinstance(entity_conf, dict):
+                    return web.Response(
+                        status=400,
+                        text=f"Config for {entity_id} must be a dict",
+                    )
+
         if (
             ignore_external_changes is None
             and software_transition_entities is None
             and override_control_mode is None
             and bare_turn_on_only is None
             and detect_non_ha_changes is None
+            and entity_audio_config is None
         ):
             return web.json_response(store.get_global_preferences())
 
@@ -1066,6 +1082,7 @@ class GlobalPreferencesView(HomeAssistantView):
             override_control_mode=override_control_mode,
             bare_turn_on_only=bare_turn_on_only,
             detect_non_ha_changes=detect_non_ha_changes,
+            entity_audio_config=entity_audio_config,
         )
         return web.json_response(preferences)
 
@@ -1891,6 +1908,11 @@ class RunningOperationsView(HomeAssistantView):
                             and entity_controller.is_entity_externally_paused(eid)
                         },
                         "entity_capabilities": scene_info.entity_capabilities,
+                        "audio_tier": scene_info.audio_tier,
+                        "audio_entity": scene_info.audio_entity,
+                        "audio_waiting": scene_info.audio_waiting,
+                        "audio_bpm": scene_info.audio_bpm,
+                        "audio_sensitivity": scene_info.audio_sensitivity,
                     })
 
             # Music sync (per-entity, firmware-managed)
@@ -1922,6 +1944,72 @@ class RunningOperationsView(HomeAssistantView):
                 )
 
         return web.json_response({"operations": operations})
+
+
+class SceneAudioSensitivityView(HomeAssistantView):
+    """View to update beat sensitivity on a running audio scene."""
+
+    url = f"/api/{DOMAIN}/scene_audio_sensitivity"
+    name = f"api:{DOMAIN}:scene_audio_sensitivity"
+    requires_auth = True
+
+    async def post(self, request: web.Request) -> web.Response:
+        """Update beat sensitivity for a running scene."""
+        hass = request.app["hass"]
+        try:
+            data = await request.json()
+        except ValueError:
+            return web.Response(
+                status=400, text="Invalid JSON", content_type="text/plain"
+            )
+
+        scene_id = data.get("scene_id")
+        sensitivity = data.get("sensitivity")
+        if not scene_id or sensitivity is None:
+            return web.Response(
+                status=400,
+                text="Missing scene_id or sensitivity",
+                content_type="text/plain",
+            )
+
+        try:
+            sensitivity = int(sensitivity)
+        except (ValueError, TypeError):
+            return web.Response(
+                status=400,
+                text="sensitivity must be an integer",
+                content_type="text/plain",
+            )
+
+        if not (1 <= sensitivity <= 100):
+            return web.Response(
+                status=400,
+                text="sensitivity must be between 1 and 100",
+                content_type="text/plain",
+            )
+
+        # Find the scene manager that owns this scene
+        for entry_id, instance_data in hass.data.get(DOMAIN, {}).get("entries", {}).items():
+            if not isinstance(instance_data, dict):
+                continue
+            scene_mgr = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+            if scene_mgr and scene_id in scene_mgr.get_active_scenes():
+                success = await scene_mgr.update_audio_sensitivity(
+                    scene_id, sensitivity
+                )
+                if success:
+                    return self.json({"success": True})
+                return web.Response(
+                    status=500,
+                    text="Failed to update sensitivity",
+                    content_type="text/plain",
+                )
+
+        return web.Response(
+            status=404,
+            text="Scene not found",
+            content_type="text/plain",
+        )
 
 
 def _get_thumbnail_dir(hass: HomeAssistant) -> Path:

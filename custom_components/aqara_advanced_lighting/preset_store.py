@@ -110,6 +110,11 @@ _ALLOWED_FIELDS: dict[str, set[str]] = {
         "loop_count",
         "end_behavior",
         "thumbnail",
+        "audio_entity",
+        "audio_sensitivity",
+        "audio_brightness_response",
+        "audio_color_advance",
+        "audio_transition_speed",
     },
 }
 
@@ -305,6 +310,11 @@ class UserDynamicScenePreset(TypedDict):
     end_behavior: str
     created_at: str
     modified_at: str
+    audio_entity: NotRequired[str | None]
+    audio_sensitivity: NotRequired[int]
+    audio_brightness_response: NotRequired[bool]
+    audio_color_advance: NotRequired[str]
+    audio_transition_speed: NotRequired[int]
 
 
 class PresetsData(TypedDict):
@@ -1192,6 +1202,11 @@ class PresetStore(BaseStore[PresetsData]):
                         "loop_mode": preset["loop_mode"],
                         "loop_count": preset.get("loop_count"),
                         "end_behavior": preset["end_behavior"],
+                        "audio_entity": preset.get("audio_entity"),
+                        "audio_sensitivity": preset.get("audio_sensitivity"),
+                        "audio_brightness_response": preset.get("audio_brightness_response"),
+                        "audio_color_advance": preset.get("audio_color_advance"),
+                        "audio_transition_speed": preset.get("audio_transition_speed"),
                     }
 
                     await self.add_preset(PRESET_TYPE_DYNAMIC_SCENE, new_preset_data)

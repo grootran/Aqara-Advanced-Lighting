@@ -8,6 +8,16 @@ from typing import TYPE_CHECKING, Any, TypeAlias
 
 from homeassistant.config_entries import ConfigEntry
 
+from .const import (
+    AUDIO_COLOR_ADVANCE_ON_BEAT,
+    DEFAULT_AUDIO_SENSITIVITY,
+    DEFAULT_AUDIO_TRANSITION_SPEED,
+    MAX_AUDIO_SENSITIVITY,
+    MAX_AUDIO_TRANSITION_SPEED,
+    MIN_AUDIO_SENSITIVITY,
+    MIN_AUDIO_TRANSITION_SPEED,
+    VALID_AUDIO_COLOR_ADVANCE,
+)
 from .sun_utils import ScheduleStep, SolarStep
 
 if TYPE_CHECKING:
@@ -562,6 +572,11 @@ class DynamicScene:
     loop_mode: str  # "once", "count", "continuous"
     loop_count: int | None = None  # Number of loops if mode is "count"
     end_behavior: str = "maintain"  # "maintain", "turn_off", or "restore"
+    audio_entity: str | None = None
+    audio_sensitivity: int = DEFAULT_AUDIO_SENSITIVITY
+    audio_brightness_response: bool = True
+    audio_color_advance: str = AUDIO_COLOR_ADVANCE_ON_BEAT
+    audio_transition_speed: int = DEFAULT_AUDIO_TRANSITION_SPEED
 
     def __post_init__(self) -> None:
         """Validate scene parameters."""
@@ -598,6 +613,24 @@ class DynamicScene:
 
         if self.end_behavior not in ("maintain", "turn_off", "restore"):
             msg = f"End behavior must be 'maintain', 'turn_off', or 'restore', got {self.end_behavior}"
+            raise ValueError(msg)
+
+        # Audio field validation
+        if self.audio_entity is not None and not isinstance(self.audio_entity, str):
+            msg = f"audio_entity must be a string or None, got {type(self.audio_entity)}"
+            raise TypeError(msg)
+        self.audio_sensitivity = max(
+            MIN_AUDIO_SENSITIVITY, min(MAX_AUDIO_SENSITIVITY, self.audio_sensitivity)
+        )
+        self.audio_transition_speed = max(
+            MIN_AUDIO_TRANSITION_SPEED,
+            min(MAX_AUDIO_TRANSITION_SPEED, self.audio_transition_speed),
+        )
+        if self.audio_color_advance not in VALID_AUDIO_COLOR_ADVANCE:
+            msg = (
+                f"Invalid audio_color_advance: {self.audio_color_advance}. "
+                f"Must be one of {VALID_AUDIO_COLOR_ADVANCE}"
+            )
             raise ValueError(msg)
 
 

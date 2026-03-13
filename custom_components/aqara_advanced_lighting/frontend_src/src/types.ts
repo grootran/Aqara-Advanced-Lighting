@@ -156,6 +156,11 @@ export interface DynamicScenePreset {
   loop_mode: string;
   loop_count?: number;
   end_behavior: string;
+  audio_entity?: string;
+  audio_sensitivity?: number;
+  audio_brightness_response?: boolean;
+  audio_color_advance?: 'on_beat' | 'continuous';
+  audio_transition_speed?: number;
 }
 
 export interface PresetsData {
@@ -294,6 +299,11 @@ export interface UserDynamicScenePreset {
   loop_mode: string;
   loop_count?: number;
   end_behavior: string;
+  audio_entity?: string;
+  audio_sensitivity?: number;
+  audio_brightness_response?: boolean;
+  audio_color_advance?: 'on_beat' | 'continuous';
+  audio_transition_speed?: number;
   created_at: string;
   modified_at: string;
 }
@@ -361,11 +371,19 @@ export interface UserPreferences {
   brightness_override?: number;
 }
 
+export interface EntityAudioConfig {
+  audio_on_service?: string;
+  audio_on_service_data?: string;
+  audio_off_service?: string;
+  audio_off_service_data?: string;
+}
+
 // Integration-wide preferences (not per-user)
 export interface GlobalPreferences {
   ignore_external_changes?: boolean;
   software_transition_entities?: string[];
   override_control_mode?: 'pause_all' | 'pause_changed';
+  entity_audio_config?: Record<string, EntityAudioConfig>;
 }
 
 // Draft state types for editor tab caching (in-memory only, not persisted)
@@ -461,6 +479,12 @@ export interface DynamicSceneEditorDraft {
   loopCount: number;
   endBehavior: string;
   hasUserInteraction: boolean;
+  audioEnabled: boolean;
+  audioEntity: string;
+  audioSensitivity: number;
+  audioBrightnessResponse: boolean;
+  audioColorAdvance: 'on_beat' | 'continuous';
+  audioTransitionSpeed: number;
 }
 
 export interface EditorDraftCache {
@@ -531,6 +555,11 @@ export interface RunningOperation {
     brightness: boolean;
     color: boolean;
   } | Record<string, { brightness: boolean; color: boolean }>;
+  audio_tier?: 'rich' | null;
+  audio_entity?: string;
+  audio_waiting?: boolean;
+  audio_bpm?: number | null;
+  audio_sensitivity?: number | null;
 }
 
 export interface RunningOperationsResponse {

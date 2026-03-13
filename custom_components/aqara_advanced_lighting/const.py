@@ -246,6 +246,37 @@ MUSIC_SYNC_SENSITIVITY_ENUM: Final = {
     MUSIC_SYNC_SENSITIVITY_HIGH: 2,
 }
 
+# On-device audio opt-in configuration keys
+CONF_AUDIO_ON_SERVICE: Final = "audio_on_service"
+CONF_AUDIO_OFF_SERVICE: Final = "audio_off_service"
+CONF_AUDIO_ON_SERVICE_DATA: Final = "audio_on_service_data"
+CONF_AUDIO_OFF_SERVICE_DATA: Final = "audio_off_service_data"
+
+# Audio-reactive dynamic scene constants
+AUDIO_COLOR_ADVANCE_ON_BEAT: Final = "on_beat"
+AUDIO_COLOR_ADVANCE_CONTINUOUS: Final = "continuous"
+VALID_AUDIO_COLOR_ADVANCE: Final = [
+    AUDIO_COLOR_ADVANCE_ON_BEAT,
+    AUDIO_COLOR_ADVANCE_CONTINUOUS,
+]
+
+# Audio parameter constraints
+MIN_AUDIO_SENSITIVITY: Final = 1
+MAX_AUDIO_SENSITIVITY: Final = 100
+DEFAULT_AUDIO_SENSITIVITY: Final = 50
+MIN_AUDIO_TRANSITION_SPEED: Final = 1
+MAX_AUDIO_TRANSITION_SPEED: Final = 100
+DEFAULT_AUDIO_TRANSITION_SPEED: Final = 50
+
+# Audio sensor unavailability timeout (seconds)
+AUDIO_SENSOR_UNAVAILABLE_TIMEOUT: Final = 60.0
+
+# T1 Strip audio mode mapping
+T1_STRIP_AUDIO_SENSITIVITY_CUTOFF: Final = 50
+
+# Audio tier identifiers
+AUDIO_TIER_RICH: Final = "rich"
+
 # Runtime data key for active music sync tracking
 DATA_ACTIVE_MUSIC_SYNC: Final = "active_music_sync"
 

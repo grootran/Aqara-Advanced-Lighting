@@ -42,6 +42,7 @@ import {
   Translations,
   RunningOperation,
   RunningOperationsResponse,
+  EntityAudioConfig,
 } from './types';
 import './effect-editor';
 import './pattern-editor';
@@ -74,8 +75,16 @@ export class AqaraPanel extends LitElement {
   @state() private _bareTurnOnOnly = false;
   @state() private _detectNonHaChanges = false;
   @state() private _softwareTransitionEntities: string[] = [];
+  @state() private _entityAudioConfig: Record<string, EntityAudioConfig> = {};
+  @state() private _audioConfigSelectedEntity = '';
   @state() private _useDistributionModeOverride = false;
   @state() private _distributionModeOverride = 'shuffle_rotate';
+  @state() private _useAudioReactive = false;
+  @state() private _audioOverrideEntity = '';
+  @state() private _audioOverrideSensitivity = 50;
+  @state() private _audioOverrideColorAdvance: 'on_beat' | 'continuous' = 'on_beat';
+  @state() private _audioOverrideTransitionSpeed = 50;
+  @state() private _audioOverrideBrightnessResponse = true;
   @state() private _collapsed: Record<string, boolean> = { instances: true };
   @state() private _hasIncompatibleLights = false;
   @state() private _includeAllLights = false;
@@ -171,6 +180,10 @@ export class AqaraPanel extends LitElement {
     if (this._runningOpsDebounceTimer !== undefined) {
       clearTimeout(this._runningOpsDebounceTimer);
       this._runningOpsDebounceTimer = undefined;
+    }
+    if (this._sensitivityDebounceTimer) {
+      clearTimeout(this._sensitivityDebounceTimer);
+      this._sensitivityDebounceTimer = null;
     }
     this._stopSetupPolling();
     this._tileCards.clear();
@@ -352,7 +365,7 @@ export class AqaraPanel extends LitElement {
 
     // Load global preferences (separate endpoint, not per-user)
     try {
-      const globalPrefs = await this.hass.callApi<{ignore_external_changes?: boolean; software_transition_entities?: string[]; override_control_mode?: string; bare_turn_on_only?: boolean; detect_non_ha_changes?: boolean}>(
+      const globalPrefs = await this.hass.callApi<{ignore_external_changes?: boolean; software_transition_entities?: string[]; override_control_mode?: string; bare_turn_on_only?: boolean; detect_non_ha_changes?: boolean; entity_audio_config?: Record<string, EntityAudioConfig>}>(
         'GET', 'aqara_advanced_lighting/global_preferences'
       );
       if (globalPrefs.ignore_external_changes !== undefined) {
@@ -369,6 +382,9 @@ export class AqaraPanel extends LitElement {
       }
       if (globalPrefs.detect_non_ha_changes !== undefined) {
         this._detectNonHaChanges = globalPrefs.detect_non_ha_changes;
+      }
+      if (globalPrefs.entity_audio_config) {
+        this._entityAudioConfig = globalPrefs.entity_audio_config;
       }
     } catch (err) {
       console.warn('Failed to load global preferences:', err);
@@ -1983,6 +1999,30 @@ export class AqaraPanel extends LitElement {
     this._saveUserPreferences();
   }
 
+  private _handleAudioReactiveToggle(e: Event): void {
+    this._useAudioReactive = (e.target as HTMLInputElement).checked;
+  }
+
+  private _handleAudioOverrideEntityChange(e: CustomEvent): void {
+    this._audioOverrideEntity = e.detail.value || '';
+  }
+
+  private _handleAudioOverrideSensitivityChange(e: CustomEvent): void {
+    this._audioOverrideSensitivity = e.detail.value ?? 50;
+  }
+
+  private _handleAudioOverrideColorAdvanceChange(e: CustomEvent): void {
+    this._audioOverrideColorAdvance = e.detail.value || 'on_beat';
+  }
+
+  private _handleAudioOverrideTransitionSpeedChange(e: CustomEvent): void {
+    this._audioOverrideTransitionSpeed = e.detail.value ?? 50;
+  }
+
+  private _handleAudioOverrideBrightnessResponseChange(e: CustomEvent): void {
+    this._audioOverrideBrightnessResponse = e.detail.value ?? true;
+  }
+
   private get _distributionModeOverrideOptions() {
     return [
       { value: 'shuffle_rotate', label: this._localize('dynamic_scene.distribution_shuffle_rotate') || 'Shuffle and rotate' },
@@ -1999,6 +2039,7 @@ export class AqaraPanel extends LitElement {
         software_transition_entities: this._softwareTransitionEntities,
         bare_turn_on_only: this._bareTurnOnOnly,
         detect_non_ha_changes: this._detectNonHaChanges,
+        entity_audio_config: this._entityAudioConfig,
       });
     } catch (err) {
       console.warn('Failed to save global preferences:', err);
@@ -2124,6 +2165,15 @@ export class AqaraPanel extends LitElement {
     // Static mode: apply colors once without starting a transition loop
     if (this._useStaticSceneMode) {
       serviceData.static = true;
+    }
+
+    // Audio reactive override
+    if (this._useAudioReactive && this._audioOverrideEntity) {
+      serviceData.audio_entity = this._audioOverrideEntity;
+      serviceData.audio_sensitivity = this._audioOverrideSensitivity;
+      serviceData.audio_color_advance = this._audioOverrideColorAdvance;
+      serviceData.audio_transition_speed = this._audioOverrideTransitionSpeed;
+      serviceData.audio_brightness_response = this._audioOverrideBrightnessResponse;
     }
 
     await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
@@ -2484,6 +2534,10 @@ export class AqaraPanel extends LitElement {
       return html`<span class="entity-chip ${pauseClass} ${badges.length ? 'has-badge' : ''}" title="${pauseTitle}">${name}${badges}</span>`;
     });
 
+    const audioTierLabel = op.audio_tier === 'rich'
+      ? (this._localize('target.audio_tier_rich') || 'Beat sync')
+      : null;
+
     return html`
       <div class="running-op-card scene-op-card ${isPaused ? 'op-paused' : ''}">
         <div class="running-op-header">
@@ -2492,6 +2546,35 @@ export class AqaraPanel extends LitElement {
             <div class="running-op-details">
               <span class="running-op-name">${preset.name || this._localize('target.scene_button')}</span>
               ${preset.name ? html`<span class="running-op-entity"><span class="running-op-type">${this._localize('target.scene_button')}</span></span>` : ''}
+              ${audioTierLabel ? html`
+                <span class="running-op-entity">
+                  <ha-icon icon="mdi:waveform" style="--mdc-icon-size: 14px; vertical-align: middle;"></ha-icon>
+                  <span class="running-op-type">${audioTierLabel}</span>
+                  ${op.audio_entity ? html`<span class="running-op-status">${this._getEntityName(op.audio_entity)}</span>` : ''}
+                  ${op.audio_bpm ? html`
+                    <span class="running-op-bpm">
+                      <ha-icon icon="mdi:metronome" style="--mdc-icon-size: 12px; vertical-align: middle;"></ha-icon>
+                      ${Math.round(op.audio_bpm)} BPM
+                    </span>
+                  ` : ''}
+                </span>
+              ` : ''}
+              ${op.audio_sensitivity != null ? html`
+                <div class="audio-sensitivity-row" style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+                  <ha-icon icon="mdi:sine-wave" style="--mdc-icon-size: 14px; flex-shrink: 0;"></ha-icon>
+                  <span style="font-size: 12px; white-space: nowrap;">${this._localize('target.sensitivity') || 'Sensitivity'}</span>
+                  <input type="range" min="1" max="100" .value=${String(op.audio_sensitivity)}
+                    style="flex: 1; min-width: 80px; accent-color: var(--primary-color);"
+                    @input=${(e: Event) => this._debounceAudioSensitivity(op.scene_id!, parseInt((e.target as HTMLInputElement).value))}
+                  />
+                  <span style="font-size: 12px; min-width: 24px; text-align: right;">${op.audio_sensitivity}</span>
+                </div>
+              ` : ''}
+              ${op.audio_waiting ? html`
+                <span class="running-op-pause-row">
+                  <span class="running-op-status paused-text">${this._localize('target.audio_sensor_unavailable') || 'Audio sensor unavailable'}</span>
+                </span>
+              ` : ''}
               ${op.paused ? html`
                 <span class="running-op-pause-row">
                   <span class="running-op-status paused-text">${this._localize('target.paused')}</span>
@@ -2529,6 +2612,32 @@ export class AqaraPanel extends LitElement {
         </div>
       </div>
     `;
+  }
+
+  private _sensitivityDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private _debounceAudioSensitivity(sceneId: string, value: number): void {
+    if (this._sensitivityDebounceTimer) {
+      clearTimeout(this._sensitivityDebounceTimer);
+    }
+    this._sensitivityDebounceTimer = setTimeout(() => {
+      this._updateAudioSensitivity(sceneId, value);
+    }, 300);
+  }
+
+  private async _updateAudioSensitivity(sceneId: string, sensitivity: number): Promise<void> {
+    try {
+      await fetch(`/api/aqara_advanced_lighting/scene_audio_sensitivity`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.hass.auth.data.access_token}`,
+        },
+        body: JSON.stringify({ scene_id: sceneId, sensitivity }),
+      });
+    } catch (e) {
+      console.error('Failed to update audio sensitivity:', e);
+    }
   }
 
   private _getEntityPauseClass(extPaused?: boolean, attrs?: {brightness: boolean; color: boolean}): string {
@@ -2891,6 +3000,22 @@ export class AqaraPanel extends LitElement {
       serviceData.static = true;
     }
 
+    // Audio reactive override (panel override takes precedence over preset audio settings)
+    if (this._useAudioReactive && this._audioOverrideEntity) {
+      serviceData.audio_entity = this._audioOverrideEntity;
+      serviceData.audio_sensitivity = this._audioOverrideSensitivity;
+      serviceData.audio_color_advance = this._audioOverrideColorAdvance;
+      serviceData.audio_transition_speed = this._audioOverrideTransitionSpeed;
+      serviceData.audio_brightness_response = this._audioOverrideBrightnessResponse;
+    } else if (!this._useAudioReactive && preset.audio_entity) {
+      // Pass through preset-level audio settings when no panel override is active
+      serviceData.audio_entity = preset.audio_entity;
+      serviceData.audio_sensitivity = preset.audio_sensitivity;
+      serviceData.audio_brightness_response = preset.audio_brightness_response;
+      serviceData.audio_color_advance = preset.audio_color_advance;
+      serviceData.audio_transition_speed = preset.audio_transition_speed;
+    }
+
     await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
     await this._loadRunningOperations();
   }
@@ -3250,7 +3375,90 @@ export class AqaraPanel extends LitElement {
                       @change=${this._handleDistributionModeOverrideToggle}
                     ></ha-switch>
                   </div>
+
+                  <div class="override-item">
+                    <span class="form-label">${this._localize('target.audio_reactive_label') || 'Audio reactive'}</span>
+                    <ha-switch
+                      .checked=${this._useAudioReactive}
+                      @change=${this._handleAudioReactiveToggle}
+                    ></ha-switch>
+                  </div>
                 </div>
+
+                ${this._useAudioReactive
+                  ? html`
+                      <div class="brightness-slider">
+                        <ha-selector
+                          .hass=${this.hass}
+                          .selector=${{
+                            entity: {
+                              domain: 'binary_sensor',
+                            },
+                          }}
+                          .value=${this._audioOverrideEntity}
+                          @value-changed=${this._handleAudioOverrideEntityChange}
+                        ></ha-selector>
+                      </div>
+                      <div class="brightness-slider">
+                        <span class="form-label">${this._localize('dynamic_scene.audio_sensitivity_label') || 'Sensitivity'}</span>
+                        <ha-selector
+                          .hass=${this.hass}
+                          .selector=${{
+                            number: {
+                              min: 1,
+                              max: 100,
+                              mode: 'slider',
+                              unit_of_measurement: '%',
+                            },
+                          }}
+                          .value=${this._audioOverrideSensitivity}
+                          @value-changed=${this._handleAudioOverrideSensitivityChange}
+                        ></ha-selector>
+                      </div>
+                      <div class="brightness-slider">
+                        <span class="form-label">${this._localize('dynamic_scene.audio_color_advance_label') || 'Color advance'}</span>
+                        <ha-selector
+                          .hass=${this.hass}
+                          .selector=${{
+                            select: {
+                              options: [
+                                { value: 'on_beat', label: this._localize('dynamic_scene.audio_color_advance_on_beat') || 'On beat' },
+                                { value: 'continuous', label: this._localize('dynamic_scene.audio_color_advance_continuous') || 'Continuous' },
+                              ],
+                              mode: 'dropdown',
+                            },
+                          }}
+                          .value=${this._audioOverrideColorAdvance}
+                          @value-changed=${this._handleAudioOverrideColorAdvanceChange}
+                        ></ha-selector>
+                      </div>
+                      <div class="brightness-slider">
+                        <span class="form-label">${this._localize('dynamic_scene.audio_transition_speed_label') || 'Transition speed'}</span>
+                        <ha-selector
+                          .hass=${this.hass}
+                          .selector=${{
+                            number: {
+                              min: 1,
+                              max: 100,
+                              mode: 'slider',
+                              unit_of_measurement: '%',
+                            },
+                          }}
+                          .value=${this._audioOverrideTransitionSpeed}
+                          @value-changed=${this._handleAudioOverrideTransitionSpeedChange}
+                        ></ha-selector>
+                      </div>
+                      <div class="brightness-slider">
+                        <span class="form-label">${this._localize('dynamic_scene.audio_brightness_response_label') || 'Brightness response'}</span>
+                        <ha-selector
+                          .hass=${this.hass}
+                          .selector=${{ boolean: {} }}
+                          .value=${this._audioOverrideBrightnessResponse}
+                          @value-changed=${this._handleAudioOverrideBrightnessResponseChange}
+                        ></ha-selector>
+                      </div>
+                    `
+                  : ''}
 
                 ${this._useDistributionModeOverride
                   ? html`
@@ -5566,6 +5774,54 @@ export class AqaraPanel extends LitElement {
         </div>
       </ha-expansion-panel>
 
+      <!-- On-device Audio Section -->
+      <ha-expansion-panel
+        outlined
+        .expanded=${this._collapsed['on_device_audio'] === undefined ? false : !this._collapsed['on_device_audio']}
+        @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange('on_device_audio', e)}
+      >
+        <div slot="header" class="section-header">
+          <div>
+            <div class="section-title">${this._localize('config.audio_on_device_title')}</div>
+            <div class="section-subtitle">${this._localize('config.audio_on_device_description')}</div>
+          </div>
+        </div>
+        <div class="section-content" style="display: block; padding: 16px;">
+          <ha-selector
+            .hass=${this.hass}
+            .selector=${{ entity: { domain: 'light' } }}
+            .value=${this._audioConfigSelectedEntity}
+            .label=${'Select light to configure'}
+            @value-changed=${this._audioConfigEntityChanged}
+          ></ha-selector>
+
+          ${this._audioConfigSelectedEntity ? html`
+            <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 16px;">
+              <ha-textfield
+                label="${this._localize('config.audio_on_service_label') || 'Activate service (e.g., light.turn_on)'}"
+                .value=${this._entityAudioConfig[this._audioConfigSelectedEntity]?.audio_on_service || ''}
+                @change=${(e: Event) => this._updateEntityAudioConfig('audio_on_service', (e.target as HTMLInputElement).value)}
+              ></ha-textfield>
+              <ha-textfield
+                label="${this._localize('config.audio_on_service_data_label') || 'Activate data (JSON)'}"
+                .value=${this._entityAudioConfig[this._audioConfigSelectedEntity]?.audio_on_service_data || ''}
+                @change=${(e: Event) => this._updateEntityAudioConfig('audio_on_service_data', (e.target as HTMLInputElement).value)}
+              ></ha-textfield>
+              <ha-textfield
+                label="${this._localize('config.audio_off_service_label') || 'Deactivate service'}"
+                .value=${this._entityAudioConfig[this._audioConfigSelectedEntity]?.audio_off_service || ''}
+                @change=${(e: Event) => this._updateEntityAudioConfig('audio_off_service', (e.target as HTMLInputElement).value)}
+              ></ha-textfield>
+              <ha-textfield
+                label="${this._localize('config.audio_off_service_data_label') || 'Deactivate data (JSON)'}"
+                .value=${this._entityAudioConfig[this._audioConfigSelectedEntity]?.audio_off_service_data || ''}
+                @change=${(e: Event) => this._updateEntityAudioConfig('audio_off_service_data', (e.target as HTMLInputElement).value)}
+              ></ha-textfield>
+            </div>
+          ` : ''}
+        </div>
+      </ha-expansion-panel>
+
       ${!hasSelection
         ? html`
             <ha-card class="controls">
@@ -5850,6 +6106,23 @@ export class AqaraPanel extends LitElement {
 
   private _softwareTransitionEntitiesChanged(e: CustomEvent): void {
     this._softwareTransitionEntities = e.detail.value || [];
+    this._saveGlobalPreferences();
+  }
+
+  private _audioConfigEntityChanged(e: CustomEvent): void {
+    this._audioConfigSelectedEntity = e.detail.value || '';
+  }
+
+  private _updateEntityAudioConfig(field: string, value: string): void {
+    const entity = this._audioConfigSelectedEntity;
+    if (!entity) return;
+    const config = { ...this._entityAudioConfig };
+    config[entity] = { ...(config[entity] || {}), [field]: value };
+    // Remove entity entry if all fields are empty
+    if (Object.values(config[entity]!).every(v => !v)) {
+      delete config[entity];
+    }
+    this._entityAudioConfig = config;
     this._saveGlobalPreferences();
   }
 

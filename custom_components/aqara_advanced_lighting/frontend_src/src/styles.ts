@@ -355,6 +355,13 @@ export const panelStyles = css`
     color: var(--warning-color, #ff9800);
   }
 
+  .running-op-bpm {
+    font-size: var(--ha-font-size-xs, 11px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    color: var(--secondary-text-color);
+    margin-left: 6px;
+  }
+
   .running-op-pause-row {
     font-size: var(--ha-font-size-s, 12px);
     display: flex;

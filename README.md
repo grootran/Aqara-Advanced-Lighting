@@ -34,7 +34,9 @@ _If you want to show your support please_
 
 ## Features
 
-**Lighting control** -- 13 dynamic RGB effects, per-segment colors and gradients, RGB segment sequences (up to 20 steps with 8 activation patterns), CCT sequences (up to 20 steps with standard, schedule, and solar modes), circadian lighting with sun-tracking and time-based schedules, dynamic scenes with slow color transitions across multiple lights, pause/resume/stop control, change detection with per-attribute override tracking, and flexible segment selection.
+**Lighting control** -- 13 dynamic RGB effects, per-segment colors and gradients, RGB segment sequences (up to 20 steps with 8 activation patterns), CCT sequences (up to 20 steps with standard, schedule, and solar modes), circadian lighting with sun-tracking and time-based schedules, dynamic scenes with slow color transitions across multiple lights, audio-reactive mode that makes lights respond to music in real time, pause/resume/stop control, change detection with per-attribute override tracking, and flexible segment selection.
+
+**Audio-reactive mode** -- Lights respond to music via an ESP32 microphone running on-device FFT analysis and beat detection. Colors advance on beats or flow continuously with amplitude. Adjustable sensitivity, transition speed, and brightness response. Runtime sensitivity slider for tuning while a scene is running. Works alongside T1 Strip on-device audio sync. See the [audio-reactive setup guide](docs/audio-reactive-setup.md).
 
 **100+ presets** -- 20 effects, 12 segment patterns, 7 CCT sequences (including circadian, warm day, and productive day), 6 segment sequences, 58 dynamic scenes. Create up to 250 custom presets per type (1,250 total) with the visual editors, back them up, and reuse them everywhere.
 
@@ -79,6 +81,7 @@ See the [Getting started guide](docs/getting-started.md) for detailed installati
 | [Services reference](docs/services.md)               | All 21 backend service actions with parameters, examples, and light group support                  |
 | [Automations](docs/automations.md)                   | Device triggers, device conditions, and automation examples                                        |
 | [REST API](docs/rest-api.md)                         | HTTP trigger endpoint for Node-RED, iOS Shortcuts, voice assistants, and external systems          |
+| [Audio-reactive setup](docs/audio-reactive-setup.md) | Hardware, ESPHome setup, audio parameters, sensitivity, continuous mode, T1 Strip audio sync, troubleshooting |
 | [Troubleshooting](docs/troubleshooting.md)           | Common issues, backend-specific fixes, firmware info, diagnostics                                  |
 
 ## Requirements

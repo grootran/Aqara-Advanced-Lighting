@@ -137,6 +137,14 @@ from .const import (
     VALID_CCT_MODES,
     VALID_SOLAR_PHASES,
     brightness_percent_to_device,
+    AUDIO_COLOR_ADVANCE_ON_BEAT,
+    DEFAULT_AUDIO_SENSITIVITY,
+    DEFAULT_AUDIO_TRANSITION_SPEED,
+    MAX_AUDIO_SENSITIVITY,
+    MAX_AUDIO_TRANSITION_SPEED,
+    MIN_AUDIO_SENSITIVITY,
+    MIN_AUDIO_TRANSITION_SPEED,
+    VALID_AUDIO_COLOR_ADVANCE,
 )
 from .presets import (
     CCT_SEQUENCE_PRESETS,
@@ -647,6 +655,18 @@ SERVICE_START_DYNAMIC_SCENE_SCHEMA = vol.Schema(
         ),
         vol.Optional("scene_name"): cv.string,
         vol.Optional("static", default=False): cv.boolean,
+        vol.Optional("audio_entity"): cv.entity_domain("binary_sensor"),
+        vol.Optional("audio_sensitivity", default=DEFAULT_AUDIO_SENSITIVITY): vol.All(
+            vol.Coerce(int), vol.Range(min=MIN_AUDIO_SENSITIVITY, max=MAX_AUDIO_SENSITIVITY)
+        ),
+        vol.Optional("audio_brightness_response", default=True): cv.boolean,
+        vol.Optional("audio_color_advance", default=AUDIO_COLOR_ADVANCE_ON_BEAT): vol.In(
+            VALID_AUDIO_COLOR_ADVANCE
+        ),
+        vol.Optional("audio_transition_speed", default=DEFAULT_AUDIO_TRANSITION_SPEED): vol.All(
+            vol.Coerce(int),
+            vol.Range(min=MIN_AUDIO_TRANSITION_SPEED, max=MAX_AUDIO_TRANSITION_SPEED),
+        ),
     }
 )
 
@@ -3361,7 +3381,18 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 loop_mode=preset["loop_mode"],
                 loop_count=preset.get("loop_count"),
                 end_behavior=preset["end_behavior"],
+                audio_entity=preset.get("audio_entity"),
+                audio_sensitivity=preset.get("audio_sensitivity", DEFAULT_AUDIO_SENSITIVITY),
+                audio_brightness_response=preset.get("audio_brightness_response", True),
+                audio_color_advance=preset.get("audio_color_advance", AUDIO_COLOR_ADVANCE_ON_BEAT),
+                audio_transition_speed=preset.get("audio_transition_speed", DEFAULT_AUDIO_TRANSITION_SPEED),
             )
+            if scene.audio_entity and not hass.states.get(scene.audio_entity):
+                _LOGGER.warning(
+                    "Audio entity '%s' not found, falling back to timed mode",
+                    scene.audio_entity,
+                )
+                scene.audio_entity = None
         else:
             # Build from manual parameters
             colors_data = call.data.get("colors")
@@ -3395,6 +3426,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 loop_mode=call.data.get(ATTR_LOOP_MODE, "continuous"),
                 loop_count=call.data.get(ATTR_LOOP_COUNT),
                 end_behavior=call.data.get(ATTR_END_BEHAVIOR, "maintain"),
+                audio_entity=call.data.get("audio_entity"),
+                audio_sensitivity=call.data.get("audio_sensitivity", DEFAULT_AUDIO_SENSITIVITY),
+                audio_brightness_response=call.data.get("audio_brightness_response", True),
+                audio_color_advance=call.data.get("audio_color_advance", AUDIO_COLOR_ADVANCE_ON_BEAT),
+                audio_transition_speed=call.data.get("audio_transition_speed", DEFAULT_AUDIO_TRANSITION_SPEED),
             )
 
         # Stop all conflicting continuous actions on these entities

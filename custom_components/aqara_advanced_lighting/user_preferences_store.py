@@ -58,6 +58,7 @@ class GlobalPreferences(TypedDict):
     override_control_mode: str
     bare_turn_on_only: bool
     detect_non_ha_changes: bool
+    entity_audio_config: dict[str, dict[str, str]]
 
 
 DEFAULT_GLOBAL_PREFERENCES: GlobalPreferences = {
@@ -66,6 +67,7 @@ DEFAULT_GLOBAL_PREFERENCES: GlobalPreferences = {
     "override_control_mode": "pause_changed",
     "bare_turn_on_only": False,
     "detect_non_ha_changes": False,
+    "entity_audio_config": {},
 }
 
 
@@ -85,16 +87,8 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
             raw_global = self._data.pop(GLOBAL_PREFERENCES_KEY, None)
             if raw_global and isinstance(raw_global, dict):
                 self._global_data = {
-                    "ignore_external_changes": raw_global.get(
-                        "ignore_external_changes", False
-                    ),
-                    "software_transition_entities": raw_global.get(
-                        "software_transition_entities", []
-                    ),
-                    "override_control_mode": raw_global.get(
-                        "override_control_mode",
-                        DEFAULT_GLOBAL_PREFERENCES["override_control_mode"],
-                    ),
+                    key: raw_global.get(key, default)
+                    for key, default in DEFAULT_GLOBAL_PREFERENCES.items()
                 }
             else:
                 self._global_data = {**DEFAULT_GLOBAL_PREFERENCES}
@@ -262,6 +256,7 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
         override_control_mode: str | None = None,
         bare_turn_on_only: bool | None = None,
         detect_non_ha_changes: bool | None = None,
+        entity_audio_config: dict[str, dict[str, str]] | None = None,
     ) -> GlobalPreferences:
         """Update integration-wide global preferences.
 
@@ -281,6 +276,9 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
 
         if detect_non_ha_changes is not None:
             self._global_data["detect_non_ha_changes"] = detect_non_ha_changes
+
+        if entity_audio_config is not None:
+            self._global_data["entity_audio_config"] = entity_audio_config
 
         await self.async_save()
         _LOGGER.debug("Updated global preferences")

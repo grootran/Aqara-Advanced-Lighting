@@ -2388,6 +2388,56 @@ start_dynamic_scene:
       default: false
       selector:
         boolean:
+    audio_entity:
+      name: Audio entity
+      description: >-
+        Binary sensor providing beat detection data (from esphome-audio-reactive
+        component). When set, scene timing is driven by beat events instead of
+        fixed transition and hold times. The integration auto-discovers companion
+        sensors (bass energy, amplitude, BPM) on the same ESPHome device.
+      required: false
+      selector:
+        entity:
+          domain: binary_sensor
+    audio_sensitivity:
+      name: Audio sensitivity
+      description: >-
+        How responsive to sound changes (1-100). Higher values react to
+        quieter sounds.
+      default: 50
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: slider
+    audio_brightness_response:
+      name: Audio brightness response
+      description: When enabled, louder sounds increase brightness.
+      default: true
+      selector:
+        boolean:
+    audio_color_advance:
+      name: Audio color advance
+      description: >-
+        How colors advance. "on_beat" advances on amplitude spikes.
+        "continuous" maps amplitude to palette position.
+      default: on_beat
+      selector:
+        select:
+          options:
+            - on_beat
+            - continuous
+    audio_transition_speed:
+      name: Audio transition speed
+      description: >-
+        Speed of color transitions on beat (1-100). 1 is a slow fade,
+        100 is an instant snap.
+      default: 50
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: slider
 
 stop_dynamic_scene:
   name: Stop dynamic scene
