@@ -2,7 +2,7 @@
 
 [Back to README](../README.md) | [Services](services.md) | [Frontend panel](frontend-panel.md)
 
-Audio-reactive mode makes your lights respond to music and sound in real time. Colors advance on beats, brightness pulses with volume, and the palette flows with the music. This guide covers the hardware you need, how to set it up, and how to use it with the integration.
+Audio-reactive mode makes your lights respond to music and sound in real time. Colors advance on musical onsets, brightness pulses with volume, and the palette flows with the music. This guide covers the hardware you need, how to set it up, and how to use it with the integration.
 
 ## Table of contents
 
@@ -11,15 +11,20 @@ Audio-reactive mode makes your lights respond to music and sound in real time. C
 - [Setting up the sensor](#setting-up-the-sensor)
   - [One-click install (recommended)](#one-click-install-recommended)
   - [Manual ESPHome setup](#manual-esphome-setup)
+- [Calibrating the device](#calibrating-the-device)
 - [Verifying in Home Assistant](#verifying-in-home-assistant)
 - [Using audio-reactive mode](#using-audio-reactive-mode)
   - [From the frontend panel](#from-the-frontend-panel)
   - [From a service call](#from-a-service-call)
   - [Audio parameters](#audio-parameters)
+  - [Color advance modes](#color-advance-modes)
+  - [Detection modes](#detection-modes)
   - [Sensitivity](#sensitivity)
-  - [Color advance mode](#color-advance-mode)
   - [Transition speed](#transition-speed)
   - [Brightness response](#brightness-response)
+  - [Frequency zone distribution](#frequency-zone-distribution)
+  - [Silence degradation](#silence-degradation)
+  - [Beat prediction](#beat-prediction)
 - [How audio detection works](#how-audio-detection-works)
 - [T1 Strip on-device audio sync](#t1-strip-on-device-audio-sync)
 - [On-device audio for other lights](#on-device-audio-for-other-lights)
@@ -30,13 +35,15 @@ Audio-reactive mode makes your lights respond to music and sound in real time. C
 
 ## How it works
 
-Audio-reactive mode replaces the fixed timing of a dynamic scene (transition time, hold time) with live audio data from an ESPHome device running the `esphome-audio-reactive` component. The component performs on-device FFT analysis and exposes beat detection and frequency band data to Home Assistant. The integration uses these to:
+Audio-reactive mode replaces the fixed timing of a dynamic scene (transition time, hold time) with live audio data from an ESPHome device running the `esphome-audio-reactive` component. The component performs on-device FFT analysis with a dedicated processing task and exposes onset detection and frequency band data to Home Assistant. The integration uses these to:
 
-- **Detect beats** and advance colors on each beat
-- **Modulate brightness** so lights pulse louder with the music
-- **Map amplitude to palette position** for a continuous color flow that tracks the sound
+- **Detect musical onsets** (beats, cymbal hits, vocal entrances) and advance colors
+- **Modulate brightness** so lights pulse with the music's dynamics
+- **Map amplitude to palette position** for continuous color flow that tracks the sound
+- **Predict beats** by learning the tempo and sending commands early to compensate for Zigbee latency
+- **Distribute lights by frequency** so different lights react to bass, mid, and treble
 
-You need an ESP32 device with a microphone running ESPHome and the `esphome-audio-reactive` component. The device sits near your speaker and streams beat detection and audio analysis data to Home Assistant over your local network.
+You need an ESP32 device with a microphone running ESPHome and the `esphome-audio-reactive` component. The device sits near your speaker and streams audio analysis data to Home Assistant over your local network.
 
 ---
 
@@ -78,7 +85,7 @@ The Plus2 includes a 1.14" display and 200mAh battery, but for audio sensing the
 
 ## Setting up the sensor
 
-The [`esphome-audio-reactive`](https://github.com/absent42/esphome-audio-reactive) component runs on your ESP32 and performs on-device FFT analysis, beat detection, and frequency band energy measurement. It exposes a `binary_sensor.beat_detected` entity (the audio trigger for dynamic scenes) and companion sensors for bass energy, mid energy, high energy, amplitude, and BPM.
+The [`esphome-audio-reactive`](https://github.com/absent42/esphome-audio-reactive) component runs on your ESP32 and performs on-device FFT analysis, onset detection, and frequency band energy measurement. It exposes an `Audio Sensor` binary sensor entity (the audio trigger for dynamic scenes) and companion sensors for bass energy, mid energy, high energy, amplitude, BPM, silence state, and control entities for sensitivity, squelch, detection mode, mute, and calibration.
 
 ### One-click install (recommended)
 
@@ -101,183 +108,7 @@ If you prefer to compile yourself, need a custom configuration, or are using a d
 - [ESPHome](https://esphome.io/guides/getting_started_command_line/) installed (via pip, Docker, or your preferred method)
 - A USB data cable for first-time device flash (not a charge-only cable)
 
-Add the external component source and the `audio_reactive` platform to your device's ESPHome YAML. The per-device configurations below provide complete, ready-to-flash examples. You also need the ESPHome integration in Home Assistant (**Settings > Devices & services > ESPHome**) to receive sensor data from the device.
-
-### A note about secrets
-
-The YAML configurations below use `!secret` tags to keep sensitive values (Wi-Fi password, API key) out of the configuration file. These values are stored in a separate `secrets.yaml` file in the same directory as your ESPHome configurations. It looks like this:
-
-```yaml
-wifi_ssid: "YourNetworkName"
-wifi_password: "YourWiFiPassword"
-api_encryption_key: "a-base64-encoded-key"
-```
-
-For more details, see the [ESPHome YAML guide](https://esphome.io/guides/yaml/).
-
-### M5Stack ATOM Echo configuration
-
-Create a new YAML file (for example, `audio-reactive.yaml`) with this complete configuration:
-
-```yaml
-esphome:
-  name: audio-reactive
-  friendly_name: Audio Reactive Sensor
-
-esp32:
-  board: m5stack-atom
-  framework:
-    type: arduino
-
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
-
-api:
-  encryption:
-    key: !secret api_encryption_key
-
-logger:
-
-external_components:
-  - source: github://absent42/esphome-audio-reactive
-    components: [audio_reactive]
-
-i2s_audio:
-  i2s_lrclk_pin: GPIO33
-  i2s_bclk_pin: GPIO19
-
-microphone:
-  - platform: i2s_audio
-    id: mic
-    adc_type: external
-    pdm: true
-    i2s_din_pin: GPIO23
-    sample_rate: 16000
-    bits_per_sample: 16bit
-
-audio_reactive:
-  id: audio_analysis
-  microphone: mic
-  update_interval: 50ms
-  beat_sensitivity: 50
-
-sensor:
-  - platform: audio_reactive
-    audio_reactive_id: audio_analysis
-    bass_energy:
-      name: "Bass Energy"
-    mid_energy:
-      name: "Mid Energy"
-    high_energy:
-      name: "High Energy"
-    amplitude:
-      name: "Amplitude"
-    bpm:
-      name: "BPM"
-
-binary_sensor:
-  - platform: audio_reactive
-    audio_reactive_id: audio_analysis
-    beat_detected:
-      name: "Beat Detected"
-
-number:
-  - platform: audio_reactive
-    audio_reactive_id: audio_analysis
-    beat_sensitivity:
-      name: "Beat Sensitivity"
-```
-
-> **Note:** The pre-built web installer firmware uses the `esp-idf` framework. The `arduino` framework shown above also works for manual builds.
-
-This creates the following entities:
-- `binary_sensor.audio_reactive_beat_detected` -- pulses on when a beat is detected (use this as your `audio_entity`)
-- `sensor.audio_reactive_bass_energy` -- normalized bass band energy (0-1)
-- `sensor.audio_reactive_mid_energy` -- normalized mid band energy (0-1)
-- `sensor.audio_reactive_high_energy` -- normalized high band energy (0-1)
-- `sensor.audio_reactive_amplitude` -- overall normalized amplitude (0-1)
-- `sensor.audio_reactive_bpm` -- estimated beats per minute
-- `number.audio_reactive_beat_sensitivity` -- adjustable beat detection sensitivity (1-100, set automatically by integration)
-
-### M5StickC Plus2 configuration
-
-Replace the generated YAML with this complete configuration:
-
-```yaml
-esphome:
-  name: audio-reactive
-  friendly_name: Audio Reactive Sensor
-
-esp32:
-  board: m5stick-c
-  framework:
-    type: arduino
-
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
-
-api:
-  encryption:
-    key: !secret api_encryption_key
-
-logger:
-
-external_components:
-  - source: github://absent42/esphome-audio-reactive
-    components: [audio_reactive]
-
-i2s_audio:
-  - id: i2s_mic
-    i2s_lrclk_pin: GPIO0
-    i2s_bclk_pin: GPIO26
-
-microphone:
-  - platform: i2s_audio
-    id: mic
-    i2s_audio_id: i2s_mic
-    adc_type: external
-    pdm: true
-    i2s_din_pin: GPIO34
-    sample_rate: 16000
-    bits_per_sample: 16bit
-    channel: left
-
-audio_reactive:
-  id: audio_analysis
-  microphone: mic
-  update_interval: 50ms
-  beat_sensitivity: 50
-
-sensor:
-  - platform: audio_reactive
-    audio_reactive_id: audio_analysis
-    bass_energy:
-      name: "Bass Energy"
-    mid_energy:
-      name: "Mid Energy"
-    high_energy:
-      name: "High Energy"
-    amplitude:
-      name: "Amplitude"
-    bpm:
-      name: "BPM"
-
-binary_sensor:
-  - platform: audio_reactive
-    audio_reactive_id: audio_analysis
-    beat_detected:
-      name: "Beat Detected"
-
-number:
-  - platform: audio_reactive
-    audio_reactive_id: audio_analysis
-    beat_sensitivity:
-      name: "Beat Sensitivity"
-```
-
-The SPM1423 is a PDM microphone with the clock on GPIO0 and data on GPIO34. PDM mode does not use the BCLK pin, but ESPHome requires one to be assigned -- GPIO26 is an available external pin on the Plus2 that serves as a placeholder here.
+Add the external component source and the `audio_reactive` platform to your device's ESPHome YAML. See the `atom-echo.yaml` file in the component repository for a complete, ready-to-flash example. You also need the ESPHome integration in Home Assistant (**Settings > Devices & services > ESPHome**) to receive sensor data from the device.
 
 ### Flashing the device
 
@@ -286,7 +117,7 @@ The SPM1423 is a PDM microphone with the clock on GPIO0 and data on GPIO34. PDM 
 Make sure you are using a USB data cable, not a charge-only cable (a common issue).
 
 ```bash
-esphome run audio-reactive.yaml
+esphome run atom-echo.yaml
 ```
 
 Select the serial port when prompted. The firmware will compile, flash, and the device will reboot and connect to your Wi-Fi.
@@ -297,24 +128,51 @@ Once a device has been flashed and is connected to your network, subsequent upda
 
 ---
 
+## Calibrating the device
+
+For best results, calibrate the device to your specific environment after initial setup. Calibration data is stored on the device and survives power cycles.
+
+### Quiet room calibration
+
+Ensures the device correctly identifies silence and doesn't react to ambient noise (AC hum, fan noise, etc.).
+
+1. Make sure the room is quiet (no music, minimal background noise)
+2. **Double-click** the device button, or press **Calibrate Quiet Room** in Home Assistant
+3. The LED glows green for 3 seconds while sampling the ambient noise level
+4. The LED brightens briefly to confirm calibration is complete
+
+### Music level calibration
+
+Teaches the device what typical music levels look like in your setup, so the sensors produce a useful 0-1 range instead of being stuck at maximum.
+
+1. Play music at your typical listening volume
+2. Press **Calibrate Music Level** in Home Assistant
+3. The LED glows blue for 5 seconds while sampling
+4. The LED brightens briefly to confirm calibration is complete
+
+**Run quiet room calibration first, then music calibration.** If you change rooms, speaker setup, or device placement, re-run both calibrations.
+
+---
+
 ## Verifying in Home Assistant
 
-After flashing (via one-click install or manual ESPHome setup), the device should auto-discover in Home Assistant within a minute.
+After flashing and calibrating, the device should auto-discover in Home Assistant within a minute.
 
 1. Go to **Settings > Devices & services**
 2. The ESPHome device should appear as a new integration or under your existing ESPHome integration
 3. Click **Configure** if prompted
-4. Go to **Settings > Devices & services > Entities** and search for "beat detected" or "bass energy"
-5. You should see a binary sensor (`Beat Detected`) and five sensors (`Bass Energy`, `Mid Energy`, `High Energy`, `Amplitude`, `BPM`)
+4. Go to **Settings > Devices & services > Entities** and search for "audio sensor" or "bass energy"
+5. You should see the Audio Sensor binary sensor, five measurement sensors (Bass Energy, Mid Energy, High Energy, Amplitude, BPM), a Silence binary sensor, and control entities (Beat Sensitivity, Squelch, Detection Mode, Microphone Mute)
 
 ### Testing the sensor
 
-1. Open the `Beat Detected` binary sensor entity in the HA UI
+1. Open the `Audio Sensor` binary sensor entity in the HA UI
 2. Play music near the device
-3. You should see the binary sensor pulse on/off with beats in the music
-4. Check the `Bass Energy` and `Amplitude` sensors -- they should fluctuate in real time
+3. You should see the binary sensor pulse on/off with musical events
+4. Check the `Bass Energy` and `Amplitude` sensors -- they should fluctuate between 0 and 1
 5. The `BPM` sensor should settle on an approximate tempo after a few seconds of music
-6. If the values stay flat, check that the device is near enough to the sound source and that the microphone is not obstructed
+6. The `Silence` binary sensor should be off when music is playing and on when the room is quiet
+7. If the values stay flat or stuck at 1.0, run the calibration steps above
 
 ---
 
@@ -328,9 +186,10 @@ Audio-reactive mode works with any dynamic scene. You enable it by selecting an 
 2. Create or edit a dynamic scene preset with the colors you want
 3. Expand the **Audio reactive** section in the editor
 4. Toggle **Enable audio** on
-5. Select your beat detection binary sensor entity (for example, `binary_sensor.audio_reactive_beat_detected`)
-6. Adjust sensitivity, color advance mode, transition speed, and brightness response to taste
-7. Save the preset
+5. Select your audio sensor entity (for example, `binary_sensor.audio_reactive_audio_sensor`)
+6. Choose a **color advance mode** and **detection mode**
+7. Adjust sensitivity, transition speed, and other parameters to taste
+8. Save the preset
 
 When activating a preset, you can also override audio settings at activation time without changing the saved preset:
 
@@ -366,11 +225,14 @@ data:
   hold_time: 0.5
   distribution_mode: shuffle_rotate
   loop_mode: continuous
-  audio_entity: binary_sensor.audio_reactive_beat_detected
+  audio_entity: binary_sensor.audio_reactive_audio_sensor
   audio_sensitivity: 60
-  audio_color_advance: on_beat
+  audio_color_advance: on_onset
+  audio_detection_mode: spectral_flux
   audio_transition_speed: 70
   audio_brightness_response: true
+  audio_frequency_zone: false
+  audio_silence_degradation: true
 ```
 
 When `audio_entity` is set, the `transition_time` and `hold_time` values are ignored. Color changes are driven entirely by the audio data.
@@ -379,85 +241,95 @@ When `audio_entity` is set, the `transition_time` and `hold_time` values are ign
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `audio_entity` | entity_id | none | Beat detection binary sensor from the `esphome-audio-reactive` component. Setting this enables audio mode. |
-| `audio_sensitivity` | 1-100 | 50 | How responsive beat detection is to sound. Higher values detect quieter beats. |
-| `audio_color_advance` | `on_beat` or `continuous` | `on_beat` | How colors advance through the palette (see below). |
-| `audio_transition_speed` | 1-100 | 50 | How fast colors fade between changes. Higher values = faster transitions. |
+| `audio_entity` | entity_id | none | Audio sensor binary sensor from the `esphome-audio-reactive` component. Setting this enables audio mode. |
+| `audio_sensitivity` | 1-100 | 50 | How responsive onset detection is to sound. Higher values detect quieter events. |
+| `audio_color_advance` | string | `on_onset` | How colors advance through the palette (see color advance modes below). |
+| `audio_detection_mode` | string | `spectral_flux` | Detection algorithm: `spectral_flux` (all genres) or `bass_energy` (rhythmic music). |
+| `audio_transition_speed` | 1-100 | 50 | How fast colors fade between changes. Higher = faster. |
 | `audio_brightness_response` | boolean | true | When enabled, brightness pulses with the music's volume. |
+| `audio_frequency_zone` | boolean | false | Auto-distribute lights across bass/mid/high frequency bands. Requires 3+ lights. |
+| `audio_silence_degradation` | boolean | true | Gradually transition to slow palette cycling during silence. |
+| `audio_prediction_aggressiveness` | 1-100 | 50 | How aggressively to predict beats (beat_predictive mode only). |
+| `audio_latency_compensation_ms` | 0-500 | 150 | Milliseconds to send commands early to compensate for Zigbee latency (beat_predictive mode only). |
+
+### Color advance modes
+
+| Mode | Description | Best for |
+|---|---|---|
+| **Color cycle** (`on_onset`) | Each musical onset advances to the next color in the palette. Rhythmic, punchy. | Music with clear beats (pop, electronic, rock) |
+| **Continuous** (`continuous`) | Energy level maps continuously to palette position. Smooth color flow. | Ambient, classical, jazz |
+| **Beat predictive** (`beat_predictive`) | Learns the tempo and sends light commands early to compensate for Zigbee latency. | Steady-tempo music where tight sync matters |
+| **Intensity breathing** (`intensity_breathing`) | Slow brightness envelope tracks overall loudness. Ignores individual beats. | Background/ambient listening |
+| **Brightness flash** (`onset_flash`) | Slow color drift with brightness spikes on each onset. | Combining ambient flow with reactive punch |
+
+### Detection modes
+
+**Spectral flux** (default) detects any sudden change across all frequency bands — kick drums, snare hits, cymbal crashes, piano attacks, violin pizzicato, vocal entrances. Works with all music genres.
+
+**Bass energy** only detects bass energy threshold crossings. Optimized for rhythmic music with a prominent low-frequency beat. Includes hysteresis to prevent rapid re-triggering.
 
 ### Sensitivity
 
-Sensitivity controls how easily the ESPHome device detects a beat. The value (1-100) is sent directly to the device's beat detection algorithm, where it sets the threshold for distinguishing beats from background noise.
+Sensitivity controls how easily the device detects musical events. The value (1-100) is sent directly to the device's onset detection algorithm.
 
-- **Low values (1-30):** Only strong, prominent beats trigger a color change. Good for loud environments or when you want a calmer, less frequent response.
+- **Low values (1-30):** Only strong, prominent events trigger a color change.
 - **Mid values (40-60):** A balanced default. Reacts to clear beats in most music.
-- **High values (70-100):** Reacts to subtle sounds. Good for quiet listening or ambient music with soft dynamics. Can feel chaotic with loud, bass-heavy music.
+- **High values (70-100):** Reacts to subtle sounds. Good for quiet listening or ambient music.
 
-**Runtime adjustment:** When an audio scene is running, a sensitivity slider appears on the active operation card in the frontend panel. Drag the slider to adjust sensitivity in real time without stopping the scene. The new value is sent to the ESPHome device immediately, so you can tune the responsiveness to match what you're listening to. The slider changes the running scene's sensitivity only -- it does not modify the saved preset.
-
-**How it works internally:** The sensitivity value maps to a threshold multiplier on the ESPHome device. The beat detector compares each audio frame's bass energy against a rolling average, multiplied by this threshold. Higher sensitivity lowers the threshold, making it easier for a frame to be classified as a beat. Changing the sensitivity at runtime resets the beat interval tracking (so BPM re-calibrates) but preserves the energy calibration window, so the device adjusts immediately without a warmup period.
-
-### Color advance mode
-
-Color advance mode determines how your scene's color palette responds to audio. The two modes produce very different visual effects and are suited to different situations.
-
-**on_beat** (default)
-
-Each time the device detects a beat, the lights advance to the next color in the palette. The pattern cycles through your colors in order, one beat at a time. This produces a rhythmic, punchy look that follows the tempo of the music.
-
-Best for:
-- Music with a clear, steady beat (pop, electronic, rock, hip-hop)
-- Palettes with high contrast between colors (the color jump is the visual effect)
-- Party or active listening situations where you want the lights to "hit" with the music
-
-**continuous**
-
-Instead of waiting for beats, the lights subscribe to the amplitude sensor and continuously map the current energy level to a position in the palette. Silence or very quiet sounds show the first color, loud sounds show the last color, and everything in between blends through the middle of the palette. Color updates arrive approximately 20 times per second, rate-limited by the transition speed to avoid flooding your lights.
-
-Best for:
-- Ambient, classical, or jazz music where beats are not prominent
-- Palettes with smooth gradients between adjacent colors (the energy flow is the visual effect)
-- Background or relaxation settings where a gentle color flow feels more natural than sharp color jumps
-
-**Tip:** The number of colors in your palette matters. With 2-3 colors, on_beat gives dramatic jumps and continuous gives a simple low-to-high sweep. With 6-8 colors, on_beat cycles through a wider variety and continuous can paint a richer gradient across the energy range.
+**Runtime adjustment:** When an audio scene is running, a sensitivity slider appears in the active scene controls. Drag the slider to adjust sensitivity in real time without stopping the scene.
 
 ### Transition speed
 
-Transition speed (1-100) controls how fast the lights fade from one color to the next after a beat or energy change. It maps to a transition duration:
+Transition speed (1-100) controls how fast the lights fade from one color to the next:
 
-- **1** (slowest): 2-second fade. Colors blend gradually. Gives a soft, dreamy quality.
-- **50** (default): ~1-second fade. A balanced middle ground.
-- **100** (fastest): 0.1-second snap. Colors change almost instantly. Gives a sharp, punchy look.
+- **1** (slowest): 2-second fade. Soft, dreamy quality.
+- **50** (default): ~1-second fade. Balanced.
+- **100** (fastest): 0.1-second snap. Sharp, punchy.
 
-In **on_beat** mode, the transition speed determines how quickly the light reaches the new color after each beat. Slow transitions can create an interesting effect where the light is still fading to one color when the next beat arrives, producing overlapping blends. Fast transitions give each beat a distinct, crisp color change.
-
-In **continuous** mode, the transition speed also sets the minimum interval between color updates (the rate limit). At speed 100, color updates can happen as fast as every 100ms. At speed 1, updates are throttled to every 2 seconds. This prevents the lights from being overwhelmed with rapid commands while still allowing smooth tracking at higher speeds.
+Not applicable to intensity breathing mode (which uses its own slow envelope).
 
 ### Brightness response
 
-When brightness response is enabled, the lights' brightness pulses with the volume of the music. Louder passages increase brightness, quieter passages dim. The modulation range is clamped between 30% and 100% of the scene's configured brightness, so lights never go completely dark.
+When brightness response is enabled, the lights' brightness pulses with the volume. The modulation range is clamped between 30% and 100% of the scene's configured brightness, so lights never go completely dark.
 
-- In **on_beat** mode, the brightness is read from the amplitude (or bass energy) companion sensor at the moment each beat is detected. This means brightness changes once per beat, giving a "pumping" effect synchronized with the rhythm.
-- In **continuous** mode, the brightness updates on every energy event (~20 times per second), giving a smooth, real-time volume meter effect where the lights breathe with the music's dynamics.
+Not applicable to intensity breathing or brightness flash modes (where brightness modulation is inherent to the mode).
 
-Disable brightness response if you want a consistent brightness level regardless of volume, or if the pulsing effect is distracting for your use case.
+### Frequency zone distribution
+
+When enabled with 3 or more lights, the lights are automatically distributed into bass, mid, and high frequency groups based on their order. Each group reacts to its assigned frequency band's energy independently. Onset events still advance colors for all groups simultaneously.
+
+With fewer than 3 lights, frequency zone mode falls back to normal (all lights react the same).
+
+### Silence degradation
+
+When enabled, the scene gradually transitions to slow palette cycling during silence (over ~5 seconds). When music resumes, it snaps back to audio-reactive mode. This keeps the lights alive and moving instead of freezing during quiet passages or pauses between songs.
+
+Disable this if you prefer lights to hold their last color during silence.
+
+### Beat prediction
+
+Beat predictive mode learns the tempo (BPM) of the music and sends light commands early to compensate for Zigbee transmission latency. This makes the lights appear to change on the beat rather than 200ms after.
+
+- **Prediction aggressiveness** (1-100): Higher values enter predictive mode with less confidence, and tolerate more misses before falling back. Lower values require very steady tempo before predicting.
+- **Latency compensation** (0-500ms): How far ahead to send commands. Default 150ms works for most setups.
+
+The mode has a state machine: starts reactive, transitions to tracking when BPM confidence is high, then switches to predictive after enough consecutive matches. Falls back to reactive instantly on missed predictions.
 
 ---
 
 ## How audio detection works
 
-The `esphome-audio-reactive` component performs on-device FFT analysis and exposes a set of entities to Home Assistant:
+The `esphome-audio-reactive` component performs on-device audio analysis using a dedicated FreeRTOS processing task:
 
-- `binary_sensor.beat_detected` -- pulses on when a beat is detected
-- `sensor.bass_energy` -- normalized bass band energy (0.0 to 1.0)
-- `sensor.mid_energy` -- normalized mid band energy
-- `sensor.high_energy` -- normalized high band energy
-- `sensor.amplitude` -- overall normalized amplitude
-- `sensor.bpm` -- estimated BPM
+1. Audio is captured at 22,050 Hz via an I2S PDM microphone
+2. A ring buffer feeds samples to the FFT task running on ESP32 core 0
+3. 512-sample FFT with 75% overlap produces frequency magnitudes every ~5.8ms
+4. 16 frequency bands are computed with pink noise correction
+5. PI-controller automatic gain control normalizes values to 0-1 range
+6. Spectral flux onset detection identifies musical events across all bands
+7. Dynamics limiter and asymmetric smoothing produce clean, stable sensor output
 
-You select the beat detection binary sensor as your `audio_entity`. The integration automatically discovers the companion sensors on the same device by looking up sibling entities in the HA device registry. No manual configuration is needed beyond selecting the binary sensor.
-
-**Why on-device FFT?** Running FFT analysis on the ESP32 means beat detection is frequency-aware -- it reacts to bass hits, not door slams. The pre-calculated beat timing avoids HA-side threshold computation, and the companion sensors provide richer data for brightness modulation and continuous color advance mode. The estimated BPM is displayed in the active operation card in the frontend.
+You select the `Audio Sensor` binary sensor as your `audio_entity`. The integration automatically discovers the companion sensors (energy bands, BPM, silence, sensitivity, squelch, detection mode) on the same device by looking up sibling entities in the HA device registry. No manual configuration is needed beyond selecting the binary sensor.
 
 ---
 
@@ -478,8 +350,8 @@ The Aqara T1 Strip (`lumi.light.acn132`) has a built-in microphone and firmware-
 |---|---|
 | `audio_sensitivity` 1-50 | Low sensitivity |
 | `audio_sensitivity` 51-100 | High sensitivity |
-| `audio_color_advance` "on_beat" | "blink" effect |
-| `audio_color_advance` "continuous" | "wave" effect |
+| Color cycle / Beat predictive / Brightness flash | "blink" effect |
+| Continuous / Intensity breathing | "wave" effect |
 
 **Things to be aware of:**
 
@@ -493,7 +365,7 @@ The Aqara T1 Strip (`lumi.light.acn132`) has a built-in microphone and firmware-
 
 Lights with native audio-reactive modes (beyond the T1 Strip) can be configured to use their built-in capabilities alongside software-driven lights:
 
-1. Open the **Aqara Advanced Lighting** panel and go to **Global Preferences**
+1. Open the **Aqara Advanced Lighting** panel and go to **Config**
 2. Under **On-device audio mode**, select the light entity
 3. Enter the service call to activate and deactivate the device's native audio mode
 4. When the light is part of an audio-reactive scene, the integration activates native mode instead of driving it via software
@@ -504,53 +376,52 @@ Lights with native audio-reactive modes (beyond the T1 Strip) can be configured 
 
 The quality of the audio-reactive experience depends heavily on where you place the microphone sensor.
 
-- **Close to the speaker.** Place the device within 1 meter of your speaker or sound source. Further away, the signal-to-noise ratio drops and beat detection becomes unreliable.
+- **Close to the speaker.** Place the device within 1 meter of your speaker or sound source. Further away, the signal-to-noise ratio drops and detection becomes unreliable.
 - **Away from noise sources.** Keep it away from air conditioning vents, fans, and windows where ambient noise could interfere.
 - **Stable surface.** Vibrations from a subwoofer or rattling shelf can cause false triggers. Place the device on a stable, vibration-dampened surface.
 - **Line of sight.** Avoid placing the device inside a cabinet or behind furniture where the sound is muffled.
-- **Test with your music.** After placing the device, play your typical music and check the sensor values in HA. The `Beat Detected` binary sensor should pulse clearly on beats, and `Bass Energy` should show a visible difference between loud and quiet passages.
+- **Calibrate after placement.** After placing the device, run the quiet room and music calibrations to adapt to your specific environment.
 
 ---
 
 ## Troubleshooting
 
-### Sensor values stay flat or don't change
+### Sensor values stay at 0.0 or 1.0
 
-- Check that the ESPHome device is powered and connected to Wi-Fi
-- Verify the microphone pin configuration matches your device
-- Try moving the device closer to the sound source
-- Check the ESPHome logs for errors related to `audio_reactive` or `i2s_audio`
+- Run the **Calibrate Quiet Room** and **Calibrate Music Level** calibrations (see above)
+- If values are stuck at 1.0, the device needs music calibration to learn the signal scale
+- If values are stuck at 0.0, try lowering the squelch value or re-running quiet room calibration in a quieter environment
+
+### Phantom beats in quiet rooms
+
+- Run the **Calibrate Quiet Room** calibration to set the noise floor
+- The silence detector gates output when mid+high frequency energy is below the calibrated threshold
+- Increase the squelch value if phantom beats persist
 
 ### Lights don't react to audio
 
-- Verify the binary sensor entity is updating in HA (check the entity history)
-- Make sure you selected the correct `binary_sensor.*` entity in the `audio_entity` field
+- Verify the Audio Sensor binary sensor entity is updating in HA (check the entity history)
+- Make sure you selected the correct binary sensor entity in the `audio_entity` field
 - Try increasing `audio_sensitivity` (higher values react to quieter sounds)
-- Check the active operation card in the panel for the audio indicator and any warnings
+- Check the active scene controls in the panel for any warnings
+
+### Classical or non-rhythmic music doesn't trigger onsets
+
+- Make sure **Detection mode** is set to **Spectral flux** (the default). This detects any musical event, not just bass beats.
+- Bass energy mode only works well with rhythmic music that has prominent bass
 
 ### Beats are detected too frequently (flickering)
 
 - Lower the `audio_sensitivity` value (try 30-40)
-- The minimum beat interval of 150ms prevents the fastest flicker, but high sensitivity with loud music can still feel chaotic
-- Try switching to `continuous` color advance mode for a smoother experience
-
-### Beats are not detected (lights stay static)
-
-- Increase `audio_sensitivity` (try 70-80)
-- Make sure the music has clear dynamic range. Heavily compressed or ambient tracks may not produce enough variation for beat detection
-- Verify you are using the `binary_sensor.beat_detected` entity from the `esphome-audio-reactive` component
+- Try switching to **Continuous** or **Intensity breathing** mode for a smoother experience
+- The minimum onset interval of 150ms prevents the fastest flicker, but high sensitivity with loud music can still feel chaotic
 
 ### "Audio sensor unavailable" warning
 
 - The binary sensor entity went offline or reported an unavailable state
 - Check that the ESPHome device is powered and connected
+- Check the **Microphone Mute** switch is not enabled
 - The scene will wait up to 60 seconds for the sensor to recover, then stop automatically
-
-### T1 Strip not reacting to audio
-
-- The T1 Strip uses its own built-in microphone, not the external ESPHome sensor
-- Make sure the T1 Strip can hear the music (its mic is on the device itself)
-- Verify that `set_music_sync` works independently by calling it directly from Developer Tools
 
 ### Latency feels too high
 
@@ -558,14 +429,15 @@ Audio-reactive latency depends on the full chain: microphone capture, ESPHome pr
 
 | Step | Typical time |
 |---|---|
-| Audio capture and FFT analysis | ~50ms |
-| ESPHome to Home Assistant | ~50-100ms |
-| Integration processing | ~5-10ms |
+| Audio capture and FFT analysis | ~5ms |
+| ESPHome to Home Assistant | ~20-50ms |
+| Integration processing | ~1ms |
 | Zigbee command to light | ~50-200ms |
-| **Total** | **~150-360ms** |
+| **Total** | **~80-260ms** |
 
-This latency is inherent to the architecture. To minimize it:
+To minimize latency:
 
-- Use a wired Ethernet connection for the ESPHome device if possible
-- Place the Zigbee coordinator close to the lights to reduce Zigbee hop latency
+- Use **Beat predictive** mode to send commands early based on learned tempo
+- Adjust the **Latency compensation** parameter (default 150ms) to match your setup
 - Use `audio_transition_speed: 100` for instant color snaps (no fade)
+- Place the Zigbee coordinator close to the lights to reduce Zigbee hop latency
