@@ -159,8 +159,13 @@ export interface DynamicScenePreset {
   audio_entity?: string;
   audio_sensitivity?: number;
   audio_brightness_response?: boolean;
-  audio_color_advance?: 'on_beat' | 'continuous';
+  audio_color_advance?: 'on_onset' | 'continuous' | 'beat_predictive' | 'intensity_breathing' | 'onset_flash';
   audio_transition_speed?: number;
+  audio_detection_mode?: 'spectral_flux' | 'bass_energy';
+  audio_frequency_zone?: boolean;
+  audio_silence_degradation?: boolean;
+  audio_prediction_aggressiveness?: number;
+  audio_latency_compensation_ms?: number;
 }
 
 export interface PresetsData {
@@ -302,8 +307,13 @@ export interface UserDynamicScenePreset {
   audio_entity?: string;
   audio_sensitivity?: number;
   audio_brightness_response?: boolean;
-  audio_color_advance?: 'on_beat' | 'continuous';
+  audio_color_advance?: 'on_onset' | 'continuous' | 'beat_predictive' | 'intensity_breathing' | 'onset_flash';
   audio_transition_speed?: number;
+  audio_detection_mode?: 'spectral_flux' | 'bass_energy';
+  audio_frequency_zone?: boolean;
+  audio_silence_degradation?: boolean;
+  audio_prediction_aggressiveness?: number;
+  audio_latency_compensation_ms?: number;
   created_at: string;
   modified_at: string;
 }
@@ -369,6 +379,17 @@ export interface UserPreferences {
   static_scene_mode?: boolean;
   distribution_mode_override?: string;
   brightness_override?: number;
+  use_audio_reactive?: boolean;
+  audio_override_entity?: string;
+  audio_override_sensitivity?: number;
+  audio_override_color_advance?: 'on_onset' | 'continuous' | 'beat_predictive' | 'intensity_breathing' | 'onset_flash';
+  audio_override_transition_speed?: number;
+  audio_override_brightness_response?: boolean;
+  audio_override_detection_mode?: 'spectral_flux' | 'bass_energy';
+  audio_override_frequency_zone?: boolean;
+  audio_override_silence_degradation?: boolean;
+  audio_override_prediction_aggressiveness?: number;
+  audio_override_latency_compensation_ms?: number;
 }
 
 export interface EntityAudioConfig {
@@ -483,8 +504,13 @@ export interface DynamicSceneEditorDraft {
   audioEntity: string;
   audioSensitivity: number;
   audioBrightnessResponse: boolean;
-  audioColorAdvance: 'on_beat' | 'continuous';
+  audioColorAdvance: 'on_onset' | 'continuous' | 'beat_predictive' | 'intensity_breathing' | 'onset_flash';
   audioTransitionSpeed: number;
+  audioDetectionMode: 'spectral_flux' | 'bass_energy';
+  audioFrequencyZone: boolean;
+  audioSilenceDegradation: boolean;
+  audioPredictionAggressiveness: number;
+  audioLatencyCompensationMs: number;
 }
 
 export interface EditorDraftCache {
@@ -560,6 +586,7 @@ export interface RunningOperation {
   audio_waiting?: boolean;
   audio_bpm?: number | null;
   audio_sensitivity?: number | null;
+  audio_squelch?: number | null;
 }
 
 export interface RunningOperationsResponse {

@@ -145,6 +145,14 @@ from .const import (
     MIN_AUDIO_SENSITIVITY,
     MIN_AUDIO_TRANSITION_SPEED,
     VALID_AUDIO_COLOR_ADVANCE,
+    DEFAULT_AUDIO_DETECTION_MODE,
+    VALID_AUDIO_DETECTION_MODES,
+    DEFAULT_AUDIO_FREQUENCY_ZONE,
+    DEFAULT_AUDIO_SILENCE_DEGRADATION,
+    DEFAULT_AUDIO_PREDICTION_AGGRESSIVENESS,
+    MIN_AUDIO_PREDICTION_AGGRESSIVENESS,
+    MAX_AUDIO_PREDICTION_AGGRESSIVENESS,
+    DEFAULT_LATENCY_COMPENSATION_MS,
 )
 from .presets import (
     CCT_SEQUENCE_PRESETS,
@@ -666,6 +674,17 @@ SERVICE_START_DYNAMIC_SCENE_SCHEMA = vol.Schema(
         vol.Optional("audio_transition_speed", default=DEFAULT_AUDIO_TRANSITION_SPEED): vol.All(
             vol.Coerce(int),
             vol.Range(min=MIN_AUDIO_TRANSITION_SPEED, max=MAX_AUDIO_TRANSITION_SPEED),
+        ),
+        vol.Optional("audio_detection_mode", default=DEFAULT_AUDIO_DETECTION_MODE): vol.In(
+            VALID_AUDIO_DETECTION_MODES
+        ),
+        vol.Optional("audio_frequency_zone", default=DEFAULT_AUDIO_FREQUENCY_ZONE): cv.boolean,
+        vol.Optional("audio_silence_degradation", default=DEFAULT_AUDIO_SILENCE_DEGRADATION): cv.boolean,
+        vol.Optional("audio_prediction_aggressiveness", default=DEFAULT_AUDIO_PREDICTION_AGGRESSIVENESS): vol.All(
+            vol.Coerce(int), vol.Range(min=MIN_AUDIO_PREDICTION_AGGRESSIVENESS, max=MAX_AUDIO_PREDICTION_AGGRESSIVENESS)
+        ),
+        vol.Optional("audio_latency_compensation_ms", default=DEFAULT_LATENCY_COMPENSATION_MS): vol.All(
+            vol.Coerce(int), vol.Range(min=0, max=500)
         ),
     }
 )

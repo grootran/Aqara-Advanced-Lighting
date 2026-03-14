@@ -2419,14 +2419,65 @@ start_dynamic_scene:
     audio_color_advance:
       name: Audio color advance
       description: >-
-        How colors advance. "on_beat" advances on amplitude spikes.
+        How colors advance. "on_onset" (Color cycle) advances on detected onsets.
         "continuous" maps amplitude to palette position.
-      default: on_beat
+        "beat_predictive" uses beat prediction to pre-advance colors.
+        "intensity_breathing" pulses color intensity with amplitude.
+        "onset_flash" (Brightness flash) flashes brightness on each onset.
+      default: on_onset
       selector:
         select:
           options:
-            - on_beat
-            - continuous
+            - "on_onset"
+            - "continuous"
+            - "beat_predictive"
+            - "intensity_breathing"
+            - "onset_flash"
+    audio_detection_mode:
+      name: Audio Detection Mode
+      description: Algorithm for detecting musical events
+      default: "spectral_flux"
+      required: false
+      selector:
+        select:
+          options:
+            - "spectral_flux"
+            - "bass_energy"
+    audio_frequency_zone:
+      name: Audio Frequency Zone
+      description: Auto-distribute lights across bass/mid/high frequency bands
+      default: false
+      required: false
+      selector:
+        boolean:
+    audio_silence_degradation:
+      name: Audio Silence Degradation
+      description: Gradually transition to slow palette cycling during silence
+      default: true
+      required: false
+      selector:
+        boolean:
+    audio_prediction_aggressiveness:
+      name: Audio Prediction Aggressiveness
+      description: How aggressively to predict beats (1=conservative, 100=aggressive)
+      default: 50
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: slider
+    audio_latency_compensation_ms:
+      name: Audio Latency Compensation
+      description: Milliseconds to send commands early to compensate for Zigbee latency
+      default: 150
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 500
+          mode: slider
+          unit_of_measurement: "ms"
     audio_transition_speed:
       name: Audio transition speed
       description: >-

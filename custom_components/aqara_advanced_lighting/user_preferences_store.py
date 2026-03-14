@@ -34,6 +34,17 @@ class UserPreferences(TypedDict):
     static_scene_mode: bool
     distribution_mode_override: str | None
     brightness_override: int | None
+    use_audio_reactive: bool
+    audio_override_entity: str
+    audio_override_sensitivity: int
+    audio_override_color_advance: str
+    audio_override_transition_speed: int
+    audio_override_brightness_response: bool
+    audio_override_detection_mode: str
+    audio_override_frequency_zone: bool
+    audio_override_silence_degradation: bool
+    audio_override_prediction_aggressiveness: int
+    audio_override_latency_compensation_ms: int
 
 
 DEFAULT_PREFERENCES: UserPreferences = {
@@ -45,6 +56,17 @@ DEFAULT_PREFERENCES: UserPreferences = {
     "static_scene_mode": False,
     "distribution_mode_override": None,
     "brightness_override": None,
+    "use_audio_reactive": False,
+    "audio_override_entity": "",
+    "audio_override_sensitivity": 50,
+    "audio_override_color_advance": "on_onset",
+    "audio_override_transition_speed": 50,
+    "audio_override_brightness_response": True,
+    "audio_override_detection_mode": "spectral_flux",
+    "audio_override_frequency_zone": False,
+    "audio_override_silence_degradation": True,
+    "audio_override_prediction_aggressiveness": 50,
+    "audio_override_latency_compensation_ms": 150,
 }
 
 GLOBAL_PREFERENCES_KEY = "__global__"
@@ -124,6 +146,17 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
                 "static_scene_mode": prefs.get("static_scene_mode", False),
                 "distribution_mode_override": prefs.get("distribution_mode_override"),
                 "brightness_override": prefs.get("brightness_override"),
+                "use_audio_reactive": prefs.get("use_audio_reactive", False),
+                "audio_override_entity": prefs.get("audio_override_entity", ""),
+                "audio_override_sensitivity": prefs.get("audio_override_sensitivity", 50),
+                "audio_override_color_advance": prefs.get("audio_override_color_advance", "on_onset"),
+                "audio_override_transition_speed": prefs.get("audio_override_transition_speed", 50),
+                "audio_override_brightness_response": prefs.get("audio_override_brightness_response", True),
+                "audio_override_detection_mode": prefs.get("audio_override_detection_mode", "spectral_flux"),
+                "audio_override_frequency_zone": prefs.get("audio_override_frequency_zone", False),
+                "audio_override_silence_degradation": prefs.get("audio_override_silence_degradation", True),
+                "audio_override_prediction_aggressiveness": prefs.get("audio_override_prediction_aggressiveness", 50),
+                "audio_override_latency_compensation_ms": prefs.get("audio_override_latency_compensation_ms", 150),
             }
         return {**DEFAULT_PREFERENCES}
 
@@ -188,6 +221,17 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
         static_scene_mode: bool | None = None,
         distribution_mode_override: str | None | _Unset = _UNSET,
         brightness_override: int | None | _Unset = _UNSET,
+        use_audio_reactive: bool | None | _Unset = _UNSET,
+        audio_override_entity: str | None | _Unset = _UNSET,
+        audio_override_sensitivity: int | None | _Unset = _UNSET,
+        audio_override_color_advance: str | None | _Unset = _UNSET,
+        audio_override_transition_speed: int | None | _Unset = _UNSET,
+        audio_override_brightness_response: bool | None | _Unset = _UNSET,
+        audio_override_detection_mode: str | None | _Unset = _UNSET,
+        audio_override_frequency_zone: bool | None | _Unset = _UNSET,
+        audio_override_silence_degradation: bool | None | _Unset = _UNSET,
+        audio_override_prediction_aggressiveness: int | None | _Unset = _UNSET,
+        audio_override_latency_compensation_ms: int | None | _Unset = _UNSET,
     ) -> UserPreferences:
         """Partially update a user's preferences.
 
@@ -203,6 +247,17 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
             static_scene_mode: Whether to apply scenes statically, or None to leave unchanged.
             distribution_mode_override: Distribution mode override string, None to clear, or _UNSET to leave unchanged.
             brightness_override: Brightness override value (1-100), None to clear, or _UNSET to leave unchanged.
+            use_audio_reactive: Whether audio-reactive override is enabled, or _UNSET to leave unchanged.
+            audio_override_entity: Audio sensor entity ID, or _UNSET to leave unchanged.
+            audio_override_sensitivity: Audio sensitivity (1-100), or _UNSET to leave unchanged.
+            audio_override_color_advance: Color advance mode string, or _UNSET to leave unchanged.
+            audio_override_transition_speed: Transition speed (1-100), or _UNSET to leave unchanged.
+            audio_override_brightness_response: Whether brightness responds to audio, or _UNSET to leave unchanged.
+            audio_override_detection_mode: Detection mode string, or _UNSET to leave unchanged.
+            audio_override_frequency_zone: Whether frequency zone distribution is enabled, or _UNSET to leave unchanged.
+            audio_override_silence_degradation: Whether silence degradation is enabled, or _UNSET to leave unchanged.
+            audio_override_prediction_aggressiveness: Prediction aggressiveness (1-100), or _UNSET to leave unchanged.
+            audio_override_latency_compensation_ms: Latency compensation in ms, or _UNSET to leave unchanged.
 
         Returns:
             The full updated preferences.
@@ -235,6 +290,39 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
 
         if not isinstance(brightness_override, _Unset):
             self._data[user_id]["brightness_override"] = brightness_override
+
+        if not isinstance(use_audio_reactive, _Unset):
+            self._data[user_id]["use_audio_reactive"] = use_audio_reactive
+
+        if not isinstance(audio_override_entity, _Unset):
+            self._data[user_id]["audio_override_entity"] = audio_override_entity
+
+        if not isinstance(audio_override_sensitivity, _Unset):
+            self._data[user_id]["audio_override_sensitivity"] = audio_override_sensitivity
+
+        if not isinstance(audio_override_color_advance, _Unset):
+            self._data[user_id]["audio_override_color_advance"] = audio_override_color_advance
+
+        if not isinstance(audio_override_transition_speed, _Unset):
+            self._data[user_id]["audio_override_transition_speed"] = audio_override_transition_speed
+
+        if not isinstance(audio_override_brightness_response, _Unset):
+            self._data[user_id]["audio_override_brightness_response"] = audio_override_brightness_response
+
+        if not isinstance(audio_override_detection_mode, _Unset):
+            self._data[user_id]["audio_override_detection_mode"] = audio_override_detection_mode
+
+        if not isinstance(audio_override_frequency_zone, _Unset):
+            self._data[user_id]["audio_override_frequency_zone"] = audio_override_frequency_zone
+
+        if not isinstance(audio_override_silence_degradation, _Unset):
+            self._data[user_id]["audio_override_silence_degradation"] = audio_override_silence_degradation
+
+        if not isinstance(audio_override_prediction_aggressiveness, _Unset):
+            self._data[user_id]["audio_override_prediction_aggressiveness"] = audio_override_prediction_aggressiveness
+
+        if not isinstance(audio_override_latency_compensation_ms, _Unset):
+            self._data[user_id]["audio_override_latency_compensation_ms"] = audio_override_latency_compensation_ms
 
         await self.async_save()
 

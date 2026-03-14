@@ -75,9 +75,12 @@
     "capability_software_transition": "Software transition",
     "circadian_label": "Circadian",
     "audio_reactive_label": "Audio reactive",
+    "audio_entity_label": "Audio sensor entity",
     "audio_tier_rich": "Beat sync",
     "audio_sensor_unavailable": "Audio sensor unavailable",
-    "audio_bpm_label": "BPM"
+    "audio_bpm_label": "BPM",
+    "audio_squelch_label": "Noise gate",
+    "brightness_override_label": "Brightness"
   },
   "devices": {
     "t2_bulb": "T2 Bulb",
@@ -404,10 +407,23 @@
     "audio_sensitivity_label": "Sensitivity",
     "audio_transition_speed_label": "Transition speed",
     "audio_color_advance_label": "Color advance",
-    "audio_color_advance_on_beat": "On beat",
+    "audio_color_advance_on_onset": "Color cycle",
     "audio_color_advance_continuous": "Continuous",
     "audio_brightness_response_label": "Brightness response",
-    "audio_overrides_timing_note": "When audio reactive is enabled, transition time and hold time are controlled by the audio signal."
+    "audio_overrides_timing_note": "When audio reactive is enabled, transition time and hold time are controlled by the audio signal.",
+    "audio_mode_on_onset": "Color cycle",
+    "audio_mode_continuous": "Continuous",
+    "audio_mode_beat_predictive": "Beat predictive",
+    "audio_mode_intensity_breathing": "Intensity breathing",
+    "audio_mode_onset_flash": "Brightness flash",
+    "audio_detection_mode_label": "Detection mode",
+    "audio_detection_spectral_flux": "Spectral flux (all genres)",
+    "audio_detection_bass_energy": "Bass energy (rhythmic music)",
+    "audio_frequency_zone_label": "Frequency zone distribution",
+    "audio_frequency_zone_helper": "Requires 3+ lights",
+    "audio_silence_degradation_label": "Silence degradation",
+    "audio_prediction_aggressiveness_label": "Prediction aggressiveness",
+    "audio_latency_compensation_label": "Latency compensation"
   },
   "image_extractor": {
     "upload_tab": "Upload",

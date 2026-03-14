@@ -50,38 +50,47 @@ def test_rich_tier_detected_for_binary_sensor():
 def test_companion_discovery_maps_all_roles():
     """All companion sensor roles should be discoverable."""
     hass = MagicMock()
-    beat_entry = MagicMock()
-    beat_entry.device_id = "device_audio"
+    audio_entry = MagicMock()
+    audio_entry.device_id = "device_audio"
 
-    # Unique IDs use dash separators as registered by ESPHome in HA
-    entries = []
-    for unique_suffix, entity_suffix in [
-        ("-bass_energy", "_bass_energy"),
-        ("-mid_energy", "_mid_energy"),
-        ("-high_energy", "_high_energy"),
-        ("-amplitude", "_amplitude"),
-        ("-bpm", "_bpm"),
-        ("-beat_sensitivity", "_beat_sensitivity"),
+    # Unique IDs use dash separators as registered by ESPHome in HA.
+    # v2 suffixes: sensors, binary_sensors, numbers, selects.
+    sensor_entries = []
+    for unique_suffix, entity_id in [
+        ("-bass_energy", "sensor.audio_bass_energy"),
+        ("-mid_energy", "sensor.audio_mid_energy"),
+        ("-high_energy", "sensor.audio_high_energy"),
+        ("-amplitude", "sensor.audio_amplitude"),
+        ("-bpm", "sensor.audio_bpm"),
+        ("-onset_detected", "binary_sensor.audio_onset_detected"),
+        ("-silence", "binary_sensor.audio_silence"),
+        ("-sensitivity", "number.audio_sensitivity"),
+        ("-squelch", "number.audio_squelch"),
+        ("-detection_mode", "select.audio_detection_mode"),
     ]:
         e = MagicMock()
         e.unique_id = f"esphome_audio{unique_suffix}"
-        e.entity_id = f"sensor.audio{entity_suffix}"
-        entries.append(e)
+        e.entity_id = entity_id
+        sensor_entries.append(e)
 
     with patch(
         "custom_components.aqara_advanced_lighting.audio_discovery.er"
     ) as mock_er:
         mock_reg = MagicMock()
         mock_er.async_get.return_value = mock_reg
-        mock_reg.async_get.return_value = beat_entry
-        mock_er.async_entries_for_device.return_value = entries
+        mock_reg.async_get.return_value = audio_entry
+        mock_er.async_entries_for_device.return_value = sensor_entries
 
-        result = discover_companion_sensors(hass, "binary_sensor.beat_detected")
+        result = discover_companion_sensors(hass, "binary_sensor.onset_detected")
 
-    assert len(result) == 6
+    assert len(result) == 10
     assert result["bass_energy"] == "sensor.audio_bass_energy"
     assert result["bpm"] == "sensor.audio_bpm"
-    assert result["beat_sensitivity"] == "sensor.audio_beat_sensitivity"
+    assert result["onset_detected"] == "binary_sensor.audio_onset_detected"
+    assert result["silence"] == "binary_sensor.audio_silence"
+    assert result["sensitivity"] == "number.audio_sensitivity"
+    assert result["squelch"] == "number.audio_squelch"
+    assert result["detection_mode"] == "select.audio_detection_mode"
 
 
 def test_rich_scene_model_accepts_binary_sensor():

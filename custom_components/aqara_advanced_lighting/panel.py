@@ -156,6 +156,7 @@ async def async_register_panel(hass: HomeAssistant) -> None:
     # Register running operations endpoint for panel status display
     hass.http.register_view(RunningOperationsView)
     hass.http.register_view(SceneAudioSensitivityView)
+    hass.http.register_view(SceneAudioSquelchView)
 
     # Register image color extraction and thumbnail endpoints
     hass.http.register_view(ColorExtractView)
@@ -879,6 +880,17 @@ class UserPreferencesView(HomeAssistantView):
         static_scene_mode = None
         distribution_mode_override = _UNSET
         brightness_override = _UNSET
+        use_audio_reactive = _UNSET
+        audio_override_entity = _UNSET
+        audio_override_sensitivity = _UNSET
+        audio_override_color_advance = _UNSET
+        audio_override_transition_speed = _UNSET
+        audio_override_brightness_response = _UNSET
+        audio_override_detection_mode = _UNSET
+        audio_override_frequency_zone = _UNSET
+        audio_override_silence_degradation = _UNSET
+        audio_override_prediction_aggressiveness = _UNSET
+        audio_override_latency_compensation_ms = _UNSET
 
         if "color_history" in data:
             error = _validate_color_history(data["color_history"])
@@ -943,6 +955,88 @@ class UserPreferencesView(HomeAssistantView):
                 )
             brightness_override = int(value) if value is not None else None
 
+        if "use_audio_reactive" in data:
+            if not isinstance(data["use_audio_reactive"], bool):
+                return web.Response(
+                    status=400, text="use_audio_reactive must be a boolean"
+                )
+            use_audio_reactive = data["use_audio_reactive"]
+
+        if "audio_override_entity" in data:
+            if not isinstance(data["audio_override_entity"], str):
+                return web.Response(
+                    status=400, text="audio_override_entity must be a string"
+                )
+            audio_override_entity = data["audio_override_entity"]
+
+        if "audio_override_sensitivity" in data:
+            value = data["audio_override_sensitivity"]
+            if not isinstance(value, (int, float)) or value < 1 or value > 100:
+                return web.Response(
+                    status=400, text="audio_override_sensitivity must be a number between 1 and 100"
+                )
+            audio_override_sensitivity = int(value)
+
+        if "audio_override_color_advance" in data:
+            if not isinstance(data["audio_override_color_advance"], str):
+                return web.Response(
+                    status=400, text="audio_override_color_advance must be a string"
+                )
+            audio_override_color_advance = data["audio_override_color_advance"]
+
+        if "audio_override_transition_speed" in data:
+            value = data["audio_override_transition_speed"]
+            if not isinstance(value, (int, float)) or value < 1 or value > 100:
+                return web.Response(
+                    status=400, text="audio_override_transition_speed must be a number between 1 and 100"
+                )
+            audio_override_transition_speed = int(value)
+
+        if "audio_override_brightness_response" in data:
+            if not isinstance(data["audio_override_brightness_response"], bool):
+                return web.Response(
+                    status=400, text="audio_override_brightness_response must be a boolean"
+                )
+            audio_override_brightness_response = data["audio_override_brightness_response"]
+
+        if "audio_override_detection_mode" in data:
+            if not isinstance(data["audio_override_detection_mode"], str):
+                return web.Response(
+                    status=400, text="audio_override_detection_mode must be a string"
+                )
+            audio_override_detection_mode = data["audio_override_detection_mode"]
+
+        if "audio_override_frequency_zone" in data:
+            if not isinstance(data["audio_override_frequency_zone"], bool):
+                return web.Response(
+                    status=400, text="audio_override_frequency_zone must be a boolean"
+                )
+            audio_override_frequency_zone = data["audio_override_frequency_zone"]
+
+        if "audio_override_silence_degradation" in data:
+            if not isinstance(data["audio_override_silence_degradation"], bool):
+                return web.Response(
+                    status=400, text="audio_override_silence_degradation must be a boolean"
+                )
+            audio_override_silence_degradation = data["audio_override_silence_degradation"]
+
+        if "audio_override_prediction_aggressiveness" in data:
+            value = data["audio_override_prediction_aggressiveness"]
+            if not isinstance(value, (int, float)) or value < 1 or value > 100:
+                return web.Response(
+                    status=400,
+                    text="audio_override_prediction_aggressiveness must be a number between 1 and 100",
+                )
+            audio_override_prediction_aggressiveness = int(value)
+
+        if "audio_override_latency_compensation_ms" in data:
+            value = data["audio_override_latency_compensation_ms"]
+            if not isinstance(value, (int, float)) or value < 0:
+                return web.Response(
+                    status=400, text="audio_override_latency_compensation_ms must be a non-negative number"
+                )
+            audio_override_latency_compensation_ms = int(value)
+
         if (
             color_history is None
             and sort_preferences is None
@@ -952,6 +1046,17 @@ class UserPreferencesView(HomeAssistantView):
             and static_scene_mode is None
             and distribution_mode_override is _UNSET
             and brightness_override is _UNSET
+            and use_audio_reactive is _UNSET
+            and audio_override_entity is _UNSET
+            and audio_override_sensitivity is _UNSET
+            and audio_override_color_advance is _UNSET
+            and audio_override_transition_speed is _UNSET
+            and audio_override_brightness_response is _UNSET
+            and audio_override_detection_mode is _UNSET
+            and audio_override_frequency_zone is _UNSET
+            and audio_override_silence_degradation is _UNSET
+            and audio_override_prediction_aggressiveness is _UNSET
+            and audio_override_latency_compensation_ms is _UNSET
         ):
             # Nothing to update, return current preferences
             preferences = store.get_preferences(user.id)
@@ -967,6 +1072,17 @@ class UserPreferencesView(HomeAssistantView):
             static_scene_mode=static_scene_mode,
             distribution_mode_override=distribution_mode_override,
             brightness_override=brightness_override,
+            use_audio_reactive=use_audio_reactive,
+            audio_override_entity=audio_override_entity,
+            audio_override_sensitivity=audio_override_sensitivity,
+            audio_override_color_advance=audio_override_color_advance,
+            audio_override_transition_speed=audio_override_transition_speed,
+            audio_override_brightness_response=audio_override_brightness_response,
+            audio_override_detection_mode=audio_override_detection_mode,
+            audio_override_frequency_zone=audio_override_frequency_zone,
+            audio_override_silence_degradation=audio_override_silence_degradation,
+            audio_override_prediction_aggressiveness=audio_override_prediction_aggressiveness,
+            audio_override_latency_compensation_ms=audio_override_latency_compensation_ms,
         )
         return web.json_response(preferences)
 
@@ -2004,6 +2120,94 @@ class SceneAudioSensitivityView(HomeAssistantView):
                     text="Failed to update sensitivity",
                     content_type="text/plain",
                 )
+
+        return web.Response(
+            status=404,
+            text="Scene not found",
+            content_type="text/plain",
+        )
+
+
+class SceneAudioSquelchView(HomeAssistantView):
+    """Handle audio squelch (noise gate) runtime updates."""
+
+    url = f"/api/{DOMAIN}/scene_audio_squelch"
+    name = f"api:{DOMAIN}:scene_audio_squelch"
+    requires_auth = True
+
+    async def post(self, request: web.Request) -> web.Response:
+        """Update squelch level for a running audio scene."""
+        hass = request.app["hass"]
+        try:
+            data = await request.json()
+        except ValueError:
+            return web.Response(
+                status=400, text="Invalid JSON", content_type="text/plain"
+            )
+
+        scene_id = data.get("scene_id")
+        squelch = data.get("squelch")
+        if not scene_id or squelch is None:
+            return web.Response(
+                status=400,
+                text="Missing scene_id or squelch",
+                content_type="text/plain",
+            )
+
+        try:
+            squelch = int(squelch)
+        except (TypeError, ValueError):
+            return web.Response(
+                status=400,
+                text="squelch must be an integer",
+                content_type="text/plain",
+            )
+
+        if not (0 <= squelch <= 100):
+            return web.Response(
+                status=400,
+                text="squelch must be between 0 and 100",
+                content_type="text/plain",
+            )
+
+        # Find the scene manager that owns this scene
+        for entry_id, instance_data in hass.data.get(DOMAIN, {}).get("entries", {}).items():
+            if not isinstance(instance_data, dict):
+                continue
+            scene_mgr = instance_data.get(DATA_DYNAMIC_SCENE_MANAGER)
+            if scene_mgr and scene_id in scene_mgr.get_active_scenes():
+                # pylint: disable=protected-access
+                state = scene_mgr._scene_states.get(scene_id)
+                if state is None:
+                    return web.Response(
+                        status=404,
+                        text="Scene state not found",
+                        content_type="text/plain",
+                    )
+                squelch_eid = state.audio_companion_sensors.get("squelch")
+                if not squelch_eid:
+                    return web.Response(
+                        status=404,
+                        text="No squelch companion entity found for this scene",
+                        content_type="text/plain",
+                    )
+                try:
+                    await hass.services.async_call(
+                        "number",
+                        "set_value",
+                        {"entity_id": squelch_eid, "value": squelch},
+                        blocking=False,
+                    )
+                except Exception:
+                    _LOGGER.warning(
+                        "Failed to update squelch on %s", squelch_eid, exc_info=True
+                    )
+                    return web.Response(
+                        status=500,
+                        text="Failed to update squelch",
+                        content_type="text/plain",
+                    )
+                return self.json({"success": True})
 
         return web.Response(
             status=404,
