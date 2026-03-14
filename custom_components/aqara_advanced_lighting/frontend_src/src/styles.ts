@@ -1022,6 +1022,14 @@ export const panelStyles = css`
     padding: 0 16px 8px;
   }
 
+  /* Two-column row for audio override controls, stacks on mobile */
+  .audio-override-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 0 16px 8px;
+  }
+
   /* Two-column form row for Name/Icon on desktop */
   .form-row-pair {
     display: grid;
@@ -1683,6 +1691,10 @@ export const panelStyles = css`
     }
 
     .form-row-pair {
+      grid-template-columns: 1fr;
+    }
+
+    .audio-override-row {
       grid-template-columns: 1fr;
     }
 

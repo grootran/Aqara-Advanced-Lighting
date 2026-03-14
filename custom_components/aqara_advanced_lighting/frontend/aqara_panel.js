@@ -1015,6 +1015,14 @@
     padding: 0 16px 8px;
   }
 
+  /* Two-column row for audio override controls, stacks on mobile */
+  .audio-override-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 0 16px 8px;
+  }
+
   /* Two-column form row for Name/Icon on desktop */
   .form-row-pair {
     display: grid;
@@ -1676,6 +1684,10 @@
     }
 
     .form-row-pair {
+      grid-template-columns: 1fr;
+    }
+
+    .audio-override-row {
       grid-template-columns: 1fr;
     }
 
@@ -6208,7 +6220,7 @@
 
                 ${this._useAudioReactive?H`
                       <!-- Row 1: Entity selector + Detection mode -->
-                      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0 16px 8px;">
+                      <div class="audio-override-row">
                         <div>
                           <span class="form-label">${this._localize("target.audio_entity_label")||"Audio sensor entity"}</span>
                           <ha-selector
@@ -6229,7 +6241,7 @@
                         </div>
                       </div>
                       <!-- Row 2: Sensitivity + Transition speed -->
-                      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0 16px 8px;">
+                      <div class="audio-override-row">
                         <div>
                           <span class="form-label">${this._localize("dynamic_scene.audio_sensitivity_label")||"Sensitivity"}</span>
                           <ha-selector
@@ -6251,7 +6263,7 @@
                           </div>
                       </div>
                       <!-- Row 3: Color advance + Brightness response -->
-                      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0 16px 8px;">
+                      <div class="audio-override-row">
                         <div>
                           <span class="form-label">${this._localize("dynamic_scene.audio_color_advance_label")||"Color advance"}</span>
                           <ha-selector
@@ -6273,7 +6285,7 @@
                           </div>
                       </div>
                       <!-- Row 4: Frequency zone + Silence degradation -->
-                      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0 16px 8px;">
+                      <div class="audio-override-row">
                         <div>
                           <span class="form-label">${this._localize("dynamic_scene.audio_frequency_zone_label")||"Frequency zone distribution"}</span>
                           <ha-selector
@@ -6294,7 +6306,7 @@
                         </div>
                       </div>
                       <!-- Row 5: Prediction aggressiveness + Latency compensation -->
-                      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0 16px 8px;">
+                      <div class="audio-override-row">
                           <div>
                             <span class="form-label">${this._localize("dynamic_scene.audio_prediction_aggressiveness_label")||"Prediction aggressiveness"}</span>
                             <ha-selector
