@@ -137,7 +137,7 @@ from .const import (
     VALID_CCT_MODES,
     VALID_SOLAR_PHASES,
     brightness_percent_to_device,
-    AUDIO_COLOR_ADVANCE_ON_BEAT,
+    AUDIO_COLOR_ADVANCE_ON_ONSET,
     DEFAULT_AUDIO_SENSITIVITY,
     DEFAULT_AUDIO_TRANSITION_SPEED,
     MAX_AUDIO_SENSITIVITY,
@@ -660,7 +660,7 @@ SERVICE_START_DYNAMIC_SCENE_SCHEMA = vol.Schema(
             vol.Coerce(int), vol.Range(min=MIN_AUDIO_SENSITIVITY, max=MAX_AUDIO_SENSITIVITY)
         ),
         vol.Optional("audio_brightness_response", default=True): cv.boolean,
-        vol.Optional("audio_color_advance", default=AUDIO_COLOR_ADVANCE_ON_BEAT): vol.In(
+        vol.Optional("audio_color_advance", default=AUDIO_COLOR_ADVANCE_ON_ONSET): vol.In(
             VALID_AUDIO_COLOR_ADVANCE
         ),
         vol.Optional("audio_transition_speed", default=DEFAULT_AUDIO_TRANSITION_SPEED): vol.All(
@@ -3384,7 +3384,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 audio_entity=preset.get("audio_entity"),
                 audio_sensitivity=preset.get("audio_sensitivity", DEFAULT_AUDIO_SENSITIVITY),
                 audio_brightness_response=preset.get("audio_brightness_response", True),
-                audio_color_advance=preset.get("audio_color_advance", AUDIO_COLOR_ADVANCE_ON_BEAT),
+                audio_color_advance=preset.get("audio_color_advance", AUDIO_COLOR_ADVANCE_ON_ONSET),
                 audio_transition_speed=preset.get("audio_transition_speed", DEFAULT_AUDIO_TRANSITION_SPEED),
             )
             if scene.audio_entity and not hass.states.get(scene.audio_entity):
@@ -3429,7 +3429,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 audio_entity=call.data.get("audio_entity"),
                 audio_sensitivity=call.data.get("audio_sensitivity", DEFAULT_AUDIO_SENSITIVITY),
                 audio_brightness_response=call.data.get("audio_brightness_response", True),
-                audio_color_advance=call.data.get("audio_color_advance", AUDIO_COLOR_ADVANCE_ON_BEAT),
+                audio_color_advance=call.data.get("audio_color_advance", AUDIO_COLOR_ADVANCE_ON_ONSET),
                 audio_transition_speed=call.data.get("audio_transition_speed", DEFAULT_AUDIO_TRANSITION_SPEED),
             )
 

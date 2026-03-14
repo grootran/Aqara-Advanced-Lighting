@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from homeassistant.helpers import entity_registry as er
 
 from .const import (
-    AUDIO_COLOR_ADVANCE_ON_BEAT,
+    AUDIO_COLOR_ADVANCE_ON_ONSET,
     AUDIO_TIER_RICH,
     MUSIC_SYNC_EFFECT_BLINK,
     MUSIC_SYNC_EFFECT_WAVE,
@@ -98,7 +98,7 @@ def map_t1_strip_params(scene: DynamicScene) -> dict[str, str]:
 
     audio_effect = (
         MUSIC_SYNC_EFFECT_BLINK
-        if scene.audio_color_advance == AUDIO_COLOR_ADVANCE_ON_BEAT
+        if scene.audio_color_advance == AUDIO_COLOR_ADVANCE_ON_ONSET
         else MUSIC_SYNC_EFFECT_WAVE
     )
 

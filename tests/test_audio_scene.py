@@ -27,7 +27,7 @@ def test_dynamic_scene_with_audio_fields():
         loop_mode="continuous",
         audio_entity="binary_sensor.beat_detected",
         audio_sensitivity=75,
-        audio_color_advance="on_beat",
+        audio_color_advance="on_onset",
         audio_transition_speed=80,
         audio_brightness_response=True,
     )
@@ -49,7 +49,7 @@ def test_dynamic_scene_without_audio_unchanged():
     )
     assert scene.audio_entity is None
     assert scene.audio_sensitivity == 50
-    assert scene.audio_color_advance == "on_beat"
+    assert scene.audio_color_advance == "on_onset"
 
 
 def test_dynamic_scene_invalid_audio_color_advance():

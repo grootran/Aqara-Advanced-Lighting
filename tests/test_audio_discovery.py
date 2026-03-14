@@ -25,8 +25,8 @@ def test_determine_tier_binary_sensor():
 
 
 def test_t1_strip_params_on_beat_low_sensitivity():
-    """On-beat mode with low sensitivity should map to blink + low."""
-    scene = _make_scene(audio_color_advance="on_beat", audio_sensitivity=30)
+    """On-onset mode with low sensitivity should map to blink + low."""
+    scene = _make_scene(audio_color_advance="on_onset", audio_sensitivity=30)
     params = map_t1_strip_params(scene)
     assert params["sensitivity"] == "low"
     assert params["audio_effect"] == "blink"
@@ -165,7 +165,7 @@ def test_discover_companion_sensors_no_siblings():
 
 
 def _make_scene(
-    audio_color_advance: str = "on_beat",
+    audio_color_advance: str = "on_onset",
     audio_sensitivity: int = 50,
 ) -> DynamicScene:
     """Create a minimal DynamicScene for testing."""

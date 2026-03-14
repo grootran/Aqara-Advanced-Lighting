@@ -19,7 +19,7 @@ from .const import (
     ATTR_AUDIO_EFFECT,
     ATTR_ENABLED,
     ATTR_SENSITIVITY,
-    AUDIO_COLOR_ADVANCE_ON_BEAT,
+    AUDIO_COLOR_ADVANCE_ON_ONSET,
     AUDIO_SENSOR_UNAVAILABLE_TIMEOUT,
     AUDIO_TIER_RICH,
     CONF_AUDIO_OFF_SERVICE,
@@ -1707,9 +1707,9 @@ class DynamicSceneManager:
         unavailable_since: float | None = None
 
         # Determine which entity to subscribe to based on mode
-        if scene.audio_color_advance == AUDIO_COLOR_ADVANCE_ON_BEAT:
+        if scene.audio_color_advance == AUDIO_COLOR_ADVANCE_ON_ONSET:
             subscribe_entity = scene.audio_entity
-            audio_mode = "on_beat"
+            audio_mode = "on_onset"
         else:
             # Continuous mode: subscribe to amplitude (or bass) for smooth tracking
             energy_eid = (

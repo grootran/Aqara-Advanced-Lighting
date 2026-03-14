@@ -9,14 +9,22 @@ from typing import TYPE_CHECKING, Any, TypeAlias
 from homeassistant.config_entries import ConfigEntry
 
 from .const import (
-    AUDIO_COLOR_ADVANCE_ON_BEAT,
+    AUDIO_COLOR_ADVANCE_ON_ONSET,
+    DEFAULT_AUDIO_DETECTION_MODE,
+    DEFAULT_AUDIO_FREQUENCY_ZONE,
+    DEFAULT_AUDIO_PREDICTION_AGGRESSIVENESS,
     DEFAULT_AUDIO_SENSITIVITY,
+    DEFAULT_AUDIO_SILENCE_DEGRADATION,
     DEFAULT_AUDIO_TRANSITION_SPEED,
+    DEFAULT_LATENCY_COMPENSATION_MS,
+    MAX_AUDIO_PREDICTION_AGGRESSIVENESS,
     MAX_AUDIO_SENSITIVITY,
     MAX_AUDIO_TRANSITION_SPEED,
+    MIN_AUDIO_PREDICTION_AGGRESSIVENESS,
     MIN_AUDIO_SENSITIVITY,
     MIN_AUDIO_TRANSITION_SPEED,
     VALID_AUDIO_COLOR_ADVANCE,
+    VALID_AUDIO_DETECTION_MODES,
 )
 from .sun_utils import ScheduleStep, SolarStep
 
@@ -575,8 +583,13 @@ class DynamicScene:
     audio_entity: str | None = None
     audio_sensitivity: int = DEFAULT_AUDIO_SENSITIVITY
     audio_brightness_response: bool = True
-    audio_color_advance: str = AUDIO_COLOR_ADVANCE_ON_BEAT
+    audio_color_advance: str = AUDIO_COLOR_ADVANCE_ON_ONSET
     audio_transition_speed: int = DEFAULT_AUDIO_TRANSITION_SPEED
+    audio_detection_mode: str = DEFAULT_AUDIO_DETECTION_MODE
+    audio_frequency_zone: bool = DEFAULT_AUDIO_FREQUENCY_ZONE
+    audio_silence_degradation: bool = DEFAULT_AUDIO_SILENCE_DEGRADATION
+    audio_prediction_aggressiveness: int = DEFAULT_AUDIO_PREDICTION_AGGRESSIVENESS
+    audio_latency_compensation_ms: int = DEFAULT_LATENCY_COMPENSATION_MS
 
     def __post_init__(self) -> None:
         """Validate scene parameters."""
@@ -632,6 +645,16 @@ class DynamicScene:
                 f"Must be one of {VALID_AUDIO_COLOR_ADVANCE}"
             )
             raise ValueError(msg)
+
+        if self.audio_detection_mode not in VALID_AUDIO_DETECTION_MODES:
+            self.audio_detection_mode = DEFAULT_AUDIO_DETECTION_MODE
+
+        self.audio_prediction_aggressiveness = max(
+            MIN_AUDIO_PREDICTION_AGGRESSIVENESS,
+            min(MAX_AUDIO_PREDICTION_AGGRESSIVENESS, self.audio_prediction_aggressiveness),
+        )
+
+        self.audio_latency_compensation_ms = max(0, min(500, self.audio_latency_compensation_ms))
 
 
 @dataclass

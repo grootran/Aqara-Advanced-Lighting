@@ -33,7 +33,7 @@ def _make_rich_scene(**kwargs) -> DynamicScene:
         loop_mode="continuous",
         audio_entity="binary_sensor.beat_detected",
         audio_sensitivity=50,
-        audio_color_advance="on_beat",
+        audio_color_advance="on_onset",
         audio_transition_speed=50,
         audio_brightness_response=True,
     )
