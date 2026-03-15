@@ -53,7 +53,7 @@ You need an ESP32 device with a microphone. Four options are listed below:
 
 ### M5Stack ATOM Echo
 
-The best starting point for most users.
+The best starting point for most users, readily available.
 
 ![M5Stack ATOM Echo](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/dev/images/atom-echo.jpg)
 
@@ -64,7 +64,7 @@ The best starting point for most users.
 | **Microphone** | Built-in SPM1423 PDM |
 | **Power** | USB-C |
 | **Size** | 24 x 24 x 17mm |
-| **Where to buy** | [M5Stack store](https://shop.m5stack.com/products/atom-echo-smart-speaker-dev-kit), Amazon, AliExpress |
+| **Where to buy** | [M5Stack store](https://shop.m5stack.com/products/atom-echo-smart-speaker-dev-kit), [Pi Hut](https://thepihut.com/products/atom-echo-smart-speaker-dev-kit), [Amazon US](https://amzn.to/4dnA7GH), [Amazon UK](https://amzn.to/4bdYJQM) |
 
 ### M5Stack ATOM Echo S3R
 
@@ -80,13 +80,13 @@ Higher-quality audio with an ES8311 codec and speaker feedback for on-device sta
 | **Audio codec** | ES8311 (mic ADC + speaker DAC) |
 | **Feedback** | Speaker tones (no LED) |
 | **Power** | USB-C |
-| **Where to buy** | [M5Stack store](https://shop.m5stack.com/products/atom-echo-s3r), Amazon, AliExpress |
+| **Where to buy** | [M5Stack store](https://shop.m5stack.com/products/atom-echo-s3r), [Pi Hut](https://thepihut.com/products/atom-echos3r-smart-speaker-dev-kit) |
 
 ### Waveshare ESP32-S3 Audio Board
 
 Feature-rich board with dual MEMS microphones, 7-LED ring, and optional battery power.
 
-![M5Stack ATOM Echo S3R](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/dev/images/waveshare-esp32-s3.jpg)
+![Waveshare ESP32-S3](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/dev/images/waveshare-esp32-s3.jpg)
 
 | | |
 |---|---|
@@ -96,13 +96,13 @@ Feature-rich board with dual MEMS microphones, 7-LED ring, and optional battery 
 | **Audio codec** | ES7210 (mic) + ES8311 (speaker) |
 | **Feedback** | 7x WS2812 LED ring |
 | **Power** | USB-C, optional battery |
-| **Where to buy** | [Waveshare store](https://www.waveshare.com/esp32-s3-audio-board.htm), Amazon, AliExpress |
+| **Where to buy** | [Waveshare store](https://www.waveshare.com/esp32-s3-audio-board.htm), [Amazon US](https://amzn.to/4lqAoKU), [Amazon UK](https://amzn.to/414SkRU) |
 
 ### M5StickC Plus2
 
 A compact development kit with a built-in screen, battery, and PDM microphone.
 
-![M5Stack ATOM Echo S3R](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/dev/images/m5stack-stick2.jpg)
+![M5StickC Plus2](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/dev/images/m5stack-stick2.jpg)
 
 | | |
 |---|---|
@@ -111,7 +111,7 @@ A compact development kit with a built-in screen, battery, and PDM microphone.
 | **Microphone** | Built-in SPM1423 PDM |
 | **Power** | USB-C, built-in battery |
 | **Size** | 54 x 25 x 16mm |
-| **Where to buy** | [M5Stack store](https://shop.m5stack.com/products/m5stickc-plus2-esp32-mini-iot-development-kit), Amazon, AliExpress |
+| **Where to buy** | [M5Stack store](https://shop.m5stack.com/products/m5stickc-plus2-esp32-mini-iot-development-kit), [Pi Hut](https://thepihut.com/products/m5stickc-plus2-esp32-mini-iot-development-kit), [Amazon US](https://amzn.to/470ydYE), [Amazon UK](https://amzn.to/4brZ0i4) |
 
 ---
 
