@@ -35,7 +35,7 @@ Audio-reactive mode makes your lights respond to music and sound in real time. C
 
 ## How it works
 
-Audio-reactive mode replaces the fixed timing of a dynamic scene (transition time, hold time) with live audio data from an ESPHome device running the `esphome-audio-reactive` component. The component performs on-device FFT analysis with a dedicated processing task and exposes onset detection and frequency band data to Home Assistant. The integration uses these to:
+Audio-reactive mode replaces the fixed timing of a dynamic scene (transition time, hold time) with live audio data from an ESPHome device running the [esphome-audio-reactive](https://github.com/absent42/esphome-audio-reactive) component. The component performs on-device FFT analysis with a dedicated processing task and exposes onset detection and frequency band data to Home Assistant. The integration uses these to:
 
 - **Detect musical onsets** (beats, cymbal hits, vocal entrances) and advance colors
 - **Modulate brightness** so lights pulse with the music's dynamics
@@ -43,13 +43,13 @@ Audio-reactive mode replaces the fixed timing of a dynamic scene (transition tim
 - **Predict beats** by learning the tempo and sending commands early to compensate for Zigbee latency
 - **Distribute lights by frequency** so different lights react to bass, mid, and treble
 
-You need an ESP32 device with a microphone running ESPHome and the `esphome-audio-reactive` component. The device sits near your speaker and streams audio analysis data to Home Assistant over your local network.
+You need an ESP32 device with a microphone running ESPHome and the [esphome-audio-reactive](https://github.com/absent42/esphome-audio-reactive) component. The device sits near your speaker and streams audio analysis data to Home Assistant over your local network.
 
 ---
 
 ## Recommended hardware
 
-You need an ESP32 device with a microphone. Two options are listed below:
+You need an ESP32 device with a microphone. Four options are listed below:
 
 ### M5Stack ATOM Echo
 
@@ -59,12 +59,38 @@ The best starting point for most users.
 |---|---|
 | **Price** | ~$13 |
 | **Chipset** | ESP32-PICO-D4 |
-| **Microphone** | Built-in PDM |
+| **Microphone** | Built-in SPM1423 PDM |
 | **Power** | USB-C |
 | **Size** | 24 x 24 x 17mm |
 | **Where to buy** | [M5Stack store](https://shop.m5stack.com/products/atom-echo-smart-speaker-dev-kit), Amazon, AliExpress |
 
-The ATOM Echo is tiny enough to sit on a shelf near your speaker without being noticed. It is the primary tested device for this feature and supports the one-click installer.
+### M5Stack ATOM Echo S3R
+
+Higher-quality audio with an ES8311 codec and speaker feedback for on-device status tones.
+
+| | |
+|---|---|
+| **Price** | ~$15 |
+| **Chipset** | ESP32-S3 |
+| **Microphone** | MEMS via ES8311 ADC (I2S, 44.1kHz) |
+| **Audio codec** | ES8311 (mic ADC + speaker DAC) |
+| **Feedback** | Speaker tones (no LED) |
+| **Power** | USB-C |
+| **Where to buy** | [M5Stack store](https://shop.m5stack.com/products/atom-echo-s3r), Amazon, AliExpress |
+
+### Waveshare ESP32-S3 Audio Board
+
+Feature-rich board with dual MEMS microphones, 7-LED ring, and optional battery power.
+
+| | |
+|---|---|
+| **Price** | ~$16 |
+| **Chipset** | ESP32-S3R8 (8MB PSRAM) |
+| **Microphone** | Dual MEMS via ES7210 ADC (I2S, 44.1kHz) |
+| **Audio codec** | ES7210 (mic) + ES8311 (speaker) |
+| **Feedback** | 7x WS2812 LED ring |
+| **Power** | USB-C, optional battery |
+| **Where to buy** | [Waveshare store](https://www.waveshare.com/esp32-s3-audio-board.htm), Amazon, AliExpress |
 
 ### M5StickC Plus2
 
@@ -79,13 +105,11 @@ A compact development kit with a built-in screen, battery, and PDM microphone.
 | **Size** | 54 x 25 x 16mm |
 | **Where to buy** | [M5Stack store](https://shop.m5stack.com/products/m5stickc-plus2-esp32-mini-iot-development-kit), Amazon, AliExpress |
 
-The Plus2 includes a 1.14" display and 200mAh battery, but for audio sensing the key component is the SPM1423 PDM microphone. The display and battery are not used by this feature.
-
 ---
 
 ## Setting up the sensor
 
-The [`esphome-audio-reactive`](https://github.com/absent42/esphome-audio-reactive) component runs on your ESP32 and performs on-device FFT analysis, onset detection, and frequency band energy measurement. It exposes an `Audio Sensor` binary sensor entity (the audio trigger for dynamic scenes) and companion sensors for bass energy, mid energy, high energy, amplitude, BPM, silence state, and control entities for sensitivity, squelch, detection mode, mute, and calibration.
+The [esphome-audio-reactive](https://github.com/absent42/esphome-audio-reactive) component runs on your ESP32 and performs on-device FFT analysis, onset detection, and frequency band energy measurement. It exposes an `Audio Sensor` binary sensor entity (the audio trigger for dynamic scenes) and companion sensors for bass energy, mid energy, high energy, amplitude, BPM, silence state, and control entities for sensitivity, squelch, detection mode, mute, and calibration.
 
 ### One-click install (recommended)
 
@@ -94,10 +118,10 @@ The fastest way to get started -- no ESPHome knowledge required.
 1. Visit **[absent42.github.io/esphome-audio-reactive](https://absent42.github.io/esphome-audio-reactive/)**
 2. Connect your ESP32 device via USB (requires Chrome or Edge browser)
 3. Click **Install** and follow the prompts
-4. After flashing, connect to the "audio-reactive" WiFi hotspot to configure your network credentials
-5. The device will appear in Home Assistant automatically
+4. Install the [ESPHome](https://www.home-assistant.io/integrations/esphome/) integration in Home Assistant
+5. The device will appear in the Home Assistant ESPHome integration automatically
 
-The one-click installer currently supports the **M5Stack ATOM Echo**. For other devices, use the manual ESPHome setup below.
+The one-click installer supports the **M5Stack ATOM Echo**, **ATOM Echo S3R**, and **Waveshare ESP32-S3 Audio Board**. For other devices, use the manual ESPHome setup below.
 
 ### Manual ESPHome setup
 
@@ -108,7 +132,7 @@ If you prefer to compile yourself, need a custom configuration, or are using a d
 - [ESPHome](https://esphome.io/guides/getting_started_command_line/) installed (via pip, Docker, or your preferred method)
 - A USB data cable for first-time device flash (not a charge-only cable)
 
-Add the external component source and the `audio_reactive` platform to your device's ESPHome YAML. See the `atom-echo.yaml` file in the component repository for a complete, ready-to-flash example. You also need the ESPHome integration in Home Assistant (**Settings > Devices & services > ESPHome**) to receive sensor data from the device.
+Add the external component source and the `audio_reactive` platform to your device's ESPHome YAML. See the device-specific YAML files in the component repository for complete, ready-to-flash examples: `atom-echo.yaml`, `atom-echo-s3r.yaml`, and `waveshare-s3-audio.yaml`. You also need the ESPHome integration in Home Assistant (**Settings > Devices & services > ESPHome**) to receive sensor data from the device.
 
 ### Flashing the device
 
@@ -138,7 +162,7 @@ Ensures the device correctly identifies silence and doesn't react to ambient noi
 
 1. Make sure the room is quiet (no music, minimal background noise)
 2. **Double-click** the device button, or press **Calibrate Quiet Room** in Home Assistant
-3. The LED glows green for 3 seconds while sampling the ambient noise level
+3. The LED glows green for 3 seconds while sampling (ATOM Echo / Waveshare). The ATOM Echo S3R plays a tone instead.
 4. The LED brightens briefly to confirm calibration is complete
 
 ### Music level calibration
@@ -146,11 +170,21 @@ Ensures the device correctly identifies silence and doesn't react to ambient noi
 Teaches the device what typical music levels look like in your setup, so the sensors produce a useful 0-1 range instead of being stuck at maximum.
 
 1. Play music at your typical listening volume
-2. Press **Calibrate Music Level** in Home Assistant
-3. The LED glows blue for 5 seconds while sampling
+2. **Triple-click** the device button, or press **Calibrate Music Level** in Home Assistant
+3. The LED glows blue for 5 seconds while sampling (ATOM Echo / Waveshare). The ATOM Echo S3R plays a tone instead.
 4. The LED brightens briefly to confirm calibration is complete
 
 **Run quiet room calibration first, then music calibration.** If you change rooms, speaker setup, or device placement, re-run both calibrations.
+
+### Button actions
+
+| Action | ATOM Echo | ATOM Echo S3R | Waveshare |
+|--------|-----------|---------------|-----------|
+| **Double click** | Calibrate quiet (green LED) | Calibrate quiet (speaker tone) | Calibrate quiet (green LEDs) |
+| **Triple click** | Calibrate music (green LED) | Calibrate music (speaker tone) | Calibrate music (green LEDs) |
+| **Long press (1s+)** | Toggle mute (red LED) | Toggle mute (speaker tone) | Toggle mute (red LEDs) |
+
+AGC reset is available from Home Assistant only (button entity).
 
 ---
 
@@ -321,9 +355,9 @@ The mode has a state machine: starts reactive, transitions to tracking when BPM 
 
 The `esphome-audio-reactive` component performs on-device audio analysis using a dedicated FreeRTOS processing task:
 
-1. Audio is captured at 22,050 Hz via an I2S PDM microphone
+1. Audio is captured at the device's configured sample rate (22,050 Hz for ATOM Echo, 44,100 Hz for S3R and Waveshare)
 2. A ring buffer feeds samples to the FFT task running on ESP32 core 0
-3. 512-sample FFT with 75% overlap produces frequency magnitudes every ~5.8ms
+3. Configurable FFT window (256, 512, or 1024 samples; default 512) with 75% overlap produces frequency magnitudes
 4. 16 frequency bands are computed with pink noise correction
 5. PI-controller automatic gain control normalizes values to 0-1 range
 6. Spectral flux onset detection identifies musical events across all bands
