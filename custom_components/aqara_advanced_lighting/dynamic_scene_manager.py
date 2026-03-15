@@ -1822,7 +1822,7 @@ class DynamicSceneManager:
             companions.get("amplitude")
             or companions.get("bass_energy")
         )
-        if is_energy_mode and energy_entity:
+        if energy_entity and (is_energy_mode or scene.audio_brightness_response):
             subscribe_entities.add(energy_entity)
 
         # BPM entity for predictive mode
@@ -2022,7 +2022,7 @@ class DynamicSceneManager:
                 # -- Process energy events --
                 if "energy" in events:
                     handler.handle_energy(scene_state, events["energy"])
-                    if is_energy_mode:
+                    if is_energy_mode or scene.audio_brightness_response:
                         needs_apply = True
 
                 # -- Process frequency zone band events --
@@ -2051,8 +2051,13 @@ class DynamicSceneManager:
                 # -- Apply colors with rate limiting --
                 if needs_apply:
                     now_mono = time.monotonic()
-                    if is_energy_mode:
-                        # Rate-limit energy-based modes
+                    # Rate-limit continuous updates (energy modes, or
+                    # brightness-response updates in onset modes)
+                    rate_limit = is_energy_mode or (
+                        "energy" in events and scene.audio_brightness_response
+                        and "onset" not in events
+                    )
+                    if rate_limit:
                         if (now_mono - last_apply_time) >= min_apply_interval:
                             await self._apply_colors_with_offset(
                                 scene_state,

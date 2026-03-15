@@ -99,23 +99,31 @@ class TestOnsetHandler:
         handler.handle_onset(scene_state, attrs)
         manager._advance_colors.assert_called_once_with(scene_state)
 
-    def test_handle_onset_with_brightness_response(self):
+    def test_handle_energy_with_brightness_response(self):
         manager = MagicMock()
         handler = OnsetHandler(manager)
         scene_state = MagicMock()
         scene_state.scene.audio_brightness_response = True
-        attrs = {"strength": 0.6, "dominant_band": "bass", "type": "beat"}
-        handler.handle_onset(scene_state, attrs)
+        handler.handle_energy(scene_state, 0.6)
         assert scene_state.brightness_modifier == 0.6
 
-    def test_handle_onset_strength_floor(self):
+    def test_handle_energy_brightness_floor(self):
         manager = MagicMock()
         handler = OnsetHandler(manager)
         scene_state = MagicMock()
         scene_state.scene.audio_brightness_response = True
-        attrs = {"strength": 0.05}
-        handler.handle_onset(scene_state, attrs)
-        assert scene_state.brightness_modifier == 0.1
+        handler.handle_energy(scene_state, 0.1)
+        assert scene_state.brightness_modifier == 0.3
+
+    def test_handle_energy_no_brightness_response(self):
+        manager = MagicMock()
+        handler = OnsetHandler(manager)
+        scene_state = MagicMock()
+        scene_state.scene.audio_brightness_response = False
+        scene_state.brightness_modifier = 1.0
+        handler.handle_energy(scene_state, 0.8)
+        # brightness_modifier should remain unchanged when response is disabled
+        assert scene_state.brightness_modifier == 1.0
 
 
 class TestContinuousHandler:

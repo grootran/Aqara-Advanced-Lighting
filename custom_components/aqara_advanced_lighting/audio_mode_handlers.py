@@ -81,10 +81,11 @@ class OnsetHandler(AudioModeHandler):
     """Colors advance on each detected onset/beat."""
 
     def handle_onset(self, scene_state: Any, attrs: dict[str, Any]) -> None:
-        strength = attrs.get("strength", 1.0)
-        if scene_state.scene.audio_brightness_response:
-            scene_state.brightness_modifier = max(0.1, min(1.0, strength))
         self._manager._advance_colors(scene_state)
+
+    def handle_energy(self, scene_state: Any, energy: float) -> None:
+        if scene_state.scene.audio_brightness_response:
+            scene_state.brightness_modifier = max(0.3, min(1.0, energy))
 
 
 class ContinuousHandler(AudioModeHandler):
