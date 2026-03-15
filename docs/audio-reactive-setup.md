@@ -55,6 +55,8 @@ You need an ESP32 device with a microphone. Four options are listed below:
 
 The best starting point for most users.
 
+![M5Stack ATOM Echo](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/dev/images/atom-echo.jpg)
+
 | | |
 |---|---|
 | **Price** | ~$13 |
@@ -67,6 +69,8 @@ The best starting point for most users.
 ### M5Stack ATOM Echo S3R
 
 Higher-quality audio with an ES8311 codec and speaker feedback for on-device status tones.
+
+![M5Stack ATOM Echo S3R](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/dev/images/atom-echo-s3r.jpg)
 
 | | |
 |---|---|
@@ -82,6 +86,8 @@ Higher-quality audio with an ES8311 codec and speaker feedback for on-device sta
 
 Feature-rich board with dual MEMS microphones, 7-LED ring, and optional battery power.
 
+![M5Stack ATOM Echo S3R](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/dev/images/waveshare-esp32-s3.jpg)
+
 | | |
 |---|---|
 | **Price** | ~$16 |
@@ -95,6 +101,8 @@ Feature-rich board with dual MEMS microphones, 7-LED ring, and optional battery 
 ### M5StickC Plus2
 
 A compact development kit with a built-in screen, battery, and PDM microphone.
+
+![M5Stack ATOM Echo S3R](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/dev/images/m5stack-stick2.jpg)
 
 | | |
 |---|---|
@@ -123,6 +131,8 @@ The fastest way to get started -- no ESPHome knowledge required.
 
 The one-click installer supports the **M5Stack ATOM Echo**, **ATOM Echo S3R**, and **Waveshare ESP32-S3 Audio Board**. For other devices, use the manual ESPHome setup below.
 
+**ESP32-S3 devices (S3R, Waveshare):** If the installer can't connect, hold the BOOT button on the device while plugging in the USB cable, then click Install.
+
 ### Manual ESPHome setup
 
 If you prefer to compile yourself, need a custom configuration, or are using a device other than the ATOM Echo, you can add the `esphome-audio-reactive` external component to any ESPHome configuration.
@@ -138,7 +148,7 @@ Add the external component source and the `audio_reactive` platform to your devi
 
 **First-time flash (USB required):**
 
-Make sure you are using a USB data cable, not a charge-only cable (a common issue).
+Make sure you are using a USB data cable, not a charge-only cable (a common issue). For ESP32-S3 devices (S3R, Waveshare), if the serial port is not detected, hold the BOOT button while plugging in the USB cable to enter download mode.
 
 ```bash
 esphome run atom-echo.yaml
