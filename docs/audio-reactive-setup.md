@@ -188,11 +188,21 @@ Teaches the device what typical music levels look like in your setup, so the sen
 
 ### Button actions
 
-| Action | ATOM Echo | ATOM Echo S3R | Waveshare |
-|--------|-----------|---------------|-----------|
-| **Double click** | Calibrate quiet (green LED) | Calibrate quiet (speaker tone) | Calibrate quiet (green LEDs) |
-| **Triple click** | Calibrate music (green LED) | Calibrate music (speaker tone) | Calibrate music (green LEDs) |
-| **Long press (1s+)** | Toggle mute (red LED) | Toggle mute (speaker tone) | Toggle mute (red LEDs) |
+**ATOM Echo / ATOM Echo S3R / M5StickC Plus2** — single button, click pattern:
+
+| Action | ATOM Echo | ATOM Echo S3R | M5StickC Plus2 |
+|--------|-----------|---------------|----------------|
+| **Double click** | Calibrate quiet (green LED) | Calibrate quiet (speaker tone) | Calibrate quiet (red LED) |
+| **Triple click** | Calibrate music (blue LED) | Calibrate music (speaker tone) | Calibrate music (red LED) |
+| **Long press (1s+)** | Toggle mute (red LED) | Toggle mute (speaker tone) | Toggle mute (red LED) |
+
+**Waveshare ESP32-S3 Audio Board** — three dedicated buttons:
+
+| Button | Action | Feedback |
+|--------|--------|----------|
+| **K1** | Calibrate quiet room | Green LEDs |
+| **K2** | Calibrate music level | Blue LEDs |
+| **K3** | Toggle mute | Red LEDs |
 
 AGC reset is available from Home Assistant only (button entity).
 
