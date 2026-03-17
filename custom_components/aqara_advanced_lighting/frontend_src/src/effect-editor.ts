@@ -581,6 +581,7 @@ export class EffectEditor extends LitElement {
               .color=${this._editingColor}
               .size=${220}
               .showRgbInputs=${true}
+              .translations=${this.translations}
               @color-changed=${this._handleColorPickerChange}
             ></xy-color-picker>
             <color-history-swatches

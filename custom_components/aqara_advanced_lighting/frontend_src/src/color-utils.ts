@@ -270,6 +270,60 @@ export function getComplementaryColor(color: XYColor): XYColor {
 }
 
 /**
+ * Convert color temperature in Kelvin to RGB
+ * Uses Tanner Helland's algorithm for accurate CCT approximation
+ *
+ * @param kelvin - Color temperature (1000-12000K typical range)
+ * @returns RGB color object with values 0-255
+ */
+export function kelvinToRgb(kelvin: number): RGBColor {
+  const temp = kelvin / 100;
+  let r: number;
+  let g: number;
+  let b: number;
+
+  if (temp <= 66) {
+    r = 255;
+  } else {
+    r = 329.698727446 * Math.pow(temp - 60, -0.1332047592);
+    r = Math.max(0, Math.min(255, r));
+  }
+
+  if (temp <= 66) {
+    g = 99.4708025861 * Math.log(temp) - 161.1195681661;
+  } else {
+    g = 288.1221695283 * Math.pow(temp - 60, -0.0755148492);
+  }
+  g = Math.max(0, Math.min(255, g));
+
+  if (temp >= 66) {
+    b = 255;
+  } else if (temp <= 19) {
+    b = 0;
+  } else {
+    b = 138.5177312231 * Math.log(temp - 10) - 305.0447927307;
+    b = Math.max(0, Math.min(255, b));
+  }
+
+  return {
+    r: Math.round(r),
+    g: Math.round(g),
+    b: Math.round(b),
+  };
+}
+
+/**
+ * Convert color temperature in Kelvin to XY color (CIE 1931)
+ *
+ * @param kelvin - Color temperature (1000-12000K typical range)
+ * @returns XY color object
+ */
+export function kelvinToXy(kelvin: number): XYColor {
+  const rgb = kelvinToRgb(kelvin);
+  return rgbToXy(rgb.r, rgb.g, rgb.b);
+}
+
+/**
  * Calculate an analogous color from the given XY color
  * Uses hue rotation by 30 degrees on the color wheel
  *
