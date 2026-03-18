@@ -909,6 +909,34 @@ export const panelStyles = css`
     --mdc-icon-size: 48px;
   }
 
+  /* Audio-reactive DOM badge overlay */
+  .preset-icon .audio-badge {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+    color: #fff;
+    pointer-events: none;
+  }
+
+  .preset-icon .audio-badge ha-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    --mdc-icon-size: 20px;
+  }
+
   /* Loading state - follows HA patterns */
   .loading {
     display: flex;

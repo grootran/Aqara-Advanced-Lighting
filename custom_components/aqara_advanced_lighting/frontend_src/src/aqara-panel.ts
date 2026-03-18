@@ -5612,8 +5612,12 @@ export class AqaraPanel extends LitElement {
     if (preset.icon) {
       return this._renderPresetIcon(preset.icon, 'mdi:lamps');
     }
-    return renderDynamicSceneThumbnail(preset)
+    const thumb = renderDynamicSceneThumbnail(preset)
       ?? html`<ha-icon icon="mdi:lamps"></ha-icon>`;
+    if (preset.audio_entity) {
+      return html`${thumb}<span class="audio-badge"><ha-icon icon="mdi:waveform"></ha-icon></span>`;
+    }
+    return thumb;
   }
 
   /** Render a builtin dynamic scene preset icon: always use gradient thumbnail. */

@@ -902,6 +902,34 @@
     --mdc-icon-size: 48px;
   }
 
+  /* Audio-reactive DOM badge overlay */
+  .preset-icon .audio-badge {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+    color: #fff;
+    pointer-events: none;
+  }
+
+  .preset-icon .audio-badge ha-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    --mdc-icon-size: 20px;
+  }
+
   /* Loading state - follows HA patterns */
   .loading {
     display: flex;
@@ -7124,7 +7152,7 @@
             `)}
         </div>
       </ha-expansion-panel>
-    `}_renderPresetIcon(e,t){return e?e.includes(".")?H`<img src="/api/aqara_advanced_lighting/icons/${e}" alt="preset icon" />`:H`<ha-icon icon="${e}"></ha-icon>`:H`<ha-icon icon="${t}"></ha-icon>`}_renderUserEffectIcon(e){return e.icon?this._renderPresetIcon(e.icon,"mdi:lightbulb-on"):function(e){const t=(e.effect_colors??[]).slice(0,8);if(0===t.length)return null;if(1===t.length){const e=De(t[0]);return H`${Ke(lt(`<circle cx="200" cy="200" r="180" fill="${e}" />`))}`}const i=360/t.length,s=t.map((e,t)=>st(t*i,(t+1)*i,De(e))).join("");return H`${Ke(lt(s))}`}(e)??H`<ha-icon icon="mdi:lightbulb-on"></ha-icon>`}_renderUserPatternIcon(e){return e.icon?this._renderPresetIcon(e.icon,"mdi:palette"):dt(e)??H`<ha-icon icon="mdi:palette"></ha-icon>`}_renderUserCCTIcon(e){return e.icon?this._renderPresetIcon(e.icon,"mdi:temperature-kelvin"):_t(e)??H`<ha-icon icon="mdi:temperature-kelvin"></ha-icon>`}_renderUserSegmentSequenceIcon(e){return e.icon?this._renderPresetIcon(e.icon,"mdi:animation-play"):ht(e)??H`<ha-icon icon="mdi:animation-play"></ha-icon>`}_renderUserDynamicSceneIcon(e){return e.icon?this._renderPresetIcon(e.icon,"mdi:lamps"):gt(e)??H`<ha-icon icon="mdi:lamps"></ha-icon>`}_renderBuiltinDynamicSceneIcon(e){return gt(e)??H`<ha-icon icon="mdi:lamps"></ha-icon>`}_renderCCTSequencesSection(){const e="cct_sequences",t=!this._collapsed[e],i=this._getFilteredUserCCTSequencePresets(),s=this._presets.cct_sequences,o=i.length+s.length,n=this._getSortPreference(e),a=this._sortUserCCTSequencePresets(i,n),r=this._sortCCTSequencePresets(s,n);return H`
+    `}_renderPresetIcon(e,t){return e?e.includes(".")?H`<img src="/api/aqara_advanced_lighting/icons/${e}" alt="preset icon" />`:H`<ha-icon icon="${e}"></ha-icon>`:H`<ha-icon icon="${t}"></ha-icon>`}_renderUserEffectIcon(e){return e.icon?this._renderPresetIcon(e.icon,"mdi:lightbulb-on"):function(e){const t=(e.effect_colors??[]).slice(0,8);if(0===t.length)return null;if(1===t.length){const e=De(t[0]);return H`${Ke(lt(`<circle cx="200" cy="200" r="180" fill="${e}" />`))}`}const i=360/t.length,s=t.map((e,t)=>st(t*i,(t+1)*i,De(e))).join("");return H`${Ke(lt(s))}`}(e)??H`<ha-icon icon="mdi:lightbulb-on"></ha-icon>`}_renderUserPatternIcon(e){return e.icon?this._renderPresetIcon(e.icon,"mdi:palette"):dt(e)??H`<ha-icon icon="mdi:palette"></ha-icon>`}_renderUserCCTIcon(e){return e.icon?this._renderPresetIcon(e.icon,"mdi:temperature-kelvin"):_t(e)??H`<ha-icon icon="mdi:temperature-kelvin"></ha-icon>`}_renderUserSegmentSequenceIcon(e){return e.icon?this._renderPresetIcon(e.icon,"mdi:animation-play"):ht(e)??H`<ha-icon icon="mdi:animation-play"></ha-icon>`}_renderUserDynamicSceneIcon(e){if(e.icon)return this._renderPresetIcon(e.icon,"mdi:lamps");const t=gt(e)??H`<ha-icon icon="mdi:lamps"></ha-icon>`;return e.audio_entity?H`${t}<span class="audio-badge"><ha-icon icon="mdi:waveform"></ha-icon></span>`:t}_renderBuiltinDynamicSceneIcon(e){return gt(e)??H`<ha-icon icon="mdi:lamps"></ha-icon>`}_renderCCTSequencesSection(){const e="cct_sequences",t=!this._collapsed[e],i=this._getFilteredUserCCTSequencePresets(),s=this._presets.cct_sequences,o=i.length+s.length,n=this._getSortPreference(e),a=this._sortUserCCTSequencePresets(i,n),r=this._sortCCTSequencePresets(s,n);return H`
       <ha-expansion-panel
         outlined
         .expanded=${t}

@@ -594,10 +594,12 @@ function dynamicSceneColorHue(c: DynamicSceneColor): number {
  *
  * Accepts a DynamicSceneColor array, UserDynamicScenePreset, or DynamicScenePreset.
  */
+
 export function renderDynamicSceneThumbnail(
   colorsOrPreset: DynamicSceneColor[] | UserDynamicScenePreset | DynamicScenePreset,
 ): TemplateResult | null {
-  // If the preset has an image thumbnail, render it as an <img> instead of SVG
+  // If the preset has an image thumbnail, render it as an <img> instead of SVG.
+  // Audio-reactive badge is handled via DOM overlay in the panel for all types.
   if (!Array.isArray(colorsOrPreset) && (colorsOrPreset as UserDynamicScenePreset).thumbnail) {
     const thumbId = (colorsOrPreset as UserDynamicScenePreset).thumbnail;
     return html`<img

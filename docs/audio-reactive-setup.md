@@ -192,13 +192,21 @@ Teaches the device what typical music levels look like in your setup, so the sen
 
 ### Button actions
 
-**ATOM Echo / ATOM Echo S3R / M5StickC Plus2** — single button, click pattern:
+**ATOM Echo / ATOM Echo S3R** — single button, click pattern:
 
-| Action | ATOM Echo | ATOM Echo S3R | M5StickC Plus2 |
-|--------|-----------|---------------|----------------|
-| **Double click** | Calibrate quiet (green LED) | Calibrate quiet (speaker tone) | Calibrate quiet (red LED) |
-| **Triple click** | Calibrate music (blue LED) | Calibrate music (speaker tone) | Calibrate music (red LED) |
-| **Long press (1s+)** | Toggle mute (red LED) | Toggle mute (speaker tone) | Toggle mute (red LED) |
+| Action | ATOM Echo | ATOM Echo S3R |
+|--------|-----------|---------------|
+| **Double click** | Calibrate quiet (green LED) | Calibrate quiet (speaker tone) |
+| **Triple click** | Calibrate music (blue LED) | Calibrate music (speaker tone) |
+| **Long press (1s+)** | Toggle mute (red LED) | Toggle mute (speaker tone) |
+
+**M5StickC Plus2** — Button A (front), click pattern. Button B (side) exposed for custom use:
+
+| Action | Button A | Feedback |
+|--------|----------|----------|
+| **Double click** | Calibrate quiet room | Green screen |
+| **Triple click** | Calibrate music level | Blue screen |
+| **Long press (1s+)** | Toggle mute | Red screen |
 
 **Waveshare ESP32-S3 Audio Board** — three dedicated buttons:
 
