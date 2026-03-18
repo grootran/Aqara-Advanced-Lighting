@@ -22,7 +22,7 @@ export class XyColorPicker extends LitElement {
   @property({ type: Number }) cctMax = 6500;
 
   @state() private _isDragging = false;
-  @state() private _editingColor: HSColor = { h: 0, s: 100 };
+  @state() private _editingColor: XYColor = { x: 0.6800, y: 0.3100 };
   @state() private _cctValue = 4000;
   @state() private _cctActive = false;
 
@@ -209,8 +209,7 @@ export class XyColorPicker extends LitElement {
   `;
 
   protected firstUpdated(): void {
-    // Convert initial XY to HS for internal editing
-    this._editingColor = xyToHs(this.color);
+    this._editingColor = { ...this.color };
     this._drawColorWheel();
     this._updateMarkerPosition();
   }
@@ -221,7 +220,7 @@ export class XyColorPicker extends LitElement {
       this._updateMarkerPosition();
     }
     if (changedProperties.has('color') && !this._isDragging) {
-      this._editingColor = xyToHs(this.color);
+      this._editingColor = { ...this.color };
       this._updateMarkerPosition();
     }
   }
@@ -276,13 +275,13 @@ export class XyColorPicker extends LitElement {
   private _updateMarkerPosition(): void {
     if (!this._marker) return;
 
-    const { x, y } = this._hsToPosition(this._editingColor);
+    const hs = xyToHs(this._editingColor);
+    const { x, y } = this._hsToPosition(hs);
     this._marker.style.left = `${x}px`;
     this._marker.style.top = `${y}px`;
 
     // Set marker color to match selected color
-    const xyColor = hsToXy(this._editingColor);
-    const rgb = xyToRgb(xyColor.x, xyColor.y, 255);
+    const rgb = xyToRgb(this._editingColor.x, this._editingColor.y, 255);
     const hex = `#${rgb.r.toString(16).padStart(2, '0')}${rgb.g.toString(16).padStart(2, '0')}${rgb.b.toString(16).padStart(2, '0')}`;
     this._marker.style.backgroundColor = hex;
   }
@@ -346,11 +345,9 @@ export class XyColorPicker extends LitElement {
     const y = clientY - rect.top;
 
     const newHs = this._positionToHs(x, y);
-    this._editingColor = newHs;
-    this._cctActive = false;
-
-    // Convert to XY and emit
     const newXy = hsToXy(newHs);
+    this._editingColor = newXy;
+    this._cctActive = false;
     this._updateMarkerPosition();
     this._updateRgbInputs(newXy);
     this._fireColorChanged(newXy);
@@ -362,9 +359,8 @@ export class XyColorPicker extends LitElement {
 
     if (isNaN(value) || value < 0 || value > 255) return;
 
-    // Get current RGB values
-    const currentXy = hsToXy(this._editingColor);
-    const currentRgb = xyToRgb(currentXy.x, currentXy.y, 255);
+    // Get current RGB directly from XY (one conversion, not two)
+    const currentRgb = xyToRgb(this._editingColor.x, this._editingColor.y, 255);
 
     // Update the changed channel
     const newRgb = {
@@ -373,26 +369,22 @@ export class XyColorPicker extends LitElement {
       b: channel === 'b' ? value : currentRgb.b,
     };
 
-    // Convert RGB → XY → HS for internal state
+    // Convert RGB → XY and store directly (no HS intermediate)
     const newXy = rgbToXy(newRgb.r, newRgb.g, newRgb.b);
-    const newHs = xyToHs(newXy);
-
+    this._editingColor = newXy;
     this._cctActive = false;
-    this._editingColor = newHs;
+
     this._updateMarkerPosition();
-    this._updateRgbInputs(newXy);
     this._fireColorChanged(newXy);
 
-    // Visual feedback if conversion changed the value
+    // Show tooltip if round-trip changed the value
     const displayRgb = xyToRgb(newXy.x, newXy.y, 255);
     const displayValue = channel === 'r' ? displayRgb.r : channel === 'g' ? displayRgb.g : displayRgb.b;
 
     if (displayValue !== value) {
-      const originalBorder = input.style.borderColor;
-      input.style.borderColor = 'var(--warning-color, #ff9800)';
-      setTimeout(() => {
-        input.style.borderColor = originalBorder;
-      }, 500);
+      input.title = `Nearest: ${displayValue} (gamut limit)`;
+    } else {
+      input.title = '';
     }
   }
 
@@ -486,8 +478,7 @@ export class XyColorPicker extends LitElement {
 
     // Convert kelvin → XY → HS, drive the whole picker
     const newXy = kelvinToXy(kelvin);
-    const newHs = xyToHs(newXy);
-    this._editingColor = newHs;
+    this._editingColor = newXy;
 
     this._updateMarkerPosition();
     this._updateRgbInputs(newXy);
@@ -537,8 +528,7 @@ export class XyColorPicker extends LitElement {
     this._cctActive = true;
 
     const newXy = kelvinToXy(value);
-    const newHs = xyToHs(newXy);
-    this._editingColor = newHs;
+    this._editingColor = newXy;
 
     this._updateMarkerPosition();
     this._updateRgbInputs(newXy);
@@ -603,8 +593,7 @@ export class XyColorPicker extends LitElement {
   }
 
   render() {
-    const xyColor = hsToXy(this._editingColor);
-    const rgb = xyToRgb(xyColor.x, xyColor.y, 255);
+    const rgb = xyToRgb(this._editingColor.x, this._editingColor.y, 255);
 
     return html`
       <div class="color-picker-container">
@@ -627,7 +616,7 @@ export class XyColorPicker extends LitElement {
               min="0"
               max="255"
               .value=${rgb.r.toString()}
-              @input=${(e: Event) => this._handleRgbInput(e, 'r')}
+              @change=${(e: Event) => this._handleRgbInput(e, 'r')}
             />
           </label>
           <label class="rgb-input-label">
@@ -638,7 +627,7 @@ export class XyColorPicker extends LitElement {
               min="0"
               max="255"
               .value=${rgb.g.toString()}
-              @input=${(e: Event) => this._handleRgbInput(e, 'g')}
+              @change=${(e: Event) => this._handleRgbInput(e, 'g')}
             />
           </label>
           <label class="rgb-input-label">
@@ -649,7 +638,7 @@ export class XyColorPicker extends LitElement {
               min="0"
               max="255"
               .value=${rgb.b.toString()}
-              @input=${(e: Event) => this._handleRgbInput(e, 'b')}
+              @change=${(e: Event) => this._handleRgbInput(e, 'b')}
             />
           </label>
         </div>
