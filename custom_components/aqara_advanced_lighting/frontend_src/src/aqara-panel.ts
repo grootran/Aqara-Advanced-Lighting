@@ -5988,54 +5988,61 @@ export class AqaraPanel extends LitElement {
             .label=${this._localize('config.software_transitions_label')}
             @value-changed=${this._softwareTransitionEntitiesChanged}
           ></ha-selector>
-        </div>
-      </ha-expansion-panel>
 
-      <!-- On-device Audio Section -->
-      <ha-expansion-panel
-        outlined
-        .expanded=${this._collapsed['on_device_audio'] === undefined ? false : !this._collapsed['on_device_audio']}
-        @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange('on_device_audio', e)}
-      >
-        <div slot="header" class="section-header">
-          <div>
-            <div class="section-title">${this._localize('config.audio_on_device_title')}</div>
-            <div class="section-subtitle">${this._localize('config.audio_on_device_description')}</div>
+          <!-- On-device Audio Mode -->
+          <div style="margin-top: 24px; border-top: 1px solid var(--divider-color); padding-top: 16px;">
+            <p style="margin: 0 0 16px 0; font-size: var(--ha-font-size-s, 12px); color: var(--secondary-text-color);">${this._localize('config.audio_on_device_description')}</p>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{ entity: { domain: 'light' } }}
+              .value=${this._audioConfigSelectedEntity}
+              .label=${this._localize('config.audio_on_device_title') || 'Use on-device audio mode'}
+              @value-changed=${this._audioConfigEntityChanged}
+            ></ha-selector>
+
+            ${this._audioConfigSelectedEntity ? html`
+              <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 16px;">
+                <ha-textfield
+                  label="${this._localize('config.audio_on_service_label') || 'Activate service (e.g., light.turn_on)'}"
+                  .value=${this._entityAudioConfig[this._audioConfigSelectedEntity]?.audio_on_service || ''}
+                  @change=${(e: Event) => this._updateEntityAudioConfig('audio_on_service', (e.target as HTMLInputElement).value)}
+                ></ha-textfield>
+                <ha-textfield
+                  label="${this._localize('config.audio_on_service_data_label') || 'Activate data (JSON)'}"
+                  .value=${this._entityAudioConfig[this._audioConfigSelectedEntity]?.audio_on_service_data || ''}
+                  @change=${(e: Event) => this._updateEntityAudioConfig('audio_on_service_data', (e.target as HTMLInputElement).value)}
+                ></ha-textfield>
+                <ha-textfield
+                  label="${this._localize('config.audio_off_service_label') || 'Deactivate service'}"
+                  .value=${this._entityAudioConfig[this._audioConfigSelectedEntity]?.audio_off_service || ''}
+                  @change=${(e: Event) => this._updateEntityAudioConfig('audio_off_service', (e.target as HTMLInputElement).value)}
+                ></ha-textfield>
+                <ha-textfield
+                  label="${this._localize('config.audio_off_service_data_label') || 'Deactivate data (JSON)'}"
+                  .value=${this._entityAudioConfig[this._audioConfigSelectedEntity]?.audio_off_service_data || ''}
+                  @change=${(e: Event) => this._updateEntityAudioConfig('audio_off_service_data', (e.target as HTMLInputElement).value)}
+                ></ha-textfield>
+              </div>
+            ` : ''}
+
+            ${Object.keys(this._entityAudioConfig).length > 0 ? html`
+              <div style="margin-top: 16px; border-top: 1px solid var(--divider-color); padding-top: 12px;">
+                <div style="font-size: var(--ha-font-size-s, 12px); color: var(--secondary-text-color); margin-bottom: 8px;">On-device audio enabled lights</div>
+                ${Object.keys(this._entityAudioConfig).map(entityId => html`
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 0;">
+                    <span
+                      style="cursor: pointer; color: var(--primary-text-color); font-size: 14px;"
+                      @click=${() => { this._audioConfigSelectedEntity = entityId; }}
+                    >${this._getEntityName(entityId)}</span>
+                    <ha-icon-button
+                      .path=${'M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z'}
+                      @click=${() => this._deleteEntityAudioConfig(entityId)}
+                    ></ha-icon-button>
+                  </div>
+                `)}
+              </div>
+            ` : ''}
           </div>
-        </div>
-        <div class="section-content" style="display: block; padding: 16px;">
-          <ha-selector
-            .hass=${this.hass}
-            .selector=${{ entity: { domain: 'light' } }}
-            .value=${this._audioConfigSelectedEntity}
-            .label=${'Select light to configure'}
-            @value-changed=${this._audioConfigEntityChanged}
-          ></ha-selector>
-
-          ${this._audioConfigSelectedEntity ? html`
-            <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 16px;">
-              <ha-textfield
-                label="${this._localize('config.audio_on_service_label') || 'Activate service (e.g., light.turn_on)'}"
-                .value=${this._entityAudioConfig[this._audioConfigSelectedEntity]?.audio_on_service || ''}
-                @change=${(e: Event) => this._updateEntityAudioConfig('audio_on_service', (e.target as HTMLInputElement).value)}
-              ></ha-textfield>
-              <ha-textfield
-                label="${this._localize('config.audio_on_service_data_label') || 'Activate data (JSON)'}"
-                .value=${this._entityAudioConfig[this._audioConfigSelectedEntity]?.audio_on_service_data || ''}
-                @change=${(e: Event) => this._updateEntityAudioConfig('audio_on_service_data', (e.target as HTMLInputElement).value)}
-              ></ha-textfield>
-              <ha-textfield
-                label="${this._localize('config.audio_off_service_label') || 'Deactivate service'}"
-                .value=${this._entityAudioConfig[this._audioConfigSelectedEntity]?.audio_off_service || ''}
-                @change=${(e: Event) => this._updateEntityAudioConfig('audio_off_service', (e.target as HTMLInputElement).value)}
-              ></ha-textfield>
-              <ha-textfield
-                label="${this._localize('config.audio_off_service_data_label') || 'Deactivate data (JSON)'}"
-                .value=${this._entityAudioConfig[this._audioConfigSelectedEntity]?.audio_off_service_data || ''}
-                @change=${(e: Event) => this._updateEntityAudioConfig('audio_off_service_data', (e.target as HTMLInputElement).value)}
-              ></ha-textfield>
-            </div>
-          ` : ''}
         </div>
       </ha-expansion-panel>
 
@@ -6340,6 +6347,16 @@ export class AqaraPanel extends LitElement {
       delete config[entity];
     }
     this._entityAudioConfig = config;
+    this._saveGlobalPreferences();
+  }
+
+  private _deleteEntityAudioConfig(entityId: string): void {
+    const config = { ...this._entityAudioConfig };
+    delete config[entityId];
+    this._entityAudioConfig = config;
+    if (this._audioConfigSelectedEntity === entityId) {
+      this._audioConfigSelectedEntity = '';
+    }
     this._saveGlobalPreferences();
   }
 
