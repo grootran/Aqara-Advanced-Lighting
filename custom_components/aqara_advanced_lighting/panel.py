@@ -92,6 +92,7 @@ PANEL_URL = "/aqara-advanced-lighting"
 PANEL_TITLE = "Aqara Lighting"
 PANEL_ICON = "mdi:lightbulb-group"
 PANEL_FRONTEND_URL_PATH = "aqara_panel.js"
+CARD_FRONTEND_URL_PATH = "aqara_preset_favorites_card.js"
 
 
 async def async_register_panel(hass: HomeAssistant) -> None:
@@ -162,6 +163,9 @@ async def async_register_panel(hass: HomeAssistant) -> None:
     hass.http.register_view(ColorExtractView)
     hass.http.register_view(ThumbnailView)
 
+    # Register the card JavaScript file endpoint
+    hass.http.register_view(CardJavaScriptView)
+
     _LOGGER.info("Aqara Advanced Lighting panel registered")
 
 
@@ -186,6 +190,39 @@ class PanelJavaScriptView(HomeAssistantView):
             return web.Response(status=404, text="Panel JavaScript file not found")
 
         # Use executor to avoid blocking I/O
+        def read_file():
+            with open(file_path, "r", encoding="utf-8") as f:
+                return f.read()
+
+        content = await hass.async_add_executor_job(read_file)
+
+        return web.Response(
+            text=content,
+            content_type="application/javascript",
+            headers={"Cache-Control": "no-cache"},
+        )
+
+
+class CardJavaScriptView(HomeAssistantView):
+    """View to serve the Aqara Preset Favorites card JavaScript file."""
+
+    url = f"/api/{DOMAIN}/{CARD_FRONTEND_URL_PATH}"
+    name = f"api:{DOMAIN}:card_js"
+    requires_auth = False
+
+    async def get(self, request: web.Request) -> web.Response:
+        """Serve the card JavaScript file."""
+        hass = request.app["hass"]
+        file_path = Path(
+            hass.config.path(
+                f"custom_components/{DOMAIN}/frontend/{CARD_FRONTEND_URL_PATH}"
+            )
+        )
+
+        if not file_path.exists():
+            _LOGGER.error("Card JavaScript file not found: %s", file_path)
+            return web.Response(status=404, text="Card JavaScript file not found")
+
         def read_file():
             with open(file_path, "r", encoding="utf-8") as f:
                 return f.read()

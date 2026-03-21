@@ -129,6 +129,49 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
+CARD_RESOURCE_URL = f"/api/{DOMAIN}/aqara_preset_favorites_card.js"
+
+
+async def _async_register_card_resource(hass: HomeAssistant) -> None:
+    """Register the favorites card JS as a Lovelace resource if not already present."""
+    try:
+        from homeassistant.components.lovelace.const import LOVELACE_DATA
+
+        lovelace_data = hass.data.get(LOVELACE_DATA)
+        if lovelace_data is None:
+            _LOGGER.debug("Lovelace not loaded, skipping card auto-registration")
+            return
+
+        # Only storage mode supports creating resources programmatically
+        if lovelace_data.resource_mode != "storage":
+            _LOGGER.debug("Lovelace in YAML mode, skipping card auto-registration")
+            return
+
+        # async_items() returns the in-memory list directly (synchronous)
+        resources = lovelace_data.resources.async_items()
+    except (ImportError, AttributeError, TypeError):
+        _LOGGER.debug("Lovelace resources not available, skipping card auto-registration")
+        return
+
+    # Check if our resource URL is already registered
+    for resource in resources:
+        if resource.get("url") == CARD_RESOURCE_URL:
+            _LOGGER.debug("Card resource already registered")
+            return
+
+    # Register the resource
+    try:
+        await lovelace_data.resources.async_create_item(
+            {"res_type": "module", "url": CARD_RESOURCE_URL}
+        )
+        _LOGGER.info("Auto-registered Aqara Preset Favorites card as Lovelace resource")
+    except Exception:
+        _LOGGER.debug(
+            "Could not auto-register card resource. Users can manually add: %s",
+            CARD_RESOURCE_URL,
+        )
+
+
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the Aqara Advanced Lighting integration."""
     # Register ZHA quirks with zigpy so Aqara devices get our custom cluster
@@ -211,6 +254,9 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
     # Register sidebar panel
     await async_register_panel(hass)
+
+    # Auto-register the favorites card as a Lovelace resource
+    await _async_register_card_resource(hass)
 
     return True
 

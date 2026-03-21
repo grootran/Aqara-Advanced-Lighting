@@ -5,9 +5,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "rollup -c",
+    "build": "rollup -c && rollup -c rollup.card.config.js",
+    "build:panel": "rollup -c",
+    "build:card": "rollup -c rollup.card.config.js",
     "watch": "rollup -c --watch",
-    "clean": "rimraf ../frontend/aqara_panel.js"
+    "watch:card": "rollup -c rollup.card.config.js --watch",
+    "clean": "rimraf ../frontend/aqara_panel.js ../frontend/aqara_preset_favorites_card.js"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^26.0.0",
