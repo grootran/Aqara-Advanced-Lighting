@@ -14,6 +14,7 @@ Audio-reactive mode makes your lights respond to music and sound in real time. C
 - [Calibrating the device](#calibrating-the-device)
 - [Verifying in Home Assistant](#verifying-in-home-assistant)
 - [Using audio-reactive mode](#using-audio-reactive-mode)
+  - [Audio presets](#audio-presets)
   - [From the frontend panel](#from-the-frontend-panel)
   - [From a service call](#from-a-service-call)
   - [Audio parameters](#audio-parameters)
@@ -25,6 +26,8 @@ Audio-reactive mode makes your lights respond to music and sound in real time. C
   - [Frequency zone distribution](#frequency-zone-distribution)
   - [Silence degradation](#silence-degradation)
   - [Beat prediction](#beat-prediction)
+  - [Color by frequency](#color-by-frequency)
+  - [Rolloff brightness](#rolloff-brightness)
 - [How audio detection works](#how-audio-detection-works)
 - [T1 Strip on-device audio sync](#t1-strip-on-device-audio-sync)
 - [On-device audio for other lights](#on-device-audio-for-other-lights)
@@ -42,6 +45,8 @@ Audio-reactive mode replaces the fixed timing of a dynamic scene (transition tim
 - **Map amplitude to palette position** for continuous color flow that tracks the sound
 - **Predict beats** by learning the tempo and sending commands early to compensate for Zigbee latency
 - **Distribute lights by frequency** so different lights react to bass, mid, and treble
+- **Map spectral brightness to color** using real-time spectral centroid analysis
+- **Scale brightness by timbre** using spectral rolloff for timbral responsiveness
 
 You need an ESP32 device with a microphone running ESPHome and the [esphome-audio-reactive](https://github.com/absent42/esphome-audio-reactive) component. The device sits near your speaker and streams audio analysis data to Home Assistant over your local network.
 
@@ -246,23 +251,39 @@ After flashing and calibrating, the device should auto-discover in Home Assistan
 
 Audio-reactive mode works with any dynamic scene. You enable it by selecting an audio sensor entity, which replaces the fixed transition and hold timing with live audio-driven updates.
 
+### Audio presets
+
+For most users, start with an audio preset instead of configuring individual parameters. Presets bundle all audio settings into a single selection:
+
+| Preset | Best for | What it does |
+|---|---|---|
+| **Beat** | Pop, electronic, rock | Color cycle on each beat, high speed, responsive |
+| **Ambient** | Background listening, ambient | Slow brightness breathing with rolloff response |
+| **Concert** | Live music, complex audio | Beat prediction, frequency zone distribution, color by frequency |
+| **Chill** | Lounge, jazz, relaxation | Continuous palette drift, gentle sensitivity |
+| **Club** | EDM, dance, high energy | Brightness flash on bass beats, maximum speed |
+
+Select a preset and it auto-fills all parameters. Changing any individual parameter switches to **Custom**. You can start with a preset and tweak from there.
+
 ### From the frontend panel
 
 1. Open the **Aqara Advanced Lighting** panel in Home Assistant
 2. Create or edit a dynamic scene preset with the colors you want
 3. Expand the **Audio reactive** section in the editor
 4. Toggle **Enable audio** on
-5. Select your audio sensor entity (for example, `binary_sensor.audio_reactive_audio_sensor`)
-6. Choose a **color advance mode** and **detection mode**
-7. Adjust sensitivity, transition speed, and other parameters to taste
+5. Select an **audio preset** (Beat, Ambient, Concert, Chill, or Club)
+6. Select your audio sensor entity (for example, `binary_sensor.audio_reactive_audio_sensor`)
+7. Adjust individual parameters if needed (switches preset to Custom)
 8. Save the preset
 
 When activating a preset, you can also override audio settings at activation time without changing the saved preset:
 
-1. Select a dynamic scene preset to activate
-2. In the activation overrides section, toggle **Audio reactive** on
-3. Select the audio entity and adjust parameters
-4. Click activate -- the scene will run with your audio overrides
+1. In the activation overrides section, toggle **Audio reactive** on
+2. Select an audio preset or configure individually
+3. Select the audio entity
+4. Click activate — the scene will run with your audio overrides
+
+> **Note:** Enabling audio reactive automatically disables the Brightness, Static scene mode, and Scene color assignment overrides, as these conflict with audio-driven control.
 
 ### From a service call
 
@@ -299,6 +320,8 @@ data:
   audio_brightness_response: true
   audio_frequency_zone: false
   audio_silence_degradation: true
+  audio_color_by_frequency: false
+  audio_rolloff_brightness: false
 ```
 
 When `audio_entity` is set, the `transition_time` and `hold_time` values are ignored. Color changes are driven entirely by the audio data.
@@ -310,13 +333,15 @@ When `audio_entity` is set, the `transition_time` and `hold_time` values are ign
 | `audio_entity` | entity_id | none | Audio sensor binary sensor from the `esphome-audio-reactive` component. Setting this enables audio mode. |
 | `audio_sensitivity` | 1-100 | 50 | How responsive onset detection is to sound. Higher values detect quieter events. |
 | `audio_color_advance` | string | `on_onset` | How colors advance through the palette (see color advance modes below). |
-| `audio_detection_mode` | string | `spectral_flux` | Detection algorithm: `spectral_flux` (all genres) or `bass_energy` (rhythmic music). |
+| `audio_detection_mode` | string | `spectral_flux` | Detection algorithm: `spectral_flux` (all genres), `bass_energy` (rhythmic music), or `complex_domain` (phase+magnitude, soft onsets). |
 | `audio_transition_speed` | 1-100 | 50 | How fast colors fade between changes. Higher = faster. |
 | `audio_brightness_response` | boolean | true | When enabled, brightness pulses with the music's volume. |
 | `audio_frequency_zone` | boolean | false | Auto-distribute lights across bass/mid/high frequency bands. Requires 3+ lights. |
 | `audio_silence_degradation` | boolean | true | Gradually transition to slow palette cycling during silence. |
 | `audio_prediction_aggressiveness` | 1-100 | 50 | How aggressively to predict beats (beat_predictive mode only). |
 | `audio_latency_compensation_ms` | 0-500 | 150 | Milliseconds to send commands early to compensate for Zigbee latency (beat_predictive mode only). |
+| `audio_color_by_frequency` | boolean | false | Map spectral centroid to palette position. Low frequencies select warm colors, high frequencies select cool. |
+| `audio_rolloff_brightness` | boolean | false | Scale brightness based on spectral rolloff. Brighter timbres produce brighter lights. |
 
 ### Color advance modes
 
@@ -333,6 +358,8 @@ When `audio_entity` is set, the `transition_time` and `hold_time` values are ign
 **Spectral flux** (default) detects any sudden change across all frequency bands — kick drums, snare hits, cymbal crashes, piano attacks, violin pizzicato, vocal entrances. Works with all music genres.
 
 **Bass energy** only detects bass energy threshold crossings. Optimized for rhythmic music with a prominent low-frequency beat. Includes hysteresis to prevent rapid re-triggering.
+
+**Complex domain** tracks both magnitude and phase evolution across consecutive FFT frames (based on Dixon 2006). Particularly effective at detecting soft onsets that pure magnitude-based methods miss — gentle piano notes, bowed strings, vocal entrances without consonants. Uses adaptive spectral whitening to reduce false positives from sustained tones.
 
 ### Sensitivity
 
@@ -381,6 +408,18 @@ Beat predictive mode learns the tempo (BPM) of the music and sends light command
 
 The mode has a state machine: starts reactive, transitions to tracking when BPM confidence is high, then switches to predictive after enough consecutive matches. Falls back to reactive instantly on missed predictions.
 
+### Color by frequency
+
+When enabled, the spectral centroid (a measure of the spectrum's "center of gravity") maps to palette position. Low centroid values (bass-heavy music, dark timbres) select colors from the start of the palette, while high centroid values (bright timbres, treble-heavy passages) select colors from the end.
+
+This works alongside onset-based color advance — the centroid selects the color region, and onsets trigger changes within that region. The effect is that different instruments and timbres produce different colors naturally.
+
+### Rolloff brightness
+
+When enabled, spectral rolloff (the frequency below which 85% of the spectral energy is concentrated) scales the brightness. Higher rolloff values (brighter, more complex timbres) produce brighter lights, while lower rolloff values (darker, bass-heavy timbres) produce dimmer lights.
+
+The rolloff maps to a 0.5-1.0 brightness multiplier, so lights never go below 50% from this effect alone. This supplements the amplitude-based brightness response with timbral information — a quiet but bright-sounding passage will be brighter than a quiet but dark-sounding one.
+
 ---
 
 ## How audio detection works
@@ -389,13 +428,33 @@ The `esphome-audio-reactive` component performs on-device audio analysis using a
 
 1. Audio is captured at the device's configured sample rate (22,050 Hz for ATOM Echo, 44,100 Hz for S3R and Waveshare)
 2. A ring buffer feeds samples to the FFT task running on ESP32 core 0
-3. Configurable FFT window (256, 512, or 1024 samples; default 512) with 75% overlap produces frequency magnitudes
+3. Configurable FFT window (256 or 512 samples; default 512) with 75% overlap produces frequency magnitudes
 4. 16 frequency bands are computed with pink noise correction
-5. PI-controller automatic gain control normalizes values to 0-1 range
-6. Spectral flux onset detection identifies musical events across all bands
-7. Dynamics limiter and asymmetric smoothing produce clean, stable sensor output
+5. Spectral descriptors are computed: centroid (spectral brightness) and rolloff (energy concentration)
+6. Adaptive spectral whitening is applied for onset detection
+7. Three onset detection modes: spectral flux (all-band), bass energy (bass-focused), and complex domain (phase+magnitude)
+8. Autocorrelation beat tracker estimates BPM with confidence scoring and beat phase tracking
+9. PI-controller automatic gain control normalizes values to 0-1 range
+10. Dynamics limiter and asymmetric smoothing produce clean, stable sensor output
 
-You select the `Audio Sensor` binary sensor as your `audio_entity`. The integration automatically discovers the companion sensors (energy bands, BPM, silence, sensitivity, squelch, detection mode) on the same device by looking up sibling entities in the HA device registry. No manual configuration is needed beyond selecting the binary sensor.
+The device publishes the following sensors to Home Assistant:
+
+| Sensor | Type | Description |
+|---|---|---|
+| Audio Sensor | binary_sensor | Onset detection — pulses on each detected musical event |
+| Bass Energy | sensor (0-1) | Smoothed low-frequency energy |
+| Mid Energy | sensor (0-1) | Smoothed mid-frequency energy |
+| High Energy | sensor (0-1) | Smoothed high-frequency energy |
+| Amplitude | sensor (0-1) | Overall smoothed amplitude |
+| BPM | sensor | Estimated beats per minute |
+| Beat Confidence | sensor (0-1) | How confident the BPM estimate is |
+| Beat Phase | sensor (0-1) | Position in current beat cycle (0 = on beat, approaches 1.0 before next) |
+| Spectral Centroid | sensor (0-1) | Spectral "brightness" — weighted average frequency |
+| Spectral Rolloff | sensor (0-1) | Frequency below which 85% of energy is concentrated |
+| Onset Strength | sensor (0-1) | Magnitude of the most recent onset |
+| Silence | binary_sensor | On when room is quiet (noise gate active) |
+
+You select the `Audio Sensor` binary sensor as your `audio_entity`. The integration automatically discovers all companion sensors on the same device by looking up sibling entities in the HA device registry. No manual configuration is needed beyond selecting the binary sensor.
 
 ---
 
