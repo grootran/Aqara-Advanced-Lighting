@@ -36,6 +36,11 @@ COMPANION_SENSOR_SUFFIXES: dict[str, str] = {
     "-high_energy": "high_energy",
     "-amplitude": "amplitude",
     "-bpm": "bpm",
+    "-centroid": "centroid",
+    "-rolloff": "rolloff",
+    "-beat_confidence": "beat_confidence",
+    "-beat_phase": "beat_phase",
+    "-onset_strength": "onset_strength",
 }
 
 COMPANION_BINARY_SENSOR_SUFFIXES: dict[str, str] = {

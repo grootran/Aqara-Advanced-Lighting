@@ -183,6 +183,18 @@ export const editorFormStyles = css`
     margin-bottom: 16px;
   }
 
+  .audio-toggles-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .audio-toggles-grid .form-section {
+    align-items: flex-start;
+    margin-bottom: 0;
+  }
+
   .form-row-pair .form-field,
   .form-row-triple .form-field {
     display: flex;
@@ -302,6 +314,10 @@ export const editorFormStyles = css`
     .form-row-pair,
     .form-row-triple {
       grid-template-columns: 1fr;
+    }
+
+    .audio-toggles-grid {
+      grid-template-columns: 1fr 1fr;
     }
 
     .form-label {

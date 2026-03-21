@@ -1058,6 +1058,18 @@ export const panelStyles = css`
     padding: 0 16px 8px;
   }
 
+  .audio-toggles-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    padding: 0 16px 8px;
+  }
+
+  .audio-toggles-grid .form-section {
+    align-items: flex-start;
+    margin-bottom: 0;
+  }
+
   /* Two-column form row for Name/Icon on desktop */
   .form-row-pair {
     display: grid;
@@ -1724,6 +1736,10 @@ export const panelStyles = css`
 
     .audio-override-row {
       grid-template-columns: 1fr;
+    }
+
+    .audio-toggles-grid {
+      grid-template-columns: 1fr 1fr;
     }
 
     .form-label {

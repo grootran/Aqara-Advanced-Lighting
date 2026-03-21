@@ -776,6 +776,14 @@
         "audio_latency_compensation_ms": {
           "name": "Latency compensation",
           "description": "Milliseconds to compensate for audio processing latency (0-500ms). Only used in beat_predictive mode."
+        },
+        "audio_color_by_frequency": {
+          "name": "Color by frequency",
+          "description": "Map spectral centroid to palette position. Low frequencies select warm colors, high frequencies select cool colors."
+        },
+        "audio_rolloff_brightness": {
+          "name": "Rolloff brightness",
+          "description": "Scale brightness based on spectral rolloff. Brighter timbres produce brighter lights."
         }
       }
     },

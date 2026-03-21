@@ -424,7 +424,19 @@
     "audio_frequency_zone_helper": "Requires 3+ lights",
     "audio_silence_degradation_label": "Silence degradation",
     "audio_prediction_aggressiveness_label": "Prediction aggressiveness",
-    "audio_latency_compensation_label": "Latency compensation"
+    "audio_latency_compensation_label": "Latency compensation",
+    "audio_detection_complex_domain": "Complex domain (phase + magnitude)",
+    "audio_color_by_frequency_label": "Color by frequency",
+    "audio_color_by_frequency_helper": "Map spectral brightness to palette position",
+    "audio_rolloff_brightness_label": "Rolloff brightness",
+    "audio_rolloff_brightness_helper": "Scale brightness by timbral brightness",
+    "audio_preset_label": "Audio preset",
+    "audio_preset_beat": "Beat",
+    "audio_preset_ambient": "Ambient",
+    "audio_preset_concert": "Concert",
+    "audio_preset_chill": "Chill",
+    "audio_preset_club": "Club",
+    "audio_preset_custom": "Custom"
   },
   "image_extractor": {
     "upload_tab": "Upload",

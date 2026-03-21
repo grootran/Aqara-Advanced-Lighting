@@ -58,11 +58,82 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   @state() private _audioBrightnessResponse = true;
   @state() private _audioColorAdvance: 'on_onset' | 'continuous' | 'beat_predictive' | 'intensity_breathing' | 'onset_flash' = 'on_onset';
   @state() private _audioTransitionSpeed = 50;
-  @state() private _audioDetectionMode: 'spectral_flux' | 'bass_energy' = 'spectral_flux';
+  @state() private _audioDetectionMode: 'spectral_flux' | 'bass_energy' | 'complex_domain' = 'spectral_flux';
   @state() private _audioFrequencyZone = false;
   @state() private _audioSilenceDegradation = true;
   @state() private _audioPredictionAggressiveness = 50;
   @state() private _audioLatencyCompensationMs = 150;
+  @state() private _audioColorByFrequency = false;
+  @state() private _audioRolloffBrightness = false;
+
+  // Audio preset definitions (UI-only, not stored in model)
+  private static readonly AUDIO_PRESETS: Record<string, {
+    color_advance: string; detection_mode: string; sensitivity: number;
+    transition_speed: number; brightness_response: boolean; frequency_zone: boolean;
+    color_by_frequency: boolean; rolloff_brightness: boolean; silence_degradation: boolean;
+    prediction_aggressiveness: number; latency_compensation_ms: number;
+  }> = {
+    beat: {
+      color_advance: 'on_onset', detection_mode: 'spectral_flux', sensitivity: 60,
+      transition_speed: 80, brightness_response: true, frequency_zone: false,
+      color_by_frequency: false, rolloff_brightness: false, silence_degradation: true,
+      prediction_aggressiveness: 50, latency_compensation_ms: 150,
+    },
+    ambient: {
+      color_advance: 'intensity_breathing', detection_mode: 'spectral_flux', sensitivity: 50,
+      transition_speed: 20, brightness_response: true, frequency_zone: false,
+      color_by_frequency: false, rolloff_brightness: true, silence_degradation: true,
+      prediction_aggressiveness: 50, latency_compensation_ms: 150,
+    },
+    concert: {
+      color_advance: 'beat_predictive', detection_mode: 'complex_domain', sensitivity: 50,
+      transition_speed: 50, brightness_response: true, frequency_zone: true,
+      color_by_frequency: true, rolloff_brightness: false, silence_degradation: true,
+      prediction_aggressiveness: 70, latency_compensation_ms: 150,
+    },
+    chill: {
+      color_advance: 'continuous', detection_mode: 'spectral_flux', sensitivity: 40,
+      transition_speed: 30, brightness_response: true, frequency_zone: false,
+      color_by_frequency: false, rolloff_brightness: false, silence_degradation: true,
+      prediction_aggressiveness: 50, latency_compensation_ms: 150,
+    },
+    club: {
+      color_advance: 'onset_flash', detection_mode: 'bass_energy', sensitivity: 70,
+      transition_speed: 95, brightness_response: true, frequency_zone: false,
+      color_by_frequency: false, rolloff_brightness: false, silence_degradation: false,
+      prediction_aggressiveness: 50, latency_compensation_ms: 150,
+    },
+  };
+
+  private get _currentAudioPreset(): string {
+    for (const [name, p] of Object.entries(DynamicSceneEditor.AUDIO_PRESETS)) {
+      if (this._audioColorAdvance === p.color_advance &&
+          this._audioDetectionMode === p.detection_mode &&
+          this._audioSensitivity === p.sensitivity &&
+          this._audioTransitionSpeed === p.transition_speed &&
+          this._audioBrightnessResponse === p.brightness_response &&
+          this._audioFrequencyZone === p.frequency_zone &&
+          this._audioColorByFrequency === p.color_by_frequency &&
+          this._audioRolloffBrightness === p.rolloff_brightness &&
+          this._audioSilenceDegradation === p.silence_degradation &&
+          this._audioPredictionAggressiveness === p.prediction_aggressiveness &&
+          this._audioLatencyCompensationMs === p.latency_compensation_ms) {
+        return name;
+      }
+    }
+    return 'custom';
+  }
+
+  private get _audioPresetOptions() {
+    return [
+      { value: 'beat', label: this._localize('dynamic_scene.audio_preset_beat') || 'Beat' },
+      { value: 'ambient', label: this._localize('dynamic_scene.audio_preset_ambient') || 'Ambient' },
+      { value: 'concert', label: this._localize('dynamic_scene.audio_preset_concert') || 'Concert' },
+      { value: 'chill', label: this._localize('dynamic_scene.audio_preset_chill') || 'Chill' },
+      { value: 'club', label: this._localize('dynamic_scene.audio_preset_club') || 'Club' },
+      { value: 'custom', label: this._localize('dynamic_scene.audio_preset_custom') || 'Custom' },
+    ];
+  }
 
   // Alias for cleaner code
   private get _colors(): EditableColor[] {
@@ -103,6 +174,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     return [
       { value: 'spectral_flux', label: this._localize('dynamic_scene.audio_detection_spectral_flux') || 'Spectral flux (all genres)' },
       { value: 'bass_energy', label: this._localize('dynamic_scene.audio_detection_bass_energy') || 'Bass energy (rhythmic music)' },
+      { value: 'complex_domain', label: this._localize('dynamic_scene.audio_detection_complex_domain') || 'Complex domain (phase + magnitude)' },
     ];
   }
 
@@ -358,6 +430,8 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._audioSilenceDegradation = preset.audio_silence_degradation ?? true;
     this._audioPredictionAggressiveness = preset.audio_prediction_aggressiveness ?? 50;
     this._audioLatencyCompensationMs = preset.audio_latency_compensation_ms ?? 150;
+    this._audioColorByFrequency = preset.audio_color_by_frequency ?? false;
+    this._audioRolloffBrightness = preset.audio_rolloff_brightness ?? false;
     this._colors = preset.colors.map((color, index) => ({
       ...color,
       id: `color-${index}-${Date.now()}`,
@@ -394,6 +468,8 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
       audioSilenceDegradation: this._audioSilenceDegradation,
       audioPredictionAggressiveness: this._audioPredictionAggressiveness,
       audioLatencyCompensationMs: this._audioLatencyCompensationMs,
+      audioColorByFrequency: this._audioColorByFrequency,
+      audioRolloffBrightness: this._audioRolloffBrightness,
     };
   }
 
@@ -421,6 +497,8 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._audioSilenceDegradation = true;
     this._audioPredictionAggressiveness = 50;
     this._audioLatencyCompensationMs = 150;
+    this._audioColorByFrequency = false;
+    this._audioRolloffBrightness = false;
     this._addDefaultColors();
   }
 
@@ -448,6 +526,8 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._audioSilenceDegradation = draft.audioSilenceDegradation ?? true;
     this._audioPredictionAggressiveness = draft.audioPredictionAggressiveness ?? 50;
     this._audioLatencyCompensationMs = draft.audioLatencyCompensationMs ?? 150;
+    this._audioColorByFrequency = draft.audioColorByFrequency ?? false;
+    this._audioRolloffBrightness = draft.audioRolloffBrightness ?? false;
     this._colors = draft.colors.map((color, index) => ({
       ...color,
       id: `color-${index}-${Date.now()}`,
@@ -543,6 +623,25 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._hasUserInteraction = true;
   }
 
+  private _handleAudioPresetChange(e: CustomEvent): void {
+    const preset = e.detail.value;
+    if (preset === 'custom') return;
+    const p = DynamicSceneEditor.AUDIO_PRESETS[preset];
+    if (!p) return;
+    this._audioColorAdvance = p.color_advance as any;
+    this._audioDetectionMode = p.detection_mode as any;
+    this._audioSensitivity = p.sensitivity;
+    this._audioTransitionSpeed = p.transition_speed;
+    this._audioBrightnessResponse = p.brightness_response;
+    this._audioFrequencyZone = p.frequency_zone;
+    this._audioColorByFrequency = p.color_by_frequency;
+    this._audioRolloffBrightness = p.rolloff_brightness;
+    this._audioSilenceDegradation = p.silence_degradation;
+    this._audioPredictionAggressiveness = p.prediction_aggressiveness;
+    this._audioLatencyCompensationMs = p.latency_compensation_ms;
+    this._hasUserInteraction = true;
+  }
+
   private _handleAudioDetectionModeChange(e: CustomEvent): void {
     this._audioDetectionMode = e.detail.value || 'spectral_flux';
     this._hasUserInteraction = true;
@@ -565,6 +664,16 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
 
   private _handleAudioLatencyCompensationChange(e: CustomEvent): void {
     this._audioLatencyCompensationMs = e.detail.value ?? 150;
+    this._hasUserInteraction = true;
+  }
+
+  private _handleAudioColorByFrequencyChange(e: CustomEvent): void {
+    this._audioColorByFrequency = e.detail.value ?? false;
+    this._hasUserInteraction = true;
+  }
+
+  private _handleAudioRolloffBrightnessChange(e: CustomEvent): void {
+    this._audioRolloffBrightness = e.detail.value ?? false;
     this._hasUserInteraction = true;
   }
 
@@ -707,6 +816,8 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
       data.audio_silence_degradation = this._audioSilenceDegradation;
       data.audio_prediction_aggressiveness = this._audioPredictionAggressiveness;
       data.audio_latency_compensation_ms = this._audioLatencyCompensationMs;
+      data.audio_color_by_frequency = this._audioColorByFrequency;
+      data.audio_rolloff_brightness = this._audioRolloffBrightness;
     }
 
     return data;
@@ -1146,7 +1257,22 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
           </div>
 
           ${this._audioEnabled ? html`
+            <!-- Row 1: Audio preset + Entity selector -->
             <div class="form-row-pair">
+              <div class="form-field">
+                <span class="form-label">${this._localize('dynamic_scene.audio_preset_label') || 'Audio preset'}</span>
+                <ha-selector
+                  .hass=${this.hass}
+                  .selector=${{
+                    select: {
+                      options: this._audioPresetOptions,
+                      mode: 'dropdown',
+                    },
+                  }}
+                  .value=${this._currentAudioPreset}
+                  @value-changed=${this._handleAudioPresetChange}
+                ></ha-selector>
+              </div>
               <div class="form-field">
                 <span class="form-label">${this._localize('dynamic_scene.audio_entity_label') || 'Audio sensor entity'}</span>
                 <ha-selector
@@ -1160,6 +1286,10 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
                   @value-changed=${this._handleAudioEntityChange}
                 ></ha-selector>
               </div>
+            </div>
+
+            <!-- Row 2: Detection mode + Color advance -->
+            <div class="form-row-pair">
               <div class="form-field">
                 <span class="form-label">${this._localize('dynamic_scene.audio_detection_mode_label') || 'Detection mode'}</span>
                 <ha-selector
@@ -1174,8 +1304,23 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
                   @value-changed=${this._handleAudioDetectionModeChange}
                 ></ha-selector>
               </div>
+              <div class="form-field">
+                <span class="form-label">${this._localize('dynamic_scene.audio_color_advance_label') || 'Color advance'}</span>
+                <ha-selector
+                  .hass=${this.hass}
+                  .selector=${{
+                    select: {
+                      options: this._audioColorAdvanceOptions,
+                      mode: 'dropdown',
+                    },
+                  }}
+                  .value=${this._audioColorAdvance}
+                  @value-changed=${this._handleAudioColorAdvanceChange}
+                ></ha-selector>
+              </div>
             </div>
 
+            <!-- Row 3: Sensitivity + Transition speed -->
             <div class="timing-section">
               <div class="timing-field">
                 <div class="timing-label">
@@ -1196,7 +1341,6 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
                   @value-changed=${this._handleAudioSensitivityChange}
                 ></ha-selector>
               </div>
-
               <div class="timing-field">
                 <div class="timing-label">
                   <span class="form-label">${this._localize('dynamic_scene.audio_transition_speed_label') || 'Transition speed'}</span>
@@ -1219,34 +1363,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
               </div>
             </div>
 
-            <div class="form-row-pair">
-              <div class="form-field">
-                <span class="form-label">${this._localize('dynamic_scene.audio_color_advance_label') || 'Color advance'}</span>
-                <ha-selector
-                  .hass=${this.hass}
-                  .selector=${{
-                    select: {
-                      options: this._audioColorAdvanceOptions,
-                      mode: 'dropdown',
-                    },
-                  }}
-                  .value=${this._audioColorAdvance}
-                  @value-changed=${this._handleAudioColorAdvanceChange}
-                ></ha-selector>
-              </div>
-
-              <div class="form-section boolean-left">
-                <span class="form-label">${this._localize('dynamic_scene.audio_brightness_response_label') || 'Brightness response'}</span>
-                <ha-selector
-                  .hass=${this.hass}
-                  .disabled=${!(this._audioColorAdvance === 'on_onset' || this._audioColorAdvance === 'continuous' || this._audioColorAdvance === 'beat_predictive')}
-                  .selector=${{ boolean: {} }}
-                  .value=${this._audioBrightnessResponse}
-                  @value-changed=${this._handleAudioBrightnessResponseChange}
-                ></ha-selector>
-              </div>
-            </div>
-
+            <!-- Row 4: Prediction aggressiveness + Latency compensation -->
             <div class="timing-section">
               <div class="timing-field">
                 <div class="timing-label">
@@ -1290,18 +1407,27 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
               </div>
             </div>
 
-            <div class="form-row-pair">
+            <!-- Toggles: 3-per-row desktop, 2-per-row mobile -->
+            <div class="audio-toggles-grid">
               <div class="form-section boolean-left">
-                <span class="form-label">${this._localize('dynamic_scene.audio_frequency_zone_label') || 'Frequency zone distribution'}</span>
+                <span class="form-label">${this._localize('dynamic_scene.audio_brightness_response_label') || 'Brightness response'}</span>
+                <ha-selector
+                  .hass=${this.hass}
+                  .disabled=${!(this._audioColorAdvance === 'on_onset' || this._audioColorAdvance === 'continuous' || this._audioColorAdvance === 'beat_predictive')}
+                  .selector=${{ boolean: {} }}
+                  .value=${this._audioBrightnessResponse}
+                  @value-changed=${this._handleAudioBrightnessResponseChange}
+                ></ha-selector>
+              </div>
+              <div class="form-section boolean-left">
+                <span class="form-label">${this._localize('dynamic_scene.audio_frequency_zone_label') || 'Frequency zone'}</span>
                 <ha-selector
                   .hass=${this.hass}
                   .selector=${{ boolean: {} }}
                   .value=${this._audioFrequencyZone}
                   @value-changed=${this._handleAudioFrequencyZoneChange}
                 ></ha-selector>
-                <span style="font-size: 12px; color: var(--secondary-text-color);">${this._localize('dynamic_scene.audio_frequency_zone_helper') || 'Requires 3+ lights'}</span>
               </div>
-
               <div class="form-section boolean-left">
                 <span class="form-label">${this._localize('dynamic_scene.audio_silence_degradation_label') || 'Silence degradation'}</span>
                 <ha-selector
@@ -1309,6 +1435,24 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
                   .selector=${{ boolean: {} }}
                   .value=${this._audioSilenceDegradation}
                   @value-changed=${this._handleAudioSilenceDegradationChange}
+                ></ha-selector>
+              </div>
+              <div class="form-section boolean-left">
+                <span class="form-label">${this._localize('dynamic_scene.audio_color_by_frequency_label') || 'Color by frequency'}</span>
+                <ha-selector
+                  .hass=${this.hass}
+                  .selector=${{ boolean: {} }}
+                  .value=${this._audioColorByFrequency}
+                  @value-changed=${this._handleAudioColorByFrequencyChange}
+                ></ha-selector>
+              </div>
+              <div class="form-section boolean-left">
+                <span class="form-label">${this._localize('dynamic_scene.audio_rolloff_brightness_label') || 'Rolloff brightness'}</span>
+                <ha-selector
+                  .hass=${this.hass}
+                  .selector=${{ boolean: {} }}
+                  .value=${this._audioRolloffBrightness}
+                  @value-changed=${this._handleAudioRolloffBrightnessChange}
                 ></ha-selector>
               </div>
             </div>

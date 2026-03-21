@@ -161,11 +161,13 @@ export interface DynamicScenePreset {
   audio_brightness_response?: boolean;
   audio_color_advance?: 'on_onset' | 'continuous' | 'beat_predictive' | 'intensity_breathing' | 'onset_flash';
   audio_transition_speed?: number;
-  audio_detection_mode?: 'spectral_flux' | 'bass_energy';
+  audio_detection_mode?: 'spectral_flux' | 'bass_energy' | 'complex_domain';
   audio_frequency_zone?: boolean;
   audio_silence_degradation?: boolean;
   audio_prediction_aggressiveness?: number;
   audio_latency_compensation_ms?: number;
+  audio_color_by_frequency?: boolean;
+  audio_rolloff_brightness?: boolean;
 }
 
 export interface PresetsData {
@@ -309,11 +311,13 @@ export interface UserDynamicScenePreset {
   audio_brightness_response?: boolean;
   audio_color_advance?: 'on_onset' | 'continuous' | 'beat_predictive' | 'intensity_breathing' | 'onset_flash';
   audio_transition_speed?: number;
-  audio_detection_mode?: 'spectral_flux' | 'bass_energy';
+  audio_detection_mode?: 'spectral_flux' | 'bass_energy' | 'complex_domain';
   audio_frequency_zone?: boolean;
   audio_silence_degradation?: boolean;
   audio_prediction_aggressiveness?: number;
   audio_latency_compensation_ms?: number;
+  audio_color_by_frequency?: boolean;
+  audio_rolloff_brightness?: boolean;
   created_at: string;
   modified_at: string;
 }
@@ -506,11 +510,13 @@ export interface DynamicSceneEditorDraft {
   audioBrightnessResponse: boolean;
   audioColorAdvance: 'on_onset' | 'continuous' | 'beat_predictive' | 'intensity_breathing' | 'onset_flash';
   audioTransitionSpeed: number;
-  audioDetectionMode: 'spectral_flux' | 'bass_energy';
+  audioDetectionMode: 'spectral_flux' | 'bass_energy' | 'complex_domain';
   audioFrequencyZone: boolean;
   audioSilenceDegradation: boolean;
   audioPredictionAggressiveness: number;
   audioLatencyCompensationMs: number;
+  audioColorByFrequency: boolean;
+  audioRolloffBrightness: boolean;
 }
 
 export interface EditorDraftCache {

@@ -1830,6 +1830,28 @@ class DynamicSceneManager:
         if scene.audio_color_advance == AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE and bpm_entity:
             subscribe_entities.add(bpm_entity)
 
+        # Beat confidence + phase for predictive mode
+        beat_confidence_entity = companions.get("beat_confidence")
+        beat_phase_entity = companions.get("beat_phase")
+        if scene.audio_color_advance == AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE:
+            if beat_confidence_entity:
+                subscribe_entities.add(beat_confidence_entity)
+            if beat_phase_entity:
+                subscribe_entities.add(beat_phase_entity)
+
+        # Onset strength for intensity-scaled modes
+        onset_strength_entity = companions.get("onset_strength")
+        if is_onset_mode and onset_strength_entity:
+            subscribe_entities.add(onset_strength_entity)
+
+        # Spectral centroid + rolloff for color mapping
+        centroid_entity = companions.get("centroid")
+        rolloff_entity = companions.get("rolloff")
+        if centroid_entity:
+            subscribe_entities.add(centroid_entity)
+        if rolloff_entity:
+            subscribe_entities.add(rolloff_entity)
+
         # Silence entity for all modes if available
         silence_entity = companions.get("silence")
         if silence_entity:
@@ -1870,24 +1892,22 @@ class DynamicSceneManager:
             try:
                 if entity_id_val == onset_entity and is_onset_mode:
                     if state_val == "on":
-                        attrs = {
-                            "strength": float(
-                                new_state.attributes.get("strength", 1.0)
-                            ),
-                            "dominant_band": new_state.attributes.get(
-                                "dominant_band", "unknown"
-                            ),
-                            "type": new_state.attributes.get("type", "beat"),
-                        }
-                        queue.put_nowait(("onset", attrs))
+                        queue.put_nowait(("onset", {"strength": 1.0}))
+                elif entity_id_val == onset_strength_entity:
+                    queue.put_nowait(("onset_strength", float(state_val)))
                 elif entity_id_val == silence_entity:
                     queue.put_nowait(("silence", state_val == "on"))
                 elif entity_id_val == bpm_entity:
                     bpm_val = float(state_val)
-                    confidence_attr = int(
-                        new_state.attributes.get("confidence", 0)
-                    )
-                    queue.put_nowait(("bpm", (bpm_val, confidence_attr)))
+                    queue.put_nowait(("bpm", bpm_val))
+                elif entity_id_val == beat_confidence_entity:
+                    queue.put_nowait(("beat_confidence", float(state_val)))
+                elif entity_id_val == beat_phase_entity:
+                    queue.put_nowait(("beat_phase", float(state_val)))
+                elif entity_id_val == centroid_entity:
+                    queue.put_nowait(("centroid", float(state_val)))
+                elif entity_id_val == rolloff_entity:
+                    queue.put_nowait(("rolloff", float(state_val)))
                 elif freq_zone_mode and entity_id_val in (
                     companions.get("bass_energy"),
                     companions.get("mid_energy"),
@@ -2008,16 +2028,27 @@ class DynamicSceneManager:
 
                 # -- Process BPM updates --
                 if "bpm" in events:
-                    bpm_val, confidence_val = events["bpm"]
+                    bpm_val = events["bpm"]
+                    confidence_val = events.get("beat_confidence", 0.0)
                     if isinstance(handler, BeatPredictiveHandler):
                         handler.update_bpm(bpm_val, confidence_val)
 
                 # -- Process onset events --
                 needs_apply = False
                 if "onset" in events:
-                    handler.handle_onset(scene_state, events["onset"])
+                    onset_data = events["onset"]
+                    # Merge onset_strength from standalone sensor if available
+                    if "onset_strength" in events:
+                        onset_data["strength"] = events["onset_strength"]
+                    handler.handle_onset(scene_state, onset_data)
                     if is_onset_mode:
                         needs_apply = True
+
+                # -- Process spectral descriptors --
+                if "centroid" in events:
+                    handler.handle_centroid(scene_state, events["centroid"])
+                if "rolloff" in events:
+                    handler.handle_rolloff(scene_state, events["rolloff"])
 
                 # -- Process energy events --
                 if "energy" in events:

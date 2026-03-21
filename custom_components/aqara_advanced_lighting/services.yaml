@@ -2457,6 +2457,20 @@ start_dynamic_scene:
       required: false
       selector:
         boolean:
+    audio_color_by_frequency:
+      name: Color by Frequency
+      description: Map spectral centroid to palette position (low frequency = warm, high = cool)
+      default: false
+      required: false
+      selector:
+        boolean:
+    audio_rolloff_brightness:
+      name: Rolloff Brightness
+      description: Scale brightness based on spectral rolloff (timbral brightness)
+      default: false
+      required: false
+      selector:
+        boolean:
     audio_prediction_aggressiveness:
       name: Audio Prediction Aggressiveness
       description: How aggressively to predict beats (1=conservative, 100=aggressive)

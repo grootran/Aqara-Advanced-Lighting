@@ -590,6 +590,8 @@ class DynamicScene:
     audio_silence_degradation: bool = DEFAULT_AUDIO_SILENCE_DEGRADATION
     audio_prediction_aggressiveness: int = DEFAULT_AUDIO_PREDICTION_AGGRESSIVENESS
     audio_latency_compensation_ms: int = DEFAULT_LATENCY_COMPENSATION_MS
+    audio_color_by_frequency: bool = False
+    audio_rolloff_brightness: bool = False
 
     def __post_init__(self) -> None:
         """Validate scene parameters."""

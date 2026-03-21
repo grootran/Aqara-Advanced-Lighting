@@ -36,6 +36,15 @@ class AudioModeHandler(ABC):
     def handle_energy(self, scene_state: Any, energy: float) -> None:
         """Handle a continuous energy update. Override in subclasses that react to energy."""
 
+    def handle_centroid(self, scene_state: Any, centroid: float) -> None:
+        """Handle spectral centroid update. Used for brightness/color temperature mapping."""
+
+    def handle_rolloff(self, scene_state: Any, rolloff: float) -> None:
+        """Handle spectral rolloff update. Used for brightness scaling."""
+
+    def update_bpm(self, bpm: float, confidence: float) -> None:
+        """Update BPM and confidence. Override in BeatPredictiveHandler."""
+
     async def enter_silence(self, scene_state: Any, stop_event: asyncio.Event) -> None:
         """Transition to silence degradation (slow palette cycling)."""
         self._in_silence = True

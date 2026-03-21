@@ -680,6 +680,8 @@ SERVICE_START_DYNAMIC_SCENE_SCHEMA = vol.Schema(
         ),
         vol.Optional("audio_frequency_zone", default=DEFAULT_AUDIO_FREQUENCY_ZONE): cv.boolean,
         vol.Optional("audio_silence_degradation", default=DEFAULT_AUDIO_SILENCE_DEGRADATION): cv.boolean,
+        vol.Optional("audio_color_by_frequency", default=False): cv.boolean,
+        vol.Optional("audio_rolloff_brightness", default=False): cv.boolean,
         vol.Optional("audio_prediction_aggressiveness", default=DEFAULT_AUDIO_PREDICTION_AGGRESSIVENESS): vol.All(
             vol.Coerce(int), vol.Range(min=MIN_AUDIO_PREDICTION_AGGRESSIVENESS, max=MAX_AUDIO_PREDICTION_AGGRESSIVENESS)
         ),
@@ -3405,6 +3407,13 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 audio_brightness_response=preset.get("audio_brightness_response", True),
                 audio_color_advance=preset.get("audio_color_advance", AUDIO_COLOR_ADVANCE_ON_ONSET),
                 audio_transition_speed=preset.get("audio_transition_speed", DEFAULT_AUDIO_TRANSITION_SPEED),
+                audio_detection_mode=preset.get("audio_detection_mode", DEFAULT_AUDIO_DETECTION_MODE),
+                audio_frequency_zone=preset.get("audio_frequency_zone", DEFAULT_AUDIO_FREQUENCY_ZONE),
+                audio_silence_degradation=preset.get("audio_silence_degradation", DEFAULT_AUDIO_SILENCE_DEGRADATION),
+                audio_prediction_aggressiveness=preset.get("audio_prediction_aggressiveness", DEFAULT_AUDIO_PREDICTION_AGGRESSIVENESS),
+                audio_latency_compensation_ms=preset.get("audio_latency_compensation_ms", DEFAULT_LATENCY_COMPENSATION_MS),
+                audio_color_by_frequency=preset.get("audio_color_by_frequency", False),
+                audio_rolloff_brightness=preset.get("audio_rolloff_brightness", False),
             )
             if scene.audio_entity and not hass.states.get(scene.audio_entity):
                 _LOGGER.warning(
@@ -3450,6 +3459,13 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 audio_brightness_response=call.data.get("audio_brightness_response", True),
                 audio_color_advance=call.data.get("audio_color_advance", AUDIO_COLOR_ADVANCE_ON_ONSET),
                 audio_transition_speed=call.data.get("audio_transition_speed", DEFAULT_AUDIO_TRANSITION_SPEED),
+                audio_detection_mode=call.data.get("audio_detection_mode", DEFAULT_AUDIO_DETECTION_MODE),
+                audio_frequency_zone=call.data.get("audio_frequency_zone", DEFAULT_AUDIO_FREQUENCY_ZONE),
+                audio_silence_degradation=call.data.get("audio_silence_degradation", DEFAULT_AUDIO_SILENCE_DEGRADATION),
+                audio_prediction_aggressiveness=call.data.get("audio_prediction_aggressiveness", DEFAULT_AUDIO_PREDICTION_AGGRESSIVENESS),
+                audio_latency_compensation_ms=call.data.get("audio_latency_compensation_ms", DEFAULT_LATENCY_COMPENSATION_MS),
+                audio_color_by_frequency=call.data.get("audio_color_by_frequency", False),
+                audio_rolloff_brightness=call.data.get("audio_rolloff_brightness", False),
             )
 
         # Stop all conflicting continuous actions on these entities
