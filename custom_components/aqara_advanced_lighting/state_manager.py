@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Any
@@ -408,6 +409,12 @@ class StateManager:
                     "light", "turn_on", service_data,
                     blocking=True, context=context,
                 )
+                # Brief delay to let the hardware process the color write
+                # before turning off. Without this, Zigbee devices (especially
+                # segment-capable T1M/T1 Strip) can receive the off command
+                # before the color reset finishes, leaving segments in a
+                # partially-lit state.
+                await asyncio.sleep(0.5)
             await self.hass.services.async_call(
                 "light", "turn_off", {"entity_id": entity_id},
                 blocking=blocking, context=context,
