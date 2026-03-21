@@ -352,6 +352,13 @@ export class AqaraPanel extends LitElement {
     if (prefs.audio_override_silence_degradation !== undefined) this._audioOverrideSilenceDegradation = prefs.audio_override_silence_degradation;
     if (prefs.audio_override_prediction_aggressiveness !== undefined) this._audioOverridePredictionAggressiveness = prefs.audio_override_prediction_aggressiveness;
     if (prefs.audio_override_latency_compensation_ms !== undefined) this._audioOverrideLatencyCompensationMs = prefs.audio_override_latency_compensation_ms;
+    if (prefs.selected_entities && prefs.selected_entities.length > 0) {
+      this._selectedEntities = prefs.selected_entities;
+      this._activeFavoriteId = prefs.active_favorite_id ?? null;
+      // Side effects (_loadCurvatureFromEntity, _loadZonesForSelectedDevices) are
+      // triggered by _loadSupportedEntities after it populates the entity map,
+      // since it races with this method and may not have resolved yet.
+    }
   }
 
   private async _loadUserPreferences(): Promise<void> {
@@ -497,6 +504,8 @@ export class AqaraPanel extends LitElement {
           audio_override_silence_degradation: this._audioOverrideSilenceDegradation,
           audio_override_prediction_aggressiveness: this._audioOverridePredictionAggressiveness,
           audio_override_latency_compensation_ms: this._audioOverrideLatencyCompensationMs,
+          selected_entities: this._selectedEntities,
+          active_favorite_id: this._activeFavoriteId,
         } as unknown as Record<string, unknown>
       ).catch(err => {
         console.warn('Failed to save user preferences:', err);
@@ -773,6 +782,13 @@ export class AqaraPanel extends LitElement {
       }
 
       this._supportedEntities = entityMap;
+
+      // Re-run side effects if entities were already restored from preferences
+      // (preferences load races with supported entities load)
+      if (this._selectedEntities.length > 0) {
+        this._loadCurvatureFromEntity();
+        this._loadZonesForSelectedDevices();
+      }
 
       // Store instances data
       this._z2mInstances = data.instances || [];
@@ -1531,6 +1547,8 @@ export class AqaraPanel extends LitElement {
     this._loadCurvatureFromEntity();
     // Load zones for selected segment-capable devices
     this._loadZonesForSelectedDevices();
+    // Persist selection
+    this._saveUserPreferences();
   }
 
   private _getEntityFriendlyName(entityId: string): string {
@@ -1955,6 +1973,7 @@ export class AqaraPanel extends LitElement {
     if (!value) {
       this._selectedEntities = [];
       this._activeFavoriteId = null;
+      this._saveUserPreferences();
       return;
     }
 
@@ -1978,6 +1997,9 @@ export class AqaraPanel extends LitElement {
 
     // Load zones for selected segment-capable devices
     this._loadZonesForSelectedDevices();
+
+    // Persist selection
+    this._saveUserPreferences();
   }
 
   private _handleIncludeAllLightsToggle(e: Event): void {

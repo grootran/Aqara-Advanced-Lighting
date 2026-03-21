@@ -891,6 +891,8 @@ class UserPreferencesView(HomeAssistantView):
         audio_override_silence_degradation = _UNSET
         audio_override_prediction_aggressiveness = _UNSET
         audio_override_latency_compensation_ms = _UNSET
+        selected_entities = None
+        active_favorite_id = _UNSET
 
         if "color_history" in data:
             error = _validate_color_history(data["color_history"])
@@ -1037,6 +1039,26 @@ class UserPreferencesView(HomeAssistantView):
                 )
             audio_override_latency_compensation_ms = int(value)
 
+        if "selected_entities" in data:
+            value = data["selected_entities"]
+            if not isinstance(value, list) or not all(
+                isinstance(e, str) and "." in e for e in value
+            ):
+                return web.Response(
+                    status=400,
+                    text="selected_entities must be a list of valid entity IDs",
+                )
+            selected_entities = value
+
+        if "active_favorite_id" in data:
+            value = data["active_favorite_id"]
+            if value is not None and not isinstance(value, str):
+                return web.Response(
+                    status=400,
+                    text="active_favorite_id must be a string or null",
+                )
+            active_favorite_id = value
+
         if (
             color_history is None
             and sort_preferences is None
@@ -1057,6 +1079,8 @@ class UserPreferencesView(HomeAssistantView):
             and audio_override_silence_degradation is _UNSET
             and audio_override_prediction_aggressiveness is _UNSET
             and audio_override_latency_compensation_ms is _UNSET
+            and selected_entities is None
+            and active_favorite_id is _UNSET
         ):
             # Nothing to update, return current preferences
             preferences = store.get_preferences(user.id)
@@ -1083,6 +1107,8 @@ class UserPreferencesView(HomeAssistantView):
             audio_override_silence_degradation=audio_override_silence_degradation,
             audio_override_prediction_aggressiveness=audio_override_prediction_aggressiveness,
             audio_override_latency_compensation_ms=audio_override_latency_compensation_ms,
+            selected_entities=selected_entities,
+            active_favorite_id=active_favorite_id,
         )
         return web.json_response(preferences)
 

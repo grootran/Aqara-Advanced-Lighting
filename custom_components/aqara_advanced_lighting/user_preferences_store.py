@@ -45,6 +45,8 @@ class UserPreferences(TypedDict):
     audio_override_silence_degradation: bool
     audio_override_prediction_aggressiveness: int
     audio_override_latency_compensation_ms: int
+    selected_entities: list[str]
+    active_favorite_id: str | None
 
 
 DEFAULT_PREFERENCES: UserPreferences = {
@@ -67,6 +69,8 @@ DEFAULT_PREFERENCES: UserPreferences = {
     "audio_override_silence_degradation": True,
     "audio_override_prediction_aggressiveness": 50,
     "audio_override_latency_compensation_ms": 150,
+    "selected_entities": [],
+    "active_favorite_id": None,
 }
 
 GLOBAL_PREFERENCES_KEY = "__global__"
@@ -157,6 +161,8 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
                 "audio_override_silence_degradation": prefs.get("audio_override_silence_degradation", True),
                 "audio_override_prediction_aggressiveness": prefs.get("audio_override_prediction_aggressiveness", 50),
                 "audio_override_latency_compensation_ms": prefs.get("audio_override_latency_compensation_ms", 150),
+                "selected_entities": prefs.get("selected_entities", []),
+                "active_favorite_id": prefs.get("active_favorite_id"),
             }
         return {**DEFAULT_PREFERENCES}
 
@@ -232,6 +238,8 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
         audio_override_silence_degradation: bool | None | _Unset = _UNSET,
         audio_override_prediction_aggressiveness: int | None | _Unset = _UNSET,
         audio_override_latency_compensation_ms: int | None | _Unset = _UNSET,
+        selected_entities: list[str] | None = None,
+        active_favorite_id: str | None | _Unset = _UNSET,
     ) -> UserPreferences:
         """Partially update a user's preferences.
 
@@ -323,6 +331,12 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
 
         if not isinstance(audio_override_latency_compensation_ms, _Unset):
             self._data[user_id]["audio_override_latency_compensation_ms"] = audio_override_latency_compensation_ms
+
+        if selected_entities is not None:
+            self._data[user_id]["selected_entities"] = selected_entities
+
+        if not isinstance(active_favorite_id, _Unset):
+            self._data[user_id]["active_favorite_id"] = active_favorite_id
 
         await self.async_save()
 
