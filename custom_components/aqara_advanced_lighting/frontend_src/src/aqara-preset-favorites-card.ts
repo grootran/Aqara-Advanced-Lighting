@@ -11,7 +11,6 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type {
   HomeAssistant,
   FavoritePresetRef,
-  PresetType,
   AnyPreset,
   PresetsData,
   UserPresetsData,
@@ -49,6 +48,7 @@ interface AqaraFavoritesCardConfig {
   compact?: boolean;
   show_names?: boolean;
   show_stop_button?: boolean;
+  highlight_user_presets?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -136,6 +136,12 @@ export class AqaraPresetFavoritesCardEditor extends LitElement {
             @change=${(e: Event) => this._updateConfig('show_stop_button', (e.target as HTMLInputElement).checked || undefined)}
           ></ha-switch>
         </ha-formfield>
+        <ha-formfield .label=${'Highlight user presets'}>
+          <ha-switch
+            .checked=${this._config.highlight_user_presets !== false}
+            @change=${(e: Event) => this._updateConfig('highlight_user_presets', (e.target as HTMLInputElement).checked ? undefined : false)}
+          ></ha-switch>
+        </ha-formfield>
       </div>
     `;
   }
@@ -180,9 +186,12 @@ export class AqaraPresetFavoritesCard extends LitElement {
   @state() private _error?: string;
   @state() private _activating?: string;
   @state() private _stopping = false;
+  /** Maps preset ref.id to operation type for currently running presets. */
+  @state() private _activePresets = new Map<string, string>();
 
   private _dataLoaded = false;
   private _hassConnected = false;
+  private _pollTimer?: ReturnType<typeof setInterval>;
 
   // -- Lovelace card API --------------------------------------------------
 
@@ -222,10 +231,51 @@ export class AqaraPresetFavoritesCard extends LitElement {
       // Load on first hass, or reload if hass was lost and came back
       if (!this._dataLoaded || !wasConnected) {
         this._loadData();
+        this._startPolling();
       }
     }
     if (changedProps.has('hass') && !this.hass) {
       this._hassConnected = false;
+      this._stopPolling();
+    }
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this._stopPolling();
+  }
+
+  private _startPolling(): void {
+    this._stopPolling();
+    // Poll running operations every 5 seconds to track active presets
+    this._pollRunningOperations();
+    this._pollTimer = setInterval(() => this._pollRunningOperations(), 5000);
+  }
+
+  private _stopPolling(): void {
+    if (this._pollTimer) {
+      clearInterval(this._pollTimer);
+      this._pollTimer = undefined;
+    }
+  }
+
+  /** Fetch running operations and update _activePresets map. */
+  private async _pollRunningOperations(): Promise<void> {
+    if (!this.hass) return;
+    try {
+      const resp = await this.hass.callApi<{ operations: Array<{ type: string; entity_id: string; preset_id?: string }> }>(
+        'GET', 'aqara_advanced_lighting/running_operations'
+      );
+      const entityIds = new Set(this._getEntityIds());
+      const active = new Map<string, string>();
+      for (const op of resp.operations || []) {
+        if (op.preset_id && entityIds.has(op.entity_id)) {
+          active.set(op.preset_id, op.type);
+        }
+      }
+      this._activePresets = active;
+    } catch {
+      // Silently ignore poll failures — card stays functional
     }
   }
 
@@ -432,6 +482,12 @@ export class AqaraPresetFavoritesCard extends LitElement {
     const entityIds = this._getEntityIds();
     if (entityIds.length === 0) return;
 
+    // Toggle: if this preset is already active, stop it instead
+    if (this._activePresets.has(ref.id)) {
+      await this._stopAll();
+      return;
+    }
+
     this._activating = ref.id;
     try {
       switch (ref.type) {
@@ -475,6 +531,8 @@ export class AqaraPresetFavoritesCard extends LitElement {
       console.error('AqaraFavoritesCard: activation failed', err);
     } finally {
       this._activating = undefined;
+      // Refresh active state immediately after activation
+      this._pollRunningOperations();
     }
   }
 
@@ -703,6 +761,8 @@ export class AqaraPresetFavoritesCard extends LitElement {
       console.error('AqaraFavoritesCard: stop failed', err);
     } finally {
       this._stopping = false;
+      this._activePresets = new Map();
+      this._pollRunningOperations();
     }
   }
 
@@ -812,6 +872,7 @@ export class AqaraPresetFavoritesCard extends LitElement {
 
     const compact = this._config.compact || false;
     const showNames = this._config.show_names !== false;
+    const highlightUser = this._config.highlight_user_presets !== false;
     const showStop = this._config.show_stop_button || false;
 
     return html`
@@ -819,9 +880,10 @@ export class AqaraPresetFavoritesCard extends LitElement {
         <div class="preset-grid ${compact ? 'compact' : ''} ${!showNames ? 'no-names' : ''} ${!title ? 'no-title' : ''}" style=${gridStyle || nothing}>
           ${favorites.map(({ ref, preset, isUser }) => {
             const isActivating = this._activating === ref.id;
+            const isActive = this._activePresets.has(ref.id);
             return html`
               <div
-                class="preset-button ${isUser ? 'user-preset' : 'builtin-preset'} ${isActivating ? 'activating' : ''}"
+                class="preset-button ${isUser && highlightUser ? 'user-preset' : 'builtin-preset'} ${isActivating ? 'activating' : ''} ${isActive ? 'active' : ''}"
                 role="button"
                 tabindex="0"
                 aria-label="${preset.name}"
@@ -961,6 +1023,20 @@ export class AqaraPresetFavoritesCard extends LitElement {
     }
 
     .preset-button.user-preset:hover {
+      border-style: solid;
+    }
+
+    .preset-button.active {
+      border-color: var(--primary-color);
+      background: rgba(var(--rgb-primary-color, 3, 169, 244), 0.15);
+      box-shadow: 0 0 8px rgba(var(--rgb-primary-color, 3, 169, 244), 0.3);
+    }
+
+    .preset-button.active::before {
+      opacity: 0.1;
+    }
+
+    .preset-button.active.user-preset {
       border-style: solid;
     }
 
@@ -1143,7 +1219,7 @@ declare global {
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: 'aqara-preset-favorites-card',
-  name: 'Aqara Preset Favorites',
-  description: 'Displays and activates your favorited Aqara lighting presets for a specific entity.',
+  name: 'Aqara Advanced Lighting Presets',
+  description: 'Displays and activates your favorited Aqara Advacned Lighting presets for a specific entity.',
   preview: false,
 });
