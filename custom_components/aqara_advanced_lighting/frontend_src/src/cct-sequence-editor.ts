@@ -345,7 +345,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
       position: relative;
       height: 18px;
       margin-top: 2px;
-      padding-left: 28px;
+      margin-left: 28px;
     }
 
     .timeline-labels .timeline-label {
