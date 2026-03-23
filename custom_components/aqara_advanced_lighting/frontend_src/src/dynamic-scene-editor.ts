@@ -14,7 +14,7 @@ import { editorFormStyles, localize, loopModeOptions, endBehaviorOptions, hasNew
 import './xy-color-picker';
 import './color-history-swatches';
 import './image-color-extractor';
-import { ColorsExtractedDetail } from './image-color-extractor';
+import type { ColorsExtractedDetail } from './image-color-extractor';
 
 // Editable color slot with unique ID for drag/drop
 interface EditableColor extends DynamicSceneColor, ReorderableStepItem {}
