@@ -1947,8 +1947,8 @@ export class AqaraPanel extends LitElement {
     const showSegmentSequences = hasSelection && (hasT1M || hasT1Strip);
     // CCT sequences: Aqara + generic lights with color_temp support
     const showCCTSequences = hasSelection && (hasT2 || hasT2CCT || hasT1MWhite || hasT1Strip || hasGenericRGB || hasGenericCCT);
-    // Dynamic scenes: Aqara RGB + generic RGB lights
-    const showDynamicScenes = hasSelection && (hasT2 || hasT1M || hasT1Strip || hasGenericRGB);
+    // Dynamic scenes: Any light with color capability (RGB or CCT - backend adapts colors)
+    const showDynamicScenes = hasSelection && (hasT2 || hasT2CCT || hasT1M || hasT1MWhite || hasT1Strip || hasGenericRGB || hasGenericCCT);
     // Music sync: T1 Strip only
     const showMusicSync = hasSelection && hasT1Strip;
 
@@ -4389,15 +4389,19 @@ export class AqaraPanel extends LitElement {
     this._segmentSequencePreviewActive = false;
   }
 
-  // Dynamic scenes: Any light with RGB color mode (T2 RGB, T1M RGB endpoint, T1 Strip)
+  // Dynamic scenes: Any light with color capability (RGB or CCT - backend adapts XY to color_temp)
   private _isScenesCompatible(): boolean {
     if (!this.hass || !this._selectedEntities.length) return false;
     return this._selectedEntities.some(entityId => {
       const entity = this.hass!.states[entityId];
       if (!entity) return false;
-      // Dynamic scenes require RGB color capability
-      return this._hasRGBColorMode(entity);
+      return this._hasRGBColorMode(entity) || this._hasCCTColorMode(entity);
     });
+  }
+
+  private _hasCCTColorMode(entity: { attributes: Record<string, unknown> }): boolean {
+    const colorModes = entity.attributes.supported_color_modes as string[] | undefined;
+    return !!colorModes && Array.isArray(colorModes) && colorModes.includes('color_temp');
   }
 
   private _getScenesCompatibleEntities(): string[] {
@@ -4405,7 +4409,7 @@ export class AqaraPanel extends LitElement {
     return this._selectedEntities.filter(entityId => {
       const entity = this.hass!.states[entityId];
       if (!entity) return false;
-      return this._hasRGBColorMode(entity);
+      return this._hasRGBColorMode(entity) || this._hasCCTColorMode(entity);
     });
   }
 
