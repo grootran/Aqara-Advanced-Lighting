@@ -2,7 +2,7 @@ import { LitElement, html, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { ref, createRef, Ref } from 'lit/directives/ref.js';
 import { panelStyles } from './styles';
-import { xyToRgb, rgbToXy } from './color-utils';
+import { xyToRgb, rgbToXy, hsToRgb } from './color-utils';
 import { localize } from './editor-constants';
 import {
   renderEffectThumbnail,
@@ -1140,8 +1140,8 @@ export class AqaraPanel extends LitElement {
     this._saveUserPreferences();
   }
 
-  // Sorting utility functions
-  private _sortUserEffectPresets(presets: UserEffectPreset[], sortOption: PresetSortOption): UserEffectPreset[] {
+  // Sorting utility function (generic for all preset types)
+  private _sortPresets<T extends { name: string; created_at?: string }>(presets: T[], sortOption: PresetSortOption): T[] {
     const sorted = [...presets];
     switch (sortOption) {
       case 'name-asc':
@@ -1149,150 +1149,17 @@ export class AqaraPanel extends LitElement {
       case 'name-desc':
         return sorted.sort((a, b) => b.name.localeCompare(a.name));
       case 'date-new':
-        return sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        if (sorted.length > 0 && sorted[0]?.created_at) {
+          return sorted.sort((a, b) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime());
+        }
+        return sorted.sort((a, b) => a.name.localeCompare(b.name));
       case 'date-old':
-        return sorted.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        if (sorted.length > 0 && sorted[0]?.created_at) {
+          return sorted.sort((a, b) => new Date(a.created_at!).getTime() - new Date(b.created_at!).getTime());
+        }
+        return sorted.sort((a, b) => a.name.localeCompare(b.name));
       default:
         return sorted;
-    }
-  }
-
-  private _sortUserPatternPresets(presets: UserSegmentPatternPreset[], sortOption: PresetSortOption): UserSegmentPatternPreset[] {
-    const sorted = [...presets];
-    switch (sortOption) {
-      case 'name-asc':
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-      case 'name-desc':
-        return sorted.sort((a, b) => b.name.localeCompare(a.name));
-      case 'date-new':
-        return sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      case 'date-old':
-        return sorted.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      default:
-        return sorted;
-    }
-  }
-
-  private _sortUserCCTSequencePresets(presets: UserCCTSequencePreset[], sortOption: PresetSortOption): UserCCTSequencePreset[] {
-    const sorted = [...presets];
-    switch (sortOption) {
-      case 'name-asc':
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-      case 'name-desc':
-        return sorted.sort((a, b) => b.name.localeCompare(a.name));
-      case 'date-new':
-        return sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      case 'date-old':
-        return sorted.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      default:
-        return sorted;
-    }
-  }
-
-  private _sortUserSegmentSequencePresets(presets: UserSegmentSequencePreset[], sortOption: PresetSortOption): UserSegmentSequencePreset[] {
-    const sorted = [...presets];
-    switch (sortOption) {
-      case 'name-asc':
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-      case 'name-desc':
-        return sorted.sort((a, b) => b.name.localeCompare(a.name));
-      case 'date-new':
-        return sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      case 'date-old':
-        return sorted.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      default:
-        return sorted;
-    }
-  }
-
-  private _sortUserDynamicScenePresets(presets: UserDynamicScenePreset[], sortOption: PresetSortOption): UserDynamicScenePreset[] {
-    const sorted = [...presets];
-    switch (sortOption) {
-      case 'name-asc':
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-      case 'name-desc':
-        return sorted.sort((a, b) => b.name.localeCompare(a.name));
-      case 'date-new':
-        return sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      case 'date-old':
-        return sorted.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      default:
-        return sorted;
-    }
-  }
-
-  private _sortDynamicEffectPresets(presets: DynamicEffectPreset[], sortOption: PresetSortOption): DynamicEffectPreset[] {
-    const sorted = [...presets];
-    switch (sortOption) {
-      case 'name-asc':
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-      case 'name-desc':
-        return sorted.sort((a, b) => b.name.localeCompare(a.name));
-      // Built-in presets don't have dates, so fall back to name sort
-      case 'date-new':
-      case 'date-old':
-      default:
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-    }
-  }
-
-  private _sortSegmentPatternPresets(presets: SegmentPatternPreset[], sortOption: PresetSortOption): SegmentPatternPreset[] {
-    const sorted = [...presets];
-    switch (sortOption) {
-      case 'name-asc':
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-      case 'name-desc':
-        return sorted.sort((a, b) => b.name.localeCompare(a.name));
-      // Built-in presets don't have dates
-      case 'date-new':
-      case 'date-old':
-      default:
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-    }
-  }
-
-  private _sortCCTSequencePresets(presets: CCTSequencePreset[], sortOption: PresetSortOption): CCTSequencePreset[] {
-    const sorted = [...presets];
-    switch (sortOption) {
-      case 'name-asc':
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-      case 'name-desc':
-        return sorted.sort((a, b) => b.name.localeCompare(a.name));
-      // Built-in presets don't have dates
-      case 'date-new':
-      case 'date-old':
-      default:
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-    }
-  }
-
-  private _sortSegmentSequencePresets(presets: SegmentSequencePreset[], sortOption: PresetSortOption): SegmentSequencePreset[] {
-    const sorted = [...presets];
-    switch (sortOption) {
-      case 'name-asc':
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-      case 'name-desc':
-        return sorted.sort((a, b) => b.name.localeCompare(a.name));
-      // Built-in presets don't have dates
-      case 'date-new':
-      case 'date-old':
-      default:
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-    }
-  }
-
-  private _sortDynamicScenePresets(presets: DynamicScenePreset[], sortOption: PresetSortOption): DynamicScenePreset[] {
-    const sorted = [...presets];
-    switch (sortOption) {
-      case 'name-asc':
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-      case 'name-desc':
-        return sorted.sort((a, b) => b.name.localeCompare(a.name));
-      // Built-in presets don't have dates
-      case 'date-new':
-      case 'date-old':
-      default:
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
     }
   }
 
@@ -1389,15 +1256,8 @@ export class AqaraPanel extends LitElement {
 
   private _handleTabChange(ev: CustomEvent<{ name: string }>): void {
     const newTab = ev.detail.name as PanelTab;
-    if (!newTab) {
-      return;
-    }
-    if (newTab !== this._activeTab) {
-      this._cacheCurrentEditorDraft();
-      if (this._isSelectMode) {
-        this._exitSelectMode();
-      }
-      this._activeTab = newTab;
+    if (newTab) {
+      this._setActiveTab(newTab);
     }
   }
 
@@ -1648,26 +1508,12 @@ export class AqaraPanel extends LitElement {
       return `rgb(${r}, ${g}, ${b})`;
     }
 
-    // Try to get HS color and convert to RGB (simplified)
+    // Try to get HS color and convert to RGB
     if (state.attributes.hs_color && Array.isArray(state.attributes.hs_color)) {
       const hsColor = state.attributes.hs_color as number[];
       if (hsColor.length >= 2 && typeof hsColor[0] === 'number' && typeof hsColor[1] === 'number') {
-        const h = hsColor[0];
-        const s = hsColor[1];
-        // Convert HS to RGB for display
-        const c = (s / 100) * 255;
-        const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-        const m = 255 - c;
-        let r = 0, g = 0, b = 0;
-
-        if (h < 60) { r = c; g = x; b = 0; }
-        else if (h < 120) { r = x; g = c; b = 0; }
-        else if (h < 180) { r = 0; g = c; b = x; }
-        else if (h < 240) { r = 0; g = x; b = c; }
-        else if (h < 300) { r = x; g = 0; b = c; }
-        else { r = c; g = 0; b = x; }
-
-        return `rgb(${Math.round(r + m)}, ${Math.round(g + m)}, ${Math.round(b + m)})`;
+        const rgb = hsToRgb(hsColor[0], hsColor[1]);
+        return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
       }
     }
 
@@ -1880,52 +1726,10 @@ export class AqaraPanel extends LitElement {
     return null;
   }
 
-  // Effects: T2 bulb, T1M RGB, T1 Strip (Aqara-only)
-  private _isEffectsCompatible(): boolean {
-    if (!this.hass || !this._selectedEntities.length) return false;
-    return this._selectedEntities.some(entityId => {
-      if (!this._supportedEntities.has(entityId)) return false;
-      const dt = this._getEntityDeviceType(entityId);
-      return dt === 't2_bulb' || dt === 't1m' || dt === 't1_strip';
-    });
-  }
-
-  // Patterns: T1M RGB, T1 Strip only (segment-capable devices)
-  private _isPatternsCompatible(): boolean {
-    if (!this.hass || !this._selectedEntities.length) return false;
-    return this._selectedEntities.some(entityId => {
-      if (!this._supportedEntities.has(entityId)) return false;
-      const dt = this._getEntityDeviceType(entityId);
-      return dt === 't1m' || dt === 't1_strip';
-    });
-  }
-
-  // CCT: Entities with color_temp support (T2 RGB, T2 CCT, T1M White, T1 Strip, generic)
-  // T1M RGB endpoint has color_temp but doesn't support CCT sequences
-  private _isCCTCompatible(): boolean {
-    if (!this.hass || !this._selectedEntities.length) return false;
-    return this._selectedEntities.some(entityId => {
-      const entity = this.hass!.states[entityId];
-      if (!entity) return false;
-      const hasCCT = entity.attributes.color_temp_kelvin !== undefined ||
-             entity.attributes.min_color_temp_kelvin !== undefined;
-      if (!hasCCT) return false;
-      // T1M RGB endpoint has color_temp but doesn't support CCT sequences
-      const dt = this._getEntityDeviceType(entityId);
-      if (dt === 't1m') return false;
-      return true;
-    });
-  }
-
-  // Segments: T1M RGB, T1 Strip only (segment-capable devices)
-  private _isSegmentsCompatible(): boolean {
-    if (!this.hass || !this._selectedEntities.length) return false;
-    return this._selectedEntities.some(entityId => {
-      if (!this._supportedEntities.has(entityId)) return false;
-      const dt = this._getEntityDeviceType(entityId);
-      return dt === 't1m' || dt === 't1_strip';
-    });
-  }
+  private _isEffectsCompatible(): boolean { return this._getEffectsCompatibleEntities().length > 0; }
+  private _isPatternsCompatible(): boolean { return this._getPatternsCompatibleEntities().length > 0; }
+  private _isCCTCompatible(): boolean { return this._getCCTCompatibleEntities().length > 0; }
+  private _isSegmentsCompatible(): boolean { return this._getSegmentsCompatibleEntities().length > 0; }
 
   // Filter methods - return only compatible entities from selection
   // These are used to send commands only to compatible devices when multiple device types are selected
@@ -2393,7 +2197,13 @@ export class AqaraPanel extends LitElement {
       serviceData.static = true;
     }
 
-    // Audio reactive override
+    this._applyAudioOverrides(serviceData);
+
+    await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
+    await this._loadRunningOperations();
+  }
+
+  private _applyAudioOverrides(serviceData: Record<string, unknown>): void {
     if (this._useAudioReactive && this._audioOverrideEntity) {
       serviceData.audio_entity = this._audioOverrideEntity;
       serviceData.audio_sensitivity = this._audioOverrideSensitivity;
@@ -2406,9 +2216,6 @@ export class AqaraPanel extends LitElement {
       serviceData.audio_prediction_aggressiveness = this._audioOverridePredictionAggressiveness;
       serviceData.audio_latency_compensation_ms = this._audioOverrideLatencyCompensationMs;
     }
-
-    await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
-    await this._loadRunningOperations();
   }
 
   // --- Running operations rendering and actions ---
@@ -3011,32 +2818,20 @@ export class AqaraPanel extends LitElement {
   }
 
   // Filter user effect presets for a specific device type section
-  private _getUserEffectPresetsForDeviceType(deviceType: string): UserEffectPreset[] {
-    if (!this._userPresets?.effect_presets) return [];
-
-    return this._userPresets.effect_presets.filter((preset) => {
-      // If preset has no device_type, show in all sections
+  private _filterByDeviceType<T extends { device_type?: string }>(presets: T[], deviceType: string): T[] {
+    return presets.filter((preset) => {
       if (!preset.device_type) return true;
-      // Match t1 and t1m presets
-      if (deviceType === 't1m' && (preset.device_type === 't1' || preset.device_type === 't1m')) {
-        return true;
-      }
+      if (deviceType === 't1m' && (preset.device_type === 't1' || preset.device_type === 't1m')) return true;
       return preset.device_type === deviceType;
     });
   }
 
-  private _getUserPatternPresetsForDeviceType(deviceType: string): UserSegmentPatternPreset[] {
-    if (!this._userPresets?.segment_pattern_presets) return [];
+  private _getUserEffectPresetsForDeviceType(deviceType: string): UserEffectPreset[] {
+    return this._filterByDeviceType(this._userPresets?.effect_presets || [], deviceType);
+  }
 
-    return this._userPresets.segment_pattern_presets.filter((preset) => {
-      // If preset has no device_type, show in all sections
-      if (!preset.device_type) return true;
-      // Match t1 and t1m presets
-      if (deviceType === 't1m' && (preset.device_type === 't1' || preset.device_type === 't1m')) {
-        return true;
-      }
-      return preset.device_type === deviceType;
-    });
+  private _getUserPatternPresetsForDeviceType(deviceType: string): UserSegmentPatternPreset[] {
+    return this._filterByDeviceType(this._userPresets?.segment_pattern_presets || [], deviceType);
   }
 
   private _getFilteredUserCCTSequencePresets(): UserCCTSequencePreset[] {
@@ -3047,17 +2842,7 @@ export class AqaraPanel extends LitElement {
   }
 
   private _getUserSegmentSequencePresetsForDeviceType(deviceType: string): UserSegmentSequencePreset[] {
-    if (!this._userPresets?.segment_sequence_presets) return [];
-
-    return this._userPresets.segment_sequence_presets.filter((preset) => {
-      // If preset has no device_type, show in all sections
-      if (!preset.device_type) return true;
-      // Match t1 and t1m presets
-      if (deviceType === 't1m' && (preset.device_type === 't1' || preset.device_type === 't1m')) {
-        return true;
-      }
-      return preset.device_type === deviceType;
-    });
+    return this._filterByDeviceType(this._userPresets?.segment_sequence_presets || [], deviceType);
   }
 
   private _getFilteredUserDynamicScenePresets(): UserDynamicScenePreset[] {
@@ -3269,18 +3054,8 @@ export class AqaraPanel extends LitElement {
     }
 
     // Audio reactive override (panel override takes precedence over preset audio settings)
-    if (this._useAudioReactive && this._audioOverrideEntity) {
-      serviceData.audio_entity = this._audioOverrideEntity;
-      serviceData.audio_sensitivity = this._audioOverrideSensitivity;
-      serviceData.audio_color_advance = this._audioOverrideColorAdvance;
-      serviceData.audio_transition_speed = this._audioOverrideTransitionSpeed;
-      serviceData.audio_brightness_response = this._audioOverrideBrightnessResponse;
-      serviceData.audio_detection_mode = this._audioOverrideDetectionMode;
-      serviceData.audio_frequency_zone = this._audioOverrideFrequencyZone;
-      serviceData.audio_silence_degradation = this._audioOverrideSilenceDegradation;
-      serviceData.audio_prediction_aggressiveness = this._audioOverridePredictionAggressiveness;
-      serviceData.audio_latency_compensation_ms = this._audioOverrideLatencyCompensationMs;
-    } else if (!this._useAudioReactive && preset.audio_entity) {
+    this._applyAudioOverrides(serviceData);
+    if (!(this._useAudioReactive && this._audioOverrideEntity) && preset.audio_entity) {
       // Pass through preset-level audio settings when no panel override is active
       serviceData.audio_entity = preset.audio_entity;
       serviceData.audio_sensitivity = preset.audio_sensitivity;
@@ -4835,7 +4610,7 @@ export class AqaraPanel extends LitElement {
               (p) => this._editEffectPreset(p),
               'effect',
               (p) => this._renderUserEffectIcon(p),
-              (presets, opt) => this._sortUserEffectPresets(presets, opt),
+              (presets, opt) => this._sortPresets(presets, opt),
               (p) => this._duplicateUserEffectPreset(p),
             )}
 
@@ -4845,7 +4620,7 @@ export class AqaraPanel extends LitElement {
               (p) => this._editPatternPreset(p),
               'segment_pattern',
               (p) => this._renderUserPatternIcon(p),
-              (presets, opt) => this._sortUserPatternPresets(presets, opt),
+              (presets, opt) => this._sortPresets(presets, opt),
               (p) => this._duplicateUserPatternPreset(p),
             )}
 
@@ -4856,7 +4631,7 @@ export class AqaraPanel extends LitElement {
                   (p) => this._editCCTSequencePreset(p),
                   'cct_sequence',
                   (p) => this._renderUserCCTIcon(p),
-                  (presets, opt) => this._sortUserCCTSequencePresets(presets, opt),
+                  (presets, opt) => this._sortPresets(presets, opt),
                   (p) => this._duplicateUserCCTSequencePreset(p),
                 )
               : ''}
@@ -4867,7 +4642,7 @@ export class AqaraPanel extends LitElement {
               (p) => this._editSegmentSequencePreset(p),
               'segment_sequence',
               (p) => this._renderUserSegmentSequenceIcon(p),
-              (presets, opt) => this._sortUserSegmentSequencePresets(presets, opt),
+              (presets, opt) => this._sortPresets(presets, opt),
               (p) => this._duplicateUserSegmentSequencePreset(p),
             )}
 
@@ -4878,7 +4653,7 @@ export class AqaraPanel extends LitElement {
                   (p) => this._editDynamicScenePreset(p),
                   'dynamic_scene',
                   (p) => this._renderUserDynamicSceneIcon(p),
-                  (presets, opt) => this._sortUserDynamicScenePresets(presets, opt),
+                  (presets, opt) => this._sortPresets(presets, opt),
                   (p) => this._duplicateUserDynamicScenePreset(p),
                 )
               : ''}
@@ -5066,74 +4841,24 @@ export class AqaraPanel extends LitElement {
   }
 
   // Duplicate user preset methods - open editor in create mode with preset data pre-filled
-  private _duplicateUserEffectPreset(preset: UserEffectPreset): void {
-    const copy: UserEffectPreset = {
-      ...preset,
-      id: '',
-      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
-      created_at: '',
-      modified_at: '',
-    };
-    this._clearEditorDraft('effects');
-    this._editingPreset = { type: 'effect', preset: copy, isDuplicate: true };
-    this._setActiveTab('effects');
+  private _duplicateUserPreset<T extends { id: string; name: string; created_at: string; modified_at: string }>(
+    preset: T, type: string, tab: PanelTab
+  ): void {
+    const copy = { ...preset, id: '', name: `${preset.name} ${this._localize('presets.copy_suffix')}`, created_at: '', modified_at: '' };
+    this._clearEditorDraft(tab);
+    this._editingPreset = { type, preset: copy as any, isDuplicate: true };
+    this._setActiveTab(tab);
   }
 
-  private _duplicateUserPatternPreset(preset: UserSegmentPatternPreset): void {
-    const copy: UserSegmentPatternPreset = {
-      ...preset,
-      id: '',
-      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
-      created_at: '',
-      modified_at: '',
-    };
-    this._clearEditorDraft('patterns');
-    this._editingPreset = { type: 'pattern', preset: copy, isDuplicate: true };
-    this._setActiveTab('patterns');
-  }
-
-  private _duplicateUserCCTSequencePreset(preset: UserCCTSequencePreset): void {
-    const copy: UserCCTSequencePreset = {
-      ...preset,
-      id: '',
-      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
-      created_at: '',
-      modified_at: '',
-    };
-    this._clearEditorDraft('cct');
-    this._editingPreset = { type: 'cct', preset: copy, isDuplicate: true };
-    this._setActiveTab('cct');
-  }
-
-  private _duplicateUserSegmentSequencePreset(preset: UserSegmentSequencePreset): void {
-    const copy: UserSegmentSequencePreset = {
-      ...preset,
-      id: '',
-      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
-      created_at: '',
-      modified_at: '',
-    };
-    this._clearEditorDraft('segments');
-    this._editingPreset = { type: 'segment', preset: copy, isDuplicate: true };
-    this._setActiveTab('segments');
-  }
+  private _duplicateUserEffectPreset(preset: UserEffectPreset): void { this._duplicateUserPreset(preset, 'effect', 'effects'); }
+  private _duplicateUserPatternPreset(preset: UserSegmentPatternPreset): void { this._duplicateUserPreset(preset, 'pattern', 'patterns'); }
+  private _duplicateUserCCTSequencePreset(preset: UserCCTSequencePreset): void { this._duplicateUserPreset(preset, 'cct', 'cct'); }
+  private _duplicateUserSegmentSequencePreset(preset: UserSegmentSequencePreset): void { this._duplicateUserPreset(preset, 'segment', 'segments'); }
+  private _duplicateUserDynamicScenePreset(preset: UserDynamicScenePreset): void { this._duplicateUserPreset(preset, 'dynamic_scene', 'scenes'); }
 
   private _editDynamicScenePreset(preset: UserDynamicScenePreset): void {
     this._clearEditorDraft('scenes');
     this._editingPreset = { type: 'dynamic_scene', preset };
-    this._setActiveTab('scenes');
-  }
-
-  private _duplicateUserDynamicScenePreset(preset: UserDynamicScenePreset): void {
-    const copy: UserDynamicScenePreset = {
-      ...preset,
-      id: '',
-      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
-      created_at: '',
-      modified_at: '',
-    };
-    this._clearEditorDraft('scenes');
-    this._editingPreset = { type: 'dynamic_scene', preset: copy, isDuplicate: true };
     this._setActiveTab('scenes');
   }
 
@@ -5367,8 +5092,8 @@ export class AqaraPanel extends LitElement {
 
     // Apply sorting
     const sortOption = this._getSortPreference(sectionId);
-    const sortedUserPresets = this._sortUserEffectPresets(userPresets, sortOption);
-    const sortedBuiltinPresets = this._sortDynamicEffectPresets(presets, sortOption);
+    const sortedUserPresets = this._sortPresets(userPresets, sortOption);
+    const sortedBuiltinPresets = this._sortPresets(presets, sortOption);
 
     return html`
       <ha-expansion-panel
@@ -5639,8 +5364,8 @@ export class AqaraPanel extends LitElement {
 
     // Apply sorting
     const sortOption = this._getSortPreference(sectionId);
-    const sortedUserPresets = this._sortUserPatternPresets(userPresets, sortOption);
-    const sortedBuiltinPresets = this._sortSegmentPatternPresets(builtinPresets, sortOption);
+    const sortedUserPresets = this._sortPresets(userPresets, sortOption);
+    const sortedBuiltinPresets = this._sortPresets(builtinPresets, sortOption);
 
     return html`
       <ha-expansion-panel
@@ -5775,8 +5500,8 @@ export class AqaraPanel extends LitElement {
 
     // Apply sorting
     const sortOption = this._getSortPreference(sectionId);
-    const sortedUserPresets = this._sortUserCCTSequencePresets(userPresets, sortOption);
-    const sortedBuiltinPresets = this._sortCCTSequencePresets(builtinPresets, sortOption);
+    const sortedUserPresets = this._sortPresets(userPresets, sortOption);
+    const sortedBuiltinPresets = this._sortPresets(builtinPresets, sortOption);
 
     return html`
       <ha-expansion-panel
@@ -5841,8 +5566,8 @@ export class AqaraPanel extends LitElement {
 
     // Apply sorting
     const sortOption = this._getSortPreference(sectionId);
-    const sortedUserPresets = this._sortUserSegmentSequencePresets(userPresets, sortOption);
-    const sortedBuiltinPresets = this._sortSegmentSequencePresets(builtinPresets, sortOption);
+    const sortedUserPresets = this._sortPresets(userPresets, sortOption);
+    const sortedBuiltinPresets = this._sortPresets(builtinPresets, sortOption);
 
     return html`
       <ha-expansion-panel
@@ -5908,8 +5633,8 @@ export class AqaraPanel extends LitElement {
 
     // Apply sorting
     const sortOption = this._getSortPreference(sectionId);
-    const sortedUserPresets = this._sortUserDynamicScenePresets(userPresets, sortOption);
-    const sortedBuiltinPresets = this._sortDynamicScenePresets(builtinPresets, sortOption);
+    const sortedUserPresets = this._sortPresets(userPresets, sortOption);
+    const sortedBuiltinPresets = this._sortPresets(builtinPresets, sortOption);
 
     return html`
       <ha-expansion-panel

@@ -26,7 +26,7 @@ import {
   getComplementaryColor,
 } from './color-utils';
 import { addColorToHistory } from './color-history';
-import { hasNewHaDialog, dialogHeadingLegacy, dialogActions, localize } from './editor-constants';
+import { hasNewHaDialog, dialogHeadingLegacy, dialogActions, localize, DEFAULT_PALETTE, DEFAULT_GRADIENT_COLORS, DEFAULT_BLOCK_COLORS } from './editor-constants';
 import './color-history-swatches';
 
 // Component mode types
@@ -34,26 +34,6 @@ type SegmentSelectorMode = 'selection' | 'color' | 'sequence';
 type PatternMode = 'individual' | 'gradient' | 'blocks';
 type ColorSource = 'palette' | 'gradient' | 'blocks' | null;
 type InterpolationMode = 'shortest' | 'longest' | 'rgb';
-
-// Default palettes
-const DEFAULT_PALETTE: XYColor[] = [
-  { x: 0.6800, y: 0.3100 },    // Red
-  { x: 0.1700, y: 0.7000 },    // Green
-  { x: 0.1500, y: 0.0600 },    // Blue
-  { x: 0.4200, y: 0.5100 },    // Yellow
-  { x: 0.3800, y: 0.1600 },    // Magenta
-  { x: 0.2200, y: 0.3300 },    // Cyan
-];
-
-const DEFAULT_GRADIENT_COLORS: XYColor[] = [
-  { x: 0.6800, y: 0.3100 },  // Red
-  { x: 0.1500, y: 0.0600 },  // Blue
-];
-
-const DEFAULT_BLOCK_COLORS: XYColor[] = [
-  { x: 0.6800, y: 0.3100 },  // Red
-  { x: 0.1700, y: 0.7000 },  // Green
-];
 
 @customElement('segment-selector')
 export class SegmentSelector extends LitElement {

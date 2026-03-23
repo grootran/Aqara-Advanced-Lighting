@@ -7,7 +7,27 @@
 
 import { css, html, nothing } from 'lit';
 import type { TemplateResult } from 'lit';
-import type { Translations } from './types';
+import type { Translations, XYColor } from './types';
+
+// Default color palettes shared across editors
+export const DEFAULT_PALETTE: XYColor[] = [
+  { x: 0.6800, y: 0.3100 },    // Red
+  { x: 0.1700, y: 0.7000 },    // Green
+  { x: 0.1500, y: 0.0600 },    // Blue
+  { x: 0.4200, y: 0.5100 },    // Yellow
+  { x: 0.3800, y: 0.1600 },    // Magenta
+  { x: 0.2200, y: 0.3300 },    // Cyan
+];
+
+export const DEFAULT_GRADIENT_COLORS: XYColor[] = [
+  { x: 0.6800, y: 0.3100 },  // Red
+  { x: 0.1500, y: 0.0600 },  // Blue
+];
+
+export const DEFAULT_BLOCK_COLORS: XYColor[] = [
+  { x: 0.6800, y: 0.3100 },  // Red
+  { x: 0.1700, y: 0.7000 },  // Green
+];
 
 // mdi:close SVG path for ha-icon-button .path property (old ha-dialog heading)
 const mdiClose = 'M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z';
@@ -133,6 +153,25 @@ export function localize(
   }
 
   return result;
+}
+
+// Shared editor option list factories
+type LocalizeFn = (key: string) => string;
+
+export function loopModeOptions(loc: LocalizeFn) {
+  return [
+    { value: 'once', label: loc('options.loop_mode_once') },
+    { value: 'count', label: loc('options.loop_mode_count') },
+    { value: 'continuous', label: loc('options.loop_mode_continuous') },
+  ];
+}
+
+export function endBehaviorOptions(loc: LocalizeFn, restoreKey = 'options.end_behavior_restore') {
+  return [
+    { value: 'maintain', label: loc('options.end_behavior_maintain') },
+    { value: 'turn_off', label: loc('options.end_behavior_turn_off') },
+    { value: 'restore', label: loc(restoreKey) },
+  ];
 }
 
 /**

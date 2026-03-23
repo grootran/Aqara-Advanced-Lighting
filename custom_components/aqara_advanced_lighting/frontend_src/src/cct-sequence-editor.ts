@@ -2,7 +2,7 @@ import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, CCTSequenceStep, ScheduleStep, UserCCTSequencePreset, DeviceContext, CCTEditorDraft, Translations } from './types';
 import { ReorderableStepsMixin, reorderableStepStyles } from './reorderable-steps-mixin';
-import { editorFormStyles, localize } from './editor-constants';
+import { editorFormStyles, localize, loopModeOptions, endBehaviorOptions } from './editor-constants';
 
 interface EditableStep extends CCTSequenceStep {
   id: string;
@@ -52,21 +52,8 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
   @state() private _previewing = false;
   @state() private _hasUserInteraction = false;
 
-  private get _loopModeOptions() {
-    return [
-      { value: 'once', label: this._localize('options.loop_mode_once') },
-      { value: 'count', label: this._localize('options.loop_mode_count') },
-      { value: 'continuous', label: this._localize('options.loop_mode_continuous') },
-    ];
-  }
-
-  private get _endBehaviorOptions() {
-    return [
-      { value: 'maintain', label: this._localize('options.end_behavior_maintain') },
-      { value: 'turn_off', label: this._localize('options.end_behavior_turn_off') },
-      { value: 'restore', label: this._localize('options.end_behavior_restore') },
-    ];
-  }
+  private get _loopModeOptions() { return loopModeOptions(this._localize); }
+  private get _endBehaviorOptions() { return endBehaviorOptions(this._localize); }
 
   private get _modeOptions() {
     return [

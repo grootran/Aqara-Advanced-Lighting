@@ -9,7 +9,7 @@
 
 import { html, TemplateResult } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
-import { xyToRgb, rgbToHex, rgbToHs, xyToHex } from './color-utils';
+import { xyToRgb, rgbToHex, rgbToHs, xyToHex, kelvinToRgb } from './color-utils';
 import type {
   DynamicSceneColor,
   DynamicScenePreset,
@@ -217,41 +217,8 @@ function capSlices(slices: MergedSlice[]): MergedSlice[] {
 // Kelvin to approximate sRGB
 // ---------------------------------------------------------------------------
 
-/**
- * Convert color temperature in Kelvin (2700-6500) to an approximate hex color.
- * Uses Tanner Helland's algorithm.
- */
 function kelvinToHex(kelvin: number): string {
-  const temp = kelvin / 100;
-  let r: number;
-  let g: number;
-  let b: number;
-
-  if (temp <= 66) {
-    r = 255;
-  } else {
-    r = 329.698727446 * Math.pow(temp - 60, -0.1332047592);
-    r = Math.max(0, Math.min(255, r));
-  }
-
-  if (temp <= 66) {
-    g = 99.4708025861 * Math.log(temp) - 161.1195681661;
-  } else {
-    g = 288.1221695283 * Math.pow(temp - 60, -0.0755148492);
-  }
-  g = Math.max(0, Math.min(255, g));
-
-  if (temp >= 66) {
-    b = 255;
-  } else if (temp <= 19) {
-    b = 0;
-  } else {
-    b = 138.5177312231 * Math.log(temp - 10) - 305.0447927307;
-    b = Math.max(0, Math.min(255, b));
-  }
-
-  const toHex = (n: number) => Math.round(n).toString(16).padStart(2, '0');
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+  return rgbToHex(kelvinToRgb(kelvin));
 }
 
 // ---------------------------------------------------------------------------

@@ -3,8 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, RGBColor, XYColor, SegmentColorEntry, UserSegmentPatternPreset, DeviceContext, PatternEditorDraft, Translations } from './types';
 import { xyToRgb, rgbToXy } from './color-utils';
 import { colorPickerStyles } from './styles';
-import { DEVICE_LABELS, editorFormStyles, localize } from './editor-constants';
-// Note: hs-color-picker import removed - color picking handled by segment-selector
+import { DEVICE_LABELS, DEFAULT_PALETTE, editorFormStyles, localize } from './editor-constants';
 
 // Segment counts per device type
 const SEGMENT_COUNTS: Record<string, number> = {
@@ -12,16 +11,6 @@ const SEGMENT_COUNTS: Record<string, number> = {
   t1m: 26,
   t1_strip: 50, // 10 meters x 5 segments per meter (max)
 };
-
-// Default palette colors in XY space
-const DEFAULT_PALETTE: XYColor[] = [
-  { x: 0.6800, y: 0.3100 },    // Red
-  { x: 0.1700, y: 0.7000 },    // Green
-  { x: 0.1500, y: 0.0600 },    // Blue
-  { x: 0.4200, y: 0.5100 },    // Yellow
-  { x: 0.3800, y: 0.1600 },    // Magenta
-  { x: 0.2200, y: 0.3300 },    // Cyan
-];
 
 @customElement('pattern-editor')
 export class PatternEditor extends LitElement {

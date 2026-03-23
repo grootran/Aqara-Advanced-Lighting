@@ -10,7 +10,7 @@ import { xyToHex, getAnalogousColor } from './color-utils';
 import { colorPickerStyles } from './styles';
 import { addColorToHistory } from './color-history';
 import { ReorderableStepsMixin, reorderableStepStyles, ReorderableStepItem } from './reorderable-steps-mixin';
-import { editorFormStyles, localize, hasNewHaDialog, dialogHeadingLegacy, dialogActions } from './editor-constants';
+import { editorFormStyles, localize, loopModeOptions, endBehaviorOptions, hasNewHaDialog, dialogHeadingLegacy, dialogActions } from './editor-constants';
 import './xy-color-picker';
 import './color-history-swatches';
 import './image-color-extractor';
@@ -144,21 +144,8 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._steps = value;
   }
 
-  private get _loopModeOptions() {
-    return [
-      { value: 'once', label: this._localize('options.loop_mode_once') },
-      { value: 'count', label: this._localize('options.loop_mode_count') },
-      { value: 'continuous', label: this._localize('options.loop_mode_continuous') },
-    ];
-  }
-
-  private get _endBehaviorOptions() {
-    return [
-      { value: 'maintain', label: this._localize('options.end_behavior_maintain') },
-      { value: 'turn_off', label: this._localize('options.end_behavior_turn_off') },
-      { value: 'restore', label: this._localize('dynamic_scene.end_behavior_restore') || 'Restore previous state' },
-    ];
-  }
+  private get _loopModeOptions() { return loopModeOptions(this._localize); }
+  private get _endBehaviorOptions() { return endBehaviorOptions(this._localize, 'dynamic_scene.end_behavior_restore'); }
 
   private get _audioColorAdvanceOptions() {
     return [
