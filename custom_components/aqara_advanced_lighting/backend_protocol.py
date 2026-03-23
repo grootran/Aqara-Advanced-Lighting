@@ -188,16 +188,3 @@ class DeviceBackend(Protocol):
 
     # --- Device-specific ---
 
-    async def async_set_transition_curve(
-        self,
-        entity_id: str,
-        curvature: float,
-    ) -> None:
-        """Set transition curve curvature for T2 bulbs.
-
-        Args:
-            entity_id: The Home Assistant entity ID
-            curvature: Transition curve curvature (0.2-6)
-        """
-        ...
-

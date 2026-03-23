@@ -120,15 +120,6 @@ def get_device_capabilities(model_id: str) -> DeviceCapabilities | None:
     return MODEL_CAPABILITIES.get(model_id)
 
 
-@lru_cache(maxsize=32)
-def is_supported_model(model_id: str) -> bool:
-    """Check if a Z2M model ID is supported.
-
-    Results are cached for performance.
-    """
-    return model_id in MODEL_CAPABILITIES
-
-
 def validate_effect_for_model(
     model_id: str, effect: EffectType
 ) -> tuple[bool, str | None]:
@@ -152,14 +143,6 @@ def validate_effect_for_model(
         )
 
     return True, None
-
-
-def get_supported_effects_for_model(model_id: str) -> list[EffectType]:
-    """Get list of supported effects for a device model."""
-    capabilities = get_device_capabilities(model_id)
-    if not capabilities:
-        return []
-    return capabilities.supported_effects
 
 
 @lru_cache(maxsize=32)

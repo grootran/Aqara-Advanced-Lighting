@@ -25,7 +25,6 @@ from .const import (
     AUDIO_COLOR_ADVANCE_ON_ONSET,
     AUDIO_COLOR_ADVANCE_ONSET_FLASH,
     AUDIO_SENSOR_UNAVAILABLE_TIMEOUT,
-    AUDIO_TIER_RICH,
     CONF_AUDIO_OFF_SERVICE,
     CONF_AUDIO_OFF_SERVICE_DATA,
     CONF_AUDIO_ON_SERVICE,
@@ -255,7 +254,7 @@ class DynamicSceneManager:
 
         # Set up audio reactive state if an audio entity is configured
         if scene.audio_entity:
-            scene_state.audio_tier = AUDIO_TIER_RICH
+            scene_state.audio_tier = "rich"
             scene_state.audio_companion_sensors = discover_companion_sensors(
                 self.hass, scene.audio_entity
             )

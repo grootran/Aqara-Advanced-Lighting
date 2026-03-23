@@ -80,11 +80,6 @@ PAYLOAD_EFFECT_COLORS: Final = "effect_colors"
 PAYLOAD_SEGMENT_COLORS: Final = "segment_colors"
 PAYLOAD_EFFECT_SEGMENTS: Final = "effect_segments"
 
-# Color constraints
-MIN_EFFECT_COLORS: Final = 1
-MAX_EFFECT_COLORS: Final = 8
-MIN_GRADIENT_COLORS: Final = 2
-MAX_GRADIENT_COLORS: Final = 6
 MIN_SPEED: Final = 1
 MAX_SPEED: Final = 100
 
@@ -142,29 +137,9 @@ SOFTWARE_TRANSITION_T1_STRIP_INTERVAL: Final = 0.5
 T1_STRIP_SEGMENTS_PER_METER: Final = 5
 T1_STRIP_DEFAULT_SEGMENT_COUNT: Final = 10  # 2 meters
 
-# CIE 1931 color gamut triangles for Aqara lights
-# These define the actual color space the lights can produce
-# Format: [(red_x, red_y), (green_x, green_y), (blue_x, blue_y)]
-AQARA_COLOR_GAMUT_T1M: Final = [(0.68, 0.31), (0.15, 0.06), (0.15, 0.70)]
-AQARA_COLOR_GAMUT_T1_STRIP: Final = [(0.68, 0.31), (0.15, 0.06), (0.15, 0.70)]
-AQARA_COLOR_GAMUT_T2_BULB: Final = [(0.68, 0.31), (0.15, 0.06), (0.15, 0.70)]
-
-# Map model IDs to gamuts
-AQARA_COLOR_GAMUTS: Final = {
-    MODEL_T1M_20_SEGMENT: AQARA_COLOR_GAMUT_T1M,
-    MODEL_T1M_26_SEGMENT: AQARA_COLOR_GAMUT_T1M,
-    MODEL_T1_STRIP: AQARA_COLOR_GAMUT_T1_STRIP,
-    MODEL_T2_BULB_E26: AQARA_COLOR_GAMUT_T2_BULB,
-    MODEL_T2_BULB_E27: AQARA_COLOR_GAMUT_T2_BULB,
-    MODEL_T2_BULB_GU10_230V: AQARA_COLOR_GAMUT_T2_BULB,
-    MODEL_T2_BULB_GU10_110V: AQARA_COLOR_GAMUT_T2_BULB,
-}
-
 # Brightness constraints (UI uses percentage, devices use 1-255)
 MIN_BRIGHTNESS_PERCENT: Final = 1  # Minimum percentage for UI
 MAX_BRIGHTNESS_PERCENT: Final = 100  # Maximum percentage for UI
-MIN_BRIGHTNESS_DEVICE: Final = 1  # Minimum value for device
-MAX_BRIGHTNESS_DEVICE: Final = 255  # Maximum value for device
 
 # CCT sequence constraints
 MIN_COLOR_TEMP_KELVIN: Final = 2700
@@ -180,7 +155,6 @@ MAX_LOOP_COUNT: Final = 100
 
 # Smooth transition settings using light's built-in transition capability
 # These values balance smoothness with command overhead
-TRANSITION_STEP_INTERVAL: Final = 0.1  # Seconds between transition steps (100ms for smooth easing curve)
 MIN_TRANSITION_STEPS: Final = 10  # Minimum steps for any transition (ensures smooth easing even for short transitions)
 
 # CCT sequence loop modes
@@ -304,15 +278,9 @@ AUDIO_SENSOR_UNAVAILABLE_TIMEOUT: Final = 60.0
 # T1 Strip audio mode mapping
 T1_STRIP_AUDIO_SENSITIVITY_CUTOFF: Final = 50
 
-# Audio tier identifiers
-AUDIO_TIER_RICH: Final = "rich"
-
 # Runtime data key for active music sync tracking
 DATA_ACTIVE_MUSIC_SYNC: Final = "active_music_sync"
 
-# Segment sequence constraints
-MIN_SEGMENT_COLORS: Final = 1
-MAX_SEGMENT_COLORS: Final = 6
 MIN_DURATION: Final = 0.0
 MAX_DURATION: Final = 3600.0  # 1 hour
 
@@ -340,18 +308,8 @@ EFFECT_T2_CANDLELIGHT: Final = "candlelight"
 EFFECT_T2_FADING: Final = "fading"
 EFFECT_T2_FLASH: Final = "flash"
 
-# Device capability keys
-CAPABILITY_SEGMENT_COUNT: Final = "segment_count"
-CAPABILITY_SUPPORTED_EFFECTS: Final = "supported_effects"
-CAPABILITY_SUPPORTS_SEGMENT_ADDRESSING: Final = "supports_segment_addressing"
-CAPABILITY_SUPPORTS_EFFECT_SEGMENTS: Final = "supports_effect_segments"
-CAPABILITY_MODEL_NAME: Final = "model_name"
-
 # Runtime data storage keys
-DATA_COORDINATOR: Final = "coordinator"
 DATA_STATE_MANAGER: Final = "state_manager"
-DATA_DEVICE_REGISTRY: Final = "device_registry"
-DATA_UNSUB: Final = "unsub"
 DATA_CCT_SEQUENCE_MANAGER: Final = "cct_sequence_manager"
 DATA_SEGMENT_SEQUENCE_MANAGER: Final = "segment_sequence_manager"
 DATA_FAVORITES_STORE: Final = "favorites_store"
@@ -711,7 +669,6 @@ PRESET_SEGMENT_SEQ_WAVE: Final = "wave"
 PRESET_SEGMENT_SEQ_SPARKLE: Final = "sparkle"
 PRESET_SEGMENT_SEQ_THEATER_CHASE: Final = "theater_chase"
 PRESET_SEGMENT_SEQ_RAINBOW_FILL: Final = "rainbow_fill"
-PRESET_SEGMENT_SEQ_COMET: Final = "comet"
 PRESET_SEGMENT_SEQ_STELLA_BLUE: Final = "stella_blue"
 
 # Image processing constants
@@ -739,19 +696,3 @@ def brightness_percent_to_device(percent: int) -> int:
     # Formula: device = round((percent / 100) * 254) + 1
     # This ensures: 1% -> 1, 100% -> 255
     return round(((percent - 1) / 99) * 254) + 1
-
-
-def xy_in_gamut(x: float, y: float, gamut: list[tuple[float, float]]) -> bool:
-    """Check if XY coordinates are within the specified gamut triangle.
-
-    Args:
-        x: X coordinate (0.0-1.0)
-        y: Y coordinate (0.0-1.0)
-        gamut: List of three tuples representing the gamut triangle vertices
-
-    Returns:
-        True if the point is within the gamut, False otherwise
-    """
-    from homeassistant.util.color import check_point_in_lamps_reach
-
-    return check_point_in_lamps_reach((x, y), gamut)

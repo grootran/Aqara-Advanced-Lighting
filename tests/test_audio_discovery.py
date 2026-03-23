@@ -6,22 +6,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from custom_components.aqara_advanced_lighting.audio_discovery import (
-    determine_audio_tier,
     discover_companion_sensors,
     map_t1_strip_params,
-)
-from custom_components.aqara_advanced_lighting.const import (
-    AUDIO_TIER_RICH,
 )
 from custom_components.aqara_advanced_lighting.models import (
     DynamicScene,
     DynamicSceneColor,
 )
-
-
-def test_determine_tier_binary_sensor():
-    """Binary sensor domain entity should return rich tier."""
-    assert determine_audio_tier("binary_sensor.onset_detected") == AUDIO_TIER_RICH
 
 
 def test_t1_strip_params_on_onset_low_sensitivity():

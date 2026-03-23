@@ -43,7 +43,7 @@ from .models import AqaraLightingConfigEntry, AqaraLightingRuntimeData
 from .mqtt_backend import MQTTBackend
 from .panel import async_register_panel
 from .service_schema_manager import ServiceSchemaManager
-from .services import async_setup_services, async_unload_services
+from .services import async_setup_services
 from .state_manager import StateManager
 
 _LOGGER = logging.getLogger(__name__)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, TypeAlias
+from typing import Any, TypeAlias
 
 from homeassistant.config_entries import ConfigEntry
 
@@ -27,9 +27,6 @@ from .const import (
     VALID_AUDIO_DETECTION_MODES,
 )
 from .sun_utils import ScheduleStep, SolarStep
-
-if TYPE_CHECKING:
-    pass  # TypeAlias import used for type definitions
 
 
 def _validate_sequence_params(

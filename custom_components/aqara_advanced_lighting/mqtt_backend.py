@@ -245,7 +245,6 @@ class MQTTBackend:
         3. Device name matching Z2M friendly name
         4. Entity ID pattern matching friendly name
         """
-        from homeassistant.helpers import device_registry as dr
         from homeassistant.helpers.device_registry import (
             CONNECTION_NETWORK_MAC,
             format_mac,
@@ -650,53 +649,6 @@ class MQTTBackend:
 
         await mqtt.async_publish(self.hass, topic, json.dumps(payload))
 
-    async def _apply_cct_values_via_z2m(
-        self,
-        z2m_friendly_name: str,
-        color_temp_kelvin: int,
-        brightness: int,
-        transition: float,
-        z2m_base_topic: str | None = None,
-    ) -> None:
-        """Apply CCT values directly via Z2M MQTT with hardware transition.
-
-        Sends commands directly to Z2M with the transition parameter for smooth
-        hardware-accelerated transitions.
-
-        Args:
-            z2m_friendly_name: Z2M friendly name for the device
-            color_temp_kelvin: Color temperature in kelvin (2700-6500)
-            brightness: Brightness level (1-255)
-            transition: Transition time in seconds
-            z2m_base_topic: Optional custom Z2M base topic override
-        """
-        # Build Z2M topic
-        base_topic = self._get_base_topic(z2m_base_topic)
-        topic = f"{base_topic}/{z2m_friendly_name}/set"
-
-        # Convert kelvin to mireds for Z2M (mired = 1,000,000 / kelvin)
-        color_temp_mired = int(1_000_000 / color_temp_kelvin)
-
-        # Build payload with brightness, color_temp, and transition
-        payload: dict[str, Any] = {
-            "brightness": brightness,
-            "color_temp": color_temp_mired,
-        }
-
-        # Add transition parameter (Z2M expects seconds)
-        if transition > 0:
-            payload["transition"] = transition
-
-        _LOGGER.debug(
-            "Sending CCT command to Z2M %s: %s (topic: %s)",
-            z2m_friendly_name,
-            payload,
-            topic,
-        )
-
-        # Send command to Z2M
-        await mqtt.async_publish(self.hass, topic, json.dumps(payload))
-
     async def async_turn_off_light(self, entity_id: str) -> None:
         """Turn off light using HA light service."""
         await turn_off_light(self.hass, entity_id, self._entity_controller)
@@ -832,25 +784,6 @@ class MQTTBackend:
                 _LOGGER.warning("Skipping segments for unmapped entity %s", entity_id)
         if z2m_segments:
             await self.async_publish_batch_segments(z2m_segments)
-
-    async def async_set_transition_curve(
-        self,
-        entity_id: str,
-        curvature: float,
-    ) -> None:
-        """Set transition curve curvature via the protocol interface.
-
-        Args:
-            entity_id: The Home Assistant entity ID
-            curvature: Transition curve curvature (0.2-6)
-        """
-        z2m_name = self.get_z2m_friendly_name(entity_id)
-        if not z2m_name:
-            _LOGGER.warning(
-                "Cannot set transition curve: entity %s not mapped", entity_id
-            )
-            return
-        await self.async_set_t2_transition_curve(z2m_name, curvature)
 
     async def async_publish_music_sync(
         self,

@@ -876,26 +876,3 @@ class ZHABackend:
         _LOGGER.debug("Stopped music sync on %s", entity_id)
 
     # --- Device-specific ---
-
-    async def async_set_transition_curve(
-        self,
-        entity_id: str,
-        curvature: float,
-    ) -> None:
-        """Set transition curve curvature for T2 bulbs.
-
-        Writes the curvature value directly to the manufacturer-specific
-        cluster attribute 0x0528.
-        """
-        ieee_str = self._entity_to_ieee.get(entity_id)
-        if not ieee_str:
-            _LOGGER.warning(
-                "Cannot set transition curve: entity %s not mapped", entity_id
-            )
-            return
-
-        await self._write_cluster_attribute(ieee_str, ATTR_TRANSITION_CURVE, curvature)
-
-        _LOGGER.debug(
-            "Set transition curve curvature for %s: %.1f", entity_id, curvature
-        )

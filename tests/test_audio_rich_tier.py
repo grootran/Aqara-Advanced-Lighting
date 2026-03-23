@@ -4,11 +4,9 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 from custom_components.aqara_advanced_lighting.audio_discovery import (
-    determine_audio_tier,
     discover_companion_sensors,
 )
 from custom_components.aqara_advanced_lighting.const import (
-    AUDIO_TIER_RICH,
     DEFAULT_AUDIO_SENSITIVITY,
 )
 from custom_components.aqara_advanced_lighting.models import (
@@ -39,12 +37,6 @@ def _make_rich_scene(**kwargs) -> DynamicScene:
     )
     defaults.update(kwargs)
     return DynamicScene(**defaults)
-
-
-def test_rich_tier_detected_for_binary_sensor():
-    """binary_sensor entity should route to rich tier."""
-    assert determine_audio_tier("binary_sensor.beat_detected") == AUDIO_TIER_RICH
-
 
 
 def test_companion_discovery_maps_all_roles():

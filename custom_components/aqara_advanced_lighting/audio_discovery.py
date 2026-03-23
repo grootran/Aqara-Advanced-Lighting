@@ -15,7 +15,6 @@ from .const import (
     AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING,
     AUDIO_COLOR_ADVANCE_ON_ONSET,
     AUDIO_COLOR_ADVANCE_ONSET_FLASH,
-    AUDIO_TIER_RICH,
     MUSIC_SYNC_EFFECT_BLINK,
     MUSIC_SYNC_EFFECT_WAVE,
     MUSIC_SYNC_SENSITIVITY_HIGH,
@@ -56,11 +55,6 @@ COMPANION_NUMBER_SUFFIXES: dict[str, str] = {
 COMPANION_SELECT_SUFFIXES: dict[str, str] = {
     "-detection_mode": "detection_mode",
 }
-
-
-def determine_audio_tier(audio_entity_id: str) -> str:
-    """All audio entities use the rich tier."""
-    return AUDIO_TIER_RICH
 
 
 def discover_companion_sensors(

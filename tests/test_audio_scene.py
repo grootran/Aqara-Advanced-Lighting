@@ -3,12 +3,6 @@ from __future__ import annotations
 
 import pytest
 
-from custom_components.aqara_advanced_lighting.audio_discovery import (
-    determine_audio_tier,
-)
-from custom_components.aqara_advanced_lighting.const import (
-    AUDIO_TIER_RICH,
-)
 from custom_components.aqara_advanced_lighting.models import (
     DynamicScene,
     DynamicSceneColor,
@@ -66,9 +60,5 @@ def test_dynamic_scene_invalid_audio_color_advance():
             audio_color_advance="invalid",
         )
 
-
-def test_audio_tier_routing():
-    """Binary sensor should route to rich tier."""
-    assert determine_audio_tier("binary_sensor.beat_detected") == AUDIO_TIER_RICH
 
 
