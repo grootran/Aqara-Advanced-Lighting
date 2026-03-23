@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, TypeAlias
@@ -25,6 +26,7 @@ from .const import (
     MIN_AUDIO_TRANSITION_SPEED,
     VALID_AUDIO_COLOR_ADVANCE,
     VALID_AUDIO_DETECTION_MODES,
+    brightness_percent_to_device,
 )
 from .sun_utils import ScheduleStep, SolarStep
 
@@ -157,8 +159,6 @@ class XYColor:
         Returns RGB at full brightness (0-255 range) suitable for MQTT.
         Uses normalization to ensure vivid colors (matching frontend behavior).
         """
-        import math
-
         # Prevent division by zero
         if self.y == 0:
             return RGBColor(r=0, g=0, b=0)
@@ -261,8 +261,6 @@ class DynamicSceneColor:
 
     def to_xy_color(self) -> XYColor:
         """Convert to XYColor for color operations."""
-        from .const import brightness_percent_to_device
-
         return XYColor(
             x=self.x, y=self.y, brightness=brightness_percent_to_device(self.brightness_pct)
         )

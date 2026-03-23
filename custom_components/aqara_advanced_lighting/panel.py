@@ -1266,6 +1266,9 @@ class GlobalPreferencesView(HomeAssistantView):
         return web.json_response(preferences)
 
 
+_cached_version: str | None = None
+
+
 class VersionView(HomeAssistantView):
     """View to get the integration version."""
 
@@ -1275,55 +1278,57 @@ class VersionView(HomeAssistantView):
 
     async def get(self, request: web.Request) -> web.Response:
         """Get the integration version and setup status from manifest.json."""
+        global _cached_version
         hass = request.app["hass"]
 
-        manifest_path = Path(
-            hass.config.path(f"custom_components/{DOMAIN}/manifest.json")
-        )
+        if _cached_version is None:
+            manifest_path = Path(
+                hass.config.path(f"custom_components/{DOMAIN}/manifest.json")
+            )
 
-        if not manifest_path.exists():
-            _LOGGER.error("Manifest file not found: %s", manifest_path)
-            return web.Response(status=404, text="Manifest not found")
+            if not manifest_path.exists():
+                _LOGGER.error("Manifest file not found: %s", manifest_path)
+                return web.Response(status=404, text="Manifest not found")
 
-        # Use executor to avoid blocking I/O
-        def read_manifest():
-            import json
+            def read_manifest():
+                import json
 
-            with open(manifest_path, "r", encoding="utf-8") as f:
-                return json.load(f)
+                with open(manifest_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
 
-        try:
-            manifest = await hass.async_add_executor_job(read_manifest)
-            version = manifest.get("version", "unknown")
+            try:
+                manifest = await hass.async_add_executor_job(read_manifest)
+                _cached_version = manifest.get("version", "unknown")
+            except (OSError, ValueError) as ex:
+                _LOGGER.error("Error reading manifest: %s", ex)
+                return web.Response(status=500, text="Error reading manifest")
 
-            # Check setup status across all config entries
-            setup_complete = True
-            entries_data = hass.data.get(DOMAIN, {}).get("entries", {})
-            if not entries_data:
-                # No entries loaded yet
-                setup_complete = False
-            else:
-                for instance_data in entries_data.values():
-                    backend = instance_data.get("backend")
-                    if not backend:
-                        continue
-                    try:
-                        if not backend.entity_mapping_ready:
-                            setup_complete = False
-                            break
-                    except AttributeError:
+        version = _cached_version
+
+        # Check setup status across all config entries
+        setup_complete = True
+        entries_data = hass.data.get(DOMAIN, {}).get("entries", {})
+        if not entries_data:
+            setup_complete = False
+        else:
+            for instance_data in entries_data.values():
+                backend = instance_data.get("backend")
+                if not backend:
+                    continue
+                try:
+                    if not backend.entity_mapping_ready:
                         setup_complete = False
                         break
+                except AttributeError:
+                    setup_complete = False
+                    break
 
-            return web.json_response(
-                {
-                    "version": version,
-                    "setup_complete": setup_complete,
-                }
-            )
-        except (OSError, ValueError) as ex:
-            _LOGGER.error("Error reading manifest: %s", ex)
-            return web.Response(status=500, text="Error reading manifest")
+        return web.json_response(
+            {
+                "version": version,
+                "setup_complete": setup_complete,
+            }
+        )
 
 
 class ExportPresetsView(HomeAssistantView):

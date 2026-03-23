@@ -34,6 +34,8 @@ STATE_EXPIRY_HOURS = 24
 class StateManager:
     """Manage device states for restoration after effects."""
 
+    _SAVE_DEBOUNCE_SECONDS = 0.5
+
     def __init__(self, hass: HomeAssistant) -> None:
         """Initialize the state manager."""
         self.hass = hass
@@ -42,6 +44,7 @@ class StateManager:
         self._store: Store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
         self._loaded: bool = False
         self._unsub_state_listener: Callable[[], None] | None = None
+        self._save_timer: asyncio.TimerHandle | None = None
 
     async def async_load(self) -> None:
         """Load stored states from persistent storage."""
@@ -91,6 +94,16 @@ class StateManager:
                 self._states[entity_id] = device_state
             except (KeyError, TypeError) as ex:
                 _LOGGER.debug("Skipping invalid state data for %s: %s", entity_id, ex)
+
+    def _schedule_save(self) -> None:
+        """Schedule a debounced save — coalesces rapid mutations into one write."""
+        if self._save_timer is not None:
+            self._save_timer.cancel()
+        loop = self.hass.loop
+        self._save_timer = loop.call_later(
+            self._SAVE_DEBOUNCE_SECONDS,
+            lambda: self.hass.async_create_task(self.async_save()),
+        )
 
     async def async_save(self) -> None:
         """Save states to persistent storage."""
@@ -238,7 +251,7 @@ class StateManager:
         )
 
         # Schedule save to persistent storage
-        self.hass.async_create_task(self.async_save())
+        self._schedule_save()
 
         return device_state
 
@@ -433,14 +446,14 @@ class StateManager:
             del self._states[entity_id]
             _LOGGER.debug("Cleared stored state for %s", entity_id)
             # Schedule save to persistent storage
-            self.hass.async_create_task(self.async_save())
+            self._schedule_save()
 
     def clear_all_states(self) -> None:
         """Clear all stored states."""
         self._states.clear()
         _LOGGER.debug("Cleared all stored states")
         # Schedule save to persistent storage
-        self.hass.async_create_task(self.async_save())
+        self._schedule_save()
 
     def get_all_active_effects(self) -> dict[str, DeviceState]:
         """Get all entities with active effects."""

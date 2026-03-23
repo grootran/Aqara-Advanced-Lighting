@@ -53,7 +53,7 @@ class SegmentSequenceManager(BaseSequenceManager[SegmentSequence]):
         self, entity_id: str, sequence: SegmentSequence
     ) -> bool:
         """Get segment count and optionally clear segments before starting."""
-        total_segments = await self._get_device_segment_count(entity_id)
+        total_segments = self._total_segments.get(entity_id) or await self._get_device_segment_count(entity_id)
         _LOGGER.info("Segment count for %s: %d", entity_id, total_segments)
         if total_segments == 0:
             _LOGGER.error(

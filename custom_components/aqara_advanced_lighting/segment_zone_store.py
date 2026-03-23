@@ -10,6 +10,8 @@ from homeassistant.core import HomeAssistant
 from .base_store import BaseStore
 from .const import DOMAIN
 
+_SEGMENT_RANGE_PATTERN = re.compile(r"^(\d+(-\d+)?)(,\s*\d+(-\d+)?)*$")
+
 _LOGGER = logging.getLogger(__name__)
 
 STORAGE_KEY = f"{DOMAIN}.segment_zones"
@@ -78,15 +80,12 @@ def validate_segment_range(segment_range: str) -> str | None:
 
     # Allow valid segment range syntax: numbers, ranges, commas, keywords
     # We don't fully parse here (parse_segment_range does that), just basic format check
-    valid_pattern = re.compile(
-        r"^(\d+(-\d+)?)(,\s*\d+(-\d+)?)*$"
-    )
     keywords = {"odd", "even", "all", "first-half", "second-half"}
 
     if segment_range.lower() in keywords:
         return None
 
-    if not valid_pattern.match(segment_range):
+    if not _SEGMENT_RANGE_PATTERN.match(segment_range):
         return (
             f"Invalid segment range format: `{segment_range}`. "
             "Use numbers (5), ranges (1-10), or comma-separated (1-5,10,15-20)"
