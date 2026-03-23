@@ -35,6 +35,35 @@ import {
   renderDynamicSceneThumbnail,
 } from './preset-thumbnails';
 
+import { PANEL_TRANSLATIONS } from './panel-translations';
+
+// ---------------------------------------------------------------------------
+// Module-level API cache — shared across all card instances on the dashboard
+// ---------------------------------------------------------------------------
+
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+/** TTLs in milliseconds by endpoint category. */
+const CACHE_TTL_STATIC = 60 * 60 * 1000;   // 60 min — built-in presets, supported entities
+const CACHE_TTL_USER   =  2 * 60 * 1000;   //  2 min — user presets, user preferences
+
+const _apiCache = new Map<string, CacheEntry<unknown>>();
+
+/** Return cached data if still fresh, otherwise undefined. */
+function getCached<T>(key: string, ttl: number): T | undefined {
+  const entry = _apiCache.get(key);
+  if (entry && Date.now() - entry.timestamp < ttl) return entry.data as T;
+  return undefined;
+}
+
+/** Store data in the cache. */
+function setCache<T>(key: string, data: T): void {
+  _apiCache.set(key, { data, timestamp: Date.now() });
+}
+
 // ---------------------------------------------------------------------------
 // Config interface
 // ---------------------------------------------------------------------------
@@ -47,7 +76,6 @@ interface AqaraFavoritesCardConfig {
   columns?: number;
   compact?: boolean;
   show_names?: boolean;
-  show_stop_button?: boolean;
   highlight_user_presets?: boolean;
 }
 
@@ -80,6 +108,8 @@ export class AqaraPresetFavoritesCardEditor extends LitElement {
   @property({ attribute: false }) public hass?: HomeAssistant;
   @state() private _config?: AqaraFavoritesCardConfig;
 
+  private _t = PANEL_TRANSLATIONS.card;
+
   public setConfig(config: AqaraFavoritesCardConfig): void {
     this._config = { ...config };
   }
@@ -91,7 +121,7 @@ export class AqaraPresetFavoritesCardEditor extends LitElement {
       <div class="editor">
         <ha-selector
           .hass=${this.hass}
-          .label=${'Entities'}
+          .label=${this._t.editor.entities_label}
           .selector=${{ entity: { domain: 'light', multiple: true } }}
           .value=${this._config.entities || (this._config.entity ? [this._config.entity] : [])}
           .required=${true}
@@ -103,12 +133,12 @@ export class AqaraPresetFavoritesCardEditor extends LitElement {
           }}
         ></ha-selector>
         <ha-textfield
-          .label=${'Title'}
+          .label=${this._t.editor.title_label}
           .value=${this._config.title || ''}
           @input=${(e: InputEvent) => this._updateConfig('title', (e.target as HTMLInputElement).value)}
         ></ha-textfield>
         <ha-textfield
-          .label=${'Columns (0 = auto)'}
+          .label=${this._t.editor.columns_label}
           type="number"
           min="0"
           max="6"
@@ -118,25 +148,19 @@ export class AqaraPresetFavoritesCardEditor extends LitElement {
             this._updateConfig('columns', isNaN(val) || val <= 0 ? undefined : val);
           }}
         ></ha-textfield>
-        <ha-formfield .label=${'Compact mode'}>
+        <ha-formfield .label=${this._t.editor.compact_label}>
           <ha-switch
             .checked=${this._config.compact || false}
             @change=${(e: Event) => this._updateConfig('compact', (e.target as HTMLInputElement).checked || undefined)}
           ></ha-switch>
         </ha-formfield>
-        <ha-formfield .label=${'Show preset names'}>
+        <ha-formfield .label=${this._t.editor.show_names_label}>
           <ha-switch
             .checked=${this._config.show_names !== false}
             @change=${(e: Event) => this._updateConfig('show_names', (e.target as HTMLInputElement).checked ? undefined : false)}
           ></ha-switch>
         </ha-formfield>
-        <ha-formfield .label=${'Show stop button'}>
-          <ha-switch
-            .checked=${this._config.show_stop_button || false}
-            @change=${(e: Event) => this._updateConfig('show_stop_button', (e.target as HTMLInputElement).checked || undefined)}
-          ></ha-switch>
-        </ha-formfield>
-        <ha-formfield .label=${'Highlight user presets'}>
+        <ha-formfield .label=${this._t.editor.highlight_user_label}>
           <ha-switch
             .checked=${this._config.highlight_user_presets !== false}
             @change=${(e: Event) => this._updateConfig('highlight_user_presets', (e.target as HTMLInputElement).checked ? undefined : false)}
@@ -176,6 +200,7 @@ export class AqaraPresetFavoritesCardEditor extends LitElement {
 @customElement('aqara-preset-favorites-card')
 export class AqaraPresetFavoritesCard extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
+  private _t = PANEL_TRANSLATIONS.card;
 
   @state() private _config?: AqaraFavoritesCardConfig;
   @state() private _presets?: PresetsData;
@@ -185,7 +210,6 @@ export class AqaraPresetFavoritesCard extends LitElement {
   @state() private _loading = true;
   @state() private _error?: string;
   @state() private _activating?: string;
-  @state() private _stopping = false;
   /** Maps preset ref.id to operation type for currently running presets. */
   @state() private _activePresets = new Map<string, string>();
 
@@ -218,7 +242,7 @@ export class AqaraPresetFavoritesCard extends LitElement {
   }
 
   static getStubConfig(): Record<string, unknown> {
-    return { entity: '', title: 'Favorite Presets' };
+    return { entity: '', title: PANEL_TRANSLATIONS.card.default_title };
   }
 
   // -- Lifecycle -----------------------------------------------------------
@@ -287,14 +311,31 @@ export class AqaraPresetFavoritesCard extends LitElement {
     this._error = undefined;
 
     try {
+      // Check cache for each endpoint, only fetch what's missing
+      type EntitiesResp = { entities: Array<{ entity_id: string; device_type: string; model_id: string }> };
+
+      const cachedPresets = getCached<PresetsData>('presets', CACHE_TTL_STATIC);
+      const cachedUserPresets = getCached<UserPresetsData>('user_presets', CACHE_TTL_USER);
+      const cachedPrefs = getCached<UserPreferences>('user_preferences', CACHE_TTL_USER);
+      const cachedEntities = getCached<EntitiesResp>('supported_entities', CACHE_TTL_STATIC);
+
+      // Build fetch promises only for stale/missing data
+      const fetches = {
+        presets: cachedPresets ?? this._fetchPresetsData(),
+        userPresets: cachedUserPresets ?? this.hass.callApi<UserPresetsData>('GET', 'aqara_advanced_lighting/user_presets'),
+        prefs: cachedPrefs ?? this.hass.callApi<UserPreferences>('GET', 'aqara_advanced_lighting/user_preferences'),
+        entities: cachedEntities ?? this.hass.callApi<EntitiesResp>('GET', 'aqara_advanced_lighting/supported_entities'),
+      };
+
       const [presetsResp, userPresetsResp, prefsResp, entitiesResp] = await Promise.all([
-        this._fetchPresetsData(),
-        this.hass.callApi<UserPresetsData>('GET', 'aqara_advanced_lighting/user_presets'),
-        this.hass.callApi<UserPreferences>('GET', 'aqara_advanced_lighting/user_preferences'),
-        this.hass.callApi<{ entities: Array<{ entity_id: string; device_type: string; model_id: string }> }>(
-          'GET', 'aqara_advanced_lighting/supported_entities'
-        ),
+        fetches.presets, fetches.userPresets, fetches.prefs, fetches.entities,
       ]);
+
+      // Update cache for freshly fetched data
+      if (!cachedPresets) setCache('presets', presetsResp);
+      if (!cachedUserPresets) setCache('user_presets', userPresetsResp);
+      if (!cachedPrefs) setCache('user_preferences', prefsResp);
+      if (!cachedEntities) setCache('supported_entities', entitiesResp);
 
       this._presets = presetsResp;
       this._userPresets = userPresetsResp;
@@ -310,7 +351,7 @@ export class AqaraPresetFavoritesCard extends LitElement {
       this._supportedEntities = entityMap;
       this._dataLoaded = true;
     } catch (err) {
-      this._error = 'Failed to load preset data';
+      this._error = this._t.error_loading;
       console.error('AqaraFavoritesCard: data load failed', err);
     } finally {
       this._loading = false;
@@ -318,9 +359,8 @@ export class AqaraPresetFavoritesCard extends LitElement {
   }
 
   /**
-   * Fetch built-in presets data. This endpoint does not require auth,
-   * so we use fetchWithAuth (which adds the token anyway) rather than
-   * callApi (which expects JSON-wrapped response keyed differently).
+   * Fetch built-in presets data. Uses fetchWithAuth because this endpoint
+   * returns raw JSON (not the callApi wrapper format).
    */
   private async _fetchPresetsData(): Promise<PresetsData> {
     const resp = await this.hass.fetchWithAuth('/api/aqara_advanced_lighting/presets');
@@ -483,8 +523,9 @@ export class AqaraPresetFavoritesCard extends LitElement {
     if (entityIds.length === 0) return;
 
     // Toggle: if this preset is already active, stop it instead
-    if (this._activePresets.has(ref.id)) {
-      await this._stopAll();
+    const activeType = this._activePresets.get(ref.id);
+    if (activeType) {
+      await this._stopPreset(ref.id, activeType);
       return;
     }
 
@@ -734,34 +775,37 @@ export class AqaraPresetFavoritesCard extends LitElement {
     await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
   }
 
-  // -- Stop all -------------------------------------------------------------
+  // -- Targeted stop --------------------------------------------------------
 
-  /** Stop all running operations on the configured entities and restore state. */
-  private async _stopAll(): Promise<void> {
+  /** Map operation type → stop service name. */
+  private static readonly _STOP_SERVICES: Record<string, string> = {
+    effect: 'stop_effect',
+    cct_sequence: 'stop_cct_sequence',
+    segment_sequence: 'stop_segment_sequence',
+    dynamic_scene: 'stop_dynamic_scene',
+  };
+
+  /** Stop a specific running preset by its operation type. */
+  private async _stopPreset(presetId: string, operationType: string): Promise<void> {
     const entityIds = this._getEntityIds();
     if (entityIds.length === 0) return;
 
-    this._stopping = true;
+    const service = AqaraPresetFavoritesCard._STOP_SERVICES[operationType];
+    if (!service) return;
+
+    this._activating = presetId;
     try {
-      await Promise.allSettled([
-        this.hass.callService('aqara_advanced_lighting', 'stop_effect', {
-          entity_id: entityIds, restore_state: true,
-        }),
-        this.hass.callService('aqara_advanced_lighting', 'stop_cct_sequence', {
-          entity_id: entityIds, restore_state: true,
-        }),
-        this.hass.callService('aqara_advanced_lighting', 'stop_segment_sequence', {
-          entity_id: entityIds,
-        }),
-        this.hass.callService('aqara_advanced_lighting', 'stop_dynamic_scene', {
-          entity_id: entityIds, restore_state: true,
-        }),
-      ]);
+      const serviceData: Record<string, unknown> = { entity_id: entityIds };
+      // All stop services except segment_sequence support restore_state
+      if (operationType !== 'segment_sequence') {
+        serviceData.restore_state = true;
+      }
+      await this.hass.callService('aqara_advanced_lighting', service, serviceData);
     } catch (err) {
       console.error('AqaraFavoritesCard: stop failed', err);
     } finally {
-      this._stopping = false;
-      this._activePresets = new Map();
+      this._activating = undefined;
+      this._activePresets.delete(presetId);
       this._pollRunningOperations();
     }
   }
@@ -831,7 +875,7 @@ export class AqaraPresetFavoritesCard extends LitElement {
     if (!this._config) return html``;
 
     // undefined = never set (use default), empty string = user cleared it (no title)
-    const title = this._config.title === undefined ? 'Favorite Presets' : (this._config.title || undefined);
+    const title = this._config.title === undefined ? this._t.default_title : (this._config.title || undefined);
 
     if (this._loading) {
       return html`
@@ -860,7 +904,7 @@ export class AqaraPresetFavoritesCard extends LitElement {
         <ha-card .header=${title}>
           <div class="card-content empty">
             <ha-icon icon="mdi:star-off-outline"></ha-icon>
-            <p>No compatible favorites for this device</p>
+            <p>${this._t.empty_no_favorites}</p>
           </div>
         </ha-card>
       `;
@@ -873,7 +917,6 @@ export class AqaraPresetFavoritesCard extends LitElement {
     const compact = this._config.compact || false;
     const showNames = this._config.show_names !== false;
     const highlightUser = this._config.highlight_user_presets !== false;
-    const showStop = this._config.show_stop_button || false;
 
     return html`
       <ha-card .header=${title}>
@@ -898,22 +941,6 @@ export class AqaraPresetFavoritesCard extends LitElement {
               </div>
             `;
           })}
-          ${showStop ? html`
-            <div
-              class="preset-button stop-button ${this._stopping ? 'activating' : ''}"
-              role="button"
-              tabindex="0"
-              aria-label="Stop all"
-              @click=${() => this._stopAll()}
-              @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') this._stopAll(); }}
-            >
-              <div class="preset-icon stop-icon">
-                <ha-icon icon="mdi:stop-circle-outline"></ha-icon>
-              </div>
-              ${showNames ? html`<div class="preset-name">Stop</div>` : nothing}
-              ${this._stopping ? html`<div class="activating-overlay"><ha-circular-progress indeterminate size="small"></ha-circular-progress></div>` : nothing}
-            </div>
-          ` : nothing}
         </div>
       </ha-card>
     `;
@@ -1115,19 +1142,6 @@ export class AqaraPresetFavoritesCard extends LitElement {
       --mdc-icon-size: 20px;
     }
 
-    /* Stop button — last item in the preset grid */
-    .stop-icon ha-icon {
-      color: var(--error-color, #db4437);
-    }
-
-    .stop-button:hover {
-      border-color: var(--error-color, #db4437) !important;
-    }
-
-    .stop-button:hover::before {
-      background: var(--error-color, #db4437) !important;
-    }
-
     /* No names — larger icons fill the space */
     .no-names .preset-icon {
       width: 56px;
@@ -1219,7 +1233,7 @@ declare global {
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: 'aqara-preset-favorites-card',
-  name: 'Aqara Advanced Lighting Presets',
-  description: 'Displays and activates your favorited Aqara Advacned Lighting presets for a specific entity.',
+  name: PANEL_TRANSLATIONS.card.name,
+  description: PANEL_TRANSLATIONS.card.description,
   preview: false,
 });
