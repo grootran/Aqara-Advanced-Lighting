@@ -1126,6 +1126,7 @@ class DynamicSceneManager:
             _LOGGER.debug("Scene %s cancelled", scene_id)
         except Exception:
             _LOGGER.exception("Error executing scene %s", scene_id)
+            self._cleanup_scene(scene_id)
         finally:
             if completed_naturally:
                 # Fire finished event

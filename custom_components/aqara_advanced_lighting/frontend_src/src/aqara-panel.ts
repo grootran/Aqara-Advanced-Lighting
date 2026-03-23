@@ -2132,7 +2132,7 @@ export class AqaraPanel extends LitElement {
   private async _activateDynamicEffect(preset: DynamicEffectPreset): Promise<void> {
     if (!this._selectedEntities.length) return;
 
-    const serviceData: any = {
+    const serviceData: Record<string, unknown> = {
       entity_id: this._selectedEntities,
       preset: preset.id,
       turn_on: true,
@@ -2151,7 +2151,7 @@ export class AqaraPanel extends LitElement {
   private async _activateSegmentPattern(preset: SegmentPatternPreset): Promise<void> {
     if (!this._selectedEntities.length) return;
 
-    const serviceData: any = {
+    const serviceData: Record<string, unknown> = {
       entity_id: this._selectedEntities,
       preset: preset.id,
       turn_on: true,

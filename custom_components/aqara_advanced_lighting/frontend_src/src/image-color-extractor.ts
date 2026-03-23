@@ -165,11 +165,11 @@ export class ImageColorExtractor extends LitElement {
   }
 
   private _handleBrightnessToggle(e: Event): void {
-    this._extractBrightness = (e.target as any).checked;
+    this._extractBrightness = (e.target as HTMLInputElement).checked;
   }
 
   private _handleThumbnailToggle(e: Event): void {
-    this._saveThumbnail = (e.target as any).checked;
+    this._saveThumbnail = (e.target as HTMLInputElement).checked;
   }
 
   public async extract(): Promise<void> {

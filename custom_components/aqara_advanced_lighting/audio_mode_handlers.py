@@ -22,6 +22,12 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
+# EMA smoothing factor for energy envelope (~2-4s window at 20Hz sensor updates)
+ENERGY_EMA_ALPHA = 0.05
+# Per-tick brightness decay for onset flash mode
+FLASH_BRIGHTNESS_DECAY = 0.02
+
+
 class AudioModeHandler(ABC):
     """Abstract base class for audio-reactive mode handlers."""
 
@@ -117,7 +123,7 @@ class IntensityBreathingHandler(AudioModeHandler):
     def __init__(self, manager: Any) -> None:
         super().__init__(manager)
         self._envelope = 0.5
-        self._alpha = 0.05  # ~2-4 second EMA at 20Hz updates
+        self._alpha = ENERGY_EMA_ALPHA
 
     def handle_energy(self, scene_state: Any, energy: float) -> None:
         self._envelope = self._alpha * energy + (1 - self._alpha) * self._envelope
@@ -131,12 +137,12 @@ class OnsetFlashHandler(AudioModeHandler):
         super().__init__(manager)
         self._envelope = 0.5
         self._flash_brightness = 0.0
-        self._alpha = 0.05
+        self._alpha = ENERGY_EMA_ALPHA
 
     def handle_energy(self, scene_state: Any, energy: float) -> None:
         self._envelope = self._alpha * energy + (1 - self._alpha) * self._envelope
         # Decay flash
-        self._flash_brightness = max(0.0, self._flash_brightness - 0.02)
+        self._flash_brightness = max(0.0, self._flash_brightness - FLASH_BRIGHTNESS_DECAY)
         brightness = max(self._envelope, self._flash_brightness)
         scene_state.brightness_modifier = max(0.3, min(1.0, brightness))
 

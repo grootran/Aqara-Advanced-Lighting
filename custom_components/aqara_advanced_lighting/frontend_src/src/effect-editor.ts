@@ -522,7 +522,7 @@ export class EffectEditor extends LitElement {
                     style="background-color: ${xyToHex(color)}"
                     @click=${() => this._openColorPicker(index)}
                     @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._openColorPicker(index); } }}
-                    title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_edit')}"
+                    title="${this._localize('tooltips.color_edit')}"
                     aria-label="${this._localize('editors.color_label') || 'Color'} ${index + 1}: ${xyToHex(color)}"
                   ></div>
                   ${this._colors.length > 1
@@ -530,7 +530,7 @@ export class EffectEditor extends LitElement {
                         <button
                           class="color-remove"
                           @click=${() => this._removeColor(index)}
-                          title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_remove')}"
+                          title="${this._localize('tooltips.color_remove')}"
                         >
                           <ha-icon icon="mdi:close"></ha-icon>
                         </button>
@@ -543,7 +543,7 @@ export class EffectEditor extends LitElement {
               <div
                 class="add-color-icon"
                 @click=${this._addColor}
-                title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_add')}"
+                title="${this._localize('tooltips.color_add')}"
               >
                 <ha-icon icon="mdi:plus"></ha-icon>
               </div>

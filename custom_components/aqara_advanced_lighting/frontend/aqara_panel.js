@@ -3262,14 +3262,14 @@
                     style="background-color: ${De(e)}"
                     @click=${()=>this._openColorPicker(t)}
                     @keydown=${e=>{"Enter"!==e.key&&" "!==e.key||(e.preventDefault(),this._openColorPicker(t))}}
-                    title="${this.hass.localize("component.aqara_advanced_lighting.panel.tooltips.color_edit")}"
+                    title="${this._localize("tooltips.color_edit")}"
                     aria-label="${this._localize("editors.color_label")||"Color"} ${t+1}: ${De(e)}"
                   ></div>
                   ${this._colors.length>1?H`
                         <button
                           class="color-remove"
                           @click=${()=>this._removeColor(t)}
-                          title="${this.hass.localize("component.aqara_advanced_lighting.panel.tooltips.color_remove")}"
+                          title="${this._localize("tooltips.color_remove")}"
                         >
                           <ha-icon icon="mdi:close"></ha-icon>
                         </button>
@@ -3280,7 +3280,7 @@
               <div
                 class="add-color-icon"
                 @click=${this._addColor}
-                title="${this.hass.localize("component.aqara_advanced_lighting.panel.tooltips.color_add")}"
+                title="${this._localize("tooltips.color_add")}"
               >
                 <ha-icon icon="mdi:plus"></ha-icon>
               </div>
