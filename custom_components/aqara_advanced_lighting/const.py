@@ -284,30 +284,6 @@ DATA_ACTIVE_MUSIC_SYNC: Final = "active_music_sync"
 MIN_DURATION: Final = 0.0
 MAX_DURATION: Final = 3600.0  # 1 hour
 
-# Effect types for T1M (ACN031/ACN032)
-EFFECT_T1M_FLOW1: Final = "flow1"
-EFFECT_T1M_FLOW2: Final = "flow2"
-EFFECT_T1M_FADING: Final = "fading"
-EFFECT_T1M_HOPPING: Final = "hopping"
-EFFECT_T1M_BREATHING: Final = "breathing"
-EFFECT_T1M_ROLLING: Final = "rolling"
-
-# Effect types for T1 Strip
-EFFECT_T1_BREATHING: Final = "breathing"
-EFFECT_T1_RAINBOW1: Final = "rainbow1"
-EFFECT_T1_CHASING: Final = "chasing"
-EFFECT_T1_FLASH: Final = "flash"
-EFFECT_T1_HOPPING: Final = "hopping"
-EFFECT_T1_RAINBOW2: Final = "rainbow2"
-EFFECT_T1_FLICKER: Final = "flicker"
-EFFECT_T1_DASH: Final = "dash"
-
-# Effect types for T2 Bulb
-EFFECT_T2_BREATHING: Final = "breathing"
-EFFECT_T2_CANDLELIGHT: Final = "candlelight"
-EFFECT_T2_FADING: Final = "fading"
-EFFECT_T2_FLASH: Final = "flash"
-
 # Runtime data storage keys
 DATA_STATE_MANAGER: Final = "state_manager"
 DATA_CCT_SEQUENCE_MANAGER: Final = "cct_sequence_manager"

@@ -800,38 +800,10 @@ def _normalize_color_to_rgb(color_data: dict[str, Any] | list[int]) -> RGBColor:
 def _get_instance_for_entity(
     hass: HomeAssistant, entity_id: str
 ) -> tuple[str | None, dict | None]:
-    """Get the config entry ID and instance data for an entity.
+    """Get the config entry ID and instance data for an entity."""
+    from .entity_routing import get_instance_for_entity
 
-    Looks up the entity in all instances to find which one owns it.
-
-    Args:
-        hass: Home Assistant instance
-        entity_id: Entity ID to look up
-
-    Returns:
-        Tuple of (entry_id, instance_data) or (None, None) if not found
-    """
-    if DOMAIN not in hass.data:
-        return None, None
-
-    # First try the entity routing map for fast lookup
-    entity_routing = hass.data[DOMAIN].get("entity_routing", {})
-    if entity_id in entity_routing:
-        entry_id = entity_routing[entity_id]
-        instance_data = hass.data[DOMAIN].get("entries", {}).get(entry_id)
-        if instance_data:
-            return entry_id, instance_data
-
-    # Fall back to searching all instances
-    entries = hass.data[DOMAIN].get("entries", {})
-    for entry_id, instance_data in entries.items():
-        backend = instance_data.get("backend")
-        if backend and backend.get_device_for_entity(entity_id):
-            # Found it - update the routing map for faster future lookups
-            entity_routing[entity_id] = entry_id
-            return entry_id, instance_data
-
-    return None, None
+    return get_instance_for_entity(hass, entity_id)
 
 
 def _get_backend_for_entity(

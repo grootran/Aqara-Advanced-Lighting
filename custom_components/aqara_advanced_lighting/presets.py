@@ -10,6 +10,8 @@ This module contains all built-in presets for:
 
 from typing import Any, Final
 
+from .models import EffectType
+
 from .const import (
     ACTIVATION_ALL,
     ACTIVATION_CENTER_OUT,
@@ -20,23 +22,6 @@ from .const import (
     DISTRIBUTION_RANDOM,
     DISTRIBUTION_SHUFFLE_ROTATE,
     DISTRIBUTION_SYNCHRONIZED,
-    EFFECT_T1_BREATHING,
-    EFFECT_T1_CHASING,
-    EFFECT_T1_FLASH,
-    EFFECT_T1_FLICKER,
-    EFFECT_T1_HOPPING,
-    EFFECT_T1_RAINBOW1,
-    EFFECT_T1_RAINBOW2,
-    EFFECT_T1M_BREATHING,
-    EFFECT_T1M_FADING,
-    EFFECT_T1M_FLOW1,
-    EFFECT_T1M_FLOW2,
-    EFFECT_T1M_HOPPING,
-    EFFECT_T1M_ROLLING,
-    EFFECT_T2_BREATHING,
-    EFFECT_T2_CANDLELIGHT,
-    EFFECT_T2_FADING,
-    EFFECT_T2_FLASH,
     END_BEHAVIOR_MAINTAIN,
     END_BEHAVIOR_RESTORE,
     END_BEHAVIOR_TURN_OFF,
@@ -105,7 +90,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T2_CANDLELIGHT: {
         "name": "Candlelight",
         "icon": "mdi:candle",
-        "effect": EFFECT_T2_CANDLELIGHT,
+        "effect": EffectType.CANDLELIGHT,
         "colors": [[255, 125, 18]],
         "speed": 50,
         "brightness": 255,
@@ -114,7 +99,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T2_BREATH: {
         "name": "Breath",
         "icon": "mdi:meditation",
-        "effect": EFFECT_T2_BREATHING,
+        "effect": EffectType.BREATHING,
         "colors": [[255, 125, 18]],
         "speed": 50,
         "brightness": 255,
@@ -123,7 +108,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T2_COLORFUL: {
         "name": "Colorful",
         "icon": "mdi:palette",
-        "effect": EFFECT_T2_FADING,
+        "effect": EffectType.FADING,
         "colors": [
             [92, 87, 255],
             [0, 187, 255],
@@ -140,7 +125,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T2_SECURITY: {
         "name": "Security",
         "icon": "mdi:shield-alert",
-        "effect": EFFECT_T2_FLASH,
+        "effect": EffectType.FLASH,
         "colors": [[255, 0, 0]],
         "speed": 100,
         "brightness": 255,
@@ -150,7 +135,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1M_DINNER: {
         "name": "Dinner",
         "icon": "mdi:silverware-fork-knife",
-        "effect": EFFECT_T1M_FLOW1,
+        "effect": EffectType.FLOW1,
         "colors": [[214, 235, 255], [92, 86, 255], [93, 0, 255]],
         "speed": 75,
         "brightness": 255,
@@ -159,7 +144,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1M_SUNSET: {
         "name": "Sunset",
         "icon": "mdi:weather-sunset",
-        "effect": EFFECT_T1M_FLOW2,
+        "effect": EffectType.FLOW2,
         "colors": [[255, 0, 0], [255, 138, 138], [179, 191, 255], [0, 0, 255]],
         "speed": 10,
         "brightness": 255,
@@ -168,7 +153,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1M_AUTUMN: {
         "name": "Autumn",
         "icon": "mdi:leaf-maple",
-        "effect": EFFECT_T1M_FLOW1,
+        "effect": EffectType.FLOW1,
         "colors": [[255, 71, 0], [255, 119, 0], [255, 154, 0], [255, 225, 0]],
         "speed": 60,
         "brightness": 255,
@@ -177,7 +162,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1M_GALAXY: {
         "name": "Galaxy",
         "icon": "mdi:star-circle",
-        "effect": EFFECT_T1M_FADING,
+        "effect": EffectType.FADING,
         "colors": [[0, 137, 255], [198, 0, 255], [255, 0, 255], [0, 0, 255]],
         "speed": 40,
         "brightness": 255,
@@ -186,7 +171,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1M_DAYDREAM: {
         "name": "Daydream",
         "icon": "mdi:cloud",
-        "effect": EFFECT_T1M_FADING,
+        "effect": EffectType.FADING,
         "colors": [[255, 0, 0], [255, 155, 143], [255, 0, 255], [255, 163, 249]],
         "speed": 70,
         "brightness": 255,
@@ -195,7 +180,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1M_HOLIDAY: {
         "name": "Holiday",
         "icon": "mdi:pine-tree",
-        "effect": EFFECT_T1M_BREATHING,
+        "effect": EffectType.BREATHING,
         "colors": [[7, 255, 36], [255, 97, 0], [55, 184, 255], [0, 6, 255]],
         "speed": 10,
         "brightness": 255,
@@ -204,7 +189,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1M_PARTY: {
         "name": "Party",
         "icon": "mdi:party-popper",
-        "effect": EFFECT_T1M_HOPPING,
+        "effect": EffectType.HOPPING,
         "colors": [[255, 0, 0], [255, 94, 0], [255, 255, 0], [255, 0, 255], [0, 255, 255], [0, 0, 255], [255, 0, 255]],
         "speed": 50,
         "brightness": 255,
@@ -213,7 +198,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1M_METEOR: {
         "name": "Meteor",
         "icon": "mdi:meteor",
-        "effect": EFFECT_T1M_ROLLING,
+        "effect": EffectType.ROLLING,
         "colors": [[255, 148, 0], [89, 255, 0], [0, 255, 252], [175, 7, 255]],
         "speed": 50,
         "brightness": 255,
@@ -222,7 +207,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1M_ALERT: {
         "name": "Alert",
         "icon": "mdi:alert",
-        "effect": EFFECT_T1M_HOPPING,
+        "effect": EffectType.HOPPING,
         "colors": [[255, 0, 0]],
         "speed": 100,
         "brightness": 255,
@@ -232,7 +217,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1_STRIP_RAINBOW: {
         "name": "Rainbow",
         "icon": "mdi:looks",
-        "effect": EFFECT_T1_RAINBOW1,
+        "effect": EffectType.RAINBOW1,
         "colors": [
             [255, 0, 0],      # Red
             [255, 255, 0],    # Yellow
@@ -249,7 +234,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1_STRIP_HEARTBEAT: {
         "name": "Heartbeat",
         "icon": "mdi:heart-pulse",
-        "effect": EFFECT_T1_FLASH,
+        "effect": EffectType.FLASH,
         "colors": [
             [139, 0, 0],      # Dark red
             [220, 20, 60],    # Crimson
@@ -264,7 +249,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1_STRIP_GALA: {
         "name": "Gala",
         "icon": "mdi:party-popper",
-        "effect": EFFECT_T1_BREATHING,
+        "effect": EffectType.BREATHING,
         "colors": [
             [163, 214, 84],
             [122, 76, 204],
@@ -281,7 +266,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1_STRIP_SEA_OF_FLOWERS: {
         "name": "Sea of flowers",
         "icon": "mdi:flower",
-        "effect": EFFECT_T1_CHASING,
+        "effect": EffectType.CHASING,
         "colors": [
             [135, 206, 235],  # Sky blue
             [64, 224, 208],   # Turquoise
@@ -298,7 +283,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1_STRIP_RHYTHMIC: {
         "name": "Rhythmic",
         "icon": "mdi:sine-wave",
-        "effect": EFFECT_T1_HOPPING,
+        "effect": EffectType.HOPPING,
         "colors": [
             [255, 0, 0],      # Red
             [255, 69, 0],     # Red-orange
@@ -315,7 +300,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1_STRIP_EXCITING: {
         "name": "Exciting",
         "icon": "mdi:flash",
-        "effect": EFFECT_T1_FLICKER,
+        "effect": EffectType.FLICKER,
         "colors": [
             [255, 255, 255],  # White
             [255, 0, 0],      # Red
@@ -328,7 +313,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1_STRIP_COLORFUL: {
         "name": "Colorful",
         "icon": "mdi:palette",
-        "effect": EFFECT_T1_RAINBOW2,
+        "effect": EffectType.RAINBOW2,
         "colors": [
             [255, 0, 0],      # Red
             [0, 255, 0],      # Green

@@ -85,43 +85,22 @@ def get_software_step_interval(model_id: str, transition: float) -> float:
 def get_entity_model_id(hass: HomeAssistant, entity_id: str) -> str | None:
     """Resolve an entity ID to its Aqara device model ID.
 
-    Uses entity routing and backend device lookup to find the model
-    without requiring a direct backend reference.
-
-    Args:
-        hass: Home Assistant instance
-        entity_id: The Home Assistant entity ID
+    Uses the shared entity routing lookup to find the backend instance,
+    then resolves the device model from the backend.
 
     Returns:
-        Model ID string (e.g. "lumi.light.acn031") or None if not found
+        Model ID string (e.g. "lumi.light.acn031") or None if not found.
     """
-    if DOMAIN not in hass.data:
+    from .entity_routing import get_instance_for_entity
+
+    _entry_id, instance_data = get_instance_for_entity(hass, entity_id)
+    if not instance_data:
         return None
-
-    # Fast path: use entity routing map
-    entity_routing = hass.data[DOMAIN].get("entity_routing", {})
-    entry_id = entity_routing.get(entity_id)
-
-    if entry_id:
-        instance_data = hass.data[DOMAIN].get("entries", {}).get(entry_id)
-        if instance_data:
-            backend = instance_data.get("backend")
-            if backend:
-                device = backend.get_device_for_entity(entity_id)
-                if device:
-                    return device.model_id
-
-    # Fallback: search all instances
-    entries = hass.data[DOMAIN].get("entries", {})
-    for eid, instance_data in entries.items():
-        backend = instance_data.get("backend")
-        if backend:
-            device = backend.get_device_for_entity(entity_id)
-            if device:
-                # Update routing cache for next time
-                entity_routing[entity_id] = eid
-                return device.model_id
-
+    backend = instance_data.get("backend")
+    if backend:
+        device = backend.get_device_for_entity(entity_id)
+        if device:
+            return device.model_id
     return None
 
 

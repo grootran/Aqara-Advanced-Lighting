@@ -238,60 +238,67 @@ def register_quirks() -> None:
     # genLevelCtrl cluster ID for transition time attributes
     CLUSTER_LEVEL_CONTROL = 0x0008
 
+    def _add_common_number_attrs(builder: QuirkBuilder) -> QuirkBuilder:
+        """Add dimming range and transition time number entities."""
+        return (
+            builder.number(
+                "dimming_range_minimum",
+                AqaraLumiCluster.cluster_id,
+                min_value=1,
+                max_value=100,
+                step=1,
+                translation_key="dimming_range_minimum",
+                fallback_name="Dimming range minimum",
+            )
+            .number(
+                "dimming_range_maximum",
+                AqaraLumiCluster.cluster_id,
+                min_value=1,
+                max_value=100,
+                step=1,
+                translation_key="dimming_range_maximum",
+                fallback_name="Dimming range maximum",
+            )
+            .number(
+                "on_transition_time",
+                CLUSTER_LEVEL_CONTROL,
+                min_value=0,
+                max_value=10,
+                step=0.5,
+                multiplier=0.1,
+                unit="s",
+                translation_key="off_on_duration",
+                fallback_name="Off on duration",
+            )
+            .number(
+                "off_transition_time",
+                CLUSTER_LEVEL_CONTROL,
+                min_value=0,
+                max_value=10,
+                step=0.5,
+                multiplier=0.1,
+                unit="s",
+                translation_key="on_off_duration",
+                fallback_name="On off duration",
+            )
+        )
+
     registered_count = 0
 
     for manufacturer in _MANUFACTURERS:
         # T1M models: dimming range + durations + power-on behavior
         for model in _T1M_MODELS:
             (
-                QuirkBuilder(manufacturer, model)
-                .replaces(AqaraLumiCluster)
-                .enum(
-                    "power_on_behavior",
-                    PowerOnBehaviorT1,
-                    AqaraLumiCluster.cluster_id,
-                    translation_key="power_on_behavior",
-                    fallback_name="Power on behavior",
-                )
-                .number(
-                    "dimming_range_minimum",
-                    AqaraLumiCluster.cluster_id,
-                    min_value=1,
-                    max_value=100,
-                    step=1,
-                    translation_key="dimming_range_minimum",
-                    fallback_name="Dimming range minimum",
-                )
-                .number(
-                    "dimming_range_maximum",
-                    AqaraLumiCluster.cluster_id,
-                    min_value=1,
-                    max_value=100,
-                    step=1,
-                    translation_key="dimming_range_maximum",
-                    fallback_name="Dimming range maximum",
-                )
-                .number(
-                    "on_transition_time",
-                    CLUSTER_LEVEL_CONTROL,
-                    min_value=0,
-                    max_value=10,
-                    step=0.5,
-                    multiplier=0.1,
-                    unit="s",
-                    translation_key="off_on_duration",
-                    fallback_name="Off on duration",
-                )
-                .number(
-                    "off_transition_time",
-                    CLUSTER_LEVEL_CONTROL,
-                    min_value=0,
-                    max_value=10,
-                    step=0.5,
-                    multiplier=0.1,
-                    unit="s",
-                    translation_key="on_off_duration",
-                    fallback_name="On off duration",
+                _add_common_number_attrs(
+                    QuirkBuilder(manufacturer, model)
+                    .replaces(AqaraLumiCluster)
+                    .enum(
+                        "power_on_behavior",
+                        PowerOnBehaviorT1,
+                        AqaraLumiCluster.cluster_id,
+                        translation_key="power_on_behavior",
+                        fallback_name="Power on behavior",
+                    )
                 )
                 .enum(
                     "effect",
@@ -316,54 +323,16 @@ def register_quirks() -> None:
         # T1 Strip: dimming range + durations + strip length + power-on behavior
         for model in _T1_STRIP_MODELS:
             (
-                QuirkBuilder(manufacturer, model)
-                .replaces(AqaraLumiCluster)
-                .enum(
-                    "power_on_behavior",
-                    PowerOnBehaviorT1,
-                    AqaraLumiCluster.cluster_id,
-                    translation_key="power_on_behavior",
-                    fallback_name="Power on behavior",
-                )
-                .number(
-                    "dimming_range_minimum",
-                    AqaraLumiCluster.cluster_id,
-                    min_value=1,
-                    max_value=100,
-                    step=1,
-                    translation_key="dimming_range_minimum",
-                    fallback_name="Dimming range minimum",
-                )
-                .number(
-                    "dimming_range_maximum",
-                    AqaraLumiCluster.cluster_id,
-                    min_value=1,
-                    max_value=100,
-                    step=1,
-                    translation_key="dimming_range_maximum",
-                    fallback_name="Dimming range maximum",
-                )
-                .number(
-                    "on_transition_time",
-                    CLUSTER_LEVEL_CONTROL,
-                    min_value=0,
-                    max_value=10,
-                    step=0.5,
-                    multiplier=0.1,
-                    unit="s",
-                    translation_key="off_on_duration",
-                    fallback_name="Off on duration",
-                )
-                .number(
-                    "off_transition_time",
-                    CLUSTER_LEVEL_CONTROL,
-                    min_value=0,
-                    max_value=10,
-                    step=0.5,
-                    multiplier=0.1,
-                    unit="s",
-                    translation_key="on_off_duration",
-                    fallback_name="On off duration",
+                _add_common_number_attrs(
+                    QuirkBuilder(manufacturer, model)
+                    .replaces(AqaraLumiCluster)
+                    .enum(
+                        "power_on_behavior",
+                        PowerOnBehaviorT1,
+                        AqaraLumiCluster.cluster_id,
+                        translation_key="power_on_behavior",
+                        fallback_name="Power on behavior",
+                    )
                 )
                 .number(
                     "length",
@@ -420,54 +389,16 @@ def register_quirks() -> None:
         # T2 RGB bulbs: dimming range + durations + transition curve + initial brightness + power-on
         for model in _T2_BULB_MODELS:
             (
-                QuirkBuilder(manufacturer, model)
-                .replaces(AqaraLumiCluster)
-                .enum(
-                    "power_on_behavior",
-                    PowerOnBehaviorT2,
-                    AqaraLumiCluster.cluster_id,
-                    translation_key="power_on_behavior",
-                    fallback_name="Power on behavior",
-                )
-                .number(
-                    "dimming_range_minimum",
-                    AqaraLumiCluster.cluster_id,
-                    min_value=1,
-                    max_value=100,
-                    step=1,
-                    translation_key="dimming_range_minimum",
-                    fallback_name="Dimming range minimum",
-                )
-                .number(
-                    "dimming_range_maximum",
-                    AqaraLumiCluster.cluster_id,
-                    min_value=1,
-                    max_value=100,
-                    step=1,
-                    translation_key="dimming_range_maximum",
-                    fallback_name="Dimming range maximum",
-                )
-                .number(
-                    "on_transition_time",
-                    CLUSTER_LEVEL_CONTROL,
-                    min_value=0,
-                    max_value=10,
-                    step=0.5,
-                    multiplier=0.1,
-                    unit="s",
-                    translation_key="off_on_duration",
-                    fallback_name="Off on duration",
-                )
-                .number(
-                    "off_transition_time",
-                    CLUSTER_LEVEL_CONTROL,
-                    min_value=0,
-                    max_value=10,
-                    step=0.5,
-                    multiplier=0.1,
-                    unit="s",
-                    translation_key="on_off_duration",
-                    fallback_name="On off duration",
+                _add_common_number_attrs(
+                    QuirkBuilder(manufacturer, model)
+                    .replaces(AqaraLumiCluster)
+                    .enum(
+                        "power_on_behavior",
+                        PowerOnBehaviorT2,
+                        AqaraLumiCluster.cluster_id,
+                        translation_key="power_on_behavior",
+                        fallback_name="Power on behavior",
+                    )
                 )
                 .number(
                     "transition_curve_curvature",
@@ -511,54 +442,16 @@ def register_quirks() -> None:
         # T2 CCT bulbs: dimming range + durations + transition curve + initial brightness + power-on
         for model in _T2_CCT_MODELS:
             (
-                QuirkBuilder(manufacturer, model)
-                .replaces(AqaraLumiCluster)
-                .enum(
-                    "power_on_behavior",
-                    PowerOnBehaviorT2,
-                    AqaraLumiCluster.cluster_id,
-                    translation_key="power_on_behavior",
-                    fallback_name="Power on behavior",
-                )
-                .number(
-                    "dimming_range_minimum",
-                    AqaraLumiCluster.cluster_id,
-                    min_value=1,
-                    max_value=100,
-                    step=1,
-                    translation_key="dimming_range_minimum",
-                    fallback_name="Dimming range minimum",
-                )
-                .number(
-                    "dimming_range_maximum",
-                    AqaraLumiCluster.cluster_id,
-                    min_value=1,
-                    max_value=100,
-                    step=1,
-                    translation_key="dimming_range_maximum",
-                    fallback_name="Dimming range maximum",
-                )
-                .number(
-                    "on_transition_time",
-                    CLUSTER_LEVEL_CONTROL,
-                    min_value=0,
-                    max_value=10,
-                    step=0.5,
-                    multiplier=0.1,
-                    unit="s",
-                    translation_key="off_on_duration",
-                    fallback_name="Off on duration",
-                )
-                .number(
-                    "off_transition_time",
-                    CLUSTER_LEVEL_CONTROL,
-                    min_value=0,
-                    max_value=10,
-                    step=0.5,
-                    multiplier=0.1,
-                    unit="s",
-                    translation_key="on_off_duration",
-                    fallback_name="On off duration",
+                _add_common_number_attrs(
+                    QuirkBuilder(manufacturer, model)
+                    .replaces(AqaraLumiCluster)
+                    .enum(
+                        "power_on_behavior",
+                        PowerOnBehaviorT2,
+                        AqaraLumiCluster.cluster_id,
+                        translation_key="power_on_behavior",
+                        fallback_name="Power on behavior",
+                    )
                 )
                 .number(
                     "transition_curve_curvature",

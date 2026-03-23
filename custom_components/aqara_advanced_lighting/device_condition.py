@@ -125,24 +125,17 @@ def _get_managers_for_entity(
         Tuple of (cct_manager, segment_manager, state_manager, dynamic_scene_manager)
         or None if not found.
     """
-    for entry in hass.config_entries.async_entries(DOMAIN):
-        if entry.state is not ConfigEntryState.LOADED:
-            continue
+    from .entity_routing import get_instance_for_entity
 
-        runtime_data = entry.runtime_data
-        # Check if this entity belongs to this entry
-        if entity_id in runtime_data.entity_to_z2m_map:
-            instance_data = hass.data.get(DOMAIN, {}).get("entries", {}).get(
-                entry.entry_id, {}
-            )
-            return (
-                instance_data.get(DATA_CCT_SEQUENCE_MANAGER),
-                instance_data.get(DATA_SEGMENT_SEQUENCE_MANAGER),
-                instance_data.get(DATA_STATE_MANAGER),
-                instance_data.get(DATA_DYNAMIC_SCENE_MANAGER),
-            )
-
-    return None
+    _entry_id, instance_data = get_instance_for_entity(hass, entity_id)
+    if not instance_data:
+        return None
+    return (
+        instance_data.get(DATA_CCT_SEQUENCE_MANAGER),
+        instance_data.get(DATA_SEGMENT_SEQUENCE_MANAGER),
+        instance_data.get(DATA_STATE_MANAGER),
+        instance_data.get(DATA_DYNAMIC_SCENE_MANAGER),
+    )
 
 
 def _is_music_sync_active(hass: HomeAssistant, entity_id: str) -> bool:

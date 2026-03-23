@@ -88,6 +88,30 @@ from .presets import (
 
 _LOGGER = logging.getLogger(__name__)
 
+_T1M_MODEL_IDS = {MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT}
+_T2_BULB_MODEL_IDS = {
+    MODEL_T2_BULB_E26, MODEL_T2_BULB_E27,
+    MODEL_T2_BULB_GU10_230V, MODEL_T2_BULB_GU10_110V,
+}
+_T2_CCT_MODEL_IDS = {
+    MODEL_T2_CCT_E26, MODEL_T2_CCT_E27,
+    MODEL_T2_CCT_GU10_230V, MODEL_T2_CCT_GU10_110V,
+}
+
+
+def _classify_device_type(model_id: str) -> str:
+    """Map a model ID to its frontend device type category."""
+    if model_id in _T1M_MODEL_IDS:
+        return "t1m"
+    if model_id == MODEL_T1_STRIP:
+        return "t1_strip"
+    if model_id in _T2_BULB_MODEL_IDS:
+        return "t2_bulb"
+    if model_id in _T2_CCT_MODEL_IDS:
+        return "t2_cct"
+    return "unknown"
+
+
 PANEL_URL = "/aqara-advanced-lighting"
 PANEL_TITLE = "Aqara Lighting"
 PANEL_ICON = "mdi:lightbulb-group"
@@ -1484,27 +1508,12 @@ class SupportedEntitiesView(HomeAssistantView):
                 device_counts["total"] += 1
                 device_names.append(aqara_device.name)
 
-                model_id = aqara_device.model_id
-                if model_id in [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT]:
-                    device_counts["t1m"] += 1
-                elif model_id == MODEL_T1_STRIP:
-                    device_counts["t1_strip"] += 1
-                elif model_id in [
-                    MODEL_T2_BULB_E26,
-                    MODEL_T2_BULB_E27,
-                    MODEL_T2_BULB_GU10_230V,
-                    MODEL_T2_BULB_GU10_110V,
-                ]:
-                    device_counts["t2_rgb"] += 1
-                elif model_id in [
-                    MODEL_T2_CCT_E26,
-                    MODEL_T2_CCT_E27,
-                    MODEL_T2_CCT_GU10_230V,
-                    MODEL_T2_CCT_GU10_110V,
-                ]:
-                    device_counts["t2_cct"] += 1
-                else:
-                    device_counts["other"] += 1
+                dtype = _classify_device_type(aqara_device.model_id)
+                # Map frontend type to count key (t2_bulb → t2_rgb for counts)
+                count_key = "t2_rgb" if dtype == "t2_bulb" else (
+                    "other" if dtype == "unknown" else dtype
+                )
+                device_counts[count_key] += 1
 
             instances.append(
                 {
@@ -1546,28 +1555,8 @@ class SupportedEntitiesView(HomeAssistantView):
                     )
                     continue
 
-                # Determine device type category for frontend
                 model_id = aqara_device.model_id
-                if model_id in [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT]:
-                    device_type = "t1m"
-                elif model_id == MODEL_T1_STRIP:
-                    device_type = "t1_strip"
-                elif model_id in [
-                    MODEL_T2_BULB_E26,
-                    MODEL_T2_BULB_E27,
-                    MODEL_T2_BULB_GU10_230V,
-                    MODEL_T2_BULB_GU10_110V,
-                ]:
-                    device_type = "t2_bulb"
-                elif model_id in [
-                    MODEL_T2_CCT_E26,
-                    MODEL_T2_CCT_E27,
-                    MODEL_T2_CCT_GU10_230V,
-                    MODEL_T2_CCT_GU10_110V,
-                ]:
-                    device_type = "t2_cct"
-                else:
-                    device_type = "unknown"
+                device_type = _classify_device_type(model_id)
 
                 # Get segment count for this device model
                 from .light_capabilities import get_segment_count

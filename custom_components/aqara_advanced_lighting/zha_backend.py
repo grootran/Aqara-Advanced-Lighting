@@ -43,6 +43,7 @@ from .transition_utils import (
 )
 from .models import AqaraDevice, DynamicEffect, RGBColor, SegmentColor
 from .mqtt_backend import SUPPORTED_MODELS
+from .segment_utils import parse_segment_range
 from .payload_builder import (
     build_effect_colors_payload,
     build_effect_segments_mask,
@@ -181,63 +182,6 @@ def _get_effect_enum(device_family: str) -> dict[str, int]:
             return EFFECT_ENUM_STRIP
         case _:
             return {}
-
-
-def _parse_segment_spec(spec: int | str, max_segments: int) -> list[int]:
-    """Parse a segment specification into a list of 1-based segment numbers.
-
-    Handles: int, "1-5", "odd", "even", "all", "1,3,5"
-    """
-    if isinstance(spec, int):
-        return [spec]
-
-    spec_str = str(spec).strip().lower()
-
-    if spec_str == "all":
-        return list(range(1, max_segments + 1))
-    if spec_str == "odd":
-        return list(range(1, max_segments + 1, 2))
-    if spec_str == "even":
-        return list(range(2, max_segments + 1, 2))
-
-    # Range like "1-5"
-    if "-" in spec_str and "," not in spec_str:
-        parts = spec_str.split("-", 1)
-        try:
-            start, end = int(parts[0]), int(parts[1])
-            if start < 1 or end > max_segments or end < start:
-                _LOGGER.warning(
-                    "Segment range %d-%d out of bounds (max %d)",
-                    start,
-                    end,
-                    max_segments,
-                )
-                return []
-            return list(range(start, end + 1))
-        except ValueError:
-            pass
-
-    # Comma-separated like "1,3,5" (cap at max_segments entries)
-    if "," in spec_str:
-        try:
-            parts = spec_str.split(",")
-            if len(parts) > max_segments:
-                _LOGGER.warning(
-                    "Segment list has %d entries, capping at %d",
-                    len(parts),
-                    max_segments,
-                )
-                parts = parts[:max_segments]
-            return [int(s.strip()) for s in parts]
-        except ValueError:
-            pass
-
-    # Single number as string
-    try:
-        return [int(spec_str)]
-    except ValueError:
-        _LOGGER.warning("Could not parse segment spec: %s", spec)
-        return []
 
 
 class ZHABackend:
@@ -655,7 +599,7 @@ class ZHABackend:
         segments_mask: bytes | None = None
         if device_family == "strip" and effect.effect_segments is not None:
             max_segments = self._get_strip_segment_count(ieee_str)
-            seg_nums = _parse_segment_spec(effect.effect_segments, max_segments)
+            seg_nums = parse_segment_range(effect.effect_segments, max_segments)
             if seg_nums:
                 segments_mask = build_effect_segments_mask(seg_nums, max_segments)
 
@@ -751,7 +695,7 @@ class ZHABackend:
         # Group segments by (color, brightness) to minimize cluster writes
         groups: dict[tuple[int, int, int, int], list[int]] = {}
         for sc in segments:
-            seg_nums = _parse_segment_spec(sc.segment, max_segments)
+            seg_nums = parse_segment_range(sc.segment, max_segments)
             key = (sc.color.r, sc.color.g, sc.color.b, sc.brightness or 254)
             groups.setdefault(key, []).extend(seg_nums)
 
