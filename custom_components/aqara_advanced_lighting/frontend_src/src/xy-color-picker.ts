@@ -223,6 +223,9 @@ export class XyColorPicker extends LitElement {
       this._editingColor = { ...this.color };
       this._updateMarkerPosition();
     }
+    if (changedProperties.has('cctMin') || changedProperties.has('cctMax')) {
+      this._cachedCctGradient = this._computeCctGradient();
+    }
   }
 
   private _drawColorWheel(): void {
@@ -444,8 +447,9 @@ export class XyColorPicker extends LitElement {
   // --- CCT Slider ---
 
   private _cctSliderDragging = false;
+  private _cachedCctGradient = '';
 
-  private _getCctGradient(): string {
+  private _computeCctGradient(): string {
     const stops: string[] = [];
     const steps = 10;
     for (let i = 0; i <= steps; i++) {
@@ -454,6 +458,13 @@ export class XyColorPicker extends LitElement {
       stops.push(`rgb(${rgb.r},${rgb.g},${rgb.b}) ${(i / steps) * 100}%`);
     }
     return `linear-gradient(to right, ${stops.join(', ')})`;
+  }
+
+  private _getCctGradient(): string {
+    if (!this._cachedCctGradient) {
+      this._cachedCctGradient = this._computeCctGradient();
+    }
+    return this._cachedCctGradient;
   }
 
   private _handleCctFromEvent(e: MouseEvent | TouchEvent): void {

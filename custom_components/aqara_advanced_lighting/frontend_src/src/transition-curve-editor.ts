@@ -106,6 +106,8 @@ export class TransitionCurveEditor extends LitElement {
     this._drawCurve();
   }
 
+  private _themeColors: { warning: string; primary: string; success: string } | null = null;
+
   protected updated(changedProperties: PropertyValues): void {
     if (changedProperties.has('curvature') && this._canvas) {
       this._drawCurve();
@@ -168,17 +170,21 @@ export class TransitionCurveEditor extends LitElement {
    * - 1.05-6.0: Slow then fast (primary color)
    */
   private _getCurveColor(): string {
-    const computedStyle = getComputedStyle(this);
+    if (!this._themeColors) {
+      const s = getComputedStyle(this);
+      this._themeColors = {
+        warning: s.getPropertyValue('--warning-color').trim() || '#ffc107',
+        primary: s.getPropertyValue('--primary-color').trim() || '#03a9f4',
+        success: s.getPropertyValue('--success-color').trim() || '#4caf50',
+      };
+    }
 
     if (this.curvature < 0.95) {
-      // Fast then slow - warning color
-      return computedStyle.getPropertyValue('--warning-color').trim() || '#ffc107';
+      return this._themeColors.warning;
     } else if (this.curvature > 1.05) {
-      // Slow then fast - primary color
-      return computedStyle.getPropertyValue('--primary-color').trim() || '#03a9f4';
+      return this._themeColors.primary;
     } else {
-      // Linear - success color
-      return computedStyle.getPropertyValue('--success-color').trim() || '#4caf50';
+      return this._themeColors.success;
     }
   }
 

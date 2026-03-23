@@ -52,24 +52,33 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
   @state() private _previewing = false;
   @state() private _hasUserInteraction = false;
 
-  private get _loopModeOptions() { return loopModeOptions((k) => this._localize(k)); }
-  private get _endBehaviorOptions() { return endBehaviorOptions((k) => this._localize(k)); }
+  private _cachedLoopModeOptions: { value: string; label: string }[] = [];
+  private _cachedEndBehaviorOptions: { value: string; label: string }[] = [];
+  private _cachedModeOptions: { value: string; label: string }[] = [];
+  private _cachedPhaseOptions: { value: string; label: string }[] = [];
 
-  private get _modeOptions() {
-    return [
-      { value: 'standard', label: this._localize('editors.mode_standard') },
-      { value: 'schedule', label: this._localize('editors.mode_schedule') },
-      { value: 'solar', label: this._localize('editors.mode_solar_advanced') },
-    ];
+  protected willUpdate(changedProps: PropertyValues): void {
+    if (changedProps.has('translations')) {
+      const loc = (k: string) => this._localize(k);
+      this._cachedLoopModeOptions = loopModeOptions(loc);
+      this._cachedEndBehaviorOptions = endBehaviorOptions(loc);
+      this._cachedModeOptions = [
+        { value: 'standard', label: loc('editors.mode_standard') },
+        { value: 'schedule', label: loc('editors.mode_schedule') },
+        { value: 'solar', label: loc('editors.mode_solar_advanced') },
+      ];
+      this._cachedPhaseOptions = [
+        { value: 'rising', label: loc('options.phase_rising') },
+        { value: 'setting', label: loc('options.phase_setting') },
+        { value: 'any', label: loc('options.phase_any') },
+      ];
+    }
   }
 
-  private get _phaseOptions() {
-    return [
-      { value: 'rising', label: this._localize('options.phase_rising') },
-      { value: 'setting', label: this._localize('options.phase_setting') },
-      { value: 'any', label: this._localize('options.phase_any') },
-    ];
-  }
+  private get _loopModeOptions() { return this._cachedLoopModeOptions; }
+  private get _endBehaviorOptions() { return this._cachedEndBehaviorOptions; }
+  private get _modeOptions() { return this._cachedModeOptions; }
+  private get _phaseOptions() { return this._cachedPhaseOptions; }
 
   static styles = [reorderableStepStyles, editorFormStyles, css`
     .step-list {

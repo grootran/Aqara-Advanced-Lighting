@@ -166,8 +166,13 @@ export class AqaraPanel extends LitElement {
     this._loadFavorites();
     this._loadUserPresets();
     this._loadUserPreferences();
-    this._loadBackendVersion();
-    this._loadSupportedEntities();
+    this._loadBackendVersion().then(() => {
+      // Only load entities after version check — if setup isn't complete yet,
+      // _checkSetupStatus polling will call _loadSupportedEntities when ready.
+      if (this._setupComplete) {
+        this._loadSupportedEntities();
+      }
+    });
     this._loadRunningOperations();
     this._subscribeToOperationEvents();
 
@@ -217,7 +222,36 @@ export class AqaraPanel extends LitElement {
       changedProps.has('_userPresets')
     ) {
       this._cleanStaleFavoriteRefs();
+      this._rebuildPresetLookup();
     }
+  }
+
+  private _presetLookup = new Map<string, { name: string; icon: string | null }>();
+
+  private _rebuildPresetLookup(): void {
+    const map = new Map<string, { name: string; icon: string | null }>();
+    const add = (id: string, name: string, icon?: string) => {
+      map.set(id, { name, icon: icon || null });
+    };
+    if (this._presets?.dynamic_effects) {
+      for (const presets of Object.values(this._presets.dynamic_effects)) {
+        for (const p of presets) add(p.id, p.name, p.icon);
+      }
+    }
+    for (const p of this._presets?.segment_patterns || []) add(p.id, p.name, p.icon);
+    for (const p of this._presets?.cct_sequences || []) add(p.id, p.name, p.icon);
+    for (const p of this._presets?.segment_sequences || []) add(p.id, p.name, p.icon);
+    for (const p of this._presets?.dynamic_scenes || []) add(p.id, p.name, p.icon);
+    if (this._userPresets) {
+      for (const list of [
+        this._userPresets.effect_presets, this._userPresets.segment_pattern_presets,
+        this._userPresets.cct_sequence_presets, this._userPresets.segment_sequence_presets,
+        this._userPresets.dynamic_scene_presets,
+      ]) {
+        for (const p of list || []) { add(p.id, p.name, p.icon); add(p.name, p.name, p.icon); }
+      }
+    }
+    this._presetLookup = map;
   }
 
   /**
@@ -2235,47 +2269,7 @@ export class AqaraPanel extends LitElement {
 
   private _resolvePresetInfo(presetId: string | null): { name: string | null; icon: string | null } {
     if (!presetId) return { name: null, icon: null };
-
-    // Search built-in effects (keyed by device type)
-    if (this._presets?.dynamic_effects) {
-      for (const presets of Object.values(this._presets.dynamic_effects)) {
-        const found = presets.find(p => p.id === presetId);
-        if (found) return { name: found.name, icon: found.icon || null };
-      }
-    }
-
-    // Search built-in segment patterns
-    const pattern = this._presets?.segment_patterns?.find(p => p.id === presetId);
-    if (pattern) return { name: pattern.name, icon: pattern.icon || null };
-
-    // Search built-in CCT sequences
-    const cct = this._presets?.cct_sequences?.find(p => p.id === presetId);
-    if (cct) return { name: cct.name, icon: cct.icon || null };
-
-    // Search built-in segment sequences
-    const seg = this._presets?.segment_sequences?.find(p => p.id === presetId);
-    if (seg) return { name: seg.name, icon: seg.icon || null };
-
-    // Search built-in dynamic scenes
-    const scene = this._presets?.dynamic_scenes?.find(p => p.id === presetId);
-    if (scene) return { name: scene.name, icon: scene.icon || null };
-
-    // Search user presets (match by id or name)
-    if (this._userPresets) {
-      const allUserPresets = [
-        ...(this._userPresets.effect_presets || []),
-        ...(this._userPresets.segment_pattern_presets || []),
-        ...(this._userPresets.cct_sequence_presets || []),
-        ...(this._userPresets.segment_sequence_presets || []),
-        ...(this._userPresets.dynamic_scene_presets || []),
-      ];
-      const userPreset = allUserPresets.find(
-        p => p.id === presetId || p.name === presetId,
-      );
-      if (userPreset) return { name: userPreset.name, icon: userPreset.icon || null };
-    }
-
-    return { name: presetId, icon: null };
+    return this._presetLookup.get(presetId) ?? { name: presetId, icon: null };
   }
 
   private _renderRunningOperations() {

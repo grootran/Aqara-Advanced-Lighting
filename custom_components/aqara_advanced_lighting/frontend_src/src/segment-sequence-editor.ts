@@ -54,23 +54,31 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
   // Note: Color picker modal is now handled by segment-selector component
   // No need for local color picker state
 
-  private get _loopModeOptions() { return loopModeOptions((k) => this._localize(k)); }
-  private get _endBehaviorOptions() { return endBehaviorOptions((k) => this._localize(k)); }
+  private _cachedLoopModeOptions: { value: string; label: string }[] = [];
+  private _cachedEndBehaviorOptions: { value: string; label: string }[] = [];
+  private _cachedActivationPatternOptions: { value: string; label: string }[] = [];
 
-  // Note: Step mode options removed - now handled by segment-selector sub-tabs (Individual/Gradient/Blocks)
-
-  private get _activationPatternOptions() {
-    return [
-      { value: 'all', label: this._localize('options.activation_all') },
-      { value: 'sequential_forward', label: this._localize('options.activation_sequential_forward') },
-      { value: 'sequential_reverse', label: this._localize('options.activation_sequential_reverse') },
-      { value: 'random', label: this._localize('options.activation_random') },
-      { value: 'ping_pong', label: this._localize('options.activation_ping_pong') },
-      { value: 'center_out', label: this._localize('options.activation_center_out') },
-      { value: 'edges_in', label: this._localize('options.activation_edges_in') },
-      { value: 'paired', label: this._localize('options.activation_paired') },
-    ];
+  protected willUpdate(changedProps: PropertyValues): void {
+    if (changedProps.has('translations')) {
+      const loc = (k: string) => this._localize(k);
+      this._cachedLoopModeOptions = loopModeOptions(loc);
+      this._cachedEndBehaviorOptions = endBehaviorOptions(loc);
+      this._cachedActivationPatternOptions = [
+        { value: 'all', label: loc('options.activation_all') },
+        { value: 'sequential_forward', label: loc('options.activation_sequential_forward') },
+        { value: 'sequential_reverse', label: loc('options.activation_sequential_reverse') },
+        { value: 'random', label: loc('options.activation_random') },
+        { value: 'ping_pong', label: loc('options.activation_ping_pong') },
+        { value: 'center_out', label: loc('options.activation_center_out') },
+        { value: 'edges_in', label: loc('options.activation_edges_in') },
+        { value: 'paired', label: loc('options.activation_paired') },
+      ];
+    }
   }
+
+  private get _loopModeOptions() { return this._cachedLoopModeOptions; }
+  private get _endBehaviorOptions() { return this._cachedEndBehaviorOptions; }
+  private get _activationPatternOptions() { return this._cachedActivationPatternOptions; }
 
   static styles = [
     colorPickerStyles,

@@ -144,34 +144,42 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._steps = value;
   }
 
-  private get _loopModeOptions() { return loopModeOptions((k) => this._localize(k)); }
-  private get _endBehaviorOptions() { return endBehaviorOptions((k) => this._localize(k), 'dynamic_scene.end_behavior_restore'); }
+  private _cachedLoopModeOptions: { value: string; label: string }[] = [];
+  private _cachedEndBehaviorOptions: { value: string; label: string }[] = [];
+  private _cachedAudioColorAdvanceOptions: { value: string; label: string }[] = [];
+  private _cachedAudioDetectionModeOptions: { value: string; label: string }[] = [];
+  private _cachedDistributionModeOptions: { value: string; label: string }[] = [];
 
-  private get _audioColorAdvanceOptions() {
-    return [
-      { value: 'on_onset', label: this._localize('dynamic_scene.audio_mode_on_onset') || 'Color cycle' },
-      { value: 'continuous', label: this._localize('dynamic_scene.audio_mode_continuous') || 'Continuous' },
-      { value: 'beat_predictive', label: this._localize('dynamic_scene.audio_mode_beat_predictive') || 'Beat predictive' },
-      { value: 'intensity_breathing', label: this._localize('dynamic_scene.audio_mode_intensity_breathing') || 'Intensity breathing' },
-      { value: 'onset_flash', label: this._localize('dynamic_scene.audio_mode_onset_flash') || 'Brightness flash' },
-    ];
+  protected willUpdate(changedProps: PropertyValues): void {
+    if (changedProps.has('translations')) {
+      const loc = (k: string) => this._localize(k);
+      this._cachedLoopModeOptions = loopModeOptions(loc);
+      this._cachedEndBehaviorOptions = endBehaviorOptions(loc, 'dynamic_scene.end_behavior_restore');
+      this._cachedAudioColorAdvanceOptions = [
+        { value: 'on_onset', label: loc('dynamic_scene.audio_mode_on_onset') || 'Color cycle' },
+        { value: 'continuous', label: loc('dynamic_scene.audio_mode_continuous') || 'Continuous' },
+        { value: 'beat_predictive', label: loc('dynamic_scene.audio_mode_beat_predictive') || 'Beat predictive' },
+        { value: 'intensity_breathing', label: loc('dynamic_scene.audio_mode_intensity_breathing') || 'Intensity breathing' },
+        { value: 'onset_flash', label: loc('dynamic_scene.audio_mode_onset_flash') || 'Brightness flash' },
+      ];
+      this._cachedAudioDetectionModeOptions = [
+        { value: 'spectral_flux', label: loc('dynamic_scene.audio_detection_spectral_flux') || 'Spectral flux (all genres)' },
+        { value: 'bass_energy', label: loc('dynamic_scene.audio_detection_bass_energy') || 'Bass energy (rhythmic music)' },
+        { value: 'complex_domain', label: loc('dynamic_scene.audio_detection_complex_domain') || 'Complex domain (phase + magnitude)' },
+      ];
+      this._cachedDistributionModeOptions = [
+        { value: 'shuffle_rotate', label: loc('dynamic_scene.distribution_shuffle_rotate') || 'Shuffle and rotate' },
+        { value: 'synchronized', label: loc('dynamic_scene.distribution_synchronized') || 'Synchronized' },
+        { value: 'random', label: loc('dynamic_scene.distribution_random') || 'Random' },
+      ];
+    }
   }
 
-  private get _audioDetectionModeOptions() {
-    return [
-      { value: 'spectral_flux', label: this._localize('dynamic_scene.audio_detection_spectral_flux') || 'Spectral flux (all genres)' },
-      { value: 'bass_energy', label: this._localize('dynamic_scene.audio_detection_bass_energy') || 'Bass energy (rhythmic music)' },
-      { value: 'complex_domain', label: this._localize('dynamic_scene.audio_detection_complex_domain') || 'Complex domain (phase + magnitude)' },
-    ];
-  }
-
-  private get _distributionModeOptions() {
-    return [
-      { value: 'shuffle_rotate', label: this._localize('dynamic_scene.distribution_shuffle_rotate') || 'Shuffle and rotate' },
-      { value: 'synchronized', label: this._localize('dynamic_scene.distribution_synchronized') || 'Synchronized' },
-      { value: 'random', label: this._localize('dynamic_scene.distribution_random') || 'Random' },
-    ];
-  }
+  private get _loopModeOptions() { return this._cachedLoopModeOptions; }
+  private get _endBehaviorOptions() { return this._cachedEndBehaviorOptions; }
+  private get _audioColorAdvanceOptions() { return this._cachedAudioColorAdvanceOptions; }
+  private get _audioDetectionModeOptions() { return this._cachedAudioDetectionModeOptions; }
+  private get _distributionModeOptions() { return this._cachedDistributionModeOptions; }
 
   static styles = [
     colorPickerStyles,
