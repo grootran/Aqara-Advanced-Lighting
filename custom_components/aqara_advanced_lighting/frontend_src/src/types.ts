@@ -584,7 +584,6 @@ export interface RunningOperation {
   mode?: string;
   // Circadian/solar operation state
   current_color_temp?: number;
-  current_brightness?: number;
   // Auto-resume countdown (seconds remaining, present when externally paused)
   auto_resume_remaining?: number;
   override_attributes?: {

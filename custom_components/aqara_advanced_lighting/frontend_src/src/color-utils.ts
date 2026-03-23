@@ -120,21 +120,6 @@ export function rgbToHex(color: RGBColor): string {
 }
 
 /**
- * Convert hex color string to RGB
- *
- * @param hex - Hex color string (e.g., "#ff0000" or "ff0000")
- * @returns RGB color object
- */
-export function hexToRgb(hex: string): RGBColor {
-  const cleanHex = hex.replace('#', '');
-  return {
-    r: parseInt(cleanHex.slice(0, 2), 16),
-    g: parseInt(cleanHex.slice(2, 4), 16),
-    b: parseInt(cleanHex.slice(4, 6), 16),
-  };
-}
-
-/**
  * Convert XY to hex color string
  *
  * @param color - XY color object

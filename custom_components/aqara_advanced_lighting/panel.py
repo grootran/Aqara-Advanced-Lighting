@@ -131,8 +131,6 @@ async def async_register_panel(hass: HomeAssistant) -> None:
     # Register user presets endpoints
     hass.http.register_view(UserPresetsView)
     hass.http.register_view(UserPresetView)
-    hass.http.register_view(UserPresetDuplicateView)
-
     # Register preset backup/restore endpoints
     hass.http.register_view(ExportPresetsView)
     hass.http.register_view(ImportPresetsView)
@@ -720,48 +718,6 @@ class UserPresetView(HomeAssistantView):
             return web.Response(status=404, text="Preset not found")
 
         return web.Response(status=204)
-
-
-class UserPresetDuplicateView(HomeAssistantView):
-    """View to duplicate a user preset."""
-
-    url = f"/api/{DOMAIN}/user_presets/{{preset_type}}/{{preset_id}}/duplicate"
-    name = f"api:{DOMAIN}:user_preset_duplicate"
-    requires_auth = True
-
-    async def post(
-        self, request: web.Request, preset_type: str, preset_id: str
-    ) -> web.Response:
-        """Duplicate a user preset.
-
-        Body (optional):
-            name: Custom name for the duplicate
-        """
-        hass = request.app["hass"]
-
-        preset_store = get_preset_store(hass)
-        if not preset_store:
-            return web.Response(status=503, text="Preset store not initialized")
-
-        if preset_type not in VALID_PRESET_TYPES:
-            return web.Response(
-                status=400,
-                text=f"Invalid preset type. Valid types: {', '.join(VALID_PRESET_TYPES)}",
-            )
-
-        # Parse optional body for custom name
-        new_name = None
-        try:
-            body = await request.json()
-            new_name = body.get("name")
-        except ValueError:
-            pass  # No body or invalid JSON is fine
-
-        preset = await preset_store.duplicate_preset(preset_type, preset_id, new_name)
-        if not preset:
-            return web.Response(status=404, text="Source preset not found")
-
-        return web.json_response({"preset": preset}, status=201)
 
 
 def _get_user_preferences_store(
@@ -1620,17 +1576,10 @@ class SupportedEntitiesView(HomeAssistantView):
 
                 supported_entities[entity_id] = {
                     "entity_id": entity_id,
-                    "device_name": aqara_device.name,
-                    "z2m_friendly_name": aqara_device.name,  # backwards compat
+                    "z2m_friendly_name": aqara_device.name,
                     "model_id": model_id,
                     "device_type": device_type,
                     "entry_id": entry_id,
-                    "backend_type": backend_type,
-                    "z2m_base_topic": (
-                        entry.runtime_data.z2m_base_topic
-                        if backend_type == "z2m"
-                        else None
-                    ),
                     "ieee_address": aqara_device.identifier,
                     "segment_count": segment_count,
                 }
@@ -2138,7 +2087,6 @@ class RunningOperationsView(HomeAssistantView):
                         "entity_id": info["entity_id"],
                         "preset_id": info.get("preset_name"),
                         "current_color_temp": info["current_color_temp"],
-                        "current_brightness": info["current_brightness"],
                     }
                 )
 

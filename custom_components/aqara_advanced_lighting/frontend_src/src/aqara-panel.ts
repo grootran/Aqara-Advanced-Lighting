@@ -114,7 +114,7 @@ export class AqaraPanel extends LitElement {
   @state() private _colorHistory: XYColor[] = [];
   @state() private _backendVersion?: string;
   @state() private _frontendVersion = '__FRONTEND_VERSION__';
-  @state() private _supportedEntities: Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; ieee_address?: string; segment_count?: number; backend_type?: string; is_group?: boolean; member_count?: number }> = new Map();
+  @state() private _supportedEntities: Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; ieee_address?: string; segment_count?: number; is_group?: boolean; member_count?: number }> = new Map();
   @state() private _deviceZones: Map<string, Array<{ name: string; segments: string }>> = new Map();
   @state() private _zoneEditing: Map<string, Array<{ name: string; segments: string }>> = new Map();
   @state() private _zoneSaving = false;
@@ -813,7 +813,7 @@ export class AqaraPanel extends LitElement {
     try {
       const data = await this.hass.callApi<{ entities?: any[]; light_groups?: any[]; instances?: any[] }>('GET', 'aqara_advanced_lighting/supported_entities');
       // Build a map for fast lookup
-      const entityMap = new Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; ieee_address?: string; segment_count?: number; backend_type?: string; is_group?: boolean; member_count?: number }>();
+      const entityMap = new Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; ieee_address?: string; segment_count?: number; is_group?: boolean; member_count?: number }>();
       for (const entity of data.entities || []) {
         entityMap.set(entity.entity_id, {
           device_type: entity.device_type,
@@ -821,7 +821,6 @@ export class AqaraPanel extends LitElement {
           z2m_friendly_name: entity.z2m_friendly_name,
           ieee_address: entity.ieee_address,
           segment_count: entity.segment_count,
-          backend_type: entity.backend_type,
         });
       }
 
