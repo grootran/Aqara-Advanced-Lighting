@@ -52,8 +52,8 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
   @state() private _previewing = false;
   @state() private _hasUserInteraction = false;
 
-  private get _loopModeOptions() { return loopModeOptions(this._localize); }
-  private get _endBehaviorOptions() { return endBehaviorOptions(this._localize); }
+  private get _loopModeOptions() { return loopModeOptions((k) => this._localize(k)); }
+  private get _endBehaviorOptions() { return endBehaviorOptions((k) => this._localize(k)); }
 
   private get _modeOptions() {
     return [

@@ -54,8 +54,8 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
   // Note: Color picker modal is now handled by segment-selector component
   // No need for local color picker state
 
-  private get _loopModeOptions() { return loopModeOptions(this._localize); }
-  private get _endBehaviorOptions() { return endBehaviorOptions(this._localize); }
+  private get _loopModeOptions() { return loopModeOptions((k) => this._localize(k)); }
+  private get _endBehaviorOptions() { return endBehaviorOptions((k) => this._localize(k)); }
 
   // Note: Step mode options removed - now handled by segment-selector sub-tabs (Individual/Gradient/Blocks)
 

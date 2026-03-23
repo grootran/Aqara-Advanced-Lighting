@@ -144,8 +144,8 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._steps = value;
   }
 
-  private get _loopModeOptions() { return loopModeOptions(this._localize); }
-  private get _endBehaviorOptions() { return endBehaviorOptions(this._localize, 'dynamic_scene.end_behavior_restore'); }
+  private get _loopModeOptions() { return loopModeOptions((k) => this._localize(k)); }
+  private get _endBehaviorOptions() { return endBehaviorOptions((k) => this._localize(k), 'dynamic_scene.end_behavior_restore'); }
 
   private get _audioColorAdvanceOptions() {
     return [
