@@ -205,6 +205,59 @@ export class AqaraPanel extends LitElement {
     this._eventUnsubscribers = [];
   }
 
+  protected willUpdate(changedProps: PropertyValues): void {
+    super.willUpdate(changedProps);
+
+    // Clean up stale favorite preset references when the data they resolve against changes.
+    // This was previously done inside _getResolvedFavoritePresets() during render, which
+    // caused side effects (state mutation + API write) in the render path.
+    if (
+      changedProps.has('_favoritePresets') ||
+      changedProps.has('_presets') ||
+      changedProps.has('_userPresets')
+    ) {
+      this._cleanStaleFavoriteRefs();
+    }
+  }
+
+  /**
+   * Remove favorite refs that point to deleted presets.
+   * Called from willUpdate, not during render.
+   */
+  private _cleanStaleFavoriteRefs(): void {
+    if (this._favoritePresets.length === 0) return;
+
+    const valid = this._favoritePresets.filter(ref => {
+      switch (ref.type) {
+        case 'effect': {
+          for (const key of ['t2_bulb', 't1m', 't1_strip'] as const) {
+            if (this._presets?.dynamic_effects?.[key]?.some(p => p.id === ref.id)) return true;
+          }
+          return this._userPresets?.effect_presets?.some(p => p.id === ref.id) ?? false;
+        }
+        case 'segment_pattern':
+          return (this._presets?.segment_patterns?.some(p => p.id === ref.id) ?? false) ||
+                 (this._userPresets?.segment_pattern_presets?.some(p => p.id === ref.id) ?? false);
+        case 'cct_sequence':
+          return (this._presets?.cct_sequences?.some(p => p.id === ref.id) ?? false) ||
+                 (this._userPresets?.cct_sequence_presets?.some(p => p.id === ref.id) ?? false);
+        case 'segment_sequence':
+          return (this._presets?.segment_sequences?.some(p => p.id === ref.id) ?? false) ||
+                 (this._userPresets?.segment_sequence_presets?.some(p => p.id === ref.id) ?? false);
+        case 'dynamic_scene':
+          return (this._presets?.dynamic_scenes?.some(p => p.id === ref.id) ?? false) ||
+                 (this._userPresets?.dynamic_scene_presets?.some(p => p.id === ref.id) ?? false);
+        default:
+          return false;
+      }
+    });
+
+    if (valid.length !== this._favoritePresets.length) {
+      this._favoritePresets = valid;
+      this._saveUserPreferences();
+    }
+  }
+
   protected updated(changedProps: PropertyValues): void {
     super.updated(changedProps);
 
@@ -217,8 +270,10 @@ export class AqaraPanel extends LitElement {
       this._loadSupportedEntities();
     }
 
-    // Update tile card when selection or hass changes
-    this._updateTileCard();
+    // Update tile card only when relevant properties change
+    if (changedProps.has('hass') || changedProps.has('_selectedEntities') || changedProps.has('_activeTab')) {
+      this._updateTileCard();
+    }
   }
 
   private async _updateTileCard(): Promise<void> {
@@ -352,6 +407,8 @@ export class AqaraPanel extends LitElement {
     if (prefs.audio_override_silence_degradation !== undefined) this._audioOverrideSilenceDegradation = prefs.audio_override_silence_degradation;
     if (prefs.audio_override_prediction_aggressiveness !== undefined) this._audioOverridePredictionAggressiveness = prefs.audio_override_prediction_aggressiveness;
     if (prefs.audio_override_latency_compensation_ms !== undefined) this._audioOverrideLatencyCompensationMs = prefs.audio_override_latency_compensation_ms;
+    if (prefs.audio_override_color_by_frequency !== undefined) this._audioOverrideColorByFrequency = prefs.audio_override_color_by_frequency;
+    if (prefs.audio_override_rolloff_brightness !== undefined) this._audioOverrideRolloffBrightness = prefs.audio_override_rolloff_brightness;
     if (prefs.selected_entities && prefs.selected_entities.length > 0) {
       this._selectedEntities = prefs.selected_entities;
       this._activeFavoriteId = prefs.active_favorite_id ?? null;
@@ -504,6 +561,8 @@ export class AqaraPanel extends LitElement {
           audio_override_silence_degradation: this._audioOverrideSilenceDegradation,
           audio_override_prediction_aggressiveness: this._audioOverridePredictionAggressiveness,
           audio_override_latency_compensation_ms: this._audioOverrideLatencyCompensationMs,
+          audio_override_color_by_frequency: this._audioOverrideColorByFrequency,
+          audio_override_rolloff_brightness: this._audioOverrideRolloffBrightness,
           selected_entities: this._selectedEntities,
           active_favorite_id: this._activeFavoriteId,
         } as unknown as Record<string, unknown>
@@ -635,11 +694,7 @@ export class AqaraPanel extends LitElement {
       }
     }
 
-    // Clean up stale references to deleted presets
-    if (resolved.length !== this._favoritePresets.length) {
-      this._favoritePresets = resolved.map(r => r.ref);
-      this._saveUserPreferences();
-    }
+    // Stale reference cleanup is handled by _cleanStaleFavoriteRefs() in willUpdate()
 
     return resolved;
   }

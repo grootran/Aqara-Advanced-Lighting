@@ -394,6 +394,8 @@ export interface UserPreferences {
   audio_override_silence_degradation?: boolean;
   audio_override_prediction_aggressiveness?: number;
   audio_override_latency_compensation_ms?: number;
+  audio_override_color_by_frequency?: boolean;
+  audio_override_rolloff_brightness?: boolean;
   selected_entities?: string[];
   active_favorite_id?: string | null;
 }

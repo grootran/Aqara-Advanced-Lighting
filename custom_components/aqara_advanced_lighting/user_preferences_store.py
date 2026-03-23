@@ -45,6 +45,8 @@ class UserPreferences(TypedDict):
     audio_override_silence_degradation: bool
     audio_override_prediction_aggressiveness: int
     audio_override_latency_compensation_ms: int
+    audio_override_color_by_frequency: bool
+    audio_override_rolloff_brightness: bool
     selected_entities: list[str]
     active_favorite_id: str | None
 
@@ -69,6 +71,8 @@ DEFAULT_PREFERENCES: UserPreferences = {
     "audio_override_silence_degradation": True,
     "audio_override_prediction_aggressiveness": 50,
     "audio_override_latency_compensation_ms": 150,
+    "audio_override_color_by_frequency": False,
+    "audio_override_rolloff_brightness": False,
     "selected_entities": [],
     "active_favorite_id": None,
 }
@@ -161,6 +165,8 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
                 "audio_override_silence_degradation": prefs.get("audio_override_silence_degradation", True),
                 "audio_override_prediction_aggressiveness": prefs.get("audio_override_prediction_aggressiveness", 50),
                 "audio_override_latency_compensation_ms": prefs.get("audio_override_latency_compensation_ms", 150),
+                "audio_override_color_by_frequency": prefs.get("audio_override_color_by_frequency", False),
+                "audio_override_rolloff_brightness": prefs.get("audio_override_rolloff_brightness", False),
                 "selected_entities": prefs.get("selected_entities", []),
                 "active_favorite_id": prefs.get("active_favorite_id"),
             }
@@ -238,6 +244,8 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
         audio_override_silence_degradation: bool | None | _Unset = _UNSET,
         audio_override_prediction_aggressiveness: int | None | _Unset = _UNSET,
         audio_override_latency_compensation_ms: int | None | _Unset = _UNSET,
+        audio_override_color_by_frequency: bool | None | _Unset = _UNSET,
+        audio_override_rolloff_brightness: bool | None | _Unset = _UNSET,
         selected_entities: list[str] | None = None,
         active_favorite_id: str | None | _Unset = _UNSET,
     ) -> UserPreferences:
@@ -266,6 +274,8 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
             audio_override_silence_degradation: Whether silence degradation is enabled, or _UNSET to leave unchanged.
             audio_override_prediction_aggressiveness: Prediction aggressiveness (1-100), or _UNSET to leave unchanged.
             audio_override_latency_compensation_ms: Latency compensation in ms, or _UNSET to leave unchanged.
+            audio_override_color_by_frequency: Whether color-by-frequency is enabled, or _UNSET to leave unchanged.
+            audio_override_rolloff_brightness: Whether rolloff brightness is enabled, or _UNSET to leave unchanged.
 
         Returns:
             The full updated preferences.
@@ -331,6 +341,12 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
 
         if not isinstance(audio_override_latency_compensation_ms, _Unset):
             self._data[user_id]["audio_override_latency_compensation_ms"] = audio_override_latency_compensation_ms
+
+        if not isinstance(audio_override_color_by_frequency, _Unset):
+            self._data[user_id]["audio_override_color_by_frequency"] = audio_override_color_by_frequency
+
+        if not isinstance(audio_override_rolloff_brightness, _Unset):
+            self._data[user_id]["audio_override_rolloff_brightness"] = audio_override_rolloff_brightness
 
         if selected_entities is not None:
             self._data[user_id]["selected_entities"] = selected_entities

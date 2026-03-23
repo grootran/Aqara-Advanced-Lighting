@@ -928,6 +928,8 @@ class UserPreferencesView(HomeAssistantView):
         audio_override_silence_degradation = _UNSET
         audio_override_prediction_aggressiveness = _UNSET
         audio_override_latency_compensation_ms = _UNSET
+        audio_override_color_by_frequency = _UNSET
+        audio_override_rolloff_brightness = _UNSET
         selected_entities = None
         active_favorite_id = _UNSET
 
@@ -1076,6 +1078,20 @@ class UserPreferencesView(HomeAssistantView):
                 )
             audio_override_latency_compensation_ms = int(value)
 
+        if "audio_override_color_by_frequency" in data:
+            if not isinstance(data["audio_override_color_by_frequency"], bool):
+                return web.Response(
+                    status=400, text="audio_override_color_by_frequency must be a boolean"
+                )
+            audio_override_color_by_frequency = data["audio_override_color_by_frequency"]
+
+        if "audio_override_rolloff_brightness" in data:
+            if not isinstance(data["audio_override_rolloff_brightness"], bool):
+                return web.Response(
+                    status=400, text="audio_override_rolloff_brightness must be a boolean"
+                )
+            audio_override_rolloff_brightness = data["audio_override_rolloff_brightness"]
+
         if "selected_entities" in data:
             value = data["selected_entities"]
             if not isinstance(value, list) or not all(
@@ -1116,6 +1132,8 @@ class UserPreferencesView(HomeAssistantView):
             and audio_override_silence_degradation is _UNSET
             and audio_override_prediction_aggressiveness is _UNSET
             and audio_override_latency_compensation_ms is _UNSET
+            and audio_override_color_by_frequency is _UNSET
+            and audio_override_rolloff_brightness is _UNSET
             and selected_entities is None
             and active_favorite_id is _UNSET
         ):
@@ -1144,6 +1162,8 @@ class UserPreferencesView(HomeAssistantView):
             audio_override_silence_degradation=audio_override_silence_degradation,
             audio_override_prediction_aggressiveness=audio_override_prediction_aggressiveness,
             audio_override_latency_compensation_ms=audio_override_latency_compensation_ms,
+            audio_override_color_by_frequency=audio_override_color_by_frequency,
+            audio_override_rolloff_brightness=audio_override_rolloff_brightness,
             selected_entities=selected_entities,
             active_favorite_id=active_favorite_id,
         )
