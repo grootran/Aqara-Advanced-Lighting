@@ -2,8 +2,11 @@ import { LitElement, html, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { ref, createRef, Ref } from 'lit/directives/ref.js';
 import { panelStyles } from './styles';
-import { xyToRgb, rgbToXy, hsToRgb } from './color-utils';
+import { xyToRgb } from './color-utils';
 import { localize } from './editor-constants';
+import { getEntityFriendlyName, getEntityIcon, getEntityState, getEntityColor, hasRGBColorMode, hasCCTColorMode, getEntityDeviceType } from './entity-utils';
+import { findSiblingNumberEntity, findAllSiblingNumberEntities } from './sibling-entity-finder';
+import { builtinEffectToUser, builtinPatternToUser, builtinCCTToUser, builtinSegmentSequenceToUser, builtinDynamicSceneToUser } from './preset-duplicate';
 import {
   renderEffectThumbnail,
   renderSegmentPatternThumbnail,
@@ -1501,57 +1504,22 @@ export class AqaraPanel extends LitElement {
 
   private _getEntityFriendlyName(entityId: string): string {
     if (!this.hass) return entityId;
-    const state = this.hass.states[entityId];
-    if (state && state.attributes.friendly_name) {
-      return state.attributes.friendly_name as string;
-    }
-    return entityId.split('.')[1]?.replace(/_/g, ' ') || entityId;
+    return getEntityFriendlyName(this.hass, entityId);
   }
 
   private _getEntityIcon(entityId: string): string {
     if (!this.hass) return 'mdi:lightbulb';
-    const state = this.hass.states[entityId];
-    if (state) {
-      // Use the entity's icon if available
-      if (state.attributes.icon) {
-        return state.attributes.icon as string;
-      }
-      // Use default icon based on entity domain
-      const domain = entityId.split('.')[0];
-      if (domain === 'light') {
-        return 'mdi:lightbulb';
-      }
-    }
-    return 'mdi:lightbulb';
+    return getEntityIcon(this.hass, entityId);
   }
 
   private _getEntityState(entityId: string): string {
     if (!this.hass) return 'unavailable';
-    const state = this.hass.states[entityId];
-    return state ? state.state : 'unavailable';
+    return getEntityState(this.hass, entityId);
   }
 
   private _getEntityColor(entityId: string): string | null {
     if (!this.hass) return null;
-    const state = this.hass.states[entityId];
-    if (!state || state.state !== 'on') return null;
-
-    // Try to get RGB color
-    if (state.attributes.rgb_color) {
-      const [r, g, b] = state.attributes.rgb_color as number[];
-      return `rgb(${r}, ${g}, ${b})`;
-    }
-
-    // Try to get HS color and convert to RGB
-    if (state.attributes.hs_color && Array.isArray(state.attributes.hs_color)) {
-      const hsColor = state.attributes.hs_color as number[];
-      if (hsColor.length >= 2 && typeof hsColor[0] === 'number' && typeof hsColor[1] === 'number') {
-        const rgb = hsToRgb(hsColor[0], hsColor[1]);
-        return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
-      }
-    }
-
-    return null;
+    return getEntityColor(this.hass, entityId);
   }
 
   private _getSelectedDeviceTypes(): string[] {
@@ -1712,9 +1680,7 @@ export class AqaraPanel extends LitElement {
   // Effects: T2 RGB, T1M RGB, T1 Strip (entities with RGB effect_list)
   // Check if an entity has RGB color mode support (xy, hs, rgb, rgbw, rgbww)
   private _hasRGBColorMode(entity: { attributes: Record<string, unknown> }): boolean {
-    const colorModes = entity.attributes.supported_color_modes as string[] | undefined;
-    return !!colorModes && Array.isArray(colorModes) &&
-      colorModes.some(mode => ['xy', 'hs', 'rgb', 'rgbw', 'rgbww'].includes(mode));
+    return hasRGBColorMode(entity);
   }
 
   /**
@@ -1725,39 +1691,8 @@ export class AqaraPanel extends LitElement {
    * effect_list fallback for Z2M entities.
    */
   private _getEntityDeviceType(entityId: string): string | null {
-    const entity = this.hass?.states[entityId];
-    if (!entity) return null;
-
-    // Backend supported entities map is authoritative
-    const supportedEntity = this._supportedEntities.get(entityId);
-    if (supportedEntity) {
-      if (supportedEntity.device_type === 't1m') {
-        // Distinguish T1M RGB from T1M White using supported_color_modes
-        return this._hasRGBColorMode(entity) ? 't1m' : 't1m_white';
-      }
-      if (supportedEntity.device_type && supportedEntity.device_type !== 'unknown') {
-        return supportedEntity.device_type;
-      }
-    }
-
-    // Generic light classification when "include all lights" is on
-    if (this._includeAllLights) {
-      if (this._hasRGBColorMode(entity)) return 'generic_rgb';
-      const colorModes = entity.attributes.supported_color_modes as string[] | undefined;
-      if (colorModes?.includes('color_temp')) return 'generic_cct';
-    }
-
-    // Legacy fallback: detect from effect_list (Z2M only, ZHA lacks this)
-    const effectList = entity.attributes.effect_list as string[] | undefined;
-    if (effectList && Array.isArray(effectList)) {
-      if (effectList.includes('flow1') || effectList.includes('flow2') || effectList.includes('rolling')) return 't1m';
-      if (effectList.includes('rainbow1') || effectList.includes('rainbow2') || effectList.includes('chasing') || effectList.includes('flicker') || effectList.includes('dash')) return 't1_strip';
-      if (effectList.includes('candlelight')) return 't2_bulb';
-    } else if (!effectList && entity.attributes.color_temp_kelvin !== undefined) {
-      return 't2_cct';
-    }
-
-    return null;
+    if (!this.hass) return null;
+    return getEntityDeviceType(this.hass, entityId, this._supportedEntities, this._includeAllLights);
   }
 
   private _isEffectsCompatible(): boolean { return this._getEffectsCompatibleEntities().length > 0; }
@@ -2255,8 +2190,7 @@ export class AqaraPanel extends LitElement {
   // --- Running operations rendering and actions ---
 
   private _getEntityName(entityId: string): string {
-    const state = this.hass?.states?.[entityId];
-    return (state?.attributes?.friendly_name as string) || entityId;
+    return this._getEntityFriendlyName(entityId);
   }
 
   private _formatAutoResumeRemaining(seconds: number): string {
@@ -4223,8 +4157,7 @@ export class AqaraPanel extends LitElement {
   }
 
   private _hasCCTColorMode(entity: { attributes: Record<string, unknown> }): boolean {
-    const colorModes = entity.attributes.supported_color_modes as string[] | undefined;
-    return !!colorModes && Array.isArray(colorModes) && colorModes.includes('color_temp');
+    return hasCCTColorMode(entity);
   }
 
   private _getScenesCompatibleEntities(): string[] {
@@ -4858,17 +4791,7 @@ export class AqaraPanel extends LitElement {
 
   // Duplicate built-in preset methods - convert from built-in format to user format and open editor
   private _duplicateBuiltinEffectPreset(preset: DynamicEffectPreset, deviceType: string): void {
-    const userPreset: UserEffectPreset = {
-      id: '',
-      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
-      effect: preset.effect,
-      effect_speed: preset.speed,
-      effect_brightness: preset.brightness != null ? Math.round(preset.brightness / 255 * 100) : 100,
-      effect_colors: preset.colors.map((c) => rgbToXy(c[0]!, c[1]!, c[2]!)),
-      device_type: deviceType,
-      created_at: '',
-      modified_at: '',
-    };
+    const userPreset = builtinEffectToUser(preset, deviceType, this._localize('presets.copy_suffix'));
     this._clearEditorDraft('effects');
     this._editingPreset = { type: 'effect', preset: userPreset, isDuplicate: true };
     this._setActiveTab('effects');
@@ -4883,95 +4806,29 @@ export class AqaraPanel extends LitElement {
     }
   }
 
-  private _scaleSegmentPattern<T>(source: T[], targetCount: number): T[] {
-    const sourceCount = source.length;
-    if (targetCount < 1 || sourceCount < 1) return [];
-    if (targetCount === sourceCount) return [...source];
-    return Array.from({ length: targetCount }, (_, i) =>
-      source[Math.floor(i * sourceCount / targetCount)]!
-    );
-  }
-
   private _duplicateBuiltinPatternPreset(preset: SegmentPatternPreset, deviceType: string): void {
-    const targetCount = this._getDeviceSegmentCount(deviceType);
-    const scaled = this._scaleSegmentPattern(preset.segments, targetCount);
-    const userPreset: UserSegmentPatternPreset = {
-      id: '',
-      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
-      device_type: deviceType,
-      segments: scaled.map((seg, index) => ({
-        segment: index + 1,
-        color: { r: seg[0]!, g: seg[1]!, b: seg[2]! },
-      })),
-      created_at: '',
-      modified_at: '',
-    };
+    const userPreset = builtinPatternToUser(preset, deviceType, this._getDeviceSegmentCount(deviceType), this._localize('presets.copy_suffix'));
     this._clearEditorDraft('patterns');
     this._editingPreset = { type: 'pattern', preset: userPreset, isDuplicate: true };
     this._setActiveTab('patterns');
   }
 
   private _duplicateBuiltinCCTSequencePreset(preset: CCTSequencePreset): void {
-    const mode = (preset as any).mode as string | undefined;
-    const userPreset: UserCCTSequencePreset = {
-      id: '',
-      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
-      steps: mode ? [] : (preset.steps || []).map((step) => ({
-        ...step,
-        brightness: Math.round(step.brightness / 255 * 100),
-      })),
-      loop_mode: preset.loop_mode,
-      loop_count: preset.loop_count,
-      end_behavior: preset.end_behavior,
-      ...(mode === 'solar' ? { mode: 'solar', solar_steps: ((preset as any).solar_steps || []).map((s: any) => ({
-        ...s,
-        brightness: Math.round(s.brightness / 255 * 100),
-      })) } : {}),
-      ...(mode === 'schedule' ? { mode: 'schedule', schedule_steps: ((preset as any).schedule_steps || []).map((s: any) => ({
-        ...s,
-        brightness: Math.round(s.brightness / 255 * 100),
-      })) } : {}),
-      created_at: '',
-      modified_at: '',
-    };
+    const userPreset = builtinCCTToUser(preset, this._localize('presets.copy_suffix'));
     this._clearEditorDraft('cct');
     this._editingPreset = { type: 'cct', preset: userPreset, isDuplicate: true };
     this._setActiveTab('cct');
   }
 
   private _duplicateBuiltinSegmentSequencePreset(preset: SegmentSequencePreset, deviceType: string): void {
-    const userPreset: UserSegmentSequencePreset = {
-      id: '',
-      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
-      device_type: deviceType,
-      steps: preset.steps.map((step) => ({ ...step })),
-      loop_mode: preset.loop_mode,
-      loop_count: preset.loop_count,
-      end_behavior: preset.end_behavior,
-      created_at: '',
-      modified_at: '',
-    };
+    const userPreset = builtinSegmentSequenceToUser(preset, deviceType, this._localize('presets.copy_suffix'));
     this._clearEditorDraft('segments');
     this._editingPreset = { type: 'segment', preset: userPreset, isDuplicate: true };
     this._setActiveTab('segments');
   }
 
   private _duplicateBuiltinDynamicScenePreset(preset: DynamicScenePreset): void {
-    const userPreset: UserDynamicScenePreset = {
-      id: '',
-      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
-      colors: preset.colors.map((color) => ({ ...color })),
-      transition_time: preset.transition_time,
-      hold_time: preset.hold_time,
-      distribution_mode: preset.distribution_mode,
-      offset_delay: preset.offset_delay,
-      random_order: preset.random_order,
-      loop_mode: preset.loop_mode,
-      loop_count: preset.loop_count,
-      end_behavior: preset.end_behavior,
-      created_at: '',
-      modified_at: '',
-    };
+    const userPreset = builtinDynamicSceneToUser(preset, this._localize('presets.copy_suffix'));
     this._clearEditorDraft('scenes');
     this._editingPreset = { type: 'dynamic_scene', preset: userPreset, isDuplicate: true };
     this._setActiveTab('scenes');
@@ -6383,68 +6240,12 @@ export class AqaraPanel extends LitElement {
    */
   private _findSiblingNumberEntity(lightEntityId: string, suffix: string): string | undefined {
     if (!this.hass) return undefined;
-
-    // Pattern 1: Direct name substitution (works for Z2M standard naming)
-    const baseName = lightEntityId.replace('light.', '');
-    const directId = `number.${baseName}_${suffix}`;
-    if (this.hass.states[directId]) return directId;
-
-    // Pattern 2: Z2M friendly name from backend metadata
-    const supportedEntity = this._supportedEntities.get(lightEntityId);
-    if (supportedEntity?.z2m_friendly_name) {
-      const z2mBase = supportedEntity.z2m_friendly_name.toLowerCase().replace(/\s+/g, '_');
-      const z2mId = `number.${z2mBase}_${suffix}`;
-      if (this.hass.states[z2mId]) return z2mId;
-    }
-
-    // Pattern 3: HA device registry lookup (works for ZHA where entity naming differs)
-    if (this.hass.entities) {
-      const lightEntry = this.hass.entities[lightEntityId];
-      if (lightEntry?.device_id) {
-        for (const [eid, entry] of Object.entries(this.hass.entities)) {
-          if (
-            entry.device_id === lightEntry.device_id &&
-            eid.startsWith('number.') &&
-            eid.endsWith(`_${suffix}`)
-          ) {
-            if (this.hass.states[eid]) return eid;
-          }
-        }
-      }
-    }
-
-    // Pattern 4: Fuzzy word match (last resort)
-    const deviceWords = baseName.toLowerCase().split('_');
-    if (deviceWords.length >= 2) {
-      for (const eid of Object.keys(this.hass.states)) {
-        if (eid.startsWith('number.') && eid.endsWith(`_${suffix}`)) {
-          const stateBase = eid.slice(7, eid.length - suffix.length - 1).toLowerCase();
-          const stateWords = stateBase.split('_');
-          if (stateWords.length >= 2 &&
-              deviceWords[0] === stateWords[0] && deviceWords[1] === stateWords[1]) {
-            return eid;
-          }
-        }
-      }
-    }
-
-    return undefined;
+    return findSiblingNumberEntity(this.hass, this._supportedEntities, lightEntityId, suffix);
   }
 
-  /**
-   * Find sibling number entities for multiple light entities.
-   * Returns unique results only.
-   */
   private _findAllSiblingNumberEntities(lightEntityIds: string[], suffix: string): string[] {
     if (!this.hass) return [];
-    const results: string[] = [];
-    for (const lightId of lightEntityIds) {
-      const found = this._findSiblingNumberEntity(lightId, suffix);
-      if (found && !results.includes(found)) {
-        results.push(found);
-      }
-    }
-    return results;
+    return findAllSiblingNumberEntities(this.hass, this._supportedEntities, lightEntityIds, suffix);
   }
 
   private _findTransitionCurveEntity(): string | undefined {
