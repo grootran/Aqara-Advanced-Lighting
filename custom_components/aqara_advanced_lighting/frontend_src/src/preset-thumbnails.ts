@@ -200,7 +200,12 @@ function kelvinToHex(kelvin: number): string {
 // ---------------------------------------------------------------------------
 
 function wrapSvg(innerContent: string): string {
-  return `<svg viewBox="0 0 ${SIZE} ${SIZE}" xmlns="http://www.w3.org/2000/svg">${innerContent}</svg>`;
+  // Crop viewBox to circle bounds (CX-R, CY-R, 2*R, 2*R) so the circle
+  // fills the container edge-to-edge, matching image thumbnail sizing.
+  const vbX = CX - R;
+  const vbY = CY - R;
+  const vbSize = R * 2;
+  return `<svg viewBox="${vbX} ${vbY} ${vbSize} ${vbSize}" xmlns="http://www.w3.org/2000/svg">${innerContent}</svg>`;
 }
 
 
