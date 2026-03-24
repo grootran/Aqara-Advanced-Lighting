@@ -3,7 +3,7 @@
 import math
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, TypeAlias
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 
@@ -648,5 +648,5 @@ class AqaraLightingRuntimeData:
     entity_mapping_ready: bool = False
     aqara_devices: dict[str, AqaraDevice] = field(default_factory=dict)
 
-# Type alias for typed config entry (Python 3.11+ compatible)
-AqaraLightingConfigEntry: TypeAlias = ConfigEntry[AqaraLightingRuntimeData]
+# Type alias for typed config entry
+type AqaraLightingConfigEntry = ConfigEntry[AqaraLightingRuntimeData]
