@@ -95,7 +95,7 @@ class EffectType(StrEnum):
     # T2 Bulb specific effects
     CANDLELIGHT = "candlelight"
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class RGBColor:
     """RGB color representation."""
 
@@ -124,7 +124,7 @@ class RGBColor:
             msg = f"Blue value must be 0-255, got {self.b}"
             raise ValueError(msg)
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class XYColor:
     """CIE 1931 XY color representation with brightness.
 
@@ -225,7 +225,7 @@ class XYColor:
             msg = f"Brightness must be 1-255, got {self.brightness}"
             raise ValueError(msg)
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class DynamicSceneColor:
     """Single color in a dynamic scene palette with per-color brightness."""
 
@@ -268,7 +268,7 @@ class DynamicSceneColor:
             msg = f"Brightness percentage must be 1-100, got {self.brightness_pct}"
             raise ValueError(msg)
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class SegmentColor:
     """Segment color assignment for individual segment patterns."""
 
@@ -289,7 +289,7 @@ class SegmentColor:
             msg = f"Brightness must be 1-255, got {self.brightness}"
             raise ValueError(msg)
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class DynamicEffect:
     """Dynamic effect configuration."""
 
@@ -415,7 +415,7 @@ class Z2MDevice:
     manufacturer: str
     supported: bool = True
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class CCTSequenceStep:
     """Single step in a CCT dynamic sequence."""
 
@@ -474,7 +474,7 @@ class CCTSequence:
                 len(self.steps), self.loop_mode, self.loop_count, self.end_behavior
             )
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class SegmentSequenceStep:
     """Single step in an RGB segment sequence."""
 
