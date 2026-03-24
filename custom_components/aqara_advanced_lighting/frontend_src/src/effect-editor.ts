@@ -4,7 +4,7 @@ import { HomeAssistant, RGBColor, XYColor, UserEffectPreset, DeviceContext, Effe
 import { xyToHex, rgbToXy, getComplementaryColor } from './color-utils';
 import { colorPickerStyles } from './styles/color-picker';
 import { addColorToHistory } from './color-history';
-import { ALL_DEVICE_LABELS, editorFormStyles, localize, hasNewHaDialog, dialogHeadingLegacy, dialogActions } from './editor-constants';
+import { ALL_DEVICE_LABELS, editorFormStyles, localize, dialogActions } from './editor-constants';
 import './xy-color-picker';
 import './color-history-swatches';
 
@@ -555,26 +555,15 @@ export class EffectEditor extends LitElement {
         <ha-dialog
           .open=${this._editingColorIndex !== null && this._editingColor !== null}
           @closed=${this._closeColorPicker}
-          .headerTitle=${hasNewHaDialog() ? this._localize('editors.color_picker_title') : undefined}
-          .heading=${!hasNewHaDialog() ? dialogHeadingLegacy(
-            this._localize('editors.color_picker_title'),
-            this._editingColor ? html`
-              <div
-                class="color-picker-modal-preview"
-                style="background-color: ${xyToHex(this._editingColor)}"
-              ></div>
-            ` : undefined,
-          ) : undefined}
+          .headerTitle=${this._localize('editors.color_picker_title')}
         >
-          ${hasNewHaDialog() ? html`
-            <span slot="headerNavigationIcon"></span>
-            ${this._editingColor ? html`
-              <div
-                slot="headerActionItems"
-                class="color-picker-modal-preview"
-                style="background-color: ${xyToHex(this._editingColor)}"
-              ></div>
-            ` : ''}
+          <span slot="headerNavigationIcon"></span>
+          ${this._editingColor ? html`
+            <div
+              slot="headerActionItems"
+              class="color-picker-modal-preview"
+              style="background-color: ${xyToHex(this._editingColor)}"
+            ></div>
           ` : ''}
           ${this._editingColor ? html`
             <xy-color-picker

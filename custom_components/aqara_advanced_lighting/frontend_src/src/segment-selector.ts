@@ -26,7 +26,7 @@ import {
   getComplementaryColor,
 } from './color-utils';
 import { addColorToHistory } from './color-history';
-import { hasNewHaDialog, dialogHeadingLegacy, dialogActions, localize, DEFAULT_PALETTE, DEFAULT_GRADIENT_COLORS, DEFAULT_BLOCK_COLORS } from './editor-constants';
+import { dialogActions, localize, DEFAULT_PALETTE, DEFAULT_GRADIENT_COLORS, DEFAULT_BLOCK_COLORS } from './editor-constants';
 import './color-history-swatches';
 
 // Component mode types
@@ -2068,25 +2068,14 @@ export class SegmentSelector extends LitElement {
       <ha-dialog
         open
         @closed=${this._closeColorPicker}
-        .headerTitle=${hasNewHaDialog() ? this._localize('editors.color_picker_title') : undefined}
-        .heading=${!hasNewHaDialog() ? dialogHeadingLegacy(
-          this._localize('editors.color_picker_title'),
-          html`
-            <div
-              class="color-picker-modal-preview"
-              style="background-color: ${accurateHex}"
-            ></div>
-          `,
-        ) : undefined}
+        .headerTitle=${this._localize('editors.color_picker_title')}
       >
-        ${hasNewHaDialog() ? html`
-          <span slot="headerNavigationIcon"></span>
-          <div
-            slot="headerActionItems"
-            class="color-picker-modal-preview"
-            style="background-color: ${accurateHex}"
-          ></div>
-        ` : ''}
+        <span slot="headerNavigationIcon"></span>
+        <div
+          slot="headerActionItems"
+          class="color-picker-modal-preview"
+          style="background-color: ${accurateHex}"
+        ></div>
         <div class="color-picker-canvas-container">
           ${this._renderColorWheel()}
         </div>
