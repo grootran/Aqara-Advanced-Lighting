@@ -1021,18 +1021,19 @@ class DynamicSceneManager:
         """Initialize color indices for each light based on distribution mode."""
         indices: dict[str, int] = {}
 
-        if distribution_mode == "synchronized":
-            # All lights start at color 0
-            for entity_id in light_order:
-                indices[entity_id] = 0
-        elif distribution_mode == "shuffle_rotate":
-            # Distribute lights across colors
-            for i, entity_id in enumerate(light_order):
-                indices[entity_id] = i % num_colors
-        elif distribution_mode == "random":
-            # Random starting color for each light
-            for entity_id in light_order:
-                indices[entity_id] = random.randint(0, num_colors - 1)
+        match distribution_mode:
+            case "synchronized":
+                # All lights start at color 0
+                for entity_id in light_order:
+                    indices[entity_id] = 0
+            case "shuffle_rotate":
+                # Distribute lights across colors
+                for i, entity_id in enumerate(light_order):
+                    indices[entity_id] = i % num_colors
+            case "random":
+                # Random starting color for each light
+                for entity_id in light_order:
+                    indices[entity_id] = random.randint(0, num_colors - 1)
 
         return indices
 
@@ -1519,37 +1520,38 @@ class DynamicSceneManager:
         scene = scene_state.scene
         num_colors = len(scene.colors)
 
-        if scene.distribution_mode == "synchronized":
-            # All lights move to next color together
-            scene_state.current_color_index = (
-                scene_state.current_color_index + 1
-            ) % num_colors
-            for entity_id in scene_state.light_color_indices:
-                scene_state.light_color_indices[entity_id] = (
-                    scene_state.current_color_index
-                )
-
-        elif scene.distribution_mode == "shuffle_rotate":
-            # All lights advance by 1
-            scene_state.current_color_index = (
-                scene_state.current_color_index + 1
-            ) % num_colors
-            for entity_id in scene_state.light_color_indices:
-                scene_state.light_color_indices[entity_id] = (
-                    scene_state.light_color_indices[entity_id] + 1
+        match scene.distribution_mode:
+            case "synchronized":
+                # All lights move to next color together
+                scene_state.current_color_index = (
+                    scene_state.current_color_index + 1
                 ) % num_colors
+                for entity_id in scene_state.light_color_indices:
+                    scene_state.light_color_indices[entity_id] = (
+                        scene_state.current_color_index
+                    )
 
-        elif scene.distribution_mode == "random":
-            # Each light picks a new color using smart selection
-            # (avoids transitions through white point)
-            scene_state.current_color_index = (
-                scene_state.current_color_index + 1
-            ) % num_colors
-            for entity_id in scene_state.light_color_indices:
-                current_idx = scene_state.light_color_indices[entity_id]
-                scene_state.light_color_indices[entity_id] = (
-                    self._get_smart_next_color(current_idx, scene.colors)
-                )
+            case "shuffle_rotate":
+                # All lights advance by 1
+                scene_state.current_color_index = (
+                    scene_state.current_color_index + 1
+                ) % num_colors
+                for entity_id in scene_state.light_color_indices:
+                    scene_state.light_color_indices[entity_id] = (
+                        scene_state.light_color_indices[entity_id] + 1
+                    ) % num_colors
+
+            case "random":
+                # Each light picks a new color using smart selection
+                # (avoids transitions through white point)
+                scene_state.current_color_index = (
+                    scene_state.current_color_index + 1
+                ) % num_colors
+                for entity_id in scene_state.light_color_indices:
+                    current_idx = scene_state.light_color_indices[entity_id]
+                    scene_state.light_color_indices[entity_id] = (
+                        self._get_smart_next_color(current_idx, scene.colors)
+                    )
 
     async def _activate_music_sync(
         self, entity_id: str, t1_params: dict[str, str]
@@ -1638,18 +1640,19 @@ class DynamicSceneManager:
     def _create_audio_handler(self, scene: DynamicScene) -> AudioModeHandler:
         """Create the appropriate audio mode handler for the scene."""
         mode = scene.audio_color_advance
-        if mode == AUDIO_COLOR_ADVANCE_CONTINUOUS:
-            return ContinuousHandler(self)
-        elif mode == AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE:
-            handler = BeatPredictiveHandler(self, self.hass)
-            handler.configure(scene)
-            return handler
-        elif mode == AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING:
-            return IntensityBreathingHandler(self)
-        elif mode == AUDIO_COLOR_ADVANCE_ONSET_FLASH:
-            return OnsetFlashHandler(self)
-        else:  # on_onset is default
-            return OnsetHandler(self)
+        match mode:
+            case "continuous":
+                return ContinuousHandler(self)
+            case "beat_predictive":
+                handler = BeatPredictiveHandler(self, self.hass)
+                handler.configure(scene)
+                return handler
+            case "intensity_breathing":
+                return IntensityBreathingHandler(self)
+            case "onset_flash":
+                return OnsetFlashHandler(self)
+            case _:  # on_onset is default
+                return OnsetHandler(self)
 
     @staticmethod
     def _split_frequency_zones(
