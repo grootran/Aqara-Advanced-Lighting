@@ -86,7 +86,7 @@ See the [Getting started guide](docs/getting-started.md) for detailed installati
 
 ## Requirements
 
-- Home Assistant 2025.12.0 or newer (recommended 2026.3.0+)
+- Home Assistant 2026.3.0 or newer
 - Supported Aqara light devices with Zigbee firmware (see table above)
 - **One or both** Zigbee backends:
   - **Zigbee2MQTT**: MQTT integration & Zigbee2MQTT 2.7.2+ (recommended 2.9.0+)

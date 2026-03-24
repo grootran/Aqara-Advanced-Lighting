@@ -4,6 +4,10 @@ All notable changes to the Aqara Advanced Lighting integration will be documente
 
 ## [1.2.0] - 2026-03-24
 
+### Breaking Changes
+
+- **Minimum Home Assistant version raised to 2026.3.0** — Removes legacy backwards compatibility for pre-WebAwesome ha-dialog components.
+
 ### What's New
 
 Version 1.2.0 introduces audio-reactive lighting for dynamic scenes, a Lovelace preset favorites card, the ability to hide build-in presets, and a major codebase refactor for maintainability. It also adds CCT slider support in the color picker, allows CCT-only lights in dynamic scenes, and selected Favorite lights now presist across reloads and devices.
