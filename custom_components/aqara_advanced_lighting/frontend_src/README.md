@@ -14,31 +14,53 @@ npm install
 
 ## Build
 
-Build the production bundle:
+Build the production bundles:
 
 ```bash
 npm run build
 ```
 
-This creates `aqara_panel.js` in the `../frontend/` directory as a single IIFE bundle (~477 KB minified).
+This creates two bundles in `../frontend/`:
+- `aqara_panel.js` — main sidebar panel (IIFE, minified)
+- `aqara_preset_favorites_card.js` — Lovelace card for preset favorites
 
 Other scripts:
 
 - `npm run watch` - Watch mode for development (rebuilds on file changes)
-- `npm run clean` - Remove the built bundle
+- `npm run clean` - Remove the built bundles
 
 ## Project structure
 
 ```
 frontend_src/
 ├── package.json                       # Dependencies and build scripts
-├── rollup.config.js                   # Rollup build config (IIFE output, Terser minification)
+├── rollup.base.js                     # Shared Rollup plugins and Terser config
+├── rollup.config.js                   # Panel bundle config (imports rollup.base.js)
+├── rollup.card.config.js              # Card bundle config (imports rollup.base.js)
 ├── tsconfig.json                      # TypeScript config (ES2020 target, strict mode)
 ├── src/
-│   ├── index.ts                       # Entry point - registers panel custom elements
-│   ├── aqara-panel.ts                 # Main panel component (tabs, presets, entities, favorites, state)
-│   ├── types.ts                       # TypeScript interfaces, union types, preset type definitions
-│   ├── styles.ts                      # Centralized Lit CSS with HA theme integration
+│   ├── index.ts                       # Panel entry point - registers custom elements
+│   ├── card-index.ts                  # Card entry point - registers card element
+│   │
+│   │── Panel core
+│   ├── aqara-panel.ts                 # Main panel shell (tabs, presets, entities, favorites)
+│   ├── running-operations.ts          # <aqara-running-operations> — active effects/sequences/scenes
+│   ├── config-tab.ts                  # <aqara-config-tab> — device settings, transitions, zones
+│   ├── preferences-controller.ts      # Lit ReactiveController for user/global preferences
+│   ├── types.ts                       # TypeScript interfaces, union types, preset definitions
+│   │
+│   │── Styles (modular CSS)
+│   ├── styles/
+│   │   ├── index.ts                   # Barrel re-exports all style modules
+│   │   ├── base.ts                    # :host, icon-button fix, scrollbar resets
+│   │   ├── panel-scaffold.ts          # Header, toolbar, tabs, content layout
+│   │   ├── panel-sections.ts          # Expansion panels, section headers, sort controls
+│   │   ├── panel-presets.ts           # Preset buttons, user preset cards, management UI
+│   │   ├── panel-activate.ts          # Target input, favorites, music sync
+│   │   ├── panel-config.ts            # Transitions, dimming, curvature, instances, zones
+│   │   ├── panel-editor-host.ts       # Step lists, segment grid, empty states
+│   │   ├── shared-form.ts            # Merged panel + editor form rules
+│   │   └── color-picker.ts           # Color picker and palette styles
 │   │
 │   │── Editor components
 │   ├── effect-editor.ts               # Effect presets (type, colors, speed, segment targeting)
@@ -46,10 +68,10 @@ frontend_src/
 │   ├── cct-sequence-editor.ts         # CCT sequences (standard/solar/schedule modes)
 │   ├── segment-sequence-editor.ts     # Segment sequences (per-step segment colors, pattern modes)
 │   ├── dynamic-scene-editor.ts        # Dynamic scenes (color reorder, transition/hold/distribution)
-│   ├── editor-constants.ts            # Shared utilities, HA 2026.3 compat helpers, form CSS
+│   ├── editor-constants.ts            # Shared utilities, HA 2026.3 compat helpers, option factories
 │   │
 │   │── Color and picker components
-│   ├── color-utils.ts                 # Color space conversions (XY/CIE 1931, RGB, Hex, HS)
+│   ├── color-utils.ts                 # Color space conversions (XY/CIE 1931, RGB, Hex, HS, Kelvin)
 │   ├── color-history.ts               # Immutable color history (max 8, server-persisted)
 │   ├── color-history-swatches.ts      # Clickable recent color swatch component
 │   ├── xy-color-picker.ts             # Circular HSL color wheel with RGB text inputs
@@ -60,9 +82,15 @@ frontend_src/
 │   ├── reorderable-steps-mixin.ts     # Drag-drop step reordering mixin with auto-scroll
 │   ├── transition-curve-editor.ts     # Canvas-based Bezier curve editor for T2 transitions
 │   │
-│   │── Utilities
+│   │── Extracted utility modules
+│   ├── entity-utils.ts                # Entity helpers (friendly name, icon, state, color, device type)
+│   ├── sibling-entity-finder.ts       # ZHA/Z2M number entity discovery (4-strategy lookup)
+│   ├── preset-duplicate.ts            # Builtin-to-user preset conversion functions
+│   │
+│   │── Other utilities
 │   ├── preset-thumbnails.ts           # SVG thumbnail generators for preset previews (memoized)
-│   └── panel-translations.ts          # Translation loader (embeds translations in bundle)
+│   ├── panel-translations.ts          # Translation loader (embeds translations in bundle)
+│   └── aqara-preset-favorites-card.ts # Lovelace card for quick preset activation
 └── translations/
     ├── panel.en.json                  # English UI strings
     └── README.md                      # Translation documentation
@@ -72,7 +100,8 @@ Built output:
 
 ```
 frontend/
-├── aqara_panel.js                     # Production bundle (~477 KB, minified IIFE)
+├── aqara_panel.js                     # Panel bundle (minified IIFE)
+├── aqara_preset_favorites_card.js     # Card bundle (minified IIFE)
 └── icons/                             # SVG effect and preset template icons
 ```
 
@@ -81,9 +110,11 @@ frontend/
 ### Component hierarchy
 
 ```
-aqara-panel.ts (main shell)
+aqara-panel.ts (main shell, ~4500 lines)
+├── PreferencesController              # Manages user/global prefs load/save/debounce
 ├── Tab navigation (ha-tab-group)
 ├── Activate tab - entity selection, light control tiles, favorites
+│   └── running-operations.ts          # Self-contained running ops display and controls
 ├── Effects tab
 │   └── effect-editor.ts
 ├── Patterns tab
@@ -101,16 +132,21 @@ aqara-panel.ts (main shell)
 │       ├── xy-color-picker.ts
 │       ├── color-history-swatches.ts
 │       └── image-color-extractor.ts
-└── Config tab - device settings, transition curves
-    └── transition-curve-editor.ts
+└── Config tab
+    └── config-tab.ts                  # Self-contained device settings, zones, curvature
+        └── transition-curve-editor.ts
 ```
 
 ### Key patterns
 
 - **Web components** - Lit 3.x with TypeScript decorators (`@customElement`, `@property`, `@state`)
+- **Reactive controller** - `PreferencesController` owns 35 preference fields with debounced API persistence, decoupling preference state from the panel component
+- **Self-contained subcomponents** - `<aqara-running-operations>` and `<aqara-config-tab>` manage their own rendering, internal state, and service calls, communicating back to the parent via custom events (`operations-changed`, `collapsed-changed`, `global-preferences-changed`, `toast`)
 - **Color model** - All colors stored and transmitted in XY (CIE 1931); converted to RGB/Hex/HS for the UI via `color-utils.ts` with proper gamma correction
 - **Modular editors** - Each preset type (effects, patterns, CCT sequences, segment sequences, dynamic scenes) has a dedicated editor component
-- **Shared editor infrastructure** - `editor-constants.ts` provides `DEVICE_LABELS`, `DEFAULT_SPEED`, shared form CSS (`editorFormStyles`), a `localize()` helper, and HA version compatibility detection
+- **Modular styles** - CSS is split into 10 scoped modules under `styles/`. Components import only the modules they need. `shared-form.ts` is shared between the panel and all editor components
+- **Shared editor infrastructure** - `editor-constants.ts` provides `DEVICE_LABELS`, default color palettes, option list factories (`loopModeOptions`, `endBehaviorOptions`), a `localize()` helper, and HA version compatibility detection
+- **Extracted utilities** - Pure functions for entity info, sibling entity discovery, and preset duplication live in dedicated modules, reusable across components
 - **Reorderable steps** - `ReorderableStepsMixin` adds pointer-event-based drag-and-drop with auto-scroll to sequence editors
 - **Theme integration** - Styles use Home Assistant CSS custom properties for consistent theming, with both `--mdc-*` and `--ha-*` variable families for cross-version support
 - **Translation system** - English translations from `translations/panel.en.json` are embedded at build time. Add `panel.{locale}.json` files and update `panel-translations.ts` to support additional languages
@@ -128,7 +164,8 @@ Preset availability and editor capabilities adapt based on device type. The pane
 2. User edits create draft state managed by Lit `@state()` decorators
 3. Save operations call backend API endpoints to persist presets
 4. Activation calls `hass.callService` to trigger sequences, effects, or scenes
-5. User preferences (color history, favorites) are persisted server-side via the `/api/aqara_advanced_lighting/user_preferences` endpoint
+5. User preferences (color history, favorites, sort order, collapsed state) are managed by `PreferencesController` with debounced persistence via `/api/aqara_advanced_lighting/user_preferences`
+6. Subcomponents communicate state changes to the parent via custom events
 
 ### HA 2026.3 compatibility
 
@@ -140,23 +177,29 @@ The frontend supports both pre-2026.3 (MDC-based) and 2026.3+ (WebAwesome-based)
 
 ### Performance optimizations
 
+- **Memoized option lists** - Editor option arrays are cached in `willUpdate()` and rebuilt only when translations change
+- **O(1) preset lookup** - `_presetLookup` Map replaces O(n) linear scans for resolving preset names/icons
+- **Cached gradients** - CCT gradient strings and theme colors are computed once and recomputed only when inputs change
+- **Debounced saves** - `PreferencesController` coalesces rapid preference mutations into a single API write after 500ms
 - **DOM query caching** - Drag-and-drop mixin caches parent element references during drag sessions
 - **Memoized thumbnails** - `preset-thumbnails.ts` uses a bounded LRU cache (64 entries) for merged segment computation
 - **Canvas redraw guard** - Color wheel only redraws when component size changes
-- **RGB input caching** - Color picker caches input element references for continuous updates during dragging
+- **Deferred loading** - `_loadSupportedEntities` defers until version check confirms setup is complete
 
 ## Build pipeline
 
-Rollup processes the bundle through these plugins in order:
+Shared build configuration lives in `rollup.base.js`. Both panel and card configs import `sharedPlugins` from it.
+
+Rollup processes each bundle through these plugins in order:
 
 1. **Replace** - Injects `__FRONTEND_VERSION__` from `package.json`
 2. **JSON** - Enables importing translation JSON files
 3. **Node Resolve** - Resolves npm dependencies for the browser
 4. **CommonJS** - Converts CommonJS modules to ES modules
 5. **TypeScript** - Compiles TypeScript with strict type checking
-6. **Terser** - Minifies output, removes console statements and comments
+6. **Terser** - Minifies output, strips `console.log` calls and comments in production
 
-The output is a single IIFE file (`../frontend/aqara_panel.js`) that Home Assistant serves automatically when the integration is loaded. No additional configuration is needed.
+The output is two IIFE files in `../frontend/` that Home Assistant serves automatically when the integration is loaded. No additional configuration is needed.
 
 ## Technology stack
 
