@@ -47,6 +47,7 @@ body:
         - CCT Sequence (Schedule)
         - RGB Segment Sequence
         - Dynamic Scene
+        - Audio-Reactive
         - Mixed/Combination
     validations:
       required: true
@@ -66,6 +67,7 @@ body:
         - T2 RGB/CCT bulb (GU10)
         - Any CCT-capable light (for solar/schedule presets)
         - Any RGB-capable light (for dynamic scene presets)
+        - Any light with ESPHome audio sensor (for audio-reactive presets)
     validations:
       required: true
 
@@ -178,6 +180,12 @@ body:
         For schedule presets:
         - **sunset-30**: Begin winding down 30 minutes before sunset
         - **sunrise+60**: Reach full brightness one hour after sunrise
+
+        For audio-reactive presets:
+        - **Detection Mode (spectral_flux)**: Good for all genres
+        - **Color Advance (beat_predictive)**: Learns tempo for tight sync
+        - **Sensitivity (75)**: High enough for quiet sections
+        - **Latency Compensation (80ms)**: Tuned for Zigbee round-trip
     validations:
       required: false
 
@@ -207,20 +215,6 @@ body:
         - Varies by time of day (solar/schedule presets)
     validations:
       required: true
-
-  - type: textarea
-    id: screenshots_videos
-    attributes:
-      label: Screenshots/Videos
-      description: |
-        Add screenshots or videos showing the preset in action
-        Drag and drop images or paste video links directly
-
-        **Tip:** Videos are especially helpful for dynamic effects!
-      placeholder: |
-        Drag and drop images here or paste YouTube/Imgur links
-    validations:
-      required: false
 
   - type: textarea
     id: color_palette
