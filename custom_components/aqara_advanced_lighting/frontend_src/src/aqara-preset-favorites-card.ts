@@ -1092,8 +1092,8 @@ export class AqaraPresetFavoritesCard extends LitElement {
     }
 
     .preset-icon {
-      width: 48px;
-      height: 48px;
+      width: 56px;
+      height: 56px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -1108,14 +1108,10 @@ export class AqaraPresetFavoritesCard extends LitElement {
       border-radius: 50%;
     }
 
-    .preset-icon svg.gradient-thumb {
-      border-radius: 4px;
-    }
-
     .preset-icon ha-icon {
       width: 100%;
       height: 100%;
-      --mdc-icon-size: 48px;
+      --mdc-icon-size: 56px;
     }
 
     /* Audio-reactive badge overlay */
@@ -1144,12 +1140,12 @@ export class AqaraPresetFavoritesCard extends LitElement {
 
     /* No names — larger icons fill the space */
     .no-names .preset-icon {
-      width: 56px;
-      height: 56px;
+      width: 64px;
+      height: 64px;
     }
 
     .no-names .preset-icon ha-icon {
-      --mdc-icon-size: 56px;
+      --mdc-icon-size: 64px;
     }
 
     .no-names .preset-button {
@@ -1158,12 +1154,12 @@ export class AqaraPresetFavoritesCard extends LitElement {
 
     /* No names + compact combined */
     .compact.no-names .preset-icon {
-      width: 40px;
-      height: 40px;
+      width: 48px;
+      height: 48px;
     }
 
     .compact.no-names .preset-icon ha-icon {
-      --mdc-icon-size: 40px;
+      --mdc-icon-size: 48px;
     }
 
     .compact.no-names .preset-button {
@@ -1187,12 +1183,12 @@ export class AqaraPresetFavoritesCard extends LitElement {
     }
 
     .compact .preset-icon {
-      width: 32px;
-      height: 32px;
+      width: 40px;
+      height: 40px;
     }
 
     .compact .preset-icon ha-icon {
-      --mdc-icon-size: 32px;
+      --mdc-icon-size: 40px;
     }
 
     .compact .preset-name {

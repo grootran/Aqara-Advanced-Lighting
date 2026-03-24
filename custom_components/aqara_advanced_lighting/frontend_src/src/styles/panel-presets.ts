@@ -71,8 +71,8 @@ export const presetStyles = css`
   }
 
   .preset-icon {
-    width: 48px;
-    height: 48px;
+    width: 56px;
+    height: 56px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -87,14 +87,10 @@ export const presetStyles = css`
     border-radius: 50%;
   }
 
-  .preset-icon svg.gradient-thumb {
-    border-radius: 4px;
-  }
-
   .preset-icon ha-icon {
     width: 100%;
     height: 100%;
-    --mdc-icon-size: 48px;
+    --mdc-icon-size: 56px;
   }
 
   /* Audio-reactive DOM badge overlay */
