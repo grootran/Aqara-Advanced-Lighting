@@ -6,16 +6,14 @@ or async_save() when they need migration or custom serialization logic.
 """
 
 import logging
-from typing import Any, Generic, TypeVar
+from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 _LOGGER = logging.getLogger(__name__)
 
-DataT = TypeVar("DataT")
-
-class BaseStore(Generic[DataT]):
+class BaseStore[DataT]:
     """Generic persistent store with HA storage backend.
 
     Provides:

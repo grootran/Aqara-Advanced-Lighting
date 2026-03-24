@@ -11,7 +11,7 @@ import asyncio
 import logging
 import uuid
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Any
 
 from .const import (
     EVENT_SEQUENCE_COMPLETED,
@@ -39,9 +39,7 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-SequenceT = TypeVar("SequenceT")
-
-class BaseSequenceManager(ABC, Generic[SequenceT]):
+class BaseSequenceManager[SequenceT](ABC):
     """Base class for sequence managers with shared lifecycle and execution loop."""
 
     _sequence_type: str  # Subclass sets to SEQUENCE_TYPE_CCT or SEQUENCE_TYPE_SEGMENT
