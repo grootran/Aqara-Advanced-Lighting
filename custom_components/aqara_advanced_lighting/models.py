@@ -3,7 +3,7 @@
 import math
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
+from typing import Any, Self
 
 from homeassistant.config_entries import ConfigEntry
 
@@ -108,7 +108,7 @@ class RGBColor:
         return {"r": self.r, "g": self.g, "b": self.b}
 
     @classmethod
-    def from_dict(cls, data: dict[str, int]) -> RGBColor:
+    def from_dict(cls, data: dict[str, int]) -> Self:
         """Create from dictionary."""
         return cls(r=data["r"], g=data["g"], b=data["b"])
 
@@ -141,7 +141,7 @@ class XYColor:
         return {"x": round_xy(self.x), "y": round_xy(self.y)}
 
     @classmethod
-    def from_dict(cls, data: dict[str, float | int]) -> XYColor:
+    def from_dict(cls, data: dict[str, float | int]) -> Self:
         """Create from dictionary."""
         return cls(x=data["x"], y=data["y"], brightness=data.get("brightness", 255))
 
@@ -204,7 +204,7 @@ class XYColor:
         )
 
     @classmethod
-    def from_rgb(cls, rgb: RGBColor) -> XYColor:
+    def from_rgb(cls, rgb: RGBColor) -> Self:
         """Convert RGB to XY using Home Assistant's built-in utilities."""
         from homeassistant.util.color import color_RGB_to_xy
 
@@ -242,7 +242,7 @@ class DynamicSceneColor:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, float | int]) -> DynamicSceneColor:
+    def from_dict(cls, data: dict[str, float | int]) -> Self:
         """Create from dictionary."""
         return cls(
             x=float(data["x"]),
