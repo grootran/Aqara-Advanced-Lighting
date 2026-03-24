@@ -2,7 +2,7 @@ import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, SegmentSequenceStep, XYColor, UserSegmentSequencePreset, DeviceContext, SegmentSequenceEditorDraft, Translations } from './types';
 import { xyToRgb, rgbToXy } from './color-utils';
-import { colorPickerStyles } from './styles';
+import { colorPickerStyles } from './styles/color-picker';
 import { ReorderableStepsMixin, reorderableStepStyles } from './reorderable-steps-mixin';
 import { DEVICE_LABELS, DEFAULT_PALETTE, DEFAULT_GRADIENT_COLORS, DEFAULT_BLOCK_COLORS, editorFormStyles, localize, loopModeOptions, endBehaviorOptions } from './editor-constants';
 

@@ -2,7 +2,7 @@ import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, RGBColor, XYColor, SegmentColorEntry, UserSegmentPatternPreset, DeviceContext, PatternEditorDraft, Translations } from './types';
 import { xyToRgb, rgbToXy } from './color-utils';
-import { colorPickerStyles } from './styles';
+import { colorPickerStyles } from './styles/color-picker';
 import { DEVICE_LABELS, DEFAULT_PALETTE, editorFormStyles, localize } from './editor-constants';
 
 // Segment counts per device type

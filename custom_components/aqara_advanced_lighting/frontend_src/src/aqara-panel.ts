@@ -1,7 +1,10 @@
 import { LitElement, html, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { ref, createRef, Ref } from 'lit/directives/ref.js';
-import { panelStyles } from './styles';
+import {
+  baseStyles, scaffoldStyles, sectionStyles, presetStyles,
+  activateStyles, configStyles, editorHostStyles, sharedFormStyles,
+} from './styles/index';
 import { xyToRgb } from './color-utils';
 import { localize } from './editor-constants';
 import { PreferencesController } from './preferences-controller';
@@ -115,7 +118,10 @@ export class AqaraPanel extends LitElement {
   private _tileCards: Map<string, HaTileCard> = new Map();
   private _editorDraftCache: EditorDraftCache = {};
 
-  static styles = panelStyles;
+  static styles = [
+    baseStyles, scaffoldStyles, sectionStyles, presetStyles,
+    activateStyles, configStyles, editorHostStyles, sharedFormStyles,
+  ];
 
   /**
    * Helper method to localize panel strings

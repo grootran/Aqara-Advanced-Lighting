@@ -12,7 +12,7 @@
  */
 import { LitElement, html, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { panelStyles } from './styles';
+import { baseStyles, sectionStyles, configStyles, sharedFormStyles } from './styles/index';
 import { localize } from './editor-constants';
 import { getEntityFriendlyName, getEntityIcon, getEntityDeviceType } from './entity-utils';
 import type { SupportedEntityMap } from './entity-utils';
@@ -53,7 +53,9 @@ export class AqaraConfigTab extends LitElement {
   @state() private _instanceDevicesExpanded: Set<string> = new Set();
   @state() private _audioConfigSelectedEntity = '';
 
-  static styles = panelStyles;
+  static styles = [
+    baseStyles, sectionStyles, configStyles, sharedFormStyles,
+  ];
 
   // --- Localize helper ---
   private _localize(key: string, values?: Record<string, string>): string {

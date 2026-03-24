@@ -8,6 +8,7 @@
 import { css, html, nothing } from 'lit';
 import type { TemplateResult } from 'lit';
 import type { Translations, XYColor } from './types';
+import { sharedFormStyles } from './styles/shared-form';
 
 // Default color palettes shared across editors
 export const DEFAULT_PALETTE: XYColor[] = [
@@ -175,13 +176,13 @@ export function endBehaviorOptions(loc: LocalizeFn, restoreKey = 'options.end_be
 }
 
 /**
- * Shared form layout CSS used by all editor components.
+ * Editor form styles — composes the editor-specific :host/icon-fix
+ * with the shared form rules from styles/shared-form.ts.
  *
- * Covers `.editor-content`, `.form-row`, `.form-row-pair`, `.form-row-triple`,
- * `.form-section`, `.form-label`, `.form-input`, `.form-actions`,
- * `.form-hint`, `.field-description`, `.preview-warning`, and their
- * responsive breakpoints.
+ * Editor components import `editorFormStyles` from here; the alias
+ * keeps existing imports working after the bulk CSS was moved.
  */
+
 export const editorFormStyles = css`
   :host {
     display: block;
@@ -196,180 +197,5 @@ export const editorFormStyles = css`
     justify-content: center;
   }
 
-  .editor-content {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-
-  .form-row {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-
-  .form-row-pair {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    margin-bottom: 16px;
-  }
-
-  .form-row-triple {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 16px;
-    margin-bottom: 16px;
-  }
-
-  .audio-toggles-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
-    margin-bottom: 16px;
-  }
-
-  .audio-toggles-grid .form-section {
-    align-items: flex-start;
-    margin-bottom: 0;
-  }
-
-  .form-row-pair .form-field,
-  .form-row-triple .form-field {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .form-section {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-bottom: 16px;
-  }
-
-  .form-section .form-label {
-    min-width: unset;
-  }
-
-  .form-label {
-    font-size: 14px;
-    font-weight: 500;
-    min-width: 120px;
-    color: var(--secondary-text-color);
-  }
-
-  .field-description {
-    font-size: 12px;
-    color: var(--secondary-text-color);
-    margin-top: 4px;
-  }
-
-  .form-input {
-    flex: 1;
-  }
-
-  .form-actions {
-    display: flex;
-    gap: 12px;
-    justify-content: flex-end;
-    align-items: center;
-    margin-top: 24px;
-    padding-top: 16px;
-    border-top: 1px solid var(--divider-color);
-  }
-
-  .form-actions-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-right: auto;
-  }
-
-  .unsaved-indicator {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: var(--ha-font-size-s, 12px);
-    color: var(--warning-color);
-    white-space: nowrap;
-  }
-
-  .unsaved-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--warning-color);
-    flex-shrink: 0;
-  }
-
-  .preview-warning {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    background: var(--secondary-background-color);
-    color: var(--secondary-text-color);
-    border: 1px solid var(--divider-color);
-    border-left: 4px solid var(--warning-color, #ffc107);
-    border-radius: 4px;
-    font-size: 13px;
-  }
-
-  .preview-warning ha-icon {
-    flex-shrink: 0;
-    --mdc-icon-size: 18px;
-  }
-
-  .icon-field-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .icon-field-row ha-selector {
-    flex: 1;
-  }
-
-  .icon-clear-btn {
-    --ha-icon-button-size: 32px;
-    --mdc-icon-button-size: 32px;
-    --mdc-icon-size: 18px;
-    color: var(--secondary-text-color);
-  }
-
-  .form-hint {
-    font-size: var(--ha-font-size-s, 12px);
-    color: var(--secondary-text-color);
-    margin-top: -4px;
-  }
-
-  @media (max-width: 600px) {
-    .form-row {
-      flex-direction: column;
-      align-items: stretch;
-    }
-
-    .form-row-pair,
-    .form-row-triple {
-      grid-template-columns: 1fr;
-    }
-
-    .audio-toggles-grid {
-      grid-template-columns: 1fr 1fr;
-    }
-
-    .form-label {
-      min-width: unset;
-      margin-bottom: 4px;
-    }
-
-    .form-actions .btn-text {
-      display: none;
-    }
-
-    .form-actions {
-      gap: 8px;
-    }
-  }
+  ${sharedFormStyles}
 `;

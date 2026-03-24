@@ -7,7 +7,7 @@ import { LitElement, html, css, PropertyValues, TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, XYColor, UserDynamicScenePreset, DynamicSceneEditorDraft, DynamicSceneColor, Translations } from './types';
 import { xyToHex, getAnalogousColor } from './color-utils';
-import { colorPickerStyles } from './styles';
+import { colorPickerStyles } from './styles/color-picker';
 import { addColorToHistory } from './color-history';
 import { ReorderableStepsMixin, reorderableStepStyles, ReorderableStepItem } from './reorderable-steps-mixin';
 import { editorFormStyles, localize, loopModeOptions, endBehaviorOptions, hasNewHaDialog, dialogHeadingLegacy, dialogActions } from './editor-constants';
