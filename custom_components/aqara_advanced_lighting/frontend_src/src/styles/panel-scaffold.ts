@@ -61,8 +61,7 @@ export const scaffoldStyles = css`
     min-height: 100vh;
   }
 
-  /* HA dialog fullscreen on mobile - follows haStyleDialog.
-   * Includes both new (2026.3+) and old (2026.2) CSS variables. */
+  /* HA dialog fullscreen on mobile - follows haStyleDialog. */
   @media all and (max-width: 450px), all and (max-height: 500px) {
     ha-dialog {
       --ha-dialog-width-md: calc(100vw - env(safe-area-inset-right) - env(safe-area-inset-left));
@@ -71,10 +70,6 @@ export const scaffoldStyles = css`
       --ha-dialog-max-height: 100%;
       --vertical-align-dialog: flex-end;
       --ha-dialog-border-radius: 0;
-      --mdc-dialog-min-width: calc(100vw - env(safe-area-inset-right) - env(safe-area-inset-left));
-      --mdc-dialog-max-width: calc(100vw - env(safe-area-inset-right) - env(safe-area-inset-left));
-      --mdc-dialog-min-height: 100%;
-      --mdc-dialog-max-height: 100%;
     }
   }
 

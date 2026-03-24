@@ -511,16 +511,12 @@ export class SegmentSelector extends LitElement {
         font-size: 13px;
       }
 
-      /* Color picker ha-dialog styling
-       * Fixed width sized for 8 color history swatches:
+      /* Color picker ha-dialog sizing:
        * 8 x 32px swatches + 7 x 6px gaps = 298px content + 48px padding = 346px
-       * Supports both new (2026.3+) and old (2026.2) ha-dialog CSS variables.
        */
       ha-dialog {
         --ha-dialog-width-md: min(346px, calc(100vw - 32px));
         --ha-dialog-max-width: min(346px, calc(100vw - 32px));
-        --mdc-dialog-min-width: min(346px, calc(100vw - 32px));
-        --mdc-dialog-max-width: min(346px, calc(100vw - 32px));
       }
 
       ha-dialog [slot="headerActionItems"] {
@@ -531,25 +527,6 @@ export class SegmentSelector extends LitElement {
         display: flex;
         gap: 8px;
         justify-content: flex-end;
-      }
-
-      /* Old ha-dialog heading layout */
-      ha-dialog .header_title {
-        display: flex;
-        align-items: center;
-      }
-      ha-dialog .header_title span {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        display: block;
-        padding-left: 4px;
-        padding-right: 4px;
-        flex: 1;
-      }
-      ha-dialog .header_title .header_button {
-        text-decoration: none;
-        color: inherit;
       }
 
       .color-picker-modal-preview {
