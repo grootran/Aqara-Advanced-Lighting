@@ -121,6 +121,9 @@
     "import_error_unknown": "An unexpected error occurred",
     "export_error_network": "Network error during export",
     "select_button": "Select",
+    "restore_hidden_button": "Restore hidden",
+    "preset_hidden": "Preset hidden",
+    "presets_restored": "All hidden presets restored",
     "select_cancel": "Cancel",
     "select_all": "Select all",
     "deselect_all": "Deselect all",
@@ -250,6 +253,7 @@
     "preset_edit": "Edit preset",
     "preset_duplicate": "Duplicate preset",
     "preset_delete": "Delete preset",
+    "preset_hide": "Hide preset",
     "version_mismatch": "Version mismatch detected: Backend (v{backend}) and frontend (v{frontend}) versions differ. Please refresh the page or restart Home Assistant to resolve this issue.",
     "setup_in_progress": "The integration is still initializing. Device discovery is in progress and some features may not work correctly until setup completes."
   },

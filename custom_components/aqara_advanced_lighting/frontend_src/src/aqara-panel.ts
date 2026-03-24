@@ -412,6 +412,54 @@ export class AqaraPanel extends LitElement {
     `;
   }
 
+  /** Check if a builtin preset is hidden. */
+  private _isBuiltinPresetHidden(type: PresetType, id: string): boolean {
+    return this._prefs.state.hiddenBuiltinPresets.some(h => h.type === type && h.id === id);
+  }
+
+  /** Hide a builtin preset. Removes from favorites and shows a toast. */
+  private _hideBuiltinPreset(type: PresetType, id: string, event: Event): void {
+    event.stopPropagation();
+    // Add to hidden list
+    if (!this._isBuiltinPresetHidden(type, id)) {
+      this._prefs.state.hiddenBuiltinPresets = [...this._prefs.state.hiddenBuiltinPresets, { type, id }];
+    }
+    // Remove from favorites if present
+    const favIdx = this._prefs.state.favoritePresets.findIndex(f => f.type === type && f.id === id);
+    if (favIdx >= 0) {
+      this._prefs.state.favoritePresets = [
+        ...this._prefs.state.favoritePresets.slice(0, favIdx),
+        ...this._prefs.state.favoritePresets.slice(favIdx + 1),
+      ];
+    }
+    this._prefs.save(this.hass, true);
+    this.requestUpdate();
+    this._showToast(this._localize('presets.preset_hidden'));
+  }
+
+  /** Restore all hidden builtin presets. */
+  private _restoreAllHiddenPresets(): void {
+    if (this._prefs.state.hiddenBuiltinPresets.length === 0) return;
+    this._prefs.state.hiddenBuiltinPresets = [];
+    this._prefs.save(this.hass, true);
+    this.requestUpdate();
+    this._showToast(this._localize('presets.presets_restored'));
+  }
+
+  /** Render the hide button for builtin preset cards (bottom-right position). */
+  private _renderHideButton(type: PresetType, id: string) {
+    return html`
+      <div class="preset-card-actions preset-card-actions-right">
+        <ha-icon-button
+          @click=${(e: Event) => this._hideBuiltinPreset(type, id, e)}
+          title="${this._localize('tooltips.preset_hide')}"
+        >
+          <ha-icon icon="mdi:eye-off-outline"></ha-icon>
+        </ha-icon-button>
+      </div>
+    `;
+  }
+
   /**
    * Resolve favorite preset references to actual preset objects.
    * Tracks source device type for device-specific presets (effects, patterns, sequences).
@@ -426,6 +474,9 @@ export class AqaraPanel extends LitElement {
     const resolved: Array<{ ref: FavoritePresetRef; preset: AnyPreset; isUser: boolean; deviceType?: string }> = [];
 
     for (const ref of this._prefs.state.favoritePresets) {
+      // Skip builtin presets that have been hidden
+      if (this._isBuiltinPresetHidden(ref.type, ref.id)) continue;
+
       let preset: AnyPreset | null = null;
       let isUser = false;
       let deviceType: string | undefined;
@@ -3503,6 +3554,17 @@ export class AqaraPanel extends LitElement {
                   <ha-icon icon="mdi:checkbox-multiple-marked-outline" slot="icon"></ha-icon>
                   ${this._localize('presets.select_button')}
                 </ha-button>
+
+                <ha-button
+                  @click=${() => this._restoreAllHiddenPresets()}
+                  .disabled=${this._prefs.state.hiddenBuiltinPresets.length === 0}
+                >
+                  <ha-icon icon="mdi:eye-outline" slot="icon"></ha-icon>
+                  ${this._localize('presets.restore_hidden_button')}
+                  ${this._prefs.state.hiddenBuiltinPresets.length > 0
+                    ? html` (${this._prefs.state.hiddenBuiltinPresets.length})`
+                    : ''}
+                </ha-button>
               </div>
             `}
         </div>
@@ -3925,12 +3987,13 @@ export class AqaraPanel extends LitElement {
     const sectionId = `dynamic_${title.toLowerCase().replace(/\s+/g, '_')}`;
     const isExpanded = !this._prefs.state.collapsed[sectionId];
     const userPresets = this._getUserEffectPresetsForDeviceType(deviceType);
-    const totalCount = userPresets.length + presets.length;
+    const visibleBuiltinPresets = presets.filter(p => !this._isBuiltinPresetHidden('effect', p.id));
+    const totalCount = userPresets.length + visibleBuiltinPresets.length;
 
     // Apply sorting
     const sortOption = this._getSortPreference(sectionId);
     const sortedUserPresets = this._sortPresets(userPresets, sortOption);
-    const sortedBuiltinPresets = this._sortPresets(presets, sortOption);
+    const sortedBuiltinPresets = this._sortPresets(visibleBuiltinPresets, sortOption);
 
     return html`
       <ha-expansion-panel
@@ -3975,6 +4038,7 @@ export class AqaraPanel extends LitElement {
                     <ha-icon icon="mdi:content-copy"></ha-icon>
                   </ha-icon-button>
                 </div>
+                ${this._renderHideButton('effect', preset.id)}
                 <div class="preset-icon">
                   ${this._renderPresetIcon(preset.icon, 'mdi:lightbulb-on')}
                 </div>
@@ -4129,12 +4193,13 @@ export class AqaraPanel extends LitElement {
     const sectionId = `segment_pat_${title.toLowerCase().replace(/\s+/g, '_')}`;
     const isExpanded = !this._prefs.state.collapsed[sectionId];
     const userPresets = this._getUserPatternPresetsForDeviceType(deviceType);
-    const totalCount = userPresets.length + builtinPresets.length;
+    const visibleBuiltinPresets = builtinPresets.filter(p => !this._isBuiltinPresetHidden('segment_pattern', p.id));
+    const totalCount = userPresets.length + visibleBuiltinPresets.length;
 
     // Apply sorting
     const sortOption = this._getSortPreference(sectionId);
     const sortedUserPresets = this._sortPresets(userPresets, sortOption);
-    const sortedBuiltinPresets = this._sortPresets(builtinPresets, sortOption);
+    const sortedBuiltinPresets = this._sortPresets(visibleBuiltinPresets, sortOption);
 
     return html`
       <ha-expansion-panel
@@ -4179,6 +4244,7 @@ export class AqaraPanel extends LitElement {
                     <ha-icon icon="mdi:content-copy"></ha-icon>
                   </ha-icon-button>
                 </div>
+                ${this._renderHideButton('segment_pattern', preset.id)}
                 <div class="preset-icon">
                   ${this._renderPresetIcon(preset.icon, 'mdi:palette')}
                 </div>
@@ -4264,13 +4330,13 @@ export class AqaraPanel extends LitElement {
     const sectionId = 'cct_sequences';
     const isExpanded = !this._prefs.state.collapsed[sectionId];
     const userPresets = this._getFilteredUserCCTSequencePresets();
-    const builtinPresets = this._presets!.cct_sequences;
-    const totalCount = userPresets.length + builtinPresets.length;
+    const visibleBuiltinPresets = this._presets!.cct_sequences.filter(p => !this._isBuiltinPresetHidden('cct_sequence', p.id));
+    const totalCount = userPresets.length + visibleBuiltinPresets.length;
 
     // Apply sorting
     const sortOption = this._getSortPreference(sectionId);
     const sortedUserPresets = this._sortPresets(userPresets, sortOption);
-    const sortedBuiltinPresets = this._sortPresets(builtinPresets, sortOption);
+    const sortedBuiltinPresets = this._sortPresets(visibleBuiltinPresets, sortOption);
 
     return html`
       <ha-expansion-panel
@@ -4315,6 +4381,7 @@ export class AqaraPanel extends LitElement {
                     <ha-icon icon="mdi:content-copy"></ha-icon>
                   </ha-icon-button>
                 </div>
+                ${this._renderHideButton('cct_sequence', preset.id)}
                 <div class="preset-icon">
                   ${this._renderPresetIcon(preset.icon, 'mdi:temperature-kelvin')}
                 </div>
@@ -4331,12 +4398,13 @@ export class AqaraPanel extends LitElement {
     const sectionId = `segment_seq_${title.toLowerCase().replace(/\s+/g, '_')}`;
     const isExpanded = !this._prefs.state.collapsed[sectionId];
     const userPresets = this._getUserSegmentSequencePresetsForDeviceType(deviceType);
-    const totalCount = userPresets.length + builtinPresets.length;
+    const visibleBuiltinPresets = builtinPresets.filter(p => !this._isBuiltinPresetHidden('segment_sequence', p.id));
+    const totalCount = userPresets.length + visibleBuiltinPresets.length;
 
     // Apply sorting
     const sortOption = this._getSortPreference(sectionId);
     const sortedUserPresets = this._sortPresets(userPresets, sortOption);
-    const sortedBuiltinPresets = this._sortPresets(builtinPresets, sortOption);
+    const sortedBuiltinPresets = this._sortPresets(visibleBuiltinPresets, sortOption);
 
     return html`
       <ha-expansion-panel
@@ -4381,6 +4449,7 @@ export class AqaraPanel extends LitElement {
                     <ha-icon icon="mdi:content-copy"></ha-icon>
                   </ha-icon-button>
                 </div>
+                ${this._renderHideButton('segment_sequence', preset.id)}
                 <div class="preset-icon">
                   ${this._renderPresetIcon(preset.icon, 'mdi:animation-play')}
                 </div>
@@ -4397,13 +4466,13 @@ export class AqaraPanel extends LitElement {
     const sectionId = 'dynamic_scenes';
     const isExpanded = !this._prefs.state.collapsed[sectionId];
     const userPresets = this._getFilteredUserDynamicScenePresets();
-    const builtinPresets = this._presets!.dynamic_scenes || [];
-    const totalCount = userPresets.length + builtinPresets.length;
+    const visibleBuiltinPresets = (this._presets!.dynamic_scenes || []).filter(p => !this._isBuiltinPresetHidden('dynamic_scene', p.id));
+    const totalCount = userPresets.length + visibleBuiltinPresets.length;
 
     // Apply sorting
     const sortOption = this._getSortPreference(sectionId);
     const sortedUserPresets = this._sortPresets(userPresets, sortOption);
-    const sortedBuiltinPresets = this._sortPresets(builtinPresets, sortOption);
+    const sortedBuiltinPresets = this._sortPresets(visibleBuiltinPresets, sortOption);
 
     return html`
       <ha-expansion-panel
@@ -4448,6 +4517,7 @@ export class AqaraPanel extends LitElement {
                     <ha-icon icon="mdi:content-copy"></ha-icon>
                   </ha-icon-button>
                 </div>
+                ${this._renderHideButton('dynamic_scene', preset.id)}
                 <div class="preset-icon">
                   ${this._renderBuiltinDynamicSceneIcon(preset)}
                 </div>

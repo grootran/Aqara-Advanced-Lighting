@@ -894,6 +894,7 @@ class UserPreferencesView(HomeAssistantView):
         collapsed_sections = None
         include_all_lights = None
         favorite_presets = None
+        hidden_builtin_presets = None
         static_scene_mode = None
         distribution_mode_override = _UNSET
         brightness_override = _UNSET
@@ -943,6 +944,15 @@ class UserPreferencesView(HomeAssistantView):
             if error:
                 return web.Response(status=400, text=error)
             favorite_presets = data["favorite_presets"]
+
+        if "hidden_builtin_presets" in data:
+            error = _validate_favorite_presets(data["hidden_builtin_presets"])
+            if error:
+                return web.Response(
+                    status=400,
+                    text=error.replace("favorite_presets", "hidden_builtin_presets"),
+                )
+            hidden_builtin_presets = data["hidden_builtin_presets"]
 
         if "static_scene_mode" in data:
             if not isinstance(data["static_scene_mode"], bool):
@@ -1098,6 +1108,7 @@ class UserPreferencesView(HomeAssistantView):
             and collapsed_sections is None
             and include_all_lights is None
             and favorite_presets is None
+            and hidden_builtin_presets is None
             and static_scene_mode is None
             and distribution_mode_override is _UNSET
             and brightness_override is _UNSET
@@ -1128,6 +1139,7 @@ class UserPreferencesView(HomeAssistantView):
             collapsed_sections=collapsed_sections,
             include_all_lights=include_all_lights,
             favorite_presets=favorite_presets,
+            hidden_builtin_presets=hidden_builtin_presets,
             static_scene_mode=static_scene_mode,
             distribution_mode_override=distribution_mode_override,
             brightness_override=brightness_override,

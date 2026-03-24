@@ -26,6 +26,7 @@ export interface PreferencesState {
   audioOverrideBrightnessResponse: boolean;
   audioOverrideColorByFrequency: boolean;
   audioOverrideRolloffBrightness: boolean;
+  hiddenBuiltinPresets: FavoritePresetRef[];
   selectedEntities: string[];
   activeFavoriteId: string | null;
 
@@ -62,6 +63,7 @@ const DEFAULT_STATE: PreferencesState = {
   audioOverrideBrightnessResponse: true,
   audioOverrideColorByFrequency: false,
   audioOverrideRolloffBrightness: false,
+  hiddenBuiltinPresets: [],
   selectedEntities: [],
   activeFavoriteId: null,
 
@@ -179,6 +181,7 @@ export class PreferencesController implements ReactiveController {
     this.state.colorHistory = prefs.color_history;
     this.state.sortPreferences = prefs.sort_preferences;
     this.state.favoritePresets = prefs.favorite_presets || [];
+    this.state.hiddenBuiltinPresets = prefs.hidden_builtin_presets || [];
     if (prefs.collapsed_sections) {
       this.state.collapsed = prefs.collapsed_sections;
     }
@@ -286,6 +289,7 @@ export class PreferencesController implements ReactiveController {
           collapsed_sections: this.state.collapsed,
           include_all_lights: this.state.includeAllLights,
           favorite_presets: this.state.favoritePresets,
+          hidden_builtin_presets: this.state.hiddenBuiltinPresets,
           static_scene_mode: this.state.useStaticSceneMode,
           distribution_mode_override: this.state.useDistributionModeOverride ? this.state.distributionModeOverride : null,
           brightness_override: this.state.useCustomBrightness ? this.state.brightness : null,

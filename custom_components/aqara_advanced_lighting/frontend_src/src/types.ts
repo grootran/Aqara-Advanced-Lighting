@@ -396,6 +396,7 @@ export interface UserPreferences {
   audio_override_latency_compensation_ms?: number;
   audio_override_color_by_frequency?: boolean;
   audio_override_rolloff_brightness?: boolean;
+  hidden_builtin_presets?: FavoritePresetRef[];
   selected_entities?: string[];
   active_favorite_id?: string | null;
 }
