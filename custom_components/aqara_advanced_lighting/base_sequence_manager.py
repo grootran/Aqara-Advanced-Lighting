@@ -619,38 +619,37 @@ class BaseSequenceManager[SequenceT](ABC):
                 # Check loop conditions
                 loops_executed += 1
 
-                if sequence.loop_mode == "once":  # type: ignore[attr-defined]
-                    break
-                elif (
-                    sequence.loop_mode == "count"  # type: ignore[attr-defined]
-                    and loops_executed >= max_loops
-                ):
-                    break
-                # For "continuous", loop continues indefinitely
+                match sequence.loop_mode:  # type: ignore[attr-defined]
+                    case "once":
+                        break
+                    case "count" if loops_executed >= max_loops:
+                        break
+                    # "continuous" continues indefinitely
 
             # Sequence completed naturally
             completed_naturally = True
 
-            if sequence.end_behavior == "turn_off":  # type: ignore[attr-defined]
-                try:
-                    await self.backend.async_turn_off_light(entity_id)
+            match sequence.end_behavior:  # type: ignore[attr-defined]
+                case "turn_off":
+                    try:
+                        await self.backend.async_turn_off_light(entity_id)
+                        _LOGGER.info(
+                            "%s sequence completed, turned off %s",
+                            self._sequence_type.upper(),
+                            entity_id,
+                        )
+                    except Exception as ex:
+                        _LOGGER.warning(
+                            "Failed to turn off %s after sequence: %s", entity_id, ex
+                        )
+                case "restore":
+                    await self._restore_entity_state(entity_id)
+                case _:
                     _LOGGER.info(
-                        "%s sequence completed, turned off %s",
+                        "%s sequence completed, maintaining state for %s",
                         self._sequence_type.upper(),
                         entity_id,
                     )
-                except Exception as ex:
-                    _LOGGER.warning(
-                        "Failed to turn off %s after sequence: %s", entity_id, ex
-                    )
-            elif sequence.end_behavior == "restore":  # type: ignore[attr-defined]
-                await self._restore_entity_state(entity_id)
-            else:
-                _LOGGER.info(
-                    "%s sequence completed, maintaining state for %s",
-                    self._sequence_type.upper(),
-                    entity_id,
-                )
 
         except Exception as ex:
             _LOGGER.error(
