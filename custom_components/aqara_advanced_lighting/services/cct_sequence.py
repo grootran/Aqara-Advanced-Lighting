@@ -457,40 +457,40 @@ async def handle_start_cct_sequence(hass: HomeAssistant, call: ServiceCall) -> N
         for entity_id in aqara_entity_ids + generic_entity_ids:
             await entity_controller.stop_all_for_entity(entity_id)
 
-    # Start synchronized sequences for each Aqara instance group
-    start_tasks = []
-    for entry_id, group_data in instance_groups.items():
-        cct_manager = group_data["manager"]
-        entity_list = group_data["entities"]
-        start_tasks.append(
-            cct_manager.start_synchronized_group(entity_list, sequence, preset)
-        )
-
-    # Start sequences for generic entities
-    if generic_entity_ids and generic_manager_pair:
-        generic_cct_manager, _ = generic_manager_pair
-        start_tasks.append(
-            generic_cct_manager.start_synchronized_group(
-                generic_entity_ids, sequence, preset
-            )
-        )
-
-    # Start all sequences in parallel
+    # Start synchronized sequences in parallel using structured concurrency
     try:
-        await asyncio.gather(*start_tasks)
+        async with asyncio.TaskGroup() as tg:
+            for entry_id, group_data in instance_groups.items():
+                cct_manager = group_data["manager"]
+                entity_list = group_data["entities"]
+                tg.create_task(
+                    cct_manager.start_synchronized_group(entity_list, sequence, preset)
+                )
+
+            if generic_entity_ids and generic_manager_pair:
+                generic_cct_manager, _ = generic_manager_pair
+                tg.create_task(
+                    generic_cct_manager.start_synchronized_group(
+                        generic_entity_ids, sequence, preset
+                    )
+                )
+
         _LOGGER.info(
             "Started CCT sequences for %d Aqara + %d generic entities: mode=%s",
             len(aqara_entity_ids),
             len(generic_entity_ids),
             sequence.mode,
         )
-    except Exception as ex:
+    except* Exception as eg:
+        if len(eg.exceptions) > 1:
+            for exc in eg.exceptions[1:]:
+                _LOGGER.error("Additional CCT sequence start failure: %s", exc)
         all_entities = aqara_entity_ids + generic_entity_ids
         raise HomeAssistantError(
             translation_domain=DOMAIN,
             translation_key="start_sequence_failed",
             translation_placeholders={"entity": ", ".join(all_entities)},
-        ) from ex
+        ) from eg.exceptions[0]
 
 async def handle_stop_cct_sequence(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle stop_cct_sequence service call."""
