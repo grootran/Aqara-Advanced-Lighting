@@ -1,10 +1,10 @@
-# Aqara Advanced Lighting v1.1.0
+# Aqara Advanced Lighting v1.2.0
 
 ## Upgrade Instructions
 
-**Upgrading from v1.0.0:**
+**Upgrading from v1.1.0:**
 
-1. Update via HACS to v1.1.0
+1. Update via HACS to v1.2.0
 2. Restart Home Assistant
 3. Clear browser cache (Ctrl+Shift+R or Cmd+Shift+R), clear HA app cache
 
@@ -14,68 +14,56 @@ Your existing configuration, presets, and favorites are automatically preserved.
 
 ### What's New
 
-Version 1.1.0 adds solar and schedule-based adaptive circadian CCT sequences, capability-aware light adaptation for any Home Assistant light, and a new more comprehensive override detection system.
+Version 1.2.0 introduces audio-reactive lighting for dynamic scenes, a Lovelace preset favorites card, the ability to hide build-in presets, and a major codebase refactor for maintainability. It also adds CCT slider support in the color picker, allows CCT-only lights in dynamic scenes, and selected Favorite lights now presist across reloads and devices.
 
-### Schedule/Solar Mode for Adaptive CCT Sequences
+### **Audio-Reactive Lighting**
 
-**Time-of-day schedule mode and sun-elevation solar mode**
+**Dynamic scene changes can now be synced to music through an ESPHome audio sensor**
 
-- Schedule steps use fixed times (12:00) or sun-relative times (sunrise+30, sunset-60)
-- Solar timeline maps elevation to time using sinusoidal sun trajectory with real sunrise/sunset positions
-- Automatic interpolation between steps on a 24-hour cycle
-- Dual-track timeline preview showing color temperature and brightness with step markers
-- New backend services `start_circadian_mode` and `stop_circadian_mode`
-- Active circadian sequences persist across Home Assistant restarts
+This new feature works in tandem with an ESPHome device flashed with [custom firmware](https://github.com/absent42/esphome-audio-reactive) that analyses environmental sound and outputs a variety of sensors such as beat detection and amplitude to Home Assistant, which this new feature then translates into music reactive dynamic scenes. It can work with any pre-existing dynamic scene preset by overriding the transition and hold time settings.
 
-### Capability-Aware Light Adaptation
+Initial firmware builds for 4 cheap off-the-shelf ESP32 devices are included, the M5Stack Atom Echo ($13/£13), M5Stack Atom Echo S3R ($15/£15), Waveshare ESP32-S3 Audio Board ($18/£18), and M5StickC Plus2 ($20/£20). These can be flashed with the custom firmware using a simple [web installer](https://absent42.github.io/esphome-audio-reactive/), no specialist ESP32 knowledge is needed. The firmware can also be adapted to any ESP32 device with a microphone.
 
-**Imporved support for non-Aqara lights in dynamic scenes and CCT sequences**
+For more detailed information on how this feature works please see the dedicated [documentation page](https://github.com/absent42/Aqara-Advanced-Lighting/blob/main/docs/audio-reactive-setup.md).
 
-- Capability profiles classify lights as full-color, CCT-only, brightness-only, or on/off-only
-- Service calls adapted at runtime using XY-to-CCT conversion and color temp clamping
-- Software transition opt-in for non-Aqara lights via device config panel
-- Entity chips with capability badges on running scene cards
+  - Audio-reactive lighting mode with ESP32-based on-device audio analysis
+  - New ESPHome sensor integration
+  - Responsive audio overrides
+  - On-device audio mode opt-in for T1 Strip non-Aqara devices with built-in music sync functions
 
-### Override Detection System
+### **Preset Favorites Lovelace Card**
 
-**Context-based override detection with per-attribute control for solar and schedule sequences**
+**A new dashboard card for quick access to your favorite presets**
 
-- Detects overrides from service call data before state changes arrive
-- Context-only detection replaces grace window system
-- Per-attribute change detection with hardware drift tolerance
-- Non-HA drift detection for changes made outside Home Assistant
-- Bare turn-on adaptation fills unspecified attributes with solar/schedule values
-- Per-attribute pause indicators in frontend
+  - Aqara Preset Favorites card for Lovelace dashboards
+  - Active preset highlighting with toggle behavior
 
-### Schedule/Solar CCT Persistence
+### **Hide and restore built-in presets**
 
-- Running solar and schedule sequences persist across Home Assistant restarts
-- Sequences are restored after entities are registered on startup
+  - Hide/restore built-in presets you don't use
+
+### **Dynamic Scenes & Color Picker**
+
+  - CCT-only lights now supported in dynamic scenes via XY-to-CCT conversion
+  - CCT slider added to the color picker panel
 
 ### Improvements
 
-- Proactive adaptation: immediate value application on resume and turn-on
-- Schedule/Solar off/on resilience: skip updates while lights are off, force-apply on turn-on
-- Per-preset auto-resume delay (moved from global to per-preset)
-- Turn off light end behavior for dynamic scenes
-- Skip first step in loop for CCT sequences
-- Added Power Nap CCT sequence preset
-- Selective user preset exports
+  - Favorite light and entity selection added to user persistent storage
+  - Replace externally paused text with color-coded entity chips
+  - More ZHA attributes exposed for native HA controls
+  - Pause solar/schedule sequences on new preset activation instead of stopping
+  - Unify auto-generated icons to circular style
 
-### Bug Fixes
-
-- Loop N Times count field in Scenes tab
-- Signed URL preset export with selective filtering
-- Preset export using signed URL WebSocket command
-- Auth errors on API calls
-- Active presets panel not updating after activation
-- last-half, first-third, last-third keywords to parse_segment_range
-- Segment patterns not restoring off state when stopped
-- Color restore when activating from an off state
+### Fixes
+- Eliminate forced reflow during drag in transition curve graph
+- RGB input fields snap back
+- Off-state restoration for stopping presets on lights with segments
+- Align solar/schedule CCT timeline labels with bar markers
 
 ## Full Changelog
 
-[View full changelog](https://github.com/absent42/Aqara-Advanced-Lighting/blob/main/CHANGELOG.md#110---2026-03-09)
+[View full changelog](https://github.com/absent42/Aqara-Advanced-Lighting/blob/main/CHANGELOG.md#120---2026-03-24)
 
 ## Support
 
