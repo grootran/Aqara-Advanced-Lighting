@@ -1,7 +1,5 @@
 """Dynamic scene service handlers."""
 
-from __future__ import annotations
-
 import logging
 from typing import Any
 
@@ -41,7 +39,6 @@ from ._helpers import (
 from homeassistant.const import ATTR_ENTITY_ID
 
 _LOGGER = logging.getLogger(__name__)
-
 
 async def handle_start_dynamic_scene(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle start_dynamic_scene service call.
@@ -196,7 +193,6 @@ async def handle_start_dynamic_scene(hass: HomeAssistant, call: ServiceCall) -> 
     else:
         await manager.start_scene(valid_entity_ids, scene, display_name)
 
-
 async def handle_stop_dynamic_scene(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle stop_dynamic_scene service call."""
     entity_ids: list[str] | None = call.data.get(ATTR_ENTITY_ID)
@@ -223,13 +219,11 @@ async def handle_stop_dynamic_scene(hass: HomeAssistant, call: ServiceCall) -> N
         for entity_id in affected:
             await entity_controller.check_and_resume_solar(entity_id)
 
-
 async def handle_pause_dynamic_scene(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle pause_dynamic_scene service call."""
     entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
     manager = _get_dynamic_scene_manager(hass)
     manager.pause_scene(entity_ids)
-
 
 async def handle_resume_dynamic_scene(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle resume_dynamic_scene service call."""

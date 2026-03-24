@@ -1,7 +1,5 @@
 """The Aqara Advanced Lighting integration."""
 
-from __future__ import annotations
-
 import logging
 
 from homeassistant.components import mqtt
@@ -51,7 +49,6 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS: list[Platform] = []
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
-
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate old config entries to new format."""
@@ -128,9 +125,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     return True
 
-
 CARD_RESOURCE_URL = f"/api/{DOMAIN}/aqara_preset_favorites_card.js"
-
 
 async def _async_register_card_resource(hass: HomeAssistant) -> None:
     """Register the favorites card JS as a Lovelace resource if not already present."""
@@ -170,7 +165,6 @@ async def _async_register_card_resource(hass: HomeAssistant) -> None:
             "Could not auto-register card resource. Users can manually add: %s",
             CARD_RESOURCE_URL,
         )
-
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the Aqara Advanced Lighting integration."""
@@ -259,7 +253,6 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     await _async_register_card_resource(hass)
 
     return True
-
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: AqaraLightingConfigEntry
@@ -434,7 +427,6 @@ async def async_setup_entry(
 
     return True
 
-
 async def async_unload_entry(
     hass: HomeAssistant, entry: AqaraLightingConfigEntry
 ) -> bool:
@@ -518,7 +510,6 @@ async def async_unload_entry(
     )
 
     return True
-
 
 async def async_reload_entry(
     hass: HomeAssistant, entry: AqaraLightingConfigEntry

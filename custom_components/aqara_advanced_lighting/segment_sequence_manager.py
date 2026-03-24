@@ -1,7 +1,5 @@
 """Segment Sequence Manager for Aqara Advanced Lighting."""
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import random
@@ -19,7 +17,6 @@ if TYPE_CHECKING:
     from .models import SegmentSequenceStep
 
 _LOGGER = logging.getLogger(__name__)
-
 
 class SegmentSequenceManager(BaseSequenceManager[SegmentSequence]):
     """Manages RGB segment sequence execution as background tasks."""

@@ -7,8 +7,6 @@ _apply_step() (and optionally _prepare_execution / _get_start_step) to
 implement sequence-type-specific behavior.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import uuid
@@ -42,7 +40,6 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 SequenceT = TypeVar("SequenceT")
-
 
 class BaseSequenceManager(ABC, Generic[SequenceT]):
     """Base class for sequence managers with shared lifecycle and execution loop."""

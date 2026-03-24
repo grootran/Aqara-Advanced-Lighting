@@ -6,8 +6,6 @@ This replaces direct zigpy internal manipulation with properly typed
 cluster definitions that ZHA understands natively.
 """
 
-from __future__ import annotations
-
 import logging
 
 _LOGGER = logging.getLogger(__name__)
@@ -20,7 +18,6 @@ CLUSTER_MANU_SPECIFIC_LUMI = 0xFCC0
 
 # Track registration state to avoid duplicate registration
 _quirks_registered = False
-
 
 def register_quirks() -> None:
     """Register Aqara lighting device quirks with zigpy.

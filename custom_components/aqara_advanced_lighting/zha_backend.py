@@ -7,8 +7,6 @@ manufacturer-specific attributes with proper types and handles the
 Aqara manufacturer code automatically.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
@@ -56,7 +54,6 @@ if TYPE_CHECKING:
     from .models import AqaraLightingConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
-
 
 # Aqara manufacturer-specific Zigbee cluster ID
 CLUSTER_MANU_SPECIFIC_LUMI = 0xFCC0
@@ -121,7 +118,6 @@ T2_CCT_MODELS = {
     MODEL_T2_CCT_GU10_110V,
 }
 
-
 def _resolve_zha_model(device: Any) -> str | None:
     """Resolve the canonical model ID for a ZHA device.
 
@@ -153,7 +149,6 @@ def _resolve_zha_model(device: Any) -> str | None:
 
     return None
 
-
 def _get_device_family(model_id: str) -> str | None:
     """Classify model ID into device family.
 
@@ -170,7 +165,6 @@ def _get_device_family(model_id: str) -> str | None:
         return "t2_cct"
     return None
 
-
 def _get_effect_enum(device_family: str) -> dict[str, int]:
     """Get effect name to Zigbee enum mapping for a device family."""
     match device_family:
@@ -182,7 +176,6 @@ def _get_effect_enum(device_family: str) -> dict[str, int]:
             return EFFECT_ENUM_STRIP
         case _:
             return {}
-
 
 class ZHABackend:
     """ZHA backend implementing the DeviceBackend protocol.

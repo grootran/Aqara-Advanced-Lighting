@@ -1,7 +1,5 @@
 """Shared helpers for device automation (triggers and conditions)."""
 
-from __future__ import annotations
-
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
@@ -17,7 +15,6 @@ from .presets import (
     SEGMENT_PATTERN_PRESETS,
     SEGMENT_SEQUENCE_PRESETS,
 )
-
 
 def add_user_presets(
     hass: HomeAssistant,
@@ -40,7 +37,6 @@ def add_user_presets(
         preset_name = preset.get("name")
         if preset_name:
             options.append({"value": preset_name, "label": f"{preset_name} (user)"})
-
 
 def get_preset_options(
     hass: HomeAssistant,
@@ -89,7 +85,6 @@ def get_preset_options(
         add_user_presets(hass, options, "dynamic_scene_presets")
 
     return options
-
 
 def get_entity_ids_for_device(hass: HomeAssistant, device_id: str) -> set[str]:
     """Get all entity IDs that map to a device via our integration.

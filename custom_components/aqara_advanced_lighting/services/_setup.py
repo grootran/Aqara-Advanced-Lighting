@@ -1,7 +1,5 @@
 """Service registration wiring for Aqara Advanced Lighting."""
 
-from __future__ import annotations
-
 import functools
 import logging
 
@@ -89,7 +87,6 @@ from .circadian import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-
 
 async def async_setup_services(hass: HomeAssistant) -> None:
     """Register all Aqara Advanced Lighting services."""

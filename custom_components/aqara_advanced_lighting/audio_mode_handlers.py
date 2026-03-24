@@ -4,7 +4,6 @@ Each handler implements a specific audio-reactive behavior mode.
 The manager routes events to the active handler, which calls back
 to the manager for color advancement and light command dispatch.
 """
-from __future__ import annotations
 
 import asyncio
 import logging
@@ -21,12 +20,10 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-
 # EMA smoothing factor for energy envelope (~2-4s window at 20Hz sensor updates)
 ENERGY_EMA_ALPHA = 0.05
 # Per-tick brightness decay for onset flash mode
 FLASH_BRIGHTNESS_DECAY = 0.02
-
 
 class AudioModeHandler(ABC):
     """Abstract base class for audio-reactive mode handlers."""
@@ -91,7 +88,6 @@ class AudioModeHandler(ABC):
             except asyncio.TimeoutError:
                 pass
 
-
 class OnsetHandler(AudioModeHandler):
     """Colors advance on each detected onset/beat."""
 
@@ -101,7 +97,6 @@ class OnsetHandler(AudioModeHandler):
     def handle_energy(self, scene_state: Any, energy: float) -> None:
         if scene_state.scene.audio_brightness_response:
             scene_state.brightness_modifier = max(0.3, min(1.0, energy))
-
 
 class ContinuousHandler(AudioModeHandler):
     """Energy maps to palette color position."""
@@ -116,7 +111,6 @@ class ContinuousHandler(AudioModeHandler):
         if scene_state.scene.audio_brightness_response:
             scene_state.brightness_modifier = max(0.3, min(1.0, energy))
 
-
 class IntensityBreathingHandler(AudioModeHandler):
     """Slow brightness envelope tracks overall loudness."""
 
@@ -128,7 +122,6 @@ class IntensityBreathingHandler(AudioModeHandler):
     def handle_energy(self, scene_state: Any, energy: float) -> None:
         self._envelope = self._alpha * energy + (1 - self._alpha) * self._envelope
         scene_state.brightness_modifier = max(0.3, min(1.0, self._envelope))
-
 
 class OnsetFlashHandler(AudioModeHandler):
     """Slow palette drift + brightness spike on onsets."""
@@ -150,7 +143,6 @@ class OnsetFlashHandler(AudioModeHandler):
         strength = attrs.get("strength", 1.0)
         self._flash_brightness = min(1.0, strength)
         scene_state.brightness_modifier = 1.0
-
 
 class BeatPredictiveHandler(AudioModeHandler):
     """Predicts beats using BPM and sends commands early."""

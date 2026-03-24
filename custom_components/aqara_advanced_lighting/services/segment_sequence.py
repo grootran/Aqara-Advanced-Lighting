@@ -1,7 +1,5 @@
 """Segment sequence service handlers."""
 
-from __future__ import annotations
-
 import asyncio
 import logging
 from typing import Any
@@ -43,7 +41,6 @@ from ._helpers import (
 from homeassistant.const import ATTR_ENTITY_ID
 
 _LOGGER = logging.getLogger(__name__)
-
 
 async def handle_start_segment_sequence(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle start_segment_sequence service call."""
@@ -367,7 +364,6 @@ async def handle_start_segment_sequence(hass: HomeAssistant, call: ServiceCall) 
                 },
             ) from ex
 
-
 async def handle_stop_segment_sequence(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle stop_segment_sequence service call."""
     entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
@@ -426,7 +422,6 @@ async def handle_stop_segment_sequence(hass: HomeAssistant, call: ServiceCall) -
         for entity_id in resolved_entity_ids:
             await entity_controller.check_and_resume_solar(entity_id)
 
-
 async def handle_pause_segment_sequence(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle pause_segment_sequence service call."""
     entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
@@ -462,7 +457,6 @@ async def handle_pause_segment_sequence(hass: HomeAssistant, call: ServiceCall) 
             _LOGGER.info("Paused segment sequence for %s", entity_id)
         else:
             _LOGGER.warning("Failed to pause segment sequence for %s", entity_id)
-
 
 async def handle_resume_segment_sequence(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle resume_segment_sequence service call."""

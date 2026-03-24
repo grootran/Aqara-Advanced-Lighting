@@ -1,7 +1,5 @@
 """Diagnostics support for Aqara Advanced Lighting."""
 
-from __future__ import annotations
-
 from typing import Any
 
 from homeassistant.components.diagnostics import async_redact_data
@@ -35,7 +33,6 @@ TO_REDACT = {
     "token",
     "secret",
 }
-
 
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: AqaraLightingConfigEntry

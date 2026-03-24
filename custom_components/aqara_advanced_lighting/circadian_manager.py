@@ -4,8 +4,6 @@ Applies sun-calculated CCT/brightness when lights turn on.
 Does not actively transition lights - only reacts to state change events.
 """
 
-from __future__ import annotations
-
 import logging
 from dataclasses import dataclass
 from typing import Any
@@ -18,7 +16,6 @@ from .sun_utils import SolarStep, get_sun_state, interpolate_solar_values
 
 _LOGGER = logging.getLogger(__name__)
 
-
 @dataclass
 class CircadianEntry:
     """Tracks a circadian overlay for one entity."""
@@ -27,7 +24,6 @@ class CircadianEntry:
     solar_steps: list[SolarStep]
     preset_name: str | None = None
     unsub: Any = None  # Callable to remove state listener
-
 
 class CircadianManager:
     """Manages passive circadian overlays for light entities."""

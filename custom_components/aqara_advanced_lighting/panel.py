@@ -1,7 +1,5 @@
 """Panel registration and data endpoints for Aqara Advanced Lighting."""
 
-from __future__ import annotations
-
 import asyncio
 from datetime import datetime
 import ipaddress
@@ -98,7 +96,6 @@ _T2_CCT_MODEL_IDS = {
     MODEL_T2_CCT_GU10_230V, MODEL_T2_CCT_GU10_110V,
 }
 
-
 def _classify_device_type(model_id: str) -> str:
     """Map a model ID to its frontend device type category."""
     if model_id in _T1M_MODEL_IDS:
@@ -111,13 +108,11 @@ def _classify_device_type(model_id: str) -> str:
         return "t2_cct"
     return "unknown"
 
-
 PANEL_URL = "/aqara-advanced-lighting"
 PANEL_TITLE = "Aqara Lighting"
 PANEL_ICON = "mdi:lightbulb-group"
 PANEL_FRONTEND_URL_PATH = "aqara_panel.js"
 CARD_FRONTEND_URL_PATH = "aqara_preset_favorites_card.js"
-
 
 async def async_register_panel(hass: HomeAssistant) -> None:
     """Register the Aqara Advanced Lighting panel."""
@@ -190,7 +185,6 @@ async def async_register_panel(hass: HomeAssistant) -> None:
 
     _LOGGER.info("Aqara Advanced Lighting panel registered")
 
-
 class PanelJavaScriptView(HomeAssistantView):
     """View to serve the panel JavaScript file."""
 
@@ -224,7 +218,6 @@ class PanelJavaScriptView(HomeAssistantView):
             headers={"Cache-Control": "no-cache"},
         )
 
-
 class CardJavaScriptView(HomeAssistantView):
     """View to serve the Aqara Preset Favorites card JavaScript file."""
 
@@ -257,7 +250,6 @@ class CardJavaScriptView(HomeAssistantView):
             headers={"Cache-Control": "no-cache"},
         )
 
-
 class PresetsDataView(HomeAssistantView):
     """View to serve preset data as JSON."""
 
@@ -269,7 +261,6 @@ class PresetsDataView(HomeAssistantView):
         """Serve presets data as JSON."""
         presets_data = _build_presets_data()
         return web.json_response(presets_data)
-
 
 class IconView(HomeAssistantView):
     """View to serve preset icon files."""
@@ -329,7 +320,6 @@ class IconView(HomeAssistantView):
             content_type=content_type,
             headers={"Cache-Control": "public, max-age=86400"},
         )
-
 
 def _build_presets_data() -> dict[str, Any]:
     """Build the presets data structure for the frontend.
@@ -466,13 +456,11 @@ def _build_presets_data() -> dict[str, Any]:
         "dynamic_scenes": dynamic_scenes,
     }
 
-
 def _get_favorites_store(hass: HomeAssistant) -> FavoritesStore | None:
     """Get the favorites store from hass.data."""
     if DOMAIN not in hass.data:
         return None
     return hass.data[DOMAIN].get(DATA_FAVORITES_STORE)
-
 
 class FavoritesView(HomeAssistantView):
     """View to manage user favorites (list and create)."""
@@ -534,7 +522,6 @@ class FavoritesView(HomeAssistantView):
         favorite = await favorites_store.add_favorite(user.id, entities, name)
         return web.json_response({"favorite": favorite}, status=201)
 
-
 class FavoriteView(HomeAssistantView):
     """View to manage a single favorite (update and delete)."""
 
@@ -589,8 +576,6 @@ class FavoriteView(HomeAssistantView):
             return web.Response(status=404, text="Favorite not found")
 
         return web.Response(status=204)
-
-
 
 class UserPresetsView(HomeAssistantView):
     """View to list and create user presets."""
@@ -660,7 +645,6 @@ class UserPresetsView(HomeAssistantView):
             return web.Response(status=500, text="Failed to create preset")
 
         return web.json_response({"preset": preset}, status=201)
-
 
 class UserPresetView(HomeAssistantView):
     """View to get, update, or delete a single user preset."""
@@ -743,7 +727,6 @@ class UserPresetView(HomeAssistantView):
 
         return web.Response(status=204)
 
-
 def _get_user_preferences_store(
     hass: HomeAssistant,
 ) -> UserPreferencesStore | None:
@@ -751,7 +734,6 @@ def _get_user_preferences_store(
     if DOMAIN not in hass.data:
         return None
     return hass.data[DOMAIN].get(DATA_USER_PREFERENCES_STORE)
-
 
 def _validate_color_history(color_history: Any) -> str | None:
     """Validate color history data.
@@ -779,7 +761,6 @@ def _validate_color_history(color_history: Any) -> str | None:
 
     return None
 
-
 def _validate_sort_preferences(sort_preferences: Any) -> str | None:
     """Validate sort preferences data.
 
@@ -799,7 +780,6 @@ def _validate_sort_preferences(sort_preferences: Any) -> str | None:
 
     return None
 
-
 def _validate_collapsed_sections(collapsed_sections: Any) -> str | None:
     """Validate collapsed sections data.
 
@@ -815,7 +795,6 @@ def _validate_collapsed_sections(collapsed_sections: Any) -> str | None:
             return f"collapsed_sections[{key!r}] value must be a boolean"
 
     return None
-
 
 def _validate_favorite_presets(favorite_presets: Any) -> str | None:
     """Validate favorite presets references.
@@ -836,7 +815,6 @@ def _validate_favorite_presets(favorite_presets: Any) -> str | None:
             return f"favorite_presets[{i}] `id` must be a string"
 
     return None
-
 
 class UserPreferencesView(HomeAssistantView):
     """View to manage per-user preferences (color history, sort preferences)."""
@@ -1161,7 +1139,6 @@ class UserPreferencesView(HomeAssistantView):
         )
         return web.json_response(preferences)
 
-
 class GlobalPreferencesView(HomeAssistantView):
     """View to get and update integration-wide global preferences."""
 
@@ -1277,9 +1254,7 @@ class GlobalPreferencesView(HomeAssistantView):
         )
         return web.json_response(preferences)
 
-
 _cached_version: str | None = None
-
 
 class VersionView(HomeAssistantView):
     """View to get the integration version."""
@@ -1342,7 +1317,6 @@ class VersionView(HomeAssistantView):
             }
         )
 
-
 class ExportPresetsView(HomeAssistantView):
     """View to export user presets as a downloadable JSON file.
 
@@ -1394,7 +1368,6 @@ class ExportPresetsView(HomeAssistantView):
         except Exception:
             _LOGGER.exception("Failed to export presets")
             return web.Response(status=500, text="Failed to export presets")
-
 
 class ImportPresetsView(HomeAssistantView):
     """View to import presets from JSON backup file."""
@@ -1471,7 +1444,6 @@ class ImportPresetsView(HomeAssistantView):
         except Exception:
             _LOGGER.exception("Failed to import presets")
             return web.Response(status=400, text="Failed to import presets")
-
 
 class SupportedEntitiesView(HomeAssistantView):
     """View to get all supported entities across all backend instances."""
@@ -1661,16 +1633,13 @@ class SupportedEntitiesView(HomeAssistantView):
             }
         )
 
-
 def _get_segment_zone_store(hass: HomeAssistant) -> SegmentZoneStore | None:
     """Get the segment zone store from hass.data."""
     if DOMAIN not in hass.data:
         return None
     return hass.data[DOMAIN].get(DATA_SEGMENT_ZONE_STORE)
 
-
 _IEEE_ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{16}$")
-
 
 class SegmentZonesView(HomeAssistantView):
     """View to get and set segment zones for a device."""
@@ -1730,7 +1699,6 @@ class SegmentZonesView(HomeAssistantView):
 
         return web.json_response({"zones": saved_zones})
 
-
 class SegmentZoneView(HomeAssistantView):
     """View to delete a single segment zone."""
 
@@ -1758,7 +1726,6 @@ class SegmentZoneView(HomeAssistantView):
 
         return web.Response(status=204)
 
-
 # Mapping from preset type to the service used for activation
 _ACTIVATE_SERVICE_MAP: dict[str, str] = {
     "effect": SERVICE_SET_DYNAMIC_EFFECT,
@@ -1778,7 +1745,6 @@ _STOP_SERVICE_MAP: dict[str, str] = {
 
 # Valid actions for the trigger endpoint
 _VALID_ACTIONS = {"activate", "stop"}
-
 
 class TriggerView(HomeAssistantView):
     """REST endpoint for triggering presets from external systems.
@@ -1930,7 +1896,6 @@ class TriggerView(HomeAssistantView):
         return web.json_response(
             {"success": True, "service": service_name, "entity_id": entity_id}
         )
-
 
 class RunningOperationsView(HomeAssistantView):
     """View to get all currently running operations across all instances."""
@@ -2104,7 +2069,6 @@ class RunningOperationsView(HomeAssistantView):
 
         return web.json_response({"operations": operations})
 
-
 class SceneAudioSensitivityView(HomeAssistantView):
     """View to update beat sensitivity on a running audio scene."""
 
@@ -2169,7 +2133,6 @@ class SceneAudioSensitivityView(HomeAssistantView):
             text="Scene not found",
             content_type="text/plain",
         )
-
 
 class SceneAudioSquelchView(HomeAssistantView):
     """Handle audio squelch (noise gate) runtime updates."""
@@ -2258,16 +2221,13 @@ class SceneAudioSquelchView(HomeAssistantView):
             content_type="text/plain",
         )
 
-
 def _get_thumbnail_dir(hass: HomeAssistant) -> Path:
     """Get the thumbnail storage directory, creating it if needed."""
     path = Path(hass.config.path(f".storage/{THUMBNAIL_STORAGE_DIR}"))
     path.mkdir(parents=True, exist_ok=True)
     return path
 
-
 MAX_PENDING_THUMBNAILS = 20
-
 
 def _get_pending_thumbnails(hass: HomeAssistant) -> dict[str, bytes]:
     """Get the in-memory pending thumbnails dict, creating it if needed.
@@ -2284,7 +2244,6 @@ def _get_pending_thumbnails(hass: HomeAssistant) -> dict[str, bytes]:
         oldest_key = next(iter(pending))
         del pending[oldest_key]
     return pending
-
 
 def _validate_image_url(url: str) -> str | None:
     """Validate a URL for image fetching, blocking SSRF vectors.
@@ -2322,7 +2281,6 @@ def _validate_image_url(url: str) -> str | None:
             return "URLs pointing to private or internal addresses are not allowed"
 
     return None
-
 
 class ColorExtractView(HomeAssistantView):
     """Extract dominant colors from an uploaded image or image URL."""
@@ -2466,7 +2424,6 @@ class ColorExtractView(HomeAssistantView):
                 # Non-fatal -- colors still returned
 
         return web.json_response(result)
-
 
 class ThumbnailView(HomeAssistantView):
     """Serve and manage stored preset thumbnails."""

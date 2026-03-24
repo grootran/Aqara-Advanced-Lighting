@@ -1,7 +1,5 @@
 """Music sync service handlers."""
 
-from __future__ import annotations
-
 import logging
 
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -32,7 +30,6 @@ from ._helpers import (
 from homeassistant.const import ATTR_ENTITY_ID
 
 _LOGGER = logging.getLogger(__name__)
-
 
 async def handle_set_music_sync(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle set_music_sync service call.

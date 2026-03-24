@@ -1,7 +1,5 @@
 """Image processing utilities for color extraction and thumbnails."""
 
-from __future__ import annotations
-
 import colorsys
 import io
 import logging
@@ -29,7 +27,6 @@ _MIN_CHANNEL = 5
 _D65_X = 0.3127
 _D65_Y = 0.3290
 
-
 def _rgb_to_xy(r: int, g: int, b: int) -> tuple[float, float]:
     """Convert sRGB to CIE 1931 xy chromaticity using the sRGB D65 matrix.
 
@@ -42,7 +39,6 @@ def _rgb_to_xy(r: int, g: int, b: int) -> tuple[float, float]:
     if x == 0.0 and y == 0.0:
         return (_D65_X, _D65_Y)
     return (x, y)
-
 
 def _color_distance(c1: RGBColor, c2: RGBColor) -> float:
     """Perceptual color distance using the redmean approximation.
@@ -58,7 +54,6 @@ def _color_distance(c1: RGBColor, c2: RGBColor) -> float:
         + 4 * dg * dg
         + (2 + (255 - rmean) / 256) * db * db
     )
-
 
 def _select_diverse_colors(
     candidates: list[tuple[int, RGBColor]],
@@ -94,7 +89,6 @@ def _select_diverse_colors(
                 selected.append((count, rgb))
 
     return selected
-
 
 def _extract_palette(
     image_bytes: bytes,
@@ -198,7 +192,6 @@ def _extract_palette(
 
     return result
 
-
 def _create_thumbnail(image_bytes: bytes) -> bytes:
     """Create an optimised JPEG thumbnail from image bytes.
 
@@ -231,7 +224,6 @@ def _create_thumbnail(image_bytes: bytes) -> bytes:
     img.save(buf, format="JPEG", quality=THUMBNAIL_JPEG_QUALITY, optimize=True)
     return buf.getvalue()
 
-
 async def async_extract_colors(
     hass: HomeAssistant,
     image_bytes: bytes,
@@ -253,7 +245,6 @@ async def async_extract_colors(
     return await hass.async_add_executor_job(
         _extract_palette, image_bytes, num_colors, extract_brightness
     )
-
 
 async def async_create_thumbnail(
     hass: HomeAssistant,

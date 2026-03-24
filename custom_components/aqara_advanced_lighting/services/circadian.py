@@ -1,7 +1,5 @@
 """Circadian mode service handlers."""
 
-from __future__ import annotations
-
 import logging
 
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -28,7 +26,6 @@ from homeassistant.const import ATTR_ENTITY_ID
 
 _LOGGER = logging.getLogger(__name__)
 
-
 async def handle_resume_entity_control(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle resume_entity_control service call.
 
@@ -47,7 +44,6 @@ async def handle_resume_entity_control(hass: HomeAssistant, call: ServiceCall) -
                 "Entity %s was not externally paused, nothing to resume",
                 entity_id,
             )
-
 
 async def handle_start_circadian_mode(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle start_circadian_mode service call."""
@@ -150,7 +146,6 @@ async def handle_start_circadian_mode(hass: HomeAssistant, call: ServiceCall) ->
 
     for entity_id in entity_ids:
         circadian_mgr.start_circadian(entity_id, solar_steps, preset_name)
-
 
 async def handle_stop_circadian_mode(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle stop_circadian_mode service call."""

@@ -1,7 +1,5 @@
 """Dynamic Scene Manager for Aqara Advanced Lighting."""
 
-from __future__ import annotations
-
 import asyncio
 import json
 import logging
@@ -86,7 +84,6 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-
 @dataclass
 class ActiveSceneInfo:
     """Information about an active dynamic scene."""
@@ -103,7 +100,6 @@ class ActiveSceneInfo:
     audio_waiting: bool = False
     audio_bpm: float | None = None
     audio_sensitivity: int | None = None
-
 
 @dataclass
 class SceneState:
@@ -135,7 +131,6 @@ class SceneState:
     audio_unsub: CALLBACK_TYPE | None = None
     audio_companion_sensors: dict[str, str | None] = field(default_factory=dict)
     audio_waiting: bool = False
-
 
 class DynamicSceneManager:
     """Manages dynamic scene execution as background tasks."""

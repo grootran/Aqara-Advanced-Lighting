@@ -5,8 +5,6 @@ Subclasses provide domain-specific methods and can override async_load()
 or async_save() when they need migration or custom serialization logic.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import Any, Generic, TypeVar
 
@@ -16,7 +14,6 @@ from homeassistant.helpers.storage import Store
 _LOGGER = logging.getLogger(__name__)
 
 DataT = TypeVar("DataT")
-
 
 class BaseStore(Generic[DataT]):
     """Generic persistent store with HA storage backend.

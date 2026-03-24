@@ -1,12 +1,9 @@
 """Device backend protocol for Zigbee communication abstraction."""
 
-from __future__ import annotations
-
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from .models import AqaraDevice, DynamicEffect, SegmentColor
-
 
 @runtime_checkable
 class DeviceBackend(Protocol):

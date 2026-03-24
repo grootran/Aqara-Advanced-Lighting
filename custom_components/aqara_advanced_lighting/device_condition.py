@@ -1,7 +1,5 @@
 """Device conditions for Aqara Advanced Lighting."""
 
-from __future__ import annotations
-
 import logging
 from typing import Any
 
@@ -48,7 +46,6 @@ CONDITION_SCHEMA = cv.DEVICE_CONDITION_BASE_SCHEMA.extend(
     }
 )
 
-
 async def async_get_condition_capabilities(
     hass: HomeAssistant, config: ConfigType
 ) -> dict[str, vol.Schema]:
@@ -88,7 +85,6 @@ async def async_get_condition_capabilities(
         )
     }
 
-
 async def async_get_conditions(
     hass: HomeAssistant, device_id: str
 ) -> list[dict[str, Any]]:
@@ -115,7 +111,6 @@ async def async_get_conditions(
         for condition_type in sorted(CONDITION_TYPES)
     ]
 
-
 def _get_managers_for_entity(
     hass: HomeAssistant, entity_id: str
 ) -> tuple[Any, Any, Any, Any] | None:
@@ -137,7 +132,6 @@ def _get_managers_for_entity(
         instance_data.get(DATA_DYNAMIC_SCENE_MANAGER),
     )
 
-
 def _is_music_sync_active(hass: HomeAssistant, entity_id: str) -> bool:
     """Check if music sync is active for an entity.
 
@@ -155,7 +149,6 @@ def _is_music_sync_active(hass: HomeAssistant, entity_id: str) -> bool:
             return True
 
     return False
-
 
 @callback
 def async_condition_from_config(

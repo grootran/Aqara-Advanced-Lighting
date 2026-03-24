@@ -5,14 +5,11 @@ that was previously duplicated in services.py, transition_utils.py, and
 device_condition.py.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
-
 
 def get_instance_for_entity(
     hass: HomeAssistant, entity_id: str

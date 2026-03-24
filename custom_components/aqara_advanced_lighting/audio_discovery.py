@@ -3,7 +3,6 @@
 Discovers companion sensors via the HA device registry and maps audio
 parameters for T1 Strip on-device routing.
 """
-from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
@@ -56,7 +55,6 @@ COMPANION_SELECT_SUFFIXES: dict[str, str] = {
     "-detection_mode": "detection_mode",
 }
 
-
 def discover_companion_sensors(
     hass: HomeAssistant,
     audio_entity_id: str,
@@ -100,7 +98,6 @@ def discover_companion_sensors(
                     break
 
     return companions
-
 
 def map_t1_strip_params(scene: DynamicScene) -> dict[str, str]:
     """Map dynamic scene audio parameters to T1 Strip music sync parameters.

@@ -1,17 +1,13 @@
 """Capability detection and adaptation for generic light entities."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from enum import IntEnum
 from typing import Any
 
 from .const import MAX_COLOR_TEMP_KELVIN, MIN_COLOR_TEMP_KELVIN
 
-
 # Full color modes from HA light platform
 _COLOR_MODES: frozenset[str] = frozenset({"xy", "hs", "rgb", "rgbw", "rgbww"})
-
 
 class LightCapabilityLevel(IntEnum):
     """Capability classification for a light entity."""
@@ -21,7 +17,6 @@ class LightCapabilityLevel(IntEnum):
     BRIGHTNESS_ONLY = 2
     ON_OFF_ONLY = 1
 
-
 @dataclass(frozen=True, slots=True)
 class CapabilityProfile:
     """Resolved capability profile for a light entity."""
@@ -29,7 +24,6 @@ class CapabilityProfile:
     level: LightCapabilityLevel
     min_color_temp_kelvin: int | None = None
     max_color_temp_kelvin: int | None = None
-
 
 def build_capability_profile(state: Any) -> CapabilityProfile:
     """Build a capability profile from a light entity's state attributes.
@@ -68,7 +62,6 @@ def build_capability_profile(state: Any) -> CapabilityProfile:
 
     return CapabilityProfile(level=LightCapabilityLevel.ON_OFF_ONLY)
 
-
 def adapt_xy_for_cct_light(
     x: float, y: float, min_kelvin: int, max_kelvin: int
 ) -> int:
@@ -85,7 +78,6 @@ def adapt_xy_for_cct_light(
     n = (x - 0.3320) / (0.1858 - y)
     cct = 449.0 * n**3 + 3525.0 * n**2 + 6823.3 * n + 5520.33
     return clamp_color_temp(round(cct), min_kelvin, max_kelvin)
-
 
 def clamp_color_temp(
     color_temp: int, min_kelvin: int, max_kelvin: int

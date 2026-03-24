@@ -1,7 +1,5 @@
 """Effect service handlers for Aqara Advanced Lighting."""
 
-from __future__ import annotations
-
 import asyncio
 import logging
 from typing import Any
@@ -62,7 +60,6 @@ from ._helpers import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-
 
 async def handle_set_dynamic_effect(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle set_dynamic_effect service call."""
@@ -446,7 +443,6 @@ async def handle_set_dynamic_effect(hass: HomeAssistant, call: ServiceCall) -> N
                     _LOGGER.warning(
                         "Failed to set brightness for %s: %s", entity_id, result
                     )
-
 
 async def handle_stop_effect(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle stop_effect service call."""

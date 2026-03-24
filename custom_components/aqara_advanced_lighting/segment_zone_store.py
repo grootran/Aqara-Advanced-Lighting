@@ -1,7 +1,5 @@
 """Per-device segment zone storage for Aqara Advanced Lighting."""
 
-from __future__ import annotations
-
 import logging
 import re
 
@@ -30,7 +28,6 @@ RESERVED_ZONE_NAMES: frozenset[str] = frozenset({
 MAX_ZONE_NAME_LENGTH = 50
 MIN_ZONE_NAME_LENGTH = 1
 MAX_ZONES_PER_DEVICE = 20
-
 
 def validate_zone_name(name: str) -> str | None:
     """Validate a zone name.
@@ -64,7 +61,6 @@ def validate_zone_name(name: str) -> str | None:
 
     return None
 
-
 def validate_segment_range(segment_range: str) -> str | None:
     """Validate a segment range string format.
 
@@ -92,7 +88,6 @@ def validate_segment_range(segment_range: str) -> str | None:
         )
 
     return None
-
 
 class SegmentZoneStore(BaseStore[dict[str, dict[str, str]]]):
     """Manages per-device segment zone definitions.

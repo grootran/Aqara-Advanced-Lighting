@@ -1,7 +1,5 @@
 """Helper functions for Aqara Advanced Lighting services."""
 
-from __future__ import annotations
-
 import asyncio
 import logging
 from typing import Any
@@ -31,7 +29,6 @@ from ..sun_utils import ScheduleStep, SolarStep
 
 _LOGGER = logging.getLogger(__name__)
 
-
 def _get_context_and_record(hass: HomeAssistant, entity_id: str) -> Context | None:
     """Get integration context for tagging service calls as internal.
 
@@ -42,7 +39,6 @@ def _get_context_and_record(hass: HomeAssistant, entity_id: str) -> Context | No
     if ec:
         return ec.create_context()
     return None
-
 
 def _build_solar_sequence(
     solar_steps_data: list[dict[str, Any]],
@@ -67,7 +63,6 @@ def _build_solar_sequence(
         auto_resume_delay=max(0, auto_resume_delay),
     )
 
-
 def _build_schedule_sequence(
     schedule_steps_data: list[dict[str, Any]],
     auto_resume_delay: float = 0,
@@ -90,7 +85,6 @@ def _build_schedule_sequence(
         schedule_steps=schedule_steps,
         auto_resume_delay=max(0, auto_resume_delay),
     )
-
 
 def _normalize_color_to_rgb(color_data: dict[str, Any] | list[int]) -> RGBColor:
     """Convert color input (XY, RGB dict, or RGB list) to RGBColor.
@@ -142,7 +136,6 @@ def _normalize_color_to_rgb(color_data: dict[str, Any] | list[int]) -> RGBColor:
         translation_placeholders={"type": str(type(color_data).__name__)},
     )
 
-
 def _get_instance_for_entity(
     hass: HomeAssistant, entity_id: str
 ) -> tuple[str | None, dict | None]:
@@ -150,7 +143,6 @@ def _get_instance_for_entity(
     from ..entity_routing import get_instance_for_entity
 
     return get_instance_for_entity(hass, entity_id)
-
 
 def _get_backend_for_entity(
     hass: HomeAssistant, entity_id: str
@@ -168,7 +160,6 @@ def _get_backend_for_entity(
     if instance_data:
         return instance_data.get("backend")
     return None
-
 
 def _get_instance_components_for_entity(
     hass: HomeAssistant, entity_id: str
@@ -224,7 +215,6 @@ def _get_instance_components_for_entity(
 
     return backend, state_manager, entry_id
 
-
 def _get_zones_for_device(
     hass: HomeAssistant, ieee_address: str
 ) -> dict[str, str] | None:
@@ -244,7 +234,6 @@ def _get_zones_for_device(
         return None
     zones = zone_store.get_zones_for_resolution(ieee_address)
     return zones if zones else None
-
 
 def _resolve_entity_ids(hass: HomeAssistant, entity_ids: list[str]) -> list[str]:
     """Resolve entity IDs, expanding groups to individual lights.
@@ -287,7 +276,6 @@ def _resolve_entity_ids(hass: HomeAssistant, entity_ids: list[str]) -> list[str]
 
     return unique_resolved
 
-
 def _validate_supported_entities(hass: HomeAssistant, entity_ids: list[str]) -> None:
     """Validate that all entities are supported Aqara devices.
 
@@ -325,7 +313,6 @@ def _validate_supported_entities(hass: HomeAssistant, entity_ids: list[str]) -> 
             translation_placeholders={"entity_list": entity_list},
         )
 
-
 def _is_aqara_entity(hass: HomeAssistant, entity_id: str) -> bool:
     """Check if an entity is a supported Aqara device.
 
@@ -342,7 +329,6 @@ def _is_aqara_entity(hass: HomeAssistant, entity_id: str) -> bool:
     is_supported, _ = backend.is_entity_supported(entity_id)
     return is_supported
 
-
 def _is_valid_light_entity(hass: HomeAssistant, entity_id: str) -> bool:
     """Check if an entity is a valid light entity in Home Assistant.
 
@@ -355,7 +341,6 @@ def _is_valid_light_entity(hass: HomeAssistant, entity_id: str) -> bool:
     """
     state = hass.states.get(entity_id)
     return state is not None and state.domain == "light"
-
 
 def _get_any_cct_manager(
     hass: HomeAssistant,
@@ -376,7 +361,6 @@ def _get_any_cct_manager(
         if cct_manager and state_manager:
             return cct_manager, state_manager
     return None
-
 
 def _find_cct_manager_for_entity(hass: HomeAssistant, entity_id: str) -> Any | None:
     """Find the CCT manager that has an active sequence for an entity.
@@ -399,7 +383,6 @@ def _find_cct_manager_for_entity(hass: HomeAssistant, entity_id: str) -> Any | N
             return cct_manager
     return None
 
-
 def _get_dynamic_scene_manager(hass: HomeAssistant) -> Any:
     """Get the dynamic scene manager from any available config entry.
 
@@ -417,7 +400,6 @@ def _get_dynamic_scene_manager(hass: HomeAssistant) -> Any:
             return manager
     raise HomeAssistantError("Dynamic scene manager not initialized")
 
-
 def _get_t1_strip_length_from_state(
     hass: HomeAssistant, entity_id: str
 ) -> float | None:
@@ -428,7 +410,6 @@ def _get_t1_strip_length_from_state(
         if length is not None:
             return float(length)
     return None
-
 
 def _get_t1_strip_length_from_sibling(
     hass: HomeAssistant, entity_id: str
@@ -455,7 +436,6 @@ def _get_t1_strip_length_from_sibling(
             except (ValueError, TypeError):
                 pass
     return None
-
 
 def _get_t1_strip_length_from_registry(
     hass: HomeAssistant, entity_id: str
@@ -493,11 +473,9 @@ def _get_t1_strip_length_from_registry(
                 pass
     return None
 
-
 # Cache for T1 Strip segment counts (entity_id -> segment_count).
 # Cleared only on HA restart; strip length rarely changes at runtime.
 _t1_strip_segment_cache: dict[str, int] = {}
-
 
 def _get_actual_segment_count(
     hass: HomeAssistant, entity_id: str, model_id: str
@@ -546,7 +524,6 @@ def _get_actual_segment_count(
 
     # Unknown device default
     return 20
-
 
 async def _ensure_light_on(
     hass: HomeAssistant,

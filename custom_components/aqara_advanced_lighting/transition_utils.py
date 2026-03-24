@@ -6,8 +6,6 @@ model resolution, and the shared software CCT transition algorithm used by
 both Zigbee backends and the dynamic scene manager.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
@@ -35,7 +33,6 @@ _LOGGER = logging.getLogger(__name__)
 # Parameters: (entity_id, color_temp_kelvin, brightness, transition_or_None)
 ApplyCctCallback = Callable[[str, int, int, float | None], Awaitable[None]]
 
-
 def ease_in_out_cubic(t: float) -> float:
     """Cubic easing function for smooth transitions.
 
@@ -48,7 +45,6 @@ def ease_in_out_cubic(t: float) -> float:
     if t < 0.5:
         return 4 * t * t * t
     return 1 - pow(-2 * t + 2, 3) / 2
-
 
 def get_software_step_interval(model_id: str, transition: float) -> float:
     """Calculate the step interval for software-interpolated transitions.
@@ -81,7 +77,6 @@ def get_software_step_interval(model_id: str, transition: float) -> float:
     )
     return max(interval, min_interval)
 
-
 def get_entity_model_id(hass: HomeAssistant, entity_id: str) -> str | None:
     """Resolve an entity ID to its Aqara device model ID.
 
@@ -103,11 +98,9 @@ def get_entity_model_id(hass: HomeAssistant, entity_id: str) -> str | None:
             return device.model_id
     return None
 
-
 # ---------------------------------------------------------------------------
 # Shared CCT transition and light control helpers
 # ---------------------------------------------------------------------------
-
 
 def make_service_apply_callback(
     hass: HomeAssistant,
@@ -143,7 +136,6 @@ def make_service_apply_callback(
         )
 
     return _apply
-
 
 async def software_cct_transition(
     hass: HomeAssistant,
@@ -257,7 +249,6 @@ async def software_cct_transition(
     _LOGGER.debug("Software transition complete for %s", entity_id)
     return True
 
-
 async def apply_cct_step(
     hass: HomeAssistant,
     backend: DeviceBackend,
@@ -348,7 +339,6 @@ async def apply_cct_step(
 
     _LOGGER.debug("Transition complete for %s", entity_id)
     return True
-
 
 async def turn_off_light(
     hass: HomeAssistant,

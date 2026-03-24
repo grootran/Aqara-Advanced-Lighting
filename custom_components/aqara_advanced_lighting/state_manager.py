@@ -1,7 +1,5 @@
 """State management for effect restoration."""
 
-from __future__ import annotations
-
 import asyncio
 import logging
 from datetime import datetime, timedelta
@@ -29,7 +27,6 @@ _LOGGER = logging.getLogger(__name__)
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.state_manager"
 STATE_EXPIRY_HOURS = 24
-
 
 class StateManager:
     """Manage device states for restoration after effects."""

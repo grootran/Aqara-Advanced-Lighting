@@ -1,7 +1,5 @@
 """CCT sequence service handlers for Aqara Advanced Lighting."""
 
-from __future__ import annotations
-
 import asyncio
 import logging
 
@@ -51,7 +49,6 @@ from ._helpers import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-
 
 async def handle_start_cct_sequence(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle start_cct_sequence service call."""
@@ -495,7 +492,6 @@ async def handle_start_cct_sequence(hass: HomeAssistant, call: ServiceCall) -> N
             translation_placeholders={"entity": ", ".join(all_entities)},
         ) from ex
 
-
 async def handle_stop_cct_sequence(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle stop_cct_sequence service call."""
     entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
@@ -557,7 +553,6 @@ async def handle_stop_cct_sequence(hass: HomeAssistant, call: ServiceCall) -> No
         for entity_id in resolved_entity_ids:
             await entity_controller.check_and_resume_solar(entity_id)
 
-
 async def handle_pause_cct_sequence(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle pause_cct_sequence service call."""
     entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
@@ -577,7 +572,6 @@ async def handle_pause_cct_sequence(hass: HomeAssistant, call: ServiceCall) -> N
             _LOGGER.info("Paused CCT sequence for %s", entity_id)
         else:
             _LOGGER.warning("Failed to pause CCT sequence for %s", entity_id)
-
 
 async def handle_resume_cct_sequence(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle resume_cct_sequence service call."""

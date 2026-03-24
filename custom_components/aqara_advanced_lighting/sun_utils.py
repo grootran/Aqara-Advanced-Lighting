@@ -1,7 +1,5 @@
 """Sun elevation calculation engine for solar-adaptive CCT."""
 
-from __future__ import annotations
-
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -9,7 +7,6 @@ from datetime import datetime, timezone
 from homeassistant.core import HomeAssistant, State
 
 SUN_ENTITY_ID = "sun.sun"
-
 
 @dataclass(frozen=True, slots=True)
 class SolarStep:
@@ -35,10 +32,8 @@ class SolarStep:
             msg = f"Sun elevation must be -90 to 90, got {self.sun_elevation}"
             raise ValueError(msg)
 
-
 _FIXED_TIME_RE = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 _RELATIVE_TIME_RE = re.compile(r"^(?:sunrise|sunset)[+-]\d{1,3}$")
-
 
 @dataclass(frozen=True, slots=True)
 class ScheduleStep:
@@ -61,9 +56,7 @@ class ScheduleStep:
             msg = f"Brightness must be 1-255, got {self.brightness}"
             raise ValueError(msg)
 
-
 _CYCLE_MINUTES = 1440  # 24 hours in minutes
-
 
 def resolve_step_time(time_str: str, sun_state: State) -> float:
     """Resolve a schedule time string to minutes from midnight.
@@ -102,7 +95,6 @@ def resolve_step_time(time_str: str, sun_state: State) -> float:
     base_minutes = sun_dt.hour * 60 + sun_dt.minute
     offset = int(offset_str)
     return float(base_minutes + offset)
-
 
 def interpolate_schedule_values(
     steps: list[ScheduleStep],
@@ -172,11 +164,9 @@ def interpolate_schedule_values(
     last_step = resolved[-1][1]
     return last_step.color_temp, last_step.brightness
 
-
 def get_sun_state(hass: HomeAssistant) -> State | None:
     """Get the current sun.sun entity state."""
     return hass.states.get(SUN_ENTITY_ID)
-
 
 def interpolate_solar_values(
     steps: list[SolarStep],

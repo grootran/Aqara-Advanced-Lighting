@@ -7,8 +7,6 @@ centralized listener that uses HA Context to distinguish integration
 service calls from external changes.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import time
@@ -55,14 +53,12 @@ _COLOR_KEYS = frozenset({
     "rgbw_color", "rgbww_color", "color_name",
 })
 
-
 def _state_attributes_equal(old_state: State, new_state: State) -> bool:
     """Check if light-relevant attributes are unchanged between two states."""
     for attr in _WATCHED_ATTRS:
         if old_state.attributes.get(attr) != new_state.attributes.get(attr):
             return False
     return True
-
 
 def _detect_changed_attributes(old_state: State, new_state: State) -> OverrideAttributes:
     """Detect which attribute categories changed between two states.
@@ -108,7 +104,6 @@ def _detect_changed_attributes(old_state: State, new_state: State) -> OverrideAt
         changed |= OverrideAttributes.COLOR
     return changed
 
-
 def _detect_service_call_attributes(service_data: dict[str, Any]) -> OverrideAttributes:
     """Detect which attribute categories a service call is setting.
 
@@ -127,10 +122,8 @@ def _detect_service_call_attributes(service_data: dict[str, Any]) -> OverrideAtt
         attributes = OverrideAttributes.ALL
     return attributes
 
-
 NON_HA_BRIGHTNESS_THRESHOLD = 25   # ~10% of 0-255 range
 NON_HA_COLOR_TEMP_THRESHOLD = 100  # 100K
-
 
 def detect_drift(
     expected_ct: int,
@@ -150,7 +143,6 @@ def detect_drift(
     if actual_ct is not None and abs(actual_ct - expected_ct) > NON_HA_COLOR_TEMP_THRESHOLD:
         override |= OverrideAttributes.COLOR
     return override
-
 
 class AutoResumeTimer:
     """Cancellable single-shot timer for automatic resume after manual override."""
@@ -203,7 +195,6 @@ class AutoResumeTimer:
                 await self._callback()
         except asyncio.CancelledError:
             pass
-
 
 class EntityController:
     """Centralized controller for entity conflict resolution and external change detection.

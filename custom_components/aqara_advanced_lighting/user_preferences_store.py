@@ -1,7 +1,5 @@
 """Per-user preferences storage for Aqara Advanced Lighting."""
 
-from __future__ import annotations
-
 import logging
 from typing import Any, TypedDict
 
@@ -12,8 +10,6 @@ from .const import DOMAIN, MAX_COLOR_HISTORY_SIZE
 
 _LOGGER = logging.getLogger(__name__)
 
-
-
 class _Unset:
     """Sentinel for distinguishing 'not provided' from None."""
 
@@ -21,7 +17,6 @@ _UNSET = _Unset()
 
 STORAGE_KEY = f"{DOMAIN}.user_preferences"
 STORAGE_VERSION = 1
-
 
 class UserPreferences(TypedDict):
     """Per-user preferences."""
@@ -50,7 +45,6 @@ class UserPreferences(TypedDict):
     hidden_builtin_presets: list[dict[str, str]]
     selected_entities: list[str]
     active_favorite_id: str | None
-
 
 DEFAULT_PREFERENCES: UserPreferences = {
     "color_history": [],
@@ -81,7 +75,6 @@ DEFAULT_PREFERENCES: UserPreferences = {
 
 GLOBAL_PREFERENCES_KEY = "__global__"
 
-
 class GlobalPreferences(TypedDict):
     """Integration-wide preferences (not per-user)."""
 
@@ -92,7 +85,6 @@ class GlobalPreferences(TypedDict):
     detect_non_ha_changes: bool
     entity_audio_config: dict[str, dict[str, str]]
 
-
 DEFAULT_GLOBAL_PREFERENCES: GlobalPreferences = {
     "ignore_external_changes": False,
     "software_transition_entities": [],
@@ -101,7 +93,6 @@ DEFAULT_GLOBAL_PREFERENCES: GlobalPreferences = {
     "detect_non_ha_changes": False,
     "entity_audio_config": {},
 }
-
 
 class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
     """Manages per-user preferences storage, keyed by HA user ID."""

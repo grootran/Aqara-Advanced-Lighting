@@ -1,7 +1,5 @@
 """Data models for the Aqara Advanced Lighting integration."""
 
-from __future__ import annotations
-
 import math
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -30,7 +28,6 @@ from .const import (
 )
 from .sun_utils import ScheduleStep, SolarStep
 
-
 def _validate_sequence_params(
     steps_count: int,
     loop_mode: str,
@@ -54,7 +51,6 @@ def _validate_sequence_params(
         msg = f"End behavior must be 'maintain', 'turn_off', or 'restore', got {end_behavior}"
         raise ValueError(msg)
 
-
 def round_xy(value: float) -> float:
     """Round XY coordinate to 4 decimal places for consistency.
 
@@ -69,7 +65,6 @@ def round_xy(value: float) -> float:
     """
     return round(value, 4)
 
-
 class AqaraLightModel(StrEnum):
     """Supported Aqara light models."""
 
@@ -77,7 +72,6 @@ class AqaraLightModel(StrEnum):
     T1M_26_SEGMENT = "ACN032"
     T1_STRIP = "STRIP1"
     T2_BULB = "ACN003"
-
 
 class EffectType(StrEnum):
     """Dynamic effect types across all Aqara light models."""
@@ -100,7 +94,6 @@ class EffectType(StrEnum):
 
     # T2 Bulb specific effects
     CANDLELIGHT = "candlelight"
-
 
 @dataclass
 class RGBColor:
@@ -130,7 +123,6 @@ class RGBColor:
         if not (0 <= self.b <= 255):
             msg = f"Blue value must be 0-255, got {self.b}"
             raise ValueError(msg)
-
 
 @dataclass
 class XYColor:
@@ -233,7 +225,6 @@ class XYColor:
             msg = f"Brightness must be 1-255, got {self.brightness}"
             raise ValueError(msg)
 
-
 @dataclass
 class DynamicSceneColor:
     """Single color in a dynamic scene palette with per-color brightness."""
@@ -277,7 +268,6 @@ class DynamicSceneColor:
             msg = f"Brightness percentage must be 1-100, got {self.brightness_pct}"
             raise ValueError(msg)
 
-
 @dataclass
 class SegmentColor:
     """Segment color assignment for individual segment patterns."""
@@ -298,7 +288,6 @@ class SegmentColor:
         if self.brightness is not None and not (1 <= self.brightness <= 255):
             msg = f"Brightness must be 1-255, got {self.brightness}"
             raise ValueError(msg)
-
 
 @dataclass
 class DynamicEffect:
@@ -350,7 +339,6 @@ class DynamicEffect:
             msg = f"Effect must have 1-8 colors, got {len(self.effect_colors)}"
             raise ValueError(msg)
 
-
 @dataclass
 class DeviceCapabilities:
     """Device capability definition for each Aqara light model."""
@@ -361,7 +349,6 @@ class DeviceCapabilities:
     supports_segment_addressing: bool
     supports_effect_segments: bool
     model_name: str
-
 
 @dataclass
 class DeviceState:
@@ -397,7 +384,6 @@ class DeviceState:
             "current_preset": self.current_preset,
         }
 
-
 @dataclass
 class AqaraDevice:
     """Backend-agnostic representation of a supported Aqara light.
@@ -419,7 +405,6 @@ class AqaraDevice:
 
         return get_device_capabilities(self.model_id)
 
-
 @dataclass
 class Z2MDevice:
     """Zigbee2MQTT device information."""
@@ -429,7 +414,6 @@ class Z2MDevice:
     model_id: str
     manufacturer: str
     supported: bool = True
-
 
 @dataclass
 class CCTSequenceStep:
@@ -454,7 +438,6 @@ class CCTSequenceStep:
         if self.hold < 0:
             msg = "Hold time cannot be negative"
             raise ValueError(msg)
-
 
 @dataclass
 class CCTSequence:
@@ -490,7 +473,6 @@ class CCTSequence:
             _validate_sequence_params(
                 len(self.steps), self.loop_mode, self.loop_count, self.end_behavior
             )
-
 
 @dataclass
 class SegmentSequenceStep:
@@ -543,7 +525,6 @@ class SegmentSequenceStep:
             msg = f"Activation pattern must be one of {valid_patterns}, got {self.activation_pattern}"
             raise ValueError(msg)
 
-
 @dataclass
 class SegmentSequence:
     """RGB segment sequence configuration."""
@@ -560,7 +541,6 @@ class SegmentSequence:
         _validate_sequence_params(
             len(self.steps), self.loop_mode, self.loop_count, self.end_behavior
         )
-
 
 @dataclass
 class DynamicScene:
@@ -653,7 +633,6 @@ class DynamicScene:
 
         self.audio_latency_compensation_ms = max(0, min(500, self.audio_latency_compensation_ms))
 
-
 @dataclass
 class AqaraLightingRuntimeData:
     """Runtime data for the Aqara Advanced Lighting integration."""
@@ -668,7 +647,6 @@ class AqaraLightingRuntimeData:
     device_states: dict[str, DeviceState] = field(default_factory=dict)
     entity_mapping_ready: bool = False
     aqara_devices: dict[str, AqaraDevice] = field(default_factory=dict)
-
 
 # Type alias for typed config entry (Python 3.11+ compatible)
 AqaraLightingConfigEntry: TypeAlias = ConfigEntry[AqaraLightingRuntimeData]

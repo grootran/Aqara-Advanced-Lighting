@@ -6,15 +6,12 @@ Used by the ZHA backend to build raw byte payloads for direct cluster writes.
 The MQTT backend does not use this module (Z2M converters handle encoding).
 """
 
-from __future__ import annotations
-
 import math
 import struct
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .models import RGBColor
-
 
 def rgb_to_xy(r: int, g: int, b: int) -> tuple[float, float]:
     """Convert RGB to CIE 1931 XY chromaticity coordinates.
@@ -52,7 +49,6 @@ def rgb_to_xy(r: int, g: int, b: int) -> tuple[float, float]:
 
     return (x_val / total, y_val / total)
 
-
 def rgb_to_xy_bytes(r: int, g: int, b: int) -> bytes:
     """Convert RGB to CIE XY and encode as 4 bytes.
 
@@ -74,7 +70,6 @@ def rgb_to_xy_bytes(r: int, g: int, b: int) -> bytes:
 
     return struct.pack(">HH", x_scaled, y_scaled)
 
-
 def encode_rgb_color(color: RGBColor) -> bytes:
     """Encode an RGBColor object as 4 XY bytes.
 
@@ -85,7 +80,6 @@ def encode_rgb_color(color: RGBColor) -> bytes:
         4 bytes encoding the XY color
     """
     return rgb_to_xy_bytes(color.r, color.g, color.b)
-
 
 def build_effect_colors_payload(colors: list[RGBColor]) -> bytes:
     """Build effect colors packet for attribute 0x0523.
@@ -108,7 +102,6 @@ def build_effect_colors_payload(colors: list[RGBColor]) -> bytes:
         color_bytes += encode_rgb_color(color)
 
     return bytes([0x00, len(colors)]) + color_bytes
-
 
 def build_segment_mask(
     segments: list[int],
@@ -144,7 +137,6 @@ def build_segment_mask(
 
     return bytes(mask)
 
-
 def build_t1m_segment_packet(
     segments: list[int],
     color: RGBColor,
@@ -167,7 +159,6 @@ def build_t1m_segment_packet(
     color_bytes = encode_rgb_color(color)
 
     return segment_mask + b"\x00\x00\x00\x00" + color_bytes
-
 
 def build_strip_segment_packet(
     segments: list[int],
@@ -199,7 +190,6 @@ def build_strip_segment_packet(
         + color_bytes
         + bytes([0x00, 0x14])
     )
-
 
 def build_effect_segments_mask(
     segments: list[int],

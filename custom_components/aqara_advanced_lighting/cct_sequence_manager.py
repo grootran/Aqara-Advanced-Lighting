@@ -1,7 +1,5 @@
 """CCT Sequence Manager for Aqara Advanced Lighting."""
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import uuid
@@ -37,7 +35,6 @@ _LOGGER = logging.getLogger(__name__)
 SOLAR_POLL_INTERVAL: float = 60.0
 SOLAR_STORAGE_VERSION = 1
 SOLAR_STORAGE_KEY = f"{DOMAIN}.solar_sequences"
-
 
 class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
     """Manages CCT sequence execution as background tasks."""

@@ -1,7 +1,5 @@
 """Voluptuous schema definitions for Aqara Advanced Lighting services."""
 
-from __future__ import annotations
-
 import voluptuous as vol
 
 from homeassistant.const import ATTR_ENTITY_ID
@@ -98,7 +96,6 @@ from ..const import (
     VALID_MUSIC_SYNC_SENSITIVITIES,
     VALID_SOLAR_PHASES,
 )
-
 
 # RGB color schema (for dict format - backward compatibility)
 RGB_COLOR_SCHEMA = vol.Schema(
@@ -241,7 +238,6 @@ SERVICE_CREATE_BLOCKS_SCHEMA = vol.Schema(
     }
 )
 
-
 def _add_cct_step_fields(schema_dict: dict, step_num: int) -> None:
     """Add CCT sequence step fields to a schema dict."""
     schema_dict[f"step_{step_num}_color_temp"] = vol.Optional(
@@ -266,7 +262,6 @@ def _add_cct_step_fields(schema_dict: dict, step_num: int) -> None:
         vol.All(vol.Coerce(float), vol.Range(min=MIN_HOLD_TIME, max=MAX_HOLD_TIME))
     )
 
-
 # Activation patterns used in segment sequence step schemas
 _ACTIVATION_PATTERN_VALUES = [
     ACTIVATION_ALL,
@@ -278,7 +273,6 @@ _ACTIVATION_PATTERN_VALUES = [
     ACTIVATION_EDGES_IN,
     ACTIVATION_PAIRED,
 ]
-
 
 def _add_segment_step_fields(schema_dict: dict, step_num: int) -> None:
     """Add segment sequence step fields to a schema dict."""
@@ -316,7 +310,6 @@ def _add_segment_step_fields(schema_dict: dict, step_num: int) -> None:
     schema_dict[f"step_{step_num}_activation_pattern"] = vol.Optional(
         vol.In(_ACTIVATION_PATTERN_VALUES)
     )
-
 
 # Build CCT sequence service schema with individual step fields
 _cct_sequence_schema_dict = {

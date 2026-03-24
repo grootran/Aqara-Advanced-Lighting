@@ -1,7 +1,5 @@
 """Segment service handlers for Aqara Advanced Lighting."""
 
-from __future__ import annotations
-
 import asyncio
 import logging
 from typing import Any
@@ -65,7 +63,6 @@ from ._helpers import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-
 
 async def handle_set_segment_pattern(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle set_segment_pattern service call."""
@@ -300,7 +297,6 @@ async def handle_set_segment_pattern(hass: HomeAssistant, call: ServiceCall) -> 
                     "Failed to set brightness for %s: %s", entity_id, ex
                 )
 
-
 async def handle_create_gradient(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle create_gradient service call."""
     entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
@@ -489,7 +485,6 @@ async def handle_create_gradient(hass: HomeAssistant, call: ServiceCall) -> None
                 _LOGGER.warning(
                     "Failed to set brightness for %s: %s", entity_id, ex
                 )
-
 
 async def handle_create_blocks(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle create_blocks service call."""

@@ -1,7 +1,5 @@
 """Device capability definitions for Aqara lights."""
 
-from __future__ import annotations
-
 from functools import lru_cache
 from typing import Final
 
@@ -110,7 +108,6 @@ MODEL_CAPABILITIES: Final[dict[str, DeviceCapabilities]] = {
     MODEL_T2_CCT_GU10_110V: CAPABILITIES_T2_CCT,
 }
 
-
 @lru_cache(maxsize=32)
 def get_device_capabilities(model_id: str) -> DeviceCapabilities | None:
     """Get device capabilities for a Z2M model ID.
@@ -118,7 +115,6 @@ def get_device_capabilities(model_id: str) -> DeviceCapabilities | None:
     Results are cached for performance.
     """
     return MODEL_CAPABILITIES.get(model_id)
-
 
 def validate_effect_for_model(
     model_id: str, effect: EffectType
@@ -144,7 +140,6 @@ def validate_effect_for_model(
 
     return True, None
 
-
 @lru_cache(maxsize=32)
 def supports_segment_addressing(model_id: str) -> bool:
     """Check if a device supports individual segment addressing.
@@ -156,7 +151,6 @@ def supports_segment_addressing(model_id: str) -> bool:
         return False
     return capabilities.supports_segment_addressing
 
-
 @lru_cache(maxsize=32)
 def supports_effect_segments(model_id: str) -> bool:
     """Check if a device supports effect_segments parameter.
@@ -167,7 +161,6 @@ def supports_effect_segments(model_id: str) -> bool:
     if not capabilities:
         return False
     return capabilities.supports_effect_segments
-
 
 @lru_cache(maxsize=32)
 def get_segment_count(model_id: str) -> int:

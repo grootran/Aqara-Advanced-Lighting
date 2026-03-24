@@ -1,7 +1,5 @@
 """Config flow for Aqara Advanced Lighting integration."""
 
-from __future__ import annotations
-
 import asyncio
 import logging
 from typing import Any
@@ -31,7 +29,6 @@ BACKEND_TYPE_OPTIONS = {
     BACKEND_Z2M: "Zigbee2MQTT",
     BACKEND_ZHA: "ZHA (Zigbee Home Automation)",
 }
-
 
 class AqaraAdvancedLightingConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Aqara Advanced Lighting."""

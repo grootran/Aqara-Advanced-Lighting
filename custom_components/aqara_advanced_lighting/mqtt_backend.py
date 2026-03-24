@@ -1,7 +1,5 @@
 """Zigbee2MQTT backend implementing the DeviceBackend protocol."""
 
-from __future__ import annotations
-
 import asyncio
 import json
 import logging
@@ -51,7 +49,6 @@ _LOGGER = logging.getLogger(__name__)
 # Characters unsafe for MQTT topic construction (wildcards, separator, null)
 _UNSAFE_TOPIC_NAME = re.compile(r"[/#+\x00]|\.\.")
 
-
 # Supported Aqara light models
 SUPPORTED_MODELS = {
     MODEL_T1M_20_SEGMENT,
@@ -66,7 +63,6 @@ SUPPORTED_MODELS = {
     MODEL_T2_CCT_GU10_110V,
     MODEL_T2_CCT_GU10_230V,
 }
-
 
 class MQTTBackend:
     """Zigbee2MQTT backend implementing the DeviceBackend protocol."""

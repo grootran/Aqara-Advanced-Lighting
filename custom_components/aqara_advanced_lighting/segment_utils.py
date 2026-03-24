@@ -1,12 +1,9 @@
 """Segment utility functions for parsing and expanding segment ranges."""
 
-from __future__ import annotations
-
 import logging
 import re
 
 _LOGGER = logging.getLogger(__name__)
-
 
 def parse_segment_range(
     segment_str: str | int,
@@ -117,7 +114,6 @@ def parse_segment_range(
 
     return segments
 
-
 def expand_segment_colors(
     segment_colors: list[dict[str, any]],
     max_segments: int = 100,
@@ -151,7 +147,6 @@ def expand_segment_colors(
             expanded.append({"segment": seg_num, "color": color})
 
     return expanded
-
 
 def generate_gradient_colors(
     colors: list[dict[str, int]], segment_count: int
@@ -213,7 +208,6 @@ def generate_gradient_colors(
 
     return segment_colors
 
-
 def generate_block_colors(
     colors: list[dict[str, int]], segment_count: int, expand: bool = False
 ) -> list[dict[str, any]]:
@@ -260,7 +254,6 @@ def generate_block_colors(
             )
 
     return segment_colors
-
 
 def scale_segment_pattern(
     source_colors: list[list[int]], target_count: int
