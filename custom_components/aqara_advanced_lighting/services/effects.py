@@ -515,6 +515,11 @@ async def handle_stop_effect(hass: HomeAssistant, call: ServiceCall) -> None:
                     EVENT_ATTR_PRESET: stopped_preset,
                 },
             )
+
+            # Resume preset-paused solar/schedule CCT if nothing else is running
+            entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+            if entity_controller:
+                await entity_controller.check_and_resume_solar(entity_id)
         except Exception as ex:
             _LOGGER.warning("Failed to stop effect for %s: %s", entity_id, ex)
             continue

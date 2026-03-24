@@ -550,6 +550,13 @@ async def handle_stop_cct_sequence(hass: HomeAssistant, call: ServiceCall) -> No
             except Exception:
                 _LOGGER.debug("No stored state to restore for %s", entity_id)
 
+    # Resume preset-paused solar/schedule CCT for affected entities
+    # (covers case where standard CCT was running on top of paused solar)
+    entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+    if entity_controller:
+        for entity_id in resolved_entity_ids:
+            await entity_controller.check_and_resume_solar(entity_id)
+
 
 async def handle_pause_cct_sequence(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle pause_cct_sequence service call."""

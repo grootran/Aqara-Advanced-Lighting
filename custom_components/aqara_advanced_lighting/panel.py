@@ -1984,11 +1984,17 @@ class RunningOperationsView(HomeAssistantView):
                         if entity_controller and ext_paused
                         else None
                     )
+                    preset_paused = (
+                        entity_controller.is_entity_preset_paused(entity_id)
+                        if entity_controller
+                        else False
+                    )
                     op_data: dict[str, Any] = {
                         "type": "cct_sequence",
                         "entity_id": entity_id,
                         "preset_id": cct_mgr.get_sequence_preset(entity_id),
                         "paused": status.get("paused", False),
+                        "preset_paused": preset_paused,
                         "externally_paused": ext_paused,
                         "override_attributes": {
                             "brightness": bool(

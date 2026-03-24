@@ -152,6 +152,9 @@ async def async_get_config_entry_diagnostics(
             "pending_restore_entities": sorted(
                 entity_controller._pending_restore
             ),
+            "preset_paused_solar_entities": sorted(
+                entity_controller._preset_paused_solar
+            ),
         }
 
     # Store statistics (integration-level singletons)

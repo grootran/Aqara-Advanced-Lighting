@@ -420,6 +420,12 @@ async def handle_stop_segment_sequence(hass: HomeAssistant, call: ServiceCall) -
             except Exception:
                 _LOGGER.debug("No stored state to restore for %s", entity_id)
 
+    # Resume preset-paused solar/schedule CCT for affected entities
+    entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+    if entity_controller:
+        for entity_id in resolved_entity_ids:
+            await entity_controller.check_and_resume_solar(entity_id)
+
 
 async def handle_pause_segment_sequence(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle pause_segment_sequence service call."""

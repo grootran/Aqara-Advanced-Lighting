@@ -76,6 +76,14 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
     # Keep alias for backward compatibility
     is_solar_sequence = is_adaptive_sequence
 
+    def has_solar_data(self, entity_id: str) -> bool:
+        """Check if preserved solar/schedule data exists for an entity.
+
+        Returns True even if the sequence task is no longer running,
+        meaning the data can be used for a restart.
+        """
+        return entity_id in self._solar_sequences
+
     def get_current_adaptive_values(
         self, entity_id: str,
     ) -> tuple[int, int] | None:
@@ -129,6 +137,70 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
         if seq_data:
             return seq_data.get("auto_resume_delay", 0)
         return 0
+
+    async def restart_solar_sequence(self, entity_id: str) -> bool:
+        """Restart a solar/schedule sequence from preserved persistence data.
+
+        Used to resume a preset-paused solar sequence whose task was killed
+        (e.g. when a standard CCT sequence replaced it on the same manager).
+        Returns True if the sequence was successfully restarted.
+        """
+        seq_data = self._solar_sequences.get(entity_id)
+        if not seq_data:
+            _LOGGER.debug(
+                "No preserved solar data for %s, cannot restart", entity_id
+            )
+            return False
+
+        mode = seq_data.get("mode", "solar")
+        try:
+            if mode == "schedule":
+                schedule_steps = [
+                    ScheduleStep(
+                        time=s["time"],
+                        color_temp=s["color_temp"],
+                        brightness=s["brightness"],
+                        label=s.get("label", ""),
+                    )
+                    for s in seq_data["schedule_steps"]
+                ]
+                sequence = CCTSequence(
+                    steps=[],
+                    loop_mode="continuous",
+                    end_behavior="maintain",
+                    mode="schedule",
+                    schedule_steps=schedule_steps,
+                    auto_resume_delay=seq_data.get("auto_resume_delay", 0),
+                )
+            else:
+                solar_steps = [
+                    SolarStep(
+                        sun_elevation=s["sun_elevation"],
+                        color_temp=s["color_temp"],
+                        brightness=s["brightness"],
+                        phase=s.get("phase", "any"),
+                    )
+                    for s in seq_data["solar_steps"]
+                ]
+                sequence = CCTSequence(
+                    steps=[],
+                    loop_mode="continuous",
+                    end_behavior="maintain",
+                    mode="solar",
+                    solar_steps=solar_steps,
+                    auto_resume_delay=seq_data.get("auto_resume_delay", 0),
+                )
+            await self.start_sequence(
+                entity_id, sequence, seq_data.get("preset")
+            )
+            return True
+        except Exception:
+            _LOGGER.warning(
+                "Failed to restart solar sequence for %s",
+                entity_id,
+                exc_info=True,
+            )
+            return False
 
     async def force_apply_current(self, entity_id: str) -> bool:
         """Immediately apply current solar values to an entity.
@@ -377,10 +449,24 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
             )
 
     async def stop_sequence(self, entity_id: str) -> None:
-        """Stop a running sequence and clear solar persistence if not shutting down."""
+        """Stop a running sequence and clear solar persistence if not shutting down.
+
+        Preserves solar persistence data when the entity is preset-paused,
+        allowing the sequence to be restarted when the interrupting preset stops.
+        """
         was_solar = entity_id in self._solar_sequences
         await super().stop_sequence(entity_id)
         if was_solar and not self._shutting_down:
+            # Keep solar data if preset-paused so it can be restarted later
+            if (
+                self._entity_controller
+                and self._entity_controller.is_entity_preset_paused(entity_id)
+            ):
+                _LOGGER.debug(
+                    "Preserving solar persistence for preset-paused %s",
+                    entity_id,
+                )
+                return
             await self._remove_solar_persistence(entity_id)
 
     async def async_restore_solar_sequences(self) -> None:

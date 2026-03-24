@@ -202,9 +202,26 @@ async def handle_stop_dynamic_scene(hass: HomeAssistant, call: ServiceCall) -> N
     entity_ids: list[str] | None = call.data.get(ATTR_ENTITY_ID)
     restore_state: bool | None = call.data.get(ATTR_RESTORE_STATE)
     manager = _get_dynamic_scene_manager(hass)
+
+    # Capture affected entities before stopping (scene may remove them)
+    if entity_ids:
+        affected = list(entity_ids)
+    else:
+        affected = [
+            eid
+            for scene_info in manager.get_active_scenes().values()
+            for eid in scene_info.entity_ids
+        ]
+
     await manager.stop_scene(
         entity_ids=entity_ids, restore_override=restore_state
     )
+
+    # Resume preset-paused solar/schedule CCT for affected entities
+    entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)
+    if entity_controller:
+        for entity_id in affected:
+            await entity_controller.check_and_resume_solar(entity_id)
 
 
 async def handle_pause_dynamic_scene(hass: HomeAssistant, call: ServiceCall) -> None:

@@ -219,6 +219,7 @@ class EntityController:
         self._pending_restore: set[str] = set()
         self._auto_resume_timers: dict[str, AutoResumeTimer] = {}
         self._service_pause_times: dict[str, float] = {}
+        self._preset_paused_solar: dict[str, CCTSequenceManager] = {}
         self._state_listener_remove: Any | None = None
         self._service_listener_remove: Any | None = None
 
@@ -410,12 +411,16 @@ class EntityController:
         conflicting actions are running on the same entity.
 
         For dynamic scenes: detaches entity (scene continues for others).
-        For CCT/segment sequences: stops the sequence for that entity.
+        For adaptive CCT sequences: pauses (not stops) so they can
+            auto-resume when the interrupting preset is later stopped.
+        For standard CCT/segment sequences: stops the sequence.
         Also clears effect_active flag so the frontend stops showing
         one-time actions (effects, patterns) as active.
         """
         self._externally_paused.pop(entity_id, None)
         self._pending_restore.discard(entity_id)
+        # Clear stale preset-pause reference so it can be freshly set below
+        self._preset_paused_solar.pop(entity_id, None)
         if timer := self._auto_resume_timers.pop(entity_id, None):
             timer.cancel()
 
@@ -432,12 +437,21 @@ class EntityController:
             if dsm and dsm.is_scene_running(entity_id):
                 dsm.detach_entity(entity_id)
 
-            # Stop CCT sequence
+            # Stop or pause CCT sequence
             cct: CCTSequenceManager | None = instance_data.get(
                 DATA_CCT_SEQUENCE_MANAGER
             )
             if cct and cct.is_sequence_running(entity_id):
-                await cct.stop_sequence(entity_id)
+                if cct.is_adaptive_sequence(entity_id):
+                    # Pause solar/schedule sequences so they can auto-resume
+                    cct.pause_sequence(entity_id)
+                    self._preset_paused_solar[entity_id] = cct
+                    _LOGGER.info(
+                        "Preset-paused solar/schedule CCT for %s",
+                        entity_id,
+                    )
+                else:
+                    await cct.stop_sequence(entity_id)
 
             # Stop segment sequence
             seg: SegmentSequenceManager | None = instance_data.get(
@@ -526,12 +540,98 @@ class EntityController:
         """Clear tracking when an entity's controlling action stops.
 
         Called by managers during cleanup to remove stale tracking.
+        Does NOT clear _preset_paused_solar — that is managed by
+        check_and_resume_solar() and stop_all_for_entity() to avoid
+        wiping the reference before auto-resume can use it.
         """
         self._externally_paused.pop(entity_id, None)
         self._pending_restore.discard(entity_id)
         self._service_pause_times.pop(entity_id, None)
         if timer := self._auto_resume_timers.pop(entity_id, None):
             timer.cancel()
+
+    def is_entity_preset_paused(self, entity_id: str) -> bool:
+        """Check if an entity has a solar/schedule CCT paused by a preset."""
+        return entity_id in self._preset_paused_solar
+
+    async def check_and_resume_solar(self, entity_id: str) -> None:
+        """Resume a preset-paused solar/schedule CCT if no other actions are running.
+
+        Called after a non-solar preset is stopped. Checks that nothing else
+        is actively controlling the entity before resuming the solar loop.
+
+        Handles two cases:
+        - Task still alive (non-CCT preset interrupted): unpause + force apply
+        - Task was killed (standard CCT used same manager): restart from saved data
+        """
+        cct_manager = self._preset_paused_solar.get(entity_id)
+        if cct_manager is None:
+            return
+
+        task_alive = cct_manager.is_sequence_running(entity_id)
+        has_solar_data = cct_manager.has_solar_data(entity_id)
+
+        # Nothing to resume from
+        if not task_alive and not has_solar_data:
+            self._preset_paused_solar.pop(entity_id, None)
+            return
+
+        # Check if any other continuous action is still running on this entity
+        for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():
+            state_mgr: StateManager | None = instance_data.get(DATA_STATE_MANAGER)
+            if state_mgr and state_mgr.is_effect_active(entity_id):
+                return
+
+            dsm: DynamicSceneManager | None = instance_data.get(
+                DATA_DYNAMIC_SCENE_MANAGER
+            )
+            if dsm and dsm.is_scene_running(entity_id):
+                return
+
+            seg: SegmentSequenceManager | None = instance_data.get(
+                DATA_SEGMENT_SEQUENCE_MANAGER
+            )
+            if seg and seg.is_sequence_running(entity_id):
+                return
+
+            # Check for non-solar CCT sequences (on any manager)
+            other_cct: CCTSequenceManager | None = instance_data.get(
+                DATA_CCT_SEQUENCE_MANAGER
+            )
+            if other_cct and other_cct.is_sequence_running(entity_id):
+                # Skip the paused solar's own task (it's ours to resume)
+                if other_cct is cct_manager and task_alive:
+                    continue
+                return
+
+        # Nothing else is running — resume or restart the solar/schedule CCT
+        del self._preset_paused_solar[entity_id]
+
+        if task_alive:
+            # Non-CCT preset interrupted: task is paused, just unpause
+            if cct_manager.resume_sequence(entity_id):
+                await cct_manager.force_apply_current(entity_id)
+                _LOGGER.info(
+                    "Auto-resumed preset-paused solar/schedule CCT for %s",
+                    entity_id,
+                )
+            else:
+                _LOGGER.warning(
+                    "Failed to resume preset-paused solar/schedule CCT for %s",
+                    entity_id,
+                )
+        else:
+            # Standard CCT killed the task: restart from preserved solar data
+            if await cct_manager.restart_solar_sequence(entity_id):
+                _LOGGER.info(
+                    "Auto-restarted preset-paused solar/schedule CCT for %s",
+                    entity_id,
+                )
+            else:
+                _LOGGER.warning(
+                    "Failed to restart preset-paused solar/schedule CCT for %s",
+                    entity_id,
+                )
 
     def cleanup(self) -> None:
         """Remove listeners and clear state.
@@ -547,6 +647,7 @@ class EntityController:
         self._externally_paused.clear()
         self._pending_restore.clear()
         self._service_pause_times.clear()
+        self._preset_paused_solar.clear()
         for timer in self._auto_resume_timers.values():
             timer.cancel()
         self._auto_resume_timers.clear()
@@ -813,6 +914,10 @@ class EntityController:
             )
             if seg and seg.is_sequence_running(entity_id):
                 await seg.stop_sequence(entity_id)
+
+        # If non-solar actions were cleared and there's a preset-paused solar
+        # sequence, resume it. The solar loop will wait while the light is off.
+        await self.check_and_resume_solar(entity_id)
 
         self.hass.bus.async_fire(
             EVENT_ENTITY_EXTERNALLY_CONTROLLED,
