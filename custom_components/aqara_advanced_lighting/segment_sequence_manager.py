@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import random
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, override
 
 from .base_sequence_manager import BaseSequenceManager
 from .const import (
@@ -30,6 +30,7 @@ class SegmentSequenceManager(BaseSequenceManager[SegmentSequence]):
 
     # -- BaseSequenceManager hooks --
 
+    @override
     def _get_start_step(
         self, sequence: SegmentSequence, loops_executed: int
     ) -> int:
@@ -46,6 +47,7 @@ class SegmentSequenceManager(BaseSequenceManager[SegmentSequence]):
             return 1
         return 0
 
+    @override
     async def _prepare_execution(
         self, entity_id: str, sequence: SegmentSequence
     ) -> bool:
@@ -85,6 +87,7 @@ class SegmentSequenceManager(BaseSequenceManager[SegmentSequence]):
 
         return True
 
+    @override
     async def _apply_step(
         self,
         entity_id: str,

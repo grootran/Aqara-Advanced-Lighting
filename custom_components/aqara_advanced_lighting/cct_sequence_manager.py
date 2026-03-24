@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import uuid
-from typing import Any
+from typing import Any, override
 
 from homeassistant.helpers.storage import Store
 
@@ -248,6 +248,7 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
 
     # -- BaseSequenceManager hooks --
 
+    @override
     def _get_start_step(
         self, sequence: CCTSequence, loops_executed: int
     ) -> int:
@@ -264,6 +265,7 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
             return 1
         return 0
 
+    @override
     async def _apply_step(
         self,
         entity_id: str,
@@ -311,6 +313,7 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
 
     # -- Solar mode support --
 
+    @override
     async def start_synchronized_group(
         self,
         entity_ids: list[str],
@@ -333,6 +336,7 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
             results[entity_id] = seq_id
         return results
 
+    @override
     async def start_sequence(
         self,
         entity_id: str,
@@ -445,6 +449,7 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
                 {"sequences": self._solar_sequences}
             )
 
+    @override
     async def stop_sequence(self, entity_id: str) -> None:
         """Stop a running sequence and clear solar persistence if not shutting down.
 

@@ -9,7 +9,7 @@ import asyncio
 import logging
 import time
 from abc import ABC
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, override
 
 from .const import (
     SILENCE_DEGRADATION_STEP_SECONDS,
@@ -91,9 +91,11 @@ class AudioModeHandler(ABC):
 class OnsetHandler(AudioModeHandler):
     """Colors advance on each detected onset/beat."""
 
+    @override
     def handle_onset(self, scene_state: Any, attrs: dict[str, Any]) -> None:
         self._manager._advance_colors(scene_state)
 
+    @override
     def handle_energy(self, scene_state: Any, energy: float) -> None:
         if scene_state.scene.audio_brightness_response:
             scene_state.brightness_modifier = max(0.3, min(1.0, energy))
@@ -101,6 +103,7 @@ class OnsetHandler(AudioModeHandler):
 class ContinuousHandler(AudioModeHandler):
     """Energy maps to palette color position."""
 
+    @override
     def handle_energy(self, scene_state: Any, energy: float) -> None:
         num_colors = len(scene_state.scene.colors)
         if num_colors == 0:
@@ -119,6 +122,7 @@ class IntensityBreathingHandler(AudioModeHandler):
         self._envelope = 0.5
         self._alpha = ENERGY_EMA_ALPHA
 
+    @override
     def handle_energy(self, scene_state: Any, energy: float) -> None:
         self._envelope = self._alpha * energy + (1 - self._alpha) * self._envelope
         scene_state.brightness_modifier = max(0.3, min(1.0, self._envelope))
@@ -132,6 +136,7 @@ class OnsetFlashHandler(AudioModeHandler):
         self._flash_brightness = 0.0
         self._alpha = ENERGY_EMA_ALPHA
 
+    @override
     def handle_energy(self, scene_state: Any, energy: float) -> None:
         self._envelope = self._alpha * energy + (1 - self._alpha) * self._envelope
         # Decay flash
@@ -139,6 +144,7 @@ class OnsetFlashHandler(AudioModeHandler):
         brightness = max(self._envelope, self._flash_brightness)
         scene_state.brightness_modifier = max(0.3, min(1.0, brightness))
 
+    @override
     def handle_onset(self, scene_state: Any, attrs: dict[str, Any]) -> None:
         strength = attrs.get("strength", 1.0)
         self._flash_brightness = min(1.0, strength)
@@ -171,12 +177,14 @@ class BeatPredictiveHandler(AudioModeHandler):
         # Map aggressiveness 1-100 to confidence threshold 90-30
         self._confidence_threshold = int(90 - (self._aggressiveness / 100) * 60)
 
+    @override
     def update_bpm(self, bpm: float, confidence: int) -> None:
         """Update BPM and confidence from sensor data."""
         self._bpm = bpm
         self._confidence = confidence
         self._update_state()
 
+    @override
     def handle_onset(self, scene_state: Any, attrs: dict[str, Any]) -> None:
         now = time.monotonic()
         self._last_onset_time = now
@@ -216,12 +224,14 @@ class BeatPredictiveHandler(AudioModeHandler):
                     self._confidence,
                 )
 
+    @override
     def _cancel_mode_timers(self) -> None:
         """Cancel all pending prediction timers."""
         for handle in self._pending_handles:
             handle.cancel()
         self._pending_handles.clear()
 
+    @override
     def cleanup(self) -> None:
         """Cancel prediction timers and parent cleanup."""
         self._cancel_mode_timers()
