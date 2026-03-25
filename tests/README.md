@@ -6,6 +6,11 @@
 tests/
 ├── __init__.py                    # Test package initialization
 ├── conftest.py                    # Shared fixtures and configuration
+├── test_audio_discovery.py        # Audio tier detection and companion sensor discovery
+├── test_audio_mode_handlers.py    # Audio-reactive v2 model fields and mode handlers
+├── test_audio_on_device.py        # Generic on-device audio opt-in
+├── test_audio_rich_tier.py        # Rich tier audio-reactive scenes end-to-end
+├── test_audio_scene.py            # Audio-reactive dynamic scene model validation
 ├── test_capability_adaptation.py  # Dynamic scene capability adaptation
 ├── test_capability_profile.py     # Light capability detection and color temp conversion
 ├── test_circadian_manager.py      # Circadian overlay manager
@@ -56,7 +61,50 @@ pytest --cov=custom_components.aqara_advanced_lighting --cov-report=term-missing
 
 ## Test coverage by file
 
-### test_config_flow.py (11 tests)
+### test_audio_discovery.py (12 tests)
+
+Audio tier detection and device-registry sibling discovery.
+
+- **T1 strip parameter mapping** (6): on_onset/continuous/beat_predictive/intensity_breathing/onset_flash mode mapping to blink/wave hardware effects; sensitivity cutoff at 50 → low/high
+- **Companion sensor discovery** (6): discovers all sibling sensors by unique_id suffix (bass_energy, amplitude, bpm, onset_detected, silence, sensitivity, squelch, detection_mode); graceful handling of missing optional entities, no device, no siblings; binary_sensor and select type discovery
+
+### test_audio_mode_handlers.py (31 tests)
+
+Audio-reactive v2 model fields and mode handler behavior.
+
+- **DynamicScene audio fields** (12): default values for detection_mode, frequency_zone, silence_degradation, prediction_aggressiveness; on_onset and beat_predictive color advance modes; bass_energy detection mode; invalid detection mode clamped to default; prediction_aggressiveness clamped 1–100; latency_compensation_ms clamped 0–500
+- **OnsetHandler** (4): onset advances colors; brightness response modulation with floor at 0.3; no-op when brightness response disabled
+- **ContinuousHandler** (3): energy maps palette index; brightness modulation; empty colors safety
+- **IntensityBreathingHandler** (2): envelope tracks energy approaching 1.0; envelope decays during silence
+- **OnsetFlashHandler** (2): onset sets brightness to 1.0; flash decays over energy updates
+- **BeatPredictiveHandler** (8): initial reactive state; configure sets threshold from aggressiveness; state transitions reactive → tracking → predictive; tracking drops to reactive on low confidence; reactive mode advances colors; predictive mode does not advance on onset; cleanup cancels pending handles
+
+### test_audio_on_device.py (5 tests)
+
+Generic on-device audio opt-in for third-party lights.
+
+- On-device audio config constants exist
+- Entity audio config round-trips through JSON serialization
+- `_get_entity_audio_config` reads from UserPreferencesStore global preferences
+- Returns empty dict when no config or no store available
+
+### test_audio_rich_tier.py (3 tests)
+
+End-to-end tests for rich tier audio-reactive scenes.
+
+- Companion discovery maps all 10 sensor roles (bass, mid, high energy, amplitude, bpm, onset, silence, sensitivity, squelch, detection_mode)
+- Rich scene model accepts binary_sensor as audio entity
+- Continuous mode with rich tier is valid
+
+### test_audio_scene.py (3 tests)
+
+Audio-reactive dynamic scene model validation.
+
+- DynamicScene accepts and validates audio fields (entity, sensitivity, color_advance, transition_speed, brightness_response)
+- DynamicScene without audio fields retains default values
+- Invalid audio_color_advance raises ValueError
+
+### test_config_flow.py (10 tests)
 
 Config flow setup and reconfiguration.
 
@@ -65,7 +113,7 @@ Config flow setup and reconfiguration.
 - Single and multiple instance enforcement
 - Reconfigure flow: update topic, preserve defaults, MQTT validation, empty topic fallback, duplicate topic prevention
 
-### test_init.py (9 tests)
+### test_init.py (8 tests)
 
 Integration initialization, setup, unload, and device migration.
 
@@ -85,7 +133,7 @@ Segment range parsing and color generation for LED strips.
 - Block color generation (repeat and expand modes)
 - Segment color expansion
 
-### test_capability_profile.py (15 tests)
+### test_capability_profile.py (16 tests)
 
 Light capability detection and color temperature conversion.
 
@@ -104,7 +152,7 @@ Dynamic scene capability adaptation per light type.
 - Brightness-only lights skip color in service calls
 - Full-color lights receive `xy_color` unchanged
 
-### test_sun_utils.py (8 tests)
+### test_sun_utils.py (6 tests)
 
 Solar elevation-based lighting interpolation.
 
@@ -113,7 +161,7 @@ Solar elevation-based lighting interpolation.
 - Below/above elevation boundary hold behavior
 - Symmetric "any" phase for both rising and setting
 
-### test_solar_cct.py (8 tests)
+### test_solar_cct.py (5 tests)
 
 Solar mode for CCT sequences (elevation-based color and brightness).
 
@@ -123,17 +171,17 @@ Solar mode for CCT sequences (elevation-based color and brightness).
 - Solar mode bypasses standard step/loop validation
 - Standard mode validation still enforced
 
-### test_schedule_cct.py (28 tests)
+### test_schedule_cct.py (23 tests)
 
 Schedule mode for CCT sequences (fixed clock times and sunrise/sunset offsets).
 
-- **ScheduleStep model**: fixed time (HH:MM), sunrise/sunset-relative times, validation (format, color temp range, brightness range, empty labels)
-- **resolve_step_time**: fixed times, sunrise-relative, sunset-relative
-- **interpolate_schedule_values**: midpoint interpolation, step boundaries, midnight wrapping, relative time resolution, minimum step count
-- **CCTSequence model**: schedule mode acceptance, requires `schedule_steps`, enforces `end_behavior="maintain"`
-- **Built-in presets**: Circadian Rhythm, Warm Day, Productive Day all use schedule mode
+- **ScheduleStep model** (8): fixed time (HH:MM), sunrise/sunset-relative times with zero offset, validation (format, color temp range, brightness range, empty labels)
+- **resolve_step_time** (3): fixed times, sunrise-relative, sunset-relative
+- **interpolate_schedule_values** (5): midpoint interpolation, step boundaries, midnight wrapping, relative time resolution, minimum step count
+- **CCTSequence model** (3): schedule mode acceptance, requires `schedule_steps`, enforces `end_behavior="maintain"`
+- **Built-in presets** (4): build_schedule_sequence, Circadian Rhythm, Warm Day, Productive Day all use schedule mode
 
-### test_circadian_manager.py (8 tests)
+### test_circadian_manager.py (7 tests)
 
 Circadian overlay manager for continuous solar lighting.
 
@@ -143,17 +191,18 @@ Circadian overlay manager for continuous solar lighting.
 - Returns interpolated values from current sun state
 - Starting on existing entity replaces the overlay
 
-### test_entity_controller.py (41 tests)
+### test_entity_controller.py (49 tests)
 
 Entity override detection, drift tracking, and external change handling.
 
-- **Attribute detection** (10): brightness, color temp, XY color changes; combined changes; no-change; drift tolerance for brightness and color temp
+- **Attribute detection** (8): brightness, color temp, XY color changes; combined changes; no-change; drift tolerance for brightness and color temp
 - **Override management** (8): initialization, default/paused states, clearing, pause modes (pause_all vs pause_changed), solar vs standard CCT behavior, attribute merging across pauses
 - **Service call detection** (9): brightness keys, step keys, color temp, RGB, combined, effects, bare turn_on, transition-only, flash
 - **Dedup and cleanup** (2): service pause times cleared on clear and cleanup
 - **Bare turn-on and resume** (8): default behavior, preference reading, solar force-apply on turn-on, skip non-solar, resume solar/scene/partial-override force-apply, non-solar CCT no force-apply
-- **Drift detection** (9): no change, within/exceeds brightness threshold, within/exceeds color temp threshold, both exceeding, None value handling
+- **Drift detection** (9): no change, within/exceeds brightness threshold, within/exceeds color temp threshold, both exceeding, None value handling for brightness-only and color-temp-only
 - **Preference and public API** (4): detect_non_ha_changes default and preference, disabled by ignore_external_changes, public pause_entity delegation
+- **Context-based detection** (1): controller initialization
 
 ### test_device_merging.py (2 tests)
 
@@ -162,7 +211,7 @@ Home Assistant device registry merging for Aqara lights with Z2M/ZHA.
 - Z2M and AAL devices merge via shared MAC connection
 - Devices merge regardless of registration order
 
-### test_device_trigger.py (29 tests)
+### test_device_trigger.py (22 tests)
 
 Device automation triggers for sequences and effects.
 
