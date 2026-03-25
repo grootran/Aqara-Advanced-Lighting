@@ -13,7 +13,7 @@ import time
 from collections.abc import Callable, Coroutine
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.const import STATE_OFF, STATE_UNAVAILABLE
+from homeassistant.const import STATE_OFF, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import Context, Event, HomeAssistant, State, callback
 
 from .const import (
@@ -268,12 +268,20 @@ class EntityController:
                 )
                 return
 
+            # "unknown" is a transient state during HA startup before the
+            # device has reported its actual state.  Don't act on it —
+            # wait for the real on/off state to arrive.
+            if new_state.state == STATE_UNKNOWN:
+                return
+
             # When a light transitions from off/unavailable to on, the
             # startup attributes are device defaults, not a user override.
             # For solar sequences, immediately apply the correct values
             # so the user doesn't get blinded by cold/bright defaults.
             old_state = event.data.get("old_state")
-            if old_state and old_state.state in (STATE_OFF, STATE_UNAVAILABLE):
+            if old_state and old_state.state in (
+                STATE_OFF, STATE_UNAVAILABLE, STATE_UNKNOWN,
+            ):
                 self.hass.async_create_task(
                     self._apply_solar_on_turn_on(entity_id)
                 )
@@ -891,7 +899,6 @@ class EntityController:
         flow1, not off).
         """
         self._externally_paused.pop(entity_id, None)
-        self._restore_grace_times.pop(entity_id, None)
 
         for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():
             # Clear effect/pattern active flag and schedule restore on next turn-on
