@@ -1740,10 +1740,32 @@ export class AqaraPanel extends LitElement {
       serviceData.static = true;
     }
 
+    // Audio reactive override (panel override takes precedence over preset audio settings)
     this._applyAudioOverrides(serviceData);
+    this._applyPresetAudioFields(serviceData, preset);
 
     await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
     await this._loadRunningOperations();
+  }
+
+  /** Apply audio fields from a preset to service data, only including defined values. */
+  private _applyPresetAudioFields(serviceData: Record<string, unknown>, preset: DynamicScenePreset | UserDynamicScenePreset): void {
+    if (this._prefs.state.useAudioReactive && this._prefs.state.audioOverrideEntity) return;
+    if (!preset.audio_color_advance) return;
+
+    const audioEntity = preset.audio_entity || this._prefs.state.audioOverrideEntity;
+    if (!audioEntity) return;
+
+    serviceData.audio_entity = audioEntity;
+    serviceData.audio_color_advance = preset.audio_color_advance;
+    if (preset.audio_sensitivity != null) serviceData.audio_sensitivity = preset.audio_sensitivity;
+    if (preset.audio_brightness_response != null) serviceData.audio_brightness_response = preset.audio_brightness_response;
+    if (preset.audio_transition_speed != null) serviceData.audio_transition_speed = preset.audio_transition_speed;
+    if (preset.audio_detection_mode != null) serviceData.audio_detection_mode = preset.audio_detection_mode;
+    if (preset.audio_frequency_zone != null) serviceData.audio_frequency_zone = preset.audio_frequency_zone;
+    if (preset.audio_silence_degradation != null) serviceData.audio_silence_degradation = preset.audio_silence_degradation;
+    if (preset.audio_prediction_aggressiveness != null) serviceData.audio_prediction_aggressiveness = preset.audio_prediction_aggressiveness;
+    if (preset.audio_latency_compensation_ms != null) serviceData.audio_latency_compensation_ms = preset.audio_latency_compensation_ms;
   }
 
   private _applyAudioOverrides(serviceData: Record<string, unknown>): void {
@@ -1999,23 +2021,7 @@ export class AqaraPanel extends LitElement {
 
     // Audio reactive override (panel override takes precedence over preset audio settings)
     this._applyAudioOverrides(serviceData);
-    if (!(this._prefs.state.useAudioReactive && this._prefs.state.audioOverrideEntity) && preset.audio_color_advance) {
-      // Pass through preset-level audio settings when no panel override is active
-      // Use preset's audio_entity if set, otherwise fall back to user's default
-      const audioEntity = preset.audio_entity || this._prefs.state.audioOverrideEntity;
-      if (audioEntity) {
-        serviceData.audio_entity = audioEntity;
-        serviceData.audio_sensitivity = preset.audio_sensitivity;
-        serviceData.audio_brightness_response = preset.audio_brightness_response;
-        serviceData.audio_color_advance = preset.audio_color_advance;
-        serviceData.audio_transition_speed = preset.audio_transition_speed;
-        serviceData.audio_detection_mode = preset.audio_detection_mode;
-        serviceData.audio_frequency_zone = preset.audio_frequency_zone;
-        serviceData.audio_silence_degradation = preset.audio_silence_degradation;
-        serviceData.audio_prediction_aggressiveness = preset.audio_prediction_aggressiveness;
-        serviceData.audio_latency_compensation_ms = preset.audio_latency_compensation_ms;
-      }
-    }
+    this._applyPresetAudioFields(serviceData, preset);
 
     await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
     await this._loadRunningOperations();
