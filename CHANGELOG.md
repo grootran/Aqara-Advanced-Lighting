@@ -2,6 +2,72 @@
 
 All notable changes to the Aqara Advanced Lighting integration will be documented in this file.
 
+## [1.2.0] - 2026-03-24
+
+### Breaking Changes
+
+- **Minimum Home Assistant version raised to 2026.3.0** — Removes legacy backwards compatibility for pre-WebAwesome components, and adds Python 3.1.4 optimisations.
+
+### What's New
+
+Version 1.2.0 introduces audio-reactive lighting for dynamic scenes, a Lovelace preset favorites card, the ability to hide build-in presets, and a major codebase refactor for maintainability. It also adds CCT slider support in the color picker, allows CCT-only lights in dynamic scenes, and selected Favorite lights now presist across reloads and devices.
+
+### **Audio-Reactive Lighting**
+
+**Dynamic scene changes can now be synced to music through an ESPHome audio sensor**
+
+This new feature works in tandem with an ESPHome device flashed with [custom firmware](https://github.com/absent42/esphome-audio-reactive) that analyses environmental sound and outputs a variety of sensors such as beat detection and amplitude to Home Assistant, which this new feature then translates into music reactive dynamic scenes. It can work with any pre-existing dynamic scene preset by overriding the transition and hold time settings.
+
+Initial firmware builds for 4 cheap off-the-shelf ESP32 devices are included, the M5Stack Atom Echo ($13/£13), M5Stack Atom Echo S3R ($15/£15), Waveshare ESP32-S3 Audio Board ($18/£18), and M5StickC Plus2 ($20/£20). These can be flashed with the custom firmware using a simple [web installer](https://absent42.github.io/esphome-audio-reactive/), no specialist ESP32 knowledge is needed. The firmware can also be adapted to any ESP32 device with a microphone.
+
+For more detailed information on how this feature works please see the dedicated [documentation page](https://github.com/absent42/Aqara-Advanced-Lighting/blob/main/docs/audio-reactive-setup.md).
+
+  - Audio-reactive lighting mode with ESP32-based on-device audio analysis
+  - New ESPHome sensor integration
+  - Responsive audio overrides
+  - On-device audio mode opt-in for T1 Strip non-Aqara devices with built-in music sync functions
+  - 12 new audio-reative presets
+
+### **Preset Favorites Lovelace Card**
+
+**A new dashboard card for quick access to your favorite presets**
+
+  - Aqara Preset Favorites card for Lovelace dashboards
+  - Active preset highlighting with toggle behavior
+
+### **Hide and restore built-in presets**
+
+  - Hide/restore built-in presets you don't use
+
+### **Dynamic Scenes & Color Picker**
+
+  - CCT-only lights now supported in dynamic scenes via XY-to-CCT conversion
+  - CCT slider added to the color picker panel
+
+### Improvements
+
+  - Favorite light and entity selection added to user persistent storage
+  - Replace externally paused text with color-coded entity chips
+  - More ZHA attributes exposed for native HA controls
+  - Pause solar/schedule sequences on new preset activation instead of stopping
+  - Unify auto-generated icons to circular style
+
+### Fixes
+- Eliminate forced reflow during drag in transition curve graph
+- RGB input fields snap back
+- Off-state restoration for stopping presets on lights with segments
+- Align solar/schedule CCT timeline labels with bar markers
+- Solar/schedule sequence restarts for lights in on-state during HA reboot
+
+### Code Quality
+
+  - Split `services.py` into `services/` package
+  - Split `styles.ts` into `styles/` directory
+  - Extracted `PreferencesController`, `<aqara-config-tab>`, `<aqara-running-operations>`, and utility modules from the main panel
+  - Consolidated duplicated frontend and backend logic and constants
+
+---
+
 ## [1.1.0] - 2026-03-09
 
 ### What's New
@@ -1837,3 +1903,4 @@ One click HACS cutton
 [0.13.1]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v0.13.1
 [1.0.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v1.0.0
 [1.1.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v1.1.0
+[1.2.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v1.2.0

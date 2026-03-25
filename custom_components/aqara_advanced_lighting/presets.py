@@ -10,6 +10,8 @@ This module contains all built-in presets for:
 
 from typing import Any, Final
 
+from .models import EffectType
+
 from .const import (
     ACTIVATION_ALL,
     ACTIVATION_CENTER_OUT,
@@ -20,23 +22,14 @@ from .const import (
     DISTRIBUTION_RANDOM,
     DISTRIBUTION_SHUFFLE_ROTATE,
     DISTRIBUTION_SYNCHRONIZED,
-    EFFECT_T1_BREATHING,
-    EFFECT_T1_CHASING,
-    EFFECT_T1_FLASH,
-    EFFECT_T1_FLICKER,
-    EFFECT_T1_HOPPING,
-    EFFECT_T1_RAINBOW1,
-    EFFECT_T1_RAINBOW2,
-    EFFECT_T1M_BREATHING,
-    EFFECT_T1M_FADING,
-    EFFECT_T1M_FLOW1,
-    EFFECT_T1M_FLOW2,
-    EFFECT_T1M_HOPPING,
-    EFFECT_T1M_ROLLING,
-    EFFECT_T2_BREATHING,
-    EFFECT_T2_CANDLELIGHT,
-    EFFECT_T2_FADING,
-    EFFECT_T2_FLASH,
+    AUDIO_COLOR_ADVANCE_ON_ONSET,
+    AUDIO_COLOR_ADVANCE_CONTINUOUS,
+    AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
+    AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING,
+    AUDIO_COLOR_ADVANCE_ONSET_FLASH,
+    AUDIO_DETECTION_MODE_SPECTRAL_FLUX,
+    AUDIO_DETECTION_MODE_BASS_ENERGY,
+    AUDIO_DETECTION_MODE_COMPLEX_DOMAIN,
     END_BEHAVIOR_MAINTAIN,
     END_BEHAVIOR_RESTORE,
     END_BEHAVIOR_TURN_OFF,
@@ -105,7 +98,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T2_CANDLELIGHT: {
         "name": "Candlelight",
         "icon": "mdi:candle",
-        "effect": EFFECT_T2_CANDLELIGHT,
+        "effect": EffectType.CANDLELIGHT,
         "colors": [[255, 125, 18]],
         "speed": 50,
         "brightness": 255,
@@ -114,7 +107,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T2_BREATH: {
         "name": "Breath",
         "icon": "mdi:meditation",
-        "effect": EFFECT_T2_BREATHING,
+        "effect": EffectType.BREATHING,
         "colors": [[255, 125, 18]],
         "speed": 50,
         "brightness": 255,
@@ -123,7 +116,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T2_COLORFUL: {
         "name": "Colorful",
         "icon": "mdi:palette",
-        "effect": EFFECT_T2_FADING,
+        "effect": EffectType.FADING,
         "colors": [
             [92, 87, 255],
             [0, 187, 255],
@@ -140,7 +133,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T2_SECURITY: {
         "name": "Security",
         "icon": "mdi:shield-alert",
-        "effect": EFFECT_T2_FLASH,
+        "effect": EffectType.FLASH,
         "colors": [[255, 0, 0]],
         "speed": 100,
         "brightness": 255,
@@ -150,7 +143,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1M_DINNER: {
         "name": "Dinner",
         "icon": "mdi:silverware-fork-knife",
-        "effect": EFFECT_T1M_FLOW1,
+        "effect": EffectType.FLOW1,
         "colors": [[214, 235, 255], [92, 86, 255], [93, 0, 255]],
         "speed": 75,
         "brightness": 255,
@@ -159,7 +152,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1M_SUNSET: {
         "name": "Sunset",
         "icon": "mdi:weather-sunset",
-        "effect": EFFECT_T1M_FLOW2,
+        "effect": EffectType.FLOW2,
         "colors": [[255, 0, 0], [255, 138, 138], [179, 191, 255], [0, 0, 255]],
         "speed": 10,
         "brightness": 255,
@@ -168,7 +161,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1M_AUTUMN: {
         "name": "Autumn",
         "icon": "mdi:leaf-maple",
-        "effect": EFFECT_T1M_FLOW1,
+        "effect": EffectType.FLOW1,
         "colors": [[255, 71, 0], [255, 119, 0], [255, 154, 0], [255, 225, 0]],
         "speed": 60,
         "brightness": 255,
@@ -177,7 +170,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1M_GALAXY: {
         "name": "Galaxy",
         "icon": "mdi:star-circle",
-        "effect": EFFECT_T1M_FADING,
+        "effect": EffectType.FADING,
         "colors": [[0, 137, 255], [198, 0, 255], [255, 0, 255], [0, 0, 255]],
         "speed": 40,
         "brightness": 255,
@@ -186,7 +179,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1M_DAYDREAM: {
         "name": "Daydream",
         "icon": "mdi:cloud",
-        "effect": EFFECT_T1M_FADING,
+        "effect": EffectType.FADING,
         "colors": [[255, 0, 0], [255, 155, 143], [255, 0, 255], [255, 163, 249]],
         "speed": 70,
         "brightness": 255,
@@ -195,7 +188,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1M_HOLIDAY: {
         "name": "Holiday",
         "icon": "mdi:pine-tree",
-        "effect": EFFECT_T1M_BREATHING,
+        "effect": EffectType.BREATHING,
         "colors": [[7, 255, 36], [255, 97, 0], [55, 184, 255], [0, 6, 255]],
         "speed": 10,
         "brightness": 255,
@@ -204,7 +197,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1M_PARTY: {
         "name": "Party",
         "icon": "mdi:party-popper",
-        "effect": EFFECT_T1M_HOPPING,
+        "effect": EffectType.HOPPING,
         "colors": [[255, 0, 0], [255, 94, 0], [255, 255, 0], [255, 0, 255], [0, 255, 255], [0, 0, 255], [255, 0, 255]],
         "speed": 50,
         "brightness": 255,
@@ -213,7 +206,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1M_METEOR: {
         "name": "Meteor",
         "icon": "mdi:meteor",
-        "effect": EFFECT_T1M_ROLLING,
+        "effect": EffectType.ROLLING,
         "colors": [[255, 148, 0], [89, 255, 0], [0, 255, 252], [175, 7, 255]],
         "speed": 50,
         "brightness": 255,
@@ -222,7 +215,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1M_ALERT: {
         "name": "Alert",
         "icon": "mdi:alert",
-        "effect": EFFECT_T1M_HOPPING,
+        "effect": EffectType.HOPPING,
         "colors": [[255, 0, 0]],
         "speed": 100,
         "brightness": 255,
@@ -232,7 +225,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1_STRIP_RAINBOW: {
         "name": "Rainbow",
         "icon": "mdi:looks",
-        "effect": EFFECT_T1_RAINBOW1,
+        "effect": EffectType.RAINBOW1,
         "colors": [
             [255, 0, 0],      # Red
             [255, 255, 0],    # Yellow
@@ -249,7 +242,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1_STRIP_HEARTBEAT: {
         "name": "Heartbeat",
         "icon": "mdi:heart-pulse",
-        "effect": EFFECT_T1_FLASH,
+        "effect": EffectType.FLASH,
         "colors": [
             [139, 0, 0],      # Dark red
             [220, 20, 60],    # Crimson
@@ -264,7 +257,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1_STRIP_GALA: {
         "name": "Gala",
         "icon": "mdi:party-popper",
-        "effect": EFFECT_T1_BREATHING,
+        "effect": EffectType.BREATHING,
         "colors": [
             [163, 214, 84],
             [122, 76, 204],
@@ -281,7 +274,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1_STRIP_SEA_OF_FLOWERS: {
         "name": "Sea of flowers",
         "icon": "mdi:flower",
-        "effect": EFFECT_T1_CHASING,
+        "effect": EffectType.CHASING,
         "colors": [
             [135, 206, 235],  # Sky blue
             [64, 224, 208],   # Turquoise
@@ -298,7 +291,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1_STRIP_RHYTHMIC: {
         "name": "Rhythmic",
         "icon": "mdi:sine-wave",
-        "effect": EFFECT_T1_HOPPING,
+        "effect": EffectType.HOPPING,
         "colors": [
             [255, 0, 0],      # Red
             [255, 69, 0],     # Red-orange
@@ -315,7 +308,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1_STRIP_EXCITING: {
         "name": "Exciting",
         "icon": "mdi:flash",
-        "effect": EFFECT_T1_FLICKER,
+        "effect": EffectType.FLICKER,
         "colors": [
             [255, 255, 255],  # White
             [255, 0, 0],      # Red
@@ -328,7 +321,7 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
     PRESET_T1_STRIP_COLORFUL: {
         "name": "Colorful",
         "icon": "mdi:palette",
-        "effect": EFFECT_T1_RAINBOW2,
+        "effect": EffectType.RAINBOW2,
         "colors": [
             [255, 0, 0],      # Red
             [0, 255, 0],      # Green
@@ -1903,5 +1896,309 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "loop_mode": LOOP_MODE_CONTINUOUS,
         "end_behavior": END_BEHAVIOR_RESTORE,
+    },
+    # Audio-reactive presets — Energetic
+    "beat_drop": {
+        "name": "Beat Drop",
+        "icon": "mdi:speaker",
+        "colors": [
+            {"x": 0.5800, "y": 0.2800, "brightness_pct": 80},  # Hot pink
+            {"x": 0.2000, "y": 0.0800, "brightness_pct": 80},  # Electric purple
+            {"x": 0.1700, "y": 0.2400, "brightness_pct": 80},  # Cyan
+            {"x": 0.5800, "y": 0.3900, "brightness_pct": 80},  # Flame orange
+            {"x": 0.4200, "y": 0.5100, "brightness_pct": 80},  # Yellow flash
+        ],
+        "transition_time": 30.0,
+        "hold_time": 45.0,
+        "distribution_mode": DISTRIBUTION_RANDOM,
+        "offset_delay": 0.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_ON_ONSET,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_BASS_ENERGY,
+        "audio_sensitivity": 75,
+        "audio_transition_speed": 80,
+        "audio_brightness_response": True,
+        "audio_silence_degradation": True,
+    },
+    "neon_pulse": {
+        "name": "Neon Pulse",
+        "icon": "mdi:lightbulb-fluorescent-tube",
+        "colors": [
+            {"x": 0.3200, "y": 0.1500, "brightness_pct": 80},  # Magenta
+            {"x": 0.1700, "y": 0.5700, "brightness_pct": 80},  # Neon green
+            {"x": 0.6200, "y": 0.3500, "brightness_pct": 80},  # Neon red
+            {"x": 0.1550, "y": 0.0700, "brightness_pct": 80},  # Deep blue
+            {"x": 0.4600, "y": 0.4700, "brightness_pct": 80},  # Electric yellow
+        ],
+        "transition_time": 30.0,
+        "hold_time": 45.0,
+        "distribution_mode": DISTRIBUTION_SHUFFLE_ROTATE,
+        "offset_delay": 2.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_ON_ONSET,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_SPECTRAL_FLUX,
+        "audio_sensitivity": 60,
+        "audio_transition_speed": 70,
+        "audio_brightness_response": True,
+        "audio_silence_degradation": True,
+    },
+    "dance": {
+        "name": "Dance",
+        "icon": "mdi:dance-ballroom",
+        "colors": [
+            {"x": 0.1500, "y": 0.1100, "brightness_pct": 80},  # Club blue
+            {"x": 0.2700, "y": 0.1200, "brightness_pct": 80},  # Purple
+            {"x": 0.5500, "y": 0.2700, "brightness_pct": 80},  # Hot pink
+            {"x": 0.1550, "y": 0.1700, "brightness_pct": 80},  # Ice blue
+        ],
+        "transition_time": 30.0,
+        "hold_time": 45.0,
+        "distribution_mode": DISTRIBUTION_SYNCHRONIZED,
+        "offset_delay": 0.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_BASS_ENERGY,
+        "audio_sensitivity": 55,
+        "audio_transition_speed": 75,
+        "audio_brightness_response": True,
+        "audio_silence_degradation": True,
+        "audio_prediction_aggressiveness": 65,
+        "audio_latency_compensation_ms": 200,
+    },
+    "concert": {
+        "name": "Concert",
+        "icon": "mdi:guitar-electric",
+        "colors": [
+            {"x": 0.6400, "y": 0.3300, "brightness_pct": 75},  # Red
+            {"x": 0.5500, "y": 0.4000, "brightness_pct": 75},  # Orange
+            {"x": 0.4400, "y": 0.4900, "brightness_pct": 75},  # Gold
+            {"x": 0.5900, "y": 0.2900, "brightness_pct": 75},  # Crimson
+            {"x": 0.5800, "y": 0.3900, "brightness_pct": 75},  # Amber
+        ],
+        "transition_time": 35.0,
+        "hold_time": 50.0,
+        "distribution_mode": DISTRIBUTION_SHUFFLE_ROTATE,
+        "offset_delay": 3.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_COMPLEX_DOMAIN,
+        "audio_sensitivity": 65,
+        "audio_transition_speed": 65,
+        "audio_brightness_response": True,
+        "audio_silence_degradation": True,
+        "audio_prediction_aggressiveness": 75,
+        "audio_latency_compensation_ms": 175,
+    },
+    # Audio-reactive presets — Ambient
+    "lounge": {
+        "name": "Lounge",
+        "icon": "mdi:lava-lamp",
+        "colors": [
+            {"x": 0.2200, "y": 0.1000, "brightness_pct": 50},  # Deep purple
+            {"x": 0.1550, "y": 0.1200, "brightness_pct": 50},  # Blue
+            {"x": 0.2100, "y": 0.3400, "brightness_pct": 50},  # Teal
+            {"x": 0.2500, "y": 0.1300, "brightness_pct": 50},  # Purple-blue
+            {"x": 0.1550, "y": 0.0800, "brightness_pct": 50},  # Navy
+        ],
+        "transition_time": 45.0,
+        "hold_time": 90.0,
+        "distribution_mode": DISTRIBUTION_SYNCHRONIZED,
+        "offset_delay": 0.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_CONTINUOUS,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_SPECTRAL_FLUX,
+        "audio_sensitivity": 45,
+        "audio_transition_speed": 30,
+        "audio_brightness_response": True,
+        "audio_silence_degradation": True,
+    },
+    "tidal_flow": {
+        "name": "Tidal Flow",
+        "icon": "mdi:wave",
+        "colors": [
+            {"x": 0.1600, "y": 0.1800, "brightness_pct": 45},  # Dark navy
+            {"x": 0.1800, "y": 0.2500, "brightness_pct": 45},  # Ocean
+            {"x": 0.2000, "y": 0.3000, "brightness_pct": 45},  # Teal
+            {"x": 0.2200, "y": 0.3200, "brightness_pct": 45},  # Light teal
+            {"x": 0.1700, "y": 0.2100, "brightness_pct": 45},  # Mid navy
+        ],
+        "transition_time": 60.0,
+        "hold_time": 120.0,
+        "distribution_mode": DISTRIBUTION_SHUFFLE_ROTATE,
+        "offset_delay": 8.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_CONTINUOUS,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_BASS_ENERGY,
+        "audio_sensitivity": 40,
+        "audio_transition_speed": 25,
+        "audio_brightness_response": True,
+        "audio_silence_degradation": True,
+    },
+    "deep_breath": {
+        "name": "Deep Breath",
+        "icon": "mdi:meditation",
+        "colors": [
+            {"x": 0.2200, "y": 0.0900, "brightness_pct": 35},  # Dark purple
+            {"x": 0.2300, "y": 0.0800, "brightness_pct": 35},  # Deeper purple
+            {"x": 0.2100, "y": 0.0900, "brightness_pct": 35},  # Purple
+            {"x": 0.2400, "y": 0.0800, "brightness_pct": 35},  # Near-black purple
+        ],
+        "transition_time": 60.0,
+        "hold_time": 120.0,
+        "distribution_mode": DISTRIBUTION_SYNCHRONIZED,
+        "offset_delay": 0.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_SPECTRAL_FLUX,
+        "audio_sensitivity": 35,
+        "audio_transition_speed": 20,
+        "audio_brightness_response": True,
+        "audio_silence_degradation": True,
+    },
+    "ember_glow": {
+        "name": "Ember Glow",
+        "icon": "mdi:campfire",
+        "colors": [
+            {"x": 0.6300, "y": 0.3400, "brightness_pct": 40},  # Dark red
+            {"x": 0.5700, "y": 0.3900, "brightness_pct": 40},  # Burnt orange
+            {"x": 0.5600, "y": 0.4000, "brightness_pct": 40},  # Orange
+            {"x": 0.5200, "y": 0.4200, "brightness_pct": 40},  # Dark brown
+            {"x": 0.6000, "y": 0.3700, "brightness_pct": 40},  # Deep red-brown
+        ],
+        "transition_time": 45.0,
+        "hold_time": 90.0,
+        "distribution_mode": DISTRIBUTION_SHUFFLE_ROTATE,
+        "offset_delay": 10.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_BASS_ENERGY,
+        "audio_sensitivity": 40,
+        "audio_transition_speed": 25,
+        "audio_brightness_response": True,
+        "audio_silence_degradation": True,
+    },
+    # Audio-reactive presets — Experimental
+    "synesthesia": {
+        "name": "Synesthesia",
+        "icon": "mdi:ear-hearing",
+        "colors": [
+            {"x": 0.6400, "y": 0.3300, "brightness_pct": 70},  # Red
+            {"x": 0.5500, "y": 0.4000, "brightness_pct": 70},  # Orange
+            {"x": 0.4200, "y": 0.5100, "brightness_pct": 70},  # Yellow
+            {"x": 0.1700, "y": 0.7000, "brightness_pct": 70},  # Green
+            {"x": 0.1500, "y": 0.0600, "brightness_pct": 70},  # Blue
+            {"x": 0.2000, "y": 0.0800, "brightness_pct": 70},  # Purple
+        ],
+        "transition_time": 30.0,
+        "hold_time": 45.0,
+        "distribution_mode": DISTRIBUTION_SYNCHRONIZED,
+        "offset_delay": 0.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_ONSET_FLASH,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_SPECTRAL_FLUX,
+        "audio_sensitivity": 55,
+        "audio_transition_speed": 50,
+        "audio_brightness_response": True,
+        "audio_silence_degradation": True,
+        "audio_color_by_frequency": True,
+        "audio_rolloff_brightness": False,
+    },
+    "spectral_cascade": {
+        "name": "Spectral Cascade",
+        "icon": "mdi:chart-waterfall",
+        "colors": [
+            {"x": 0.1700, "y": 0.4500, "brightness_pct": 65},  # Cyan-green
+            {"x": 0.1550, "y": 0.1800, "brightness_pct": 65},  # Light blue
+            {"x": 0.1500, "y": 0.0700, "brightness_pct": 65},  # Blue
+            {"x": 0.2000, "y": 0.0700, "brightness_pct": 65},  # Violet
+            {"x": 0.2700, "y": 0.1200, "brightness_pct": 65},  # Magenta
+        ],
+        "transition_time": 30.0,
+        "hold_time": 45.0,
+        "distribution_mode": DISTRIBUTION_SHUFFLE_ROTATE,
+        "offset_delay": 3.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_ONSET_FLASH,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_COMPLEX_DOMAIN,
+        "audio_sensitivity": 50,
+        "audio_transition_speed": 45,
+        "audio_brightness_response": True,
+        "audio_silence_degradation": True,
+        "audio_color_by_frequency": False,
+        "audio_rolloff_brightness": True,
+    },
+    # Audio-reactive presets — Crossover
+    "frequency_split": {
+        "name": "Frequency Split",
+        "icon": "mdi:equalizer",
+        "colors": [
+            {"x": 0.5900, "y": 0.2900, "brightness_pct": 70},  # Red
+            {"x": 0.5800, "y": 0.3900, "brightness_pct": 70},  # Orange
+            {"x": 0.1800, "y": 0.6000, "brightness_pct": 70},  # Green
+            {"x": 0.1800, "y": 0.4200, "brightness_pct": 70},  # Teal
+            {"x": 0.1500, "y": 0.1100, "brightness_pct": 70},  # Blue
+            {"x": 0.2000, "y": 0.0800, "brightness_pct": 70},  # Purple
+        ],
+        "transition_time": 30.0,
+        "hold_time": 60.0,
+        "distribution_mode": DISTRIBUTION_SHUFFLE_ROTATE,
+        "offset_delay": 0.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_CONTINUOUS,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_SPECTRAL_FLUX,
+        "audio_sensitivity": 50,
+        "audio_transition_speed": 45,
+        "audio_brightness_response": True,
+        "audio_silence_degradation": True,
+        "audio_frequency_zone": True,
+    },
+    "deee_lite": {
+        "name": "Deee-Lite",
+        "icon": "mdi:disc-player",
+        "colors": [
+            {"x": 0.5000, "y": 0.2400, "brightness_pct": 75},  # Hot pink
+            {"x": 0.6100, "y": 0.3500, "brightness_pct": 75},  # Red-orange
+            {"x": 0.5100, "y": 0.4400, "brightness_pct": 75},  # Gold
+            {"x": 0.1700, "y": 0.5000, "brightness_pct": 75},  # Mint
+            {"x": 0.1550, "y": 0.1500, "brightness_pct": 75},  # Blue
+        ],
+        "transition_time": 30.0,
+        "hold_time": 45.0,
+        "distribution_mode": DISTRIBUTION_SHUFFLE_ROTATE,
+        "offset_delay": 0.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_BASS_ENERGY,
+        "audio_sensitivity": 60,
+        "audio_transition_speed": 60,
+        "audio_brightness_response": True,
+        "audio_silence_degradation": True,
+        "audio_frequency_zone": True,
+        "audio_prediction_aggressiveness": 55,
+        "audio_latency_compensation_ms": 175,
     },
 }

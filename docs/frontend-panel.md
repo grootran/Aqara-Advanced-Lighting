@@ -71,6 +71,59 @@ Customize how presets are applied with optional overrides:
   - Lights remain at the assigned colors without cycling
 - **Scene color assignment**: For dynamic scenes only
   - Change the way colors are assigned to lights from the method specified in the preset
+- **Audio reactive**: Make dynamic scenes respond to music in real time
+  - Enabling audio reactive disables custom brightness, static scene mode, and scene color assignment (they are mutually exclusive)
+  - Requires an [ESPHome audio-reactive sensor](audio-reactive-setup.md) entity
+
+### Audio-reactive controls
+
+When audio reactive mode is enabled, the following controls appear:
+
+#### Audio preset and entity
+
+- **Audio preset**: Select a pre-configured audio profile that sets sensible defaults for common use cases:
+
+  | Preset  | Color advance       | Detection mode | Sensitivity | Transition speed |
+  | ------- | ------------------- | -------------- | ----------- | ---------------- |
+  | Beat    | Color cycle         | Spectral flux  | 60%         | 80%              |
+  | Ambient | Intensity breathing | Spectral flux  | 50%         | 20%              |
+  | Concert | Beat predictive     | Complex domain | 50%         | 50%              |
+  | Chill   | Continuous          | Spectral flux  | 40%         | 30%              |
+  | Club    | Brightness flash    | Bass energy    | 70%         | 95%              |
+  | Custom  | _(manual settings)_ |                |             |                  |
+
+- **Audio sensor entity**: Select the `binary_sensor` entity exposed by your ESPHome audio-reactive device
+
+#### Detection mode and color advance
+
+- **Detection mode**: Controls how audio onsets (beats) are detected
+  - **Spectral flux (all genres)**: General-purpose onset detection based on spectral changes -- works well across most music
+  - **Bass energy (rhythmic music)**: Focuses on low-frequency energy, best for bass-heavy or rhythmic music
+  - **Complex domain (phase + magnitude)**: Uses both phase and magnitude information for the most precise onset detection
+
+- **Color advance**: Controls how scene colors change in response to audio
+  - **Color cycle**: Advance to the next scene color on each detected onset
+  - **Continuous**: Smoothly blend between colors based on audio intensity
+  - **Beat predictive**: Anticipate beats and pre-position color transitions for tighter sync
+  - **Intensity breathing**: Pulse brightness with audio intensity for a breathing effect
+  - **Brightness flash**: Flash brightness on each detected onset
+
+#### Sliders
+
+- **Sensitivity** (1--100%): How responsive the system is to audio events. Higher values trigger on quieter sounds
+- **Transition speed** (1--100%): How quickly lights transition between colors. Disabled for _Continuous_ and _Intensity breathing_ modes since those derive timing from the audio signal
+- **Prediction aggressiveness** (1--100%): How far ahead the system predicts beats. Only available in _Beat predictive_ mode
+- **Latency compensation** (0--500 ms): Offset to account for network and hardware delay. Only available in _Beat predictive_ mode
+
+#### Toggle controls
+
+- **Brightness response**: Modulate light brightness with audio intensity. Available for _Color cycle_, _Continuous_, and _Beat predictive_ modes
+- **Frequency zone**: Assign different lights to different frequency bands so each light responds to a distinct part of the spectrum
+- **Silence degradation**: Gradually fade lights during silence instead of holding the last color
+- **Color by frequency**: Choose scene colors based on the dominant frequency rather than cycling sequentially
+- **Rolloff brightness**: Reduce brightness for higher-frequency content, giving bass more visual weight
+
+All audio-reactive settings are persisted as user preferences and restored across sessions.
 
 These overrides apply when activating presets from the panel and provide quick ways to adjust preset behavior without editing the preset itself.
 
@@ -84,6 +137,40 @@ The change detection panel controls how the integration responds when your light
   - **Pause all**: Pauses the entire sequence for that light when any attribute changes
   - **Pause changed only**: Pauses only the attribute that was changed, allowing the other to keep adapting. For example, if you manually adjust brightness, brightness pauses but color temperature continues following the schedule
 - **Treat parameterized turn-on as override**: When enabled, turning on a light with specific parameters (e.g., `light.turn_on` with brightness or color_temp) overrides those attributes instead of applying the current adaptive values. When disabled, only a bare `light.turn_on` (with no parameters) applies adaptive values
+
+## Dashboard card
+
+The **Aqara Preset Favorites Card** is a custom Lovelace card that displays your favorited presets on any Home Assistant dashboard. Tap a preset to activate it instantly on the configured light(s).
+
+### Adding the card
+
+1. Open any dashboard and click **Edit**
+2. Click **Add Card**
+3. Search for **Aqara Advanced Lighting Presets** card
+4. Select a light entity and configure the card options
+
+### Card configuration
+
+| Option                  | Default              | Description                                                      |
+| ----------------------- | -------------------- | ---------------------------------------------------------------- |
+| **Entities**            | _(required)_         | One or more light entities -- the card shows presets compatible with the selected device type |
+| **Title**               | Favorite Presets     | Custom card title                                                |
+| **Columns**             | 0 (auto)             | Number of grid columns (0 = responsive auto-layout)              |
+| **Compact mode**        | Off                  | Condensed visual style with smaller preset buttons               |
+| **Show preset names**   | On                   | Display preset name labels below each button                     |
+| **Highlight user presets** | Off               | Visual distinction for custom user presets vs. built-in presets   |
+
+### How it works
+
+- The card fetches your favorited presets and filters them by the configured entity's device type
+- Preset buttons display the thumbnail and optionally the preset name
+- Active presets are highlighted
+
+### Tips
+
+- Favorite presets in the sidebar panel and they automatically appear in the card
+- Use multiple cards on the same dashboard for different lights or rooms
+- Compact mode works well in narrow columns or mobile dashboards
 
 ## Preset management
 

@@ -106,6 +106,8 @@ export class TransitionCurveEditor extends LitElement {
     this._drawCurve();
   }
 
+  private _themeColors: { warning: string; primary: string; success: string } | null = null;
+
   protected updated(changedProperties: PropertyValues): void {
     if (changedProperties.has('curvature') && this._canvas) {
       this._drawCurve();
@@ -168,17 +170,21 @@ export class TransitionCurveEditor extends LitElement {
    * - 1.05-6.0: Slow then fast (primary color)
    */
   private _getCurveColor(): string {
-    const computedStyle = getComputedStyle(this);
+    if (!this._themeColors) {
+      const s = getComputedStyle(this);
+      this._themeColors = {
+        warning: s.getPropertyValue('--warning-color').trim() || '#ffc107',
+        primary: s.getPropertyValue('--primary-color').trim() || '#03a9f4',
+        success: s.getPropertyValue('--success-color').trim() || '#4caf50',
+      };
+    }
 
     if (this.curvature < 0.95) {
-      // Fast then slow - warning color
-      return computedStyle.getPropertyValue('--warning-color').trim() || '#ffc107';
+      return this._themeColors.warning;
     } else if (this.curvature > 1.05) {
-      // Slow then fast - primary color
-      return computedStyle.getPropertyValue('--primary-color').trim() || '#03a9f4';
+      return this._themeColors.primary;
     } else {
-      // Linear - success color
-      return computedStyle.getPropertyValue('--success-color').trim() || '#4caf50';
+      return this._themeColors.success;
     }
   }
 
@@ -210,19 +216,11 @@ export class TransitionCurveEditor extends LitElement {
     // Get curve color based on curvature value
     const curveColor = this._getCurveColor();
 
-    // Parse the color to create gradient with same hue
-    // Extract RGB values from the color (works for both hex and rgb formats)
-    const tempDiv = document.createElement('div');
-    tempDiv.style.color = curveColor;
-    document.body.appendChild(tempDiv);
-    const computedColor = getComputedStyle(tempDiv).color;
-    document.body.removeChild(tempDiv);
-
-    // Extract RGB values
-    const rgbMatch = computedColor.match(/\d+/g);
-    const r = rgbMatch ? rgbMatch[0] : '3';
-    const g = rgbMatch ? rgbMatch[1] : '169';
-    const b = rgbMatch ? rgbMatch[2] : '244';
+    // Parse hex color to RGB components for gradient fill
+    const hexMatch = curveColor.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+    const r = hexMatch ? parseInt(hexMatch[1]!, 16) : 3;
+    const g = hexMatch ? parseInt(hexMatch[2]!, 16) : 169;
+    const b = hexMatch ? parseInt(hexMatch[3]!, 16) : 244;
 
     // Draw curve fill (area under curve)
     ctx.beginPath();

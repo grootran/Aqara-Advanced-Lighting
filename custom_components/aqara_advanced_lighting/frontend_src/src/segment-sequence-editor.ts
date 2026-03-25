@@ -2,29 +2,9 @@ import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, SegmentSequenceStep, XYColor, UserSegmentSequencePreset, DeviceContext, SegmentSequenceEditorDraft, Translations } from './types';
 import { xyToRgb, rgbToXy } from './color-utils';
-import { colorPickerStyles } from './styles';
+import { colorPickerStyles } from './styles/color-picker';
 import { ReorderableStepsMixin, reorderableStepStyles } from './reorderable-steps-mixin';
-import { DEVICE_LABELS, editorFormStyles, localize } from './editor-constants';
-
-// Default palette colors in XY space (same as pattern editor)
-const DEFAULT_PALETTE: XYColor[] = [
-  { x: 0.6800, y: 0.3100 },    // Red
-  { x: 0.1700, y: 0.7000 },    // Green
-  { x: 0.1500, y: 0.0600 },    // Blue
-  { x: 0.4200, y: 0.5100 },    // Yellow
-  { x: 0.3800, y: 0.1600 },    // Magenta
-  { x: 0.2200, y: 0.3300 },    // Cyan
-];
-
-const DEFAULT_GRADIENT_COLORS: XYColor[] = [
-  { x: 0.6800, y: 0.3100 },  // Red
-  { x: 0.1500, y: 0.0600 },  // Blue
-];
-
-const DEFAULT_BLOCK_COLORS: XYColor[] = [
-  { x: 0.6800, y: 0.3100 },  // Red
-  { x: 0.1700, y: 0.7000 },  // Green
-];
+import { DEVICE_LABELS, DEFAULT_PALETTE, DEFAULT_GRADIENT_COLORS, DEFAULT_BLOCK_COLORS, editorFormStyles, localize, loopModeOptions, endBehaviorOptions } from './editor-constants';
 
 interface EditableStep extends SegmentSequenceStep {
   id: string;
@@ -74,36 +54,31 @@ export class SegmentSequenceEditor extends ReorderableStepsMixin(LitElement) {
   // Note: Color picker modal is now handled by segment-selector component
   // No need for local color picker state
 
-  private get _loopModeOptions() {
-    return [
-      { value: 'once', label: this._localize('options.loop_mode_once') },
-      { value: 'count', label: this._localize('options.loop_mode_count') },
-      { value: 'continuous', label: this._localize('options.loop_mode_continuous') },
-    ];
+  private _cachedLoopModeOptions: { value: string; label: string }[] = [];
+  private _cachedEndBehaviorOptions: { value: string; label: string }[] = [];
+  private _cachedActivationPatternOptions: { value: string; label: string }[] = [];
+
+  protected willUpdate(changedProps: PropertyValues): void {
+    if (changedProps.has('translations')) {
+      const loc = (k: string) => this._localize(k);
+      this._cachedLoopModeOptions = loopModeOptions(loc);
+      this._cachedEndBehaviorOptions = endBehaviorOptions(loc);
+      this._cachedActivationPatternOptions = [
+        { value: 'all', label: loc('options.activation_all') },
+        { value: 'sequential_forward', label: loc('options.activation_sequential_forward') },
+        { value: 'sequential_reverse', label: loc('options.activation_sequential_reverse') },
+        { value: 'random', label: loc('options.activation_random') },
+        { value: 'ping_pong', label: loc('options.activation_ping_pong') },
+        { value: 'center_out', label: loc('options.activation_center_out') },
+        { value: 'edges_in', label: loc('options.activation_edges_in') },
+        { value: 'paired', label: loc('options.activation_paired') },
+      ];
+    }
   }
 
-  private get _endBehaviorOptions() {
-    return [
-      { value: 'maintain', label: this._localize('options.end_behavior_maintain') },
-      { value: 'turn_off', label: this._localize('options.end_behavior_turn_off') },
-      { value: 'restore', label: this._localize('options.end_behavior_restore') },
-    ];
-  }
-
-  // Note: Step mode options removed - now handled by segment-selector sub-tabs (Individual/Gradient/Blocks)
-
-  private get _activationPatternOptions() {
-    return [
-      { value: 'all', label: this._localize('options.activation_all') },
-      { value: 'sequential_forward', label: this._localize('options.activation_sequential_forward') },
-      { value: 'sequential_reverse', label: this._localize('options.activation_sequential_reverse') },
-      { value: 'random', label: this._localize('options.activation_random') },
-      { value: 'ping_pong', label: this._localize('options.activation_ping_pong') },
-      { value: 'center_out', label: this._localize('options.activation_center_out') },
-      { value: 'edges_in', label: this._localize('options.activation_edges_in') },
-      { value: 'paired', label: this._localize('options.activation_paired') },
-    ];
-  }
+  private get _loopModeOptions() { return this._cachedLoopModeOptions; }
+  private get _endBehaviorOptions() { return this._cachedEndBehaviorOptions; }
+  private get _activationPatternOptions() { return this._cachedActivationPatternOptions; }
 
   static styles = [
     colorPickerStyles,

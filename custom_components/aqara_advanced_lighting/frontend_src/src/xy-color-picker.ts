@@ -6,8 +6,9 @@
 
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state, query } from 'lit/decorators.js';
-import { XYColor, HSColor } from './types';
-import { xyToHs, hsToXy, xyToRgb, rgbToXy } from './color-utils';
+import { XYColor, HSColor, Translations } from './types';
+import { xyToHs, hsToXy, xyToRgb, rgbToXy, kelvinToXy, kelvinToRgb } from './color-utils';
+import { localize } from './editor-constants';
 
 @customElement('xy-color-picker')
 export class XyColorPicker extends LitElement {
@@ -15,8 +16,15 @@ export class XyColorPicker extends LitElement {
   @property({ type: Number }) size = 220;
   @property({ type: Boolean }) showRgbInputs = true;
 
+  @property({ type: Object }) translations: Translations = {};
+  @property({ type: Boolean }) showCctSlider = true;
+  @property({ type: Number }) cctMin = 2000;
+  @property({ type: Number }) cctMax = 6500;
+
   @state() private _isDragging = false;
-  @state() private _editingColor: HSColor = { h: 0, s: 100 };
+  @state() private _editingColor: XYColor = { x: 0.6800, y: 0.3100 };
+  @state() private _cctValue = 4000;
+  @state() private _cctActive = false;
 
   @query('canvas') private _canvas!: HTMLCanvasElement;
   @query('.marker') private _marker!: HTMLDivElement;
@@ -97,11 +105,111 @@ export class XyColorPicker extends LitElement {
       outline: none;
       border-color: var(--primary-color);
     }
+
+    /* CCT Slider */
+    .cct-slider-section {
+      margin: 4px 0 8px;
+      padding: 0 8px;
+    }
+
+    .cct-slider-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+
+    .cct-slider-title {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--secondary-text-color);
+    }
+
+    .cct-slider-input {
+      width: 58px;
+      padding: 2px 4px;
+      border: 1px solid var(--divider-color);
+      border-radius: 4px;
+      background: var(--secondary-background-color);
+      color: var(--primary-text-color);
+      font-size: 12px;
+      font-family: monospace;
+      text-align: center;
+      transition: opacity 0.2s ease, border-color 0.2s ease;
+      -moz-appearance: textfield;
+    }
+
+    .cct-slider-input::-webkit-outer-spin-button,
+    .cct-slider-input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    .cct-slider-input:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      opacity: 1;
+    }
+
+    .cct-slider-input.inactive {
+      opacity: 0.4;
+    }
+
+    .cct-slider-input-suffix {
+      font-size: 12px;
+      font-family: monospace;
+      color: var(--secondary-text-color);
+      margin-left: 2px;
+    }
+
+    .cct-slider-track {
+      position: relative;
+      height: 28px;
+      border-radius: 14px;
+      cursor: pointer;
+      touch-action: none;
+      overflow: visible;
+    }
+
+    .cct-slider-gradient {
+      width: 100%;
+      height: 100%;
+      border-radius: 14px;
+      box-shadow: inset 0 0 0 1px var(--divider-color);
+    }
+
+    .cct-slider-thumb {
+      position: absolute;
+      top: 50%;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 3px solid white;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      transition: box-shadow 0.1s ease;
+    }
+
+    .cct-slider-thumb.dragging {
+      box-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
+    }
+
+    .cct-slider-ticks {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 2px 0;
+    }
+
+    .cct-slider-tick {
+      font-size: 10px;
+      color: var(--secondary-text-color);
+      opacity: 0.6;
+    }
   `;
 
   protected firstUpdated(): void {
-    // Convert initial XY to HS for internal editing
-    this._editingColor = xyToHs(this.color);
+    this._editingColor = { ...this.color };
     this._drawColorWheel();
     this._updateMarkerPosition();
   }
@@ -112,8 +220,11 @@ export class XyColorPicker extends LitElement {
       this._updateMarkerPosition();
     }
     if (changedProperties.has('color') && !this._isDragging) {
-      this._editingColor = xyToHs(this.color);
+      this._editingColor = { ...this.color };
       this._updateMarkerPosition();
+    }
+    if (changedProperties.has('cctMin') || changedProperties.has('cctMax')) {
+      this._cachedCctGradient = this._computeCctGradient();
     }
   }
 
@@ -167,13 +278,13 @@ export class XyColorPicker extends LitElement {
   private _updateMarkerPosition(): void {
     if (!this._marker) return;
 
-    const { x, y } = this._hsToPosition(this._editingColor);
+    const hs = xyToHs(this._editingColor);
+    const { x, y } = this._hsToPosition(hs);
     this._marker.style.left = `${x}px`;
     this._marker.style.top = `${y}px`;
 
     // Set marker color to match selected color
-    const xyColor = hsToXy(this._editingColor);
-    const rgb = xyToRgb(xyColor.x, xyColor.y, 255);
+    const rgb = xyToRgb(this._editingColor.x, this._editingColor.y, 255);
     const hex = `#${rgb.r.toString(16).padStart(2, '0')}${rgb.g.toString(16).padStart(2, '0')}${rgb.b.toString(16).padStart(2, '0')}`;
     this._marker.style.backgroundColor = hex;
   }
@@ -237,10 +348,9 @@ export class XyColorPicker extends LitElement {
     const y = clientY - rect.top;
 
     const newHs = this._positionToHs(x, y);
-    this._editingColor = newHs;
-
-    // Convert to XY and emit
     const newXy = hsToXy(newHs);
+    this._editingColor = newXy;
+    this._cctActive = false;
     this._updateMarkerPosition();
     this._updateRgbInputs(newXy);
     this._fireColorChanged(newXy);
@@ -252,9 +362,8 @@ export class XyColorPicker extends LitElement {
 
     if (isNaN(value) || value < 0 || value > 255) return;
 
-    // Get current RGB values
-    const currentXy = hsToXy(this._editingColor);
-    const currentRgb = xyToRgb(currentXy.x, currentXy.y, 255);
+    // Get current RGB directly from XY (one conversion, not two)
+    const currentRgb = xyToRgb(this._editingColor.x, this._editingColor.y, 255);
 
     // Update the changed channel
     const newRgb = {
@@ -263,25 +372,22 @@ export class XyColorPicker extends LitElement {
       b: channel === 'b' ? value : currentRgb.b,
     };
 
-    // Convert RGB → XY → HS for internal state
+    // Convert RGB → XY and store directly (no HS intermediate)
     const newXy = rgbToXy(newRgb.r, newRgb.g, newRgb.b);
-    const newHs = xyToHs(newXy);
+    this._editingColor = newXy;
+    this._cctActive = false;
 
-    this._editingColor = newHs;
     this._updateMarkerPosition();
-    this._updateRgbInputs(newXy);
     this._fireColorChanged(newXy);
 
-    // Visual feedback if conversion changed the value
+    // Show tooltip if round-trip changed the value
     const displayRgb = xyToRgb(newXy.x, newXy.y, 255);
     const displayValue = channel === 'r' ? displayRgb.r : channel === 'g' ? displayRgb.g : displayRgb.b;
 
     if (displayValue !== value) {
-      const originalBorder = input.style.borderColor;
-      input.style.borderColor = 'var(--warning-color, #ff9800)';
-      setTimeout(() => {
-        input.style.borderColor = originalBorder;
-      }, 500);
+      input.title = `Nearest: ${displayValue} (gamut limit)`;
+    } else {
+      input.title = '';
     }
   }
 
@@ -338,9 +444,167 @@ export class XyColorPicker extends LitElement {
     window.removeEventListener('touchend', this._onPointerUp);
   };
 
+  // --- CCT Slider ---
+
+  private _cctSliderDragging = false;
+  private _cachedCctGradient = '';
+
+  private _computeCctGradient(): string {
+    const stops: string[] = [];
+    const steps = 10;
+    for (let i = 0; i <= steps; i++) {
+      const k = this.cctMin + (i / steps) * (this.cctMax - this.cctMin);
+      const rgb = kelvinToRgb(k);
+      stops.push(`rgb(${rgb.r},${rgb.g},${rgb.b}) ${(i / steps) * 100}%`);
+    }
+    return `linear-gradient(to right, ${stops.join(', ')})`;
+  }
+
+  private _getCctGradient(): string {
+    if (!this._cachedCctGradient) {
+      this._cachedCctGradient = this._computeCctGradient();
+    }
+    return this._cachedCctGradient;
+  }
+
+  private _handleCctFromEvent(e: MouseEvent | TouchEvent): void {
+    const track = this.shadowRoot?.querySelector('.cct-slider-track') as HTMLElement;
+    if (!track) return;
+
+    const rect = track.getBoundingClientRect();
+    let clientX: number;
+    if ('touches' in e) {
+      const touch = e.touches[0];
+      if (!touch) return;
+      clientX = touch.clientX;
+    } else {
+      clientX = e.clientX;
+    }
+
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const kelvin = Math.round(this.cctMin + ratio * (this.cctMax - this.cctMin));
+
+    this._cctValue = kelvin;
+    this._cctActive = true;
+
+    // Convert kelvin → XY → HS, drive the whole picker
+    const newXy = kelvinToXy(kelvin);
+    this._editingColor = newXy;
+
+    this._updateMarkerPosition();
+    this._updateRgbInputs(newXy);
+    this._fireColorChanged(newXy);
+  }
+
+  private _onCctDown(e: MouseEvent | TouchEvent): void {
+    e.preventDefault();
+    this._cctSliderDragging = true;
+    this._handleCctFromEvent(e);
+
+    const thumb = this.shadowRoot?.querySelector('.cct-slider-thumb') as HTMLElement;
+    thumb?.classList.add('dragging');
+
+    if (e instanceof MouseEvent) {
+      window.addEventListener('mousemove', this._onCctMove);
+      window.addEventListener('mouseup', this._onCctUp);
+    } else {
+      window.addEventListener('touchmove', this._onCctMove, { passive: false });
+      window.addEventListener('touchend', this._onCctUp);
+    }
+  }
+
+  private _onCctMove = (e: MouseEvent | TouchEvent): void => {
+    if (!this._cctSliderDragging) return;
+    e.preventDefault();
+    this._handleCctFromEvent(e);
+  };
+
+  private _onCctUp = (): void => {
+    this._cctSliderDragging = false;
+    const thumb = this.shadowRoot?.querySelector('.cct-slider-thumb') as HTMLElement;
+    thumb?.classList.remove('dragging');
+    window.removeEventListener('mousemove', this._onCctMove);
+    window.removeEventListener('mouseup', this._onCctUp);
+    window.removeEventListener('touchmove', this._onCctMove);
+    window.removeEventListener('touchend', this._onCctUp);
+  };
+
+  private _handleCctInput(e: Event): void {
+    const input = e.target as HTMLInputElement;
+    const value = parseInt(input.value, 10);
+
+    if (isNaN(value) || value < this.cctMin || value > this.cctMax) return;
+
+    this._cctValue = value;
+    this._cctActive = true;
+
+    const newXy = kelvinToXy(value);
+    this._editingColor = newXy;
+
+    this._updateMarkerPosition();
+    this._updateRgbInputs(newXy);
+    this._fireColorChanged(newXy);
+  }
+
+  private _handleCctInputBlur(e: Event): void {
+    const input = e.target as HTMLInputElement;
+    const value = parseInt(input.value, 10);
+
+    // Clamp to valid range on blur
+    if (isNaN(value) || value < this.cctMin) {
+      input.value = this.cctMin.toString();
+    } else if (value > this.cctMax) {
+      input.value = this.cctMax.toString();
+    }
+  }
+
+  private _renderCctSlider() {
+    const thumbRgb = kelvinToRgb(this._cctValue);
+    const thumbPercent = ((this._cctValue - this.cctMin) / (this.cctMax - this.cctMin)) * 100;
+    const label = localize(this.translations, 'editors.color_temp_label') !== 'editors.color_temp_label'
+      ? localize(this.translations, 'editors.color_temp_label')
+      : 'Color temp';
+
+    return html`
+      <div class="cct-slider-section">
+        <div class="cct-slider-label">
+          <span class="cct-slider-title">${label}</span>
+          <div style="display: flex; align-items: center;">
+            <input
+              type="number"
+              class="cct-slider-input ${this._cctActive ? '' : 'inactive'}"
+              min=${this.cctMin}
+              max=${this.cctMax}
+              .value=${this._cctValue.toString()}
+              @input=${this._handleCctInput}
+              @blur=${this._handleCctInputBlur}
+            /><span class="cct-slider-input-suffix">K</span>
+          </div>
+        </div>
+        <div
+          class="cct-slider-track"
+          @mousedown=${this._onCctDown}
+          @touchstart=${this._onCctDown}
+        >
+          <div
+            class="cct-slider-gradient"
+            style="background: ${this._getCctGradient()}"
+          ></div>
+          <div
+            class="cct-slider-thumb"
+            style="left: ${thumbPercent}%; background: rgb(${thumbRgb.r},${thumbRgb.g},${thumbRgb.b})"
+          ></div>
+        </div>
+        <div class="cct-slider-ticks">
+          <span class="cct-slider-tick">${this.cctMin}K</span>
+          <span class="cct-slider-tick">${this.cctMax}K</span>
+        </div>
+      </div>
+    `;
+  }
+
   render() {
-    const xyColor = hsToXy(this._editingColor);
-    const rgb = xyToRgb(xyColor.x, xyColor.y, 255);
+    const rgb = xyToRgb(this._editingColor.x, this._editingColor.y, 255);
 
     return html`
       <div class="color-picker-container">
@@ -352,6 +616,7 @@ export class XyColorPicker extends LitElement {
           <div class="marker"></div>
         </div>
       </div>
+      ${this.showCctSlider ? this._renderCctSlider() : ''}
       ${this.showRgbInputs ? html`
         <div class="rgb-inputs">
           <label class="rgb-input-label">
@@ -362,7 +627,7 @@ export class XyColorPicker extends LitElement {
               min="0"
               max="255"
               .value=${rgb.r.toString()}
-              @input=${(e: Event) => this._handleRgbInput(e, 'r')}
+              @change=${(e: Event) => this._handleRgbInput(e, 'r')}
             />
           </label>
           <label class="rgb-input-label">
@@ -373,7 +638,7 @@ export class XyColorPicker extends LitElement {
               min="0"
               max="255"
               .value=${rgb.g.toString()}
-              @input=${(e: Event) => this._handleRgbInput(e, 'g')}
+              @change=${(e: Event) => this._handleRgbInput(e, 'g')}
             />
           </label>
           <label class="rgb-input-label">
@@ -384,7 +649,7 @@ export class XyColorPicker extends LitElement {
               min="0"
               max="255"
               .value=${rgb.b.toString()}
-              @input=${(e: Event) => this._handleRgbInput(e, 'b')}
+              @change=${(e: Event) => this._handleRgbInput(e, 'b')}
             />
           </label>
         </div>

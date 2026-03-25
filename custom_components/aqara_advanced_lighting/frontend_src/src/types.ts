@@ -156,6 +156,18 @@ export interface DynamicScenePreset {
   loop_mode: string;
   loop_count?: number;
   end_behavior: string;
+  audio_entity?: string;
+  audio_sensitivity?: number;
+  audio_brightness_response?: boolean;
+  audio_color_advance?: 'on_onset' | 'continuous' | 'beat_predictive' | 'intensity_breathing' | 'onset_flash';
+  audio_transition_speed?: number;
+  audio_detection_mode?: 'spectral_flux' | 'bass_energy' | 'complex_domain';
+  audio_frequency_zone?: boolean;
+  audio_silence_degradation?: boolean;
+  audio_prediction_aggressiveness?: number;
+  audio_latency_compensation_ms?: number;
+  audio_color_by_frequency?: boolean;
+  audio_rolloff_brightness?: boolean;
 }
 
 export interface PresetsData {
@@ -216,32 +228,6 @@ export interface DynamicSceneColor {
   y: number;
   brightness_pct: number;
 }
-
-// Color gamut definition per device type
-export interface ColorGamut {
-  red: [number, number];    // [x, y]
-  green: [number, number];
-  blue: [number, number];
-}
-
-// Color gamut triangles for Aqara lights
-export const AQARA_GAMUTS: Record<string, ColorGamut> = {
-  T1M: {
-    red: [0.6800, 0.3100],
-    green: [0.1500, 0.0600],
-    blue: [0.1500, 0.7000],
-  },
-  T1_STRIP: {
-    red: [0.6800, 0.3100],
-    green: [0.1500, 0.0600],
-    blue: [0.1500, 0.7000],
-  },
-  T2_BULB: {
-    red: [0.6800, 0.3100],
-    green: [0.1500, 0.0600],
-    blue: [0.1500, 0.7000],
-  },
-};
 
 // Segment color entry for user presets
 export interface SegmentColorEntry {
@@ -320,6 +306,18 @@ export interface UserDynamicScenePreset {
   loop_mode: string;
   loop_count?: number;
   end_behavior: string;
+  audio_entity?: string;
+  audio_sensitivity?: number;
+  audio_brightness_response?: boolean;
+  audio_color_advance?: 'on_onset' | 'continuous' | 'beat_predictive' | 'intensity_breathing' | 'onset_flash';
+  audio_transition_speed?: number;
+  audio_detection_mode?: 'spectral_flux' | 'bass_energy' | 'complex_domain';
+  audio_frequency_zone?: boolean;
+  audio_silence_degradation?: boolean;
+  audio_prediction_aggressiveness?: number;
+  audio_latency_compensation_ms?: number;
+  audio_color_by_frequency?: boolean;
+  audio_rolloff_brightness?: boolean;
   created_at: string;
   modified_at: string;
 }
@@ -385,6 +383,29 @@ export interface UserPreferences {
   static_scene_mode?: boolean;
   distribution_mode_override?: string;
   brightness_override?: number;
+  use_audio_reactive?: boolean;
+  audio_override_entity?: string;
+  audio_override_sensitivity?: number;
+  audio_override_color_advance?: 'on_onset' | 'continuous' | 'beat_predictive' | 'intensity_breathing' | 'onset_flash';
+  audio_override_transition_speed?: number;
+  audio_override_brightness_response?: boolean;
+  audio_override_detection_mode?: 'spectral_flux' | 'bass_energy';
+  audio_override_frequency_zone?: boolean;
+  audio_override_silence_degradation?: boolean;
+  audio_override_prediction_aggressiveness?: number;
+  audio_override_latency_compensation_ms?: number;
+  audio_override_color_by_frequency?: boolean;
+  audio_override_rolloff_brightness?: boolean;
+  hidden_builtin_presets?: FavoritePresetRef[];
+  selected_entities?: string[];
+  active_favorite_id?: string | null;
+}
+
+export interface EntityAudioConfig {
+  audio_on_service?: string;
+  audio_on_service_data?: string;
+  audio_off_service?: string;
+  audio_off_service_data?: string;
 }
 
 // Integration-wide preferences (not per-user)
@@ -392,6 +413,7 @@ export interface GlobalPreferences {
   ignore_external_changes?: boolean;
   software_transition_entities?: string[];
   override_control_mode?: 'pause_all' | 'pause_changed';
+  entity_audio_config?: Record<string, EntityAudioConfig>;
 }
 
 // Draft state types for editor tab caching (in-memory only, not persisted)
@@ -487,6 +509,19 @@ export interface DynamicSceneEditorDraft {
   loopCount: number;
   endBehavior: string;
   hasUserInteraction: boolean;
+  audioEnabled: boolean;
+  audioEntity: string;
+  audioSensitivity: number;
+  audioBrightnessResponse: boolean;
+  audioColorAdvance: 'on_onset' | 'continuous' | 'beat_predictive' | 'intensity_breathing' | 'onset_flash';
+  audioTransitionSpeed: number;
+  audioDetectionMode: 'spectral_flux' | 'bass_energy' | 'complex_domain';
+  audioFrequencyZone: boolean;
+  audioSilenceDegradation: boolean;
+  audioPredictionAggressiveness: number;
+  audioLatencyCompensationMs: number;
+  audioColorByFrequency: boolean;
+  audioRolloffBrightness: boolean;
 }
 
 export interface EditorDraftCache {
@@ -497,22 +532,6 @@ export interface EditorDraftCache {
   scenes?: DynamicSceneEditorDraft;
 }
 
-export const SUPPORTED_MODELS = {
-  T2_BULB: [
-    'lumi.light.agl001',
-    'lumi.light.agl003',
-    'lumi.light.agl005',
-    'lumi.light.agl007',
-  ] as string[],
-  T2_CCT: [
-    'lumi.light.agl002',
-    'lumi.light.agl004',
-    'lumi.light.agl006',
-    'lumi.light.agl008',
-  ] as string[],
-  T1M: ['lumi.light.acn031', 'lumi.light.acn032'] as string[],
-  T1_STRIP: ['lumi.light.acn132'] as string[],
-};
 
 // Segment zone definition for a device
 export interface SegmentZone {
@@ -566,13 +585,18 @@ export interface RunningOperation {
   mode?: string;
   // Circadian/solar operation state
   current_color_temp?: number;
-  current_brightness?: number;
   // Auto-resume countdown (seconds remaining, present when externally paused)
   auto_resume_remaining?: number;
   override_attributes?: {
     brightness: boolean;
     color: boolean;
   } | Record<string, { brightness: boolean; color: boolean }>;
+  audio_tier?: 'rich' | null;
+  audio_entity?: string;
+  audio_waiting?: boolean;
+  audio_bpm?: number | null;
+  audio_sensitivity?: number | null;
+  audio_squelch?: number | null;
 }
 
 export interface RunningOperationsResponse {

@@ -1,18 +1,32 @@
 """Data models for the Aqara Advanced Lighting integration."""
 
-from __future__ import annotations
-
+import math
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, TypeAlias
+from typing import Any, Self
 
 from homeassistant.config_entries import ConfigEntry
 
+from .const import (
+    AUDIO_COLOR_ADVANCE_ON_ONSET,
+    DEFAULT_AUDIO_DETECTION_MODE,
+    DEFAULT_AUDIO_FREQUENCY_ZONE,
+    DEFAULT_AUDIO_PREDICTION_AGGRESSIVENESS,
+    DEFAULT_AUDIO_SENSITIVITY,
+    DEFAULT_AUDIO_SILENCE_DEGRADATION,
+    DEFAULT_AUDIO_TRANSITION_SPEED,
+    DEFAULT_LATENCY_COMPENSATION_MS,
+    MAX_AUDIO_PREDICTION_AGGRESSIVENESS,
+    MAX_AUDIO_SENSITIVITY,
+    MAX_AUDIO_TRANSITION_SPEED,
+    MIN_AUDIO_PREDICTION_AGGRESSIVENESS,
+    MIN_AUDIO_SENSITIVITY,
+    MIN_AUDIO_TRANSITION_SPEED,
+    VALID_AUDIO_COLOR_ADVANCE,
+    VALID_AUDIO_DETECTION_MODES,
+    brightness_percent_to_device,
+)
 from .sun_utils import ScheduleStep, SolarStep
-
-if TYPE_CHECKING:
-    pass  # TypeAlias import used for type definitions
-
 
 def _validate_sequence_params(
     steps_count: int,
@@ -37,7 +51,6 @@ def _validate_sequence_params(
         msg = f"End behavior must be 'maintain', 'turn_off', or 'restore', got {end_behavior}"
         raise ValueError(msg)
 
-
 def round_xy(value: float) -> float:
     """Round XY coordinate to 4 decimal places for consistency.
 
@@ -52,7 +65,6 @@ def round_xy(value: float) -> float:
     """
     return round(value, 4)
 
-
 class AqaraLightModel(StrEnum):
     """Supported Aqara light models."""
 
@@ -60,7 +72,6 @@ class AqaraLightModel(StrEnum):
     T1M_26_SEGMENT = "ACN032"
     T1_STRIP = "STRIP1"
     T2_BULB = "ACN003"
-
 
 class EffectType(StrEnum):
     """Dynamic effect types across all Aqara light models."""
@@ -84,8 +95,7 @@ class EffectType(StrEnum):
     # T2 Bulb specific effects
     CANDLELIGHT = "candlelight"
 
-
-@dataclass
+@dataclass(frozen=True, slots=True)
 class RGBColor:
     """RGB color representation."""
 
@@ -98,7 +108,7 @@ class RGBColor:
         return {"r": self.r, "g": self.g, "b": self.b}
 
     @classmethod
-    def from_dict(cls, data: dict[str, int]) -> RGBColor:
+    def from_dict(cls, data: dict[str, int]) -> Self:
         """Create from dictionary."""
         return cls(r=data["r"], g=data["g"], b=data["b"])
 
@@ -114,8 +124,7 @@ class RGBColor:
             msg = f"Blue value must be 0-255, got {self.b}"
             raise ValueError(msg)
 
-
-@dataclass
+@dataclass(frozen=True, slots=True)
 class XYColor:
     """CIE 1931 XY color representation with brightness.
 
@@ -132,7 +141,7 @@ class XYColor:
         return {"x": round_xy(self.x), "y": round_xy(self.y)}
 
     @classmethod
-    def from_dict(cls, data: dict[str, float | int]) -> XYColor:
+    def from_dict(cls, data: dict[str, float | int]) -> Self:
         """Create from dictionary."""
         return cls(x=data["x"], y=data["y"], brightness=data.get("brightness", 255))
 
@@ -142,8 +151,6 @@ class XYColor:
         Returns RGB at full brightness (0-255 range) suitable for MQTT.
         Uses normalization to ensure vivid colors (matching frontend behavior).
         """
-        import math
-
         # Prevent division by zero
         if self.y == 0:
             return RGBColor(r=0, g=0, b=0)
@@ -197,7 +204,7 @@ class XYColor:
         )
 
     @classmethod
-    def from_rgb(cls, rgb: RGBColor) -> XYColor:
+    def from_rgb(cls, rgb: RGBColor) -> Self:
         """Convert RGB to XY using Home Assistant's built-in utilities."""
         from homeassistant.util.color import color_RGB_to_xy
 
@@ -218,8 +225,7 @@ class XYColor:
             msg = f"Brightness must be 1-255, got {self.brightness}"
             raise ValueError(msg)
 
-
-@dataclass
+@dataclass(frozen=True, slots=True)
 class DynamicSceneColor:
     """Single color in a dynamic scene palette with per-color brightness."""
 
@@ -236,7 +242,7 @@ class DynamicSceneColor:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, float | int]) -> DynamicSceneColor:
+    def from_dict(cls, data: dict[str, float | int]) -> Self:
         """Create from dictionary."""
         return cls(
             x=float(data["x"]),
@@ -246,8 +252,6 @@ class DynamicSceneColor:
 
     def to_xy_color(self) -> XYColor:
         """Convert to XYColor for color operations."""
-        from .const import brightness_percent_to_device
-
         return XYColor(
             x=self.x, y=self.y, brightness=brightness_percent_to_device(self.brightness_pct)
         )
@@ -264,8 +268,7 @@ class DynamicSceneColor:
             msg = f"Brightness percentage must be 1-100, got {self.brightness_pct}"
             raise ValueError(msg)
 
-
-@dataclass
+@dataclass(frozen=True, slots=True)
 class SegmentColor:
     """Segment color assignment for individual segment patterns."""
 
@@ -286,8 +289,7 @@ class SegmentColor:
             msg = f"Brightness must be 1-255, got {self.brightness}"
             raise ValueError(msg)
 
-
-@dataclass
+@dataclass(frozen=True, slots=True)
 class DynamicEffect:
     """Dynamic effect configuration."""
 
@@ -337,7 +339,6 @@ class DynamicEffect:
             msg = f"Effect must have 1-8 colors, got {len(self.effect_colors)}"
             raise ValueError(msg)
 
-
 @dataclass
 class DeviceCapabilities:
     """Device capability definition for each Aqara light model."""
@@ -348,7 +349,6 @@ class DeviceCapabilities:
     supports_segment_addressing: bool
     supports_effect_segments: bool
     model_name: str
-
 
 @dataclass
 class DeviceState:
@@ -384,7 +384,6 @@ class DeviceState:
             "current_preset": self.current_preset,
         }
 
-
 @dataclass
 class AqaraDevice:
     """Backend-agnostic representation of a supported Aqara light.
@@ -406,7 +405,6 @@ class AqaraDevice:
 
         return get_device_capabilities(self.model_id)
 
-
 @dataclass
 class Z2MDevice:
     """Zigbee2MQTT device information."""
@@ -417,8 +415,7 @@ class Z2MDevice:
     manufacturer: str
     supported: bool = True
 
-
-@dataclass
+@dataclass(frozen=True, slots=True)
 class CCTSequenceStep:
     """Single step in a CCT dynamic sequence."""
 
@@ -441,7 +438,6 @@ class CCTSequenceStep:
         if self.hold < 0:
             msg = "Hold time cannot be negative"
             raise ValueError(msg)
-
 
 @dataclass
 class CCTSequence:
@@ -478,8 +474,7 @@ class CCTSequence:
                 len(self.steps), self.loop_mode, self.loop_count, self.end_behavior
             )
 
-
-@dataclass
+@dataclass(frozen=True, slots=True)
 class SegmentSequenceStep:
     """Single step in an RGB segment sequence."""
 
@@ -530,7 +525,6 @@ class SegmentSequenceStep:
             msg = f"Activation pattern must be one of {valid_patterns}, got {self.activation_pattern}"
             raise ValueError(msg)
 
-
 @dataclass
 class SegmentSequence:
     """RGB segment sequence configuration."""
@@ -548,7 +542,6 @@ class SegmentSequence:
             len(self.steps), self.loop_mode, self.loop_count, self.end_behavior
         )
 
-
 @dataclass
 class DynamicScene:
     """Dynamic scene configuration for ambient lighting."""
@@ -562,6 +555,18 @@ class DynamicScene:
     loop_mode: str  # "once", "count", "continuous"
     loop_count: int | None = None  # Number of loops if mode is "count"
     end_behavior: str = "maintain"  # "maintain", "turn_off", or "restore"
+    audio_entity: str | None = None
+    audio_sensitivity: int = DEFAULT_AUDIO_SENSITIVITY
+    audio_brightness_response: bool = True
+    audio_color_advance: str = AUDIO_COLOR_ADVANCE_ON_ONSET
+    audio_transition_speed: int = DEFAULT_AUDIO_TRANSITION_SPEED
+    audio_detection_mode: str = DEFAULT_AUDIO_DETECTION_MODE
+    audio_frequency_zone: bool = DEFAULT_AUDIO_FREQUENCY_ZONE
+    audio_silence_degradation: bool = DEFAULT_AUDIO_SILENCE_DEGRADATION
+    audio_prediction_aggressiveness: int = DEFAULT_AUDIO_PREDICTION_AGGRESSIVENESS
+    audio_latency_compensation_ms: int = DEFAULT_LATENCY_COMPENSATION_MS
+    audio_color_by_frequency: bool = False
+    audio_rolloff_brightness: bool = False
 
     def __post_init__(self) -> None:
         """Validate scene parameters."""
@@ -600,6 +605,33 @@ class DynamicScene:
             msg = f"End behavior must be 'maintain', 'turn_off', or 'restore', got {self.end_behavior}"
             raise ValueError(msg)
 
+        # Audio field validation
+        if self.audio_entity is not None and not isinstance(self.audio_entity, str):
+            msg = f"audio_entity must be a string or None, got {type(self.audio_entity)}"
+            raise TypeError(msg)
+        self.audio_sensitivity = max(
+            MIN_AUDIO_SENSITIVITY, min(MAX_AUDIO_SENSITIVITY, self.audio_sensitivity)
+        )
+        self.audio_transition_speed = max(
+            MIN_AUDIO_TRANSITION_SPEED,
+            min(MAX_AUDIO_TRANSITION_SPEED, self.audio_transition_speed),
+        )
+        if self.audio_color_advance not in VALID_AUDIO_COLOR_ADVANCE:
+            msg = (
+                f"Invalid audio_color_advance: {self.audio_color_advance}. "
+                f"Must be one of {VALID_AUDIO_COLOR_ADVANCE}"
+            )
+            raise ValueError(msg)
+
+        if self.audio_detection_mode not in VALID_AUDIO_DETECTION_MODES:
+            self.audio_detection_mode = DEFAULT_AUDIO_DETECTION_MODE
+
+        self.audio_prediction_aggressiveness = max(
+            MIN_AUDIO_PREDICTION_AGGRESSIVENESS,
+            min(MAX_AUDIO_PREDICTION_AGGRESSIVENESS, self.audio_prediction_aggressiveness),
+        )
+
+        self.audio_latency_compensation_ms = max(0, min(500, self.audio_latency_compensation_ms))
 
 @dataclass
 class AqaraLightingRuntimeData:
@@ -616,6 +648,5 @@ class AqaraLightingRuntimeData:
     entity_mapping_ready: bool = False
     aqara_devices: dict[str, AqaraDevice] = field(default_factory=dict)
 
-
-# Type alias for typed config entry (Python 3.11+ compatible)
-AqaraLightingConfigEntry: TypeAlias = ConfigEntry[AqaraLightingRuntimeData]
+# Type alias for typed config entry
+type AqaraLightingConfigEntry = ConfigEntry[AqaraLightingRuntimeData]

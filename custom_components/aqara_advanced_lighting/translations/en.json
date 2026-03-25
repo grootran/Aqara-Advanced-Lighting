@@ -736,6 +736,54 @@
         "static": {
           "name": "Static mode",
           "description": "Apply the scene colors once without starting a transition loop."
+        },
+        "audio_entity": {
+          "name": "Audio sensor entity",
+          "description": "Binary sensor entity that provides audio detection for reactive lighting."
+        },
+        "audio_sensitivity": {
+          "name": "Audio sensitivity",
+          "description": "Sensitivity of the audio detection (1-100%)."
+        },
+        "audio_color_advance": {
+          "name": "Color advance mode",
+          "description": "How colors advance in response to audio. Options: on_onset (Color cycle - advance on detected onsets), continuous (smooth color cycling), beat_predictive (predict and pre-fire on beats), intensity_breathing (brightness modulated by audio intensity), onset_flash (Brightness flash - flash brightness on each onset)."
+        },
+        "audio_transition_speed": {
+          "name": "Audio transition speed",
+          "description": "Speed of color transitions when driven by audio (1-100%)."
+        },
+        "audio_brightness_response": {
+          "name": "Brightness response",
+          "description": "Modulate light brightness based on audio intensity."
+        },
+        "audio_detection_mode": {
+          "name": "Detection mode",
+          "description": "Audio detection algorithm. spectral_flux works across all genres, bass_energy is optimized for rhythmic music."
+        },
+        "audio_frequency_zone": {
+          "name": "Frequency zone distribution",
+          "description": "Assign different frequency bands to different lights. Requires 3 or more lights."
+        },
+        "audio_silence_degradation": {
+          "name": "Silence degradation",
+          "description": "Gradually dim lights during periods of silence."
+        },
+        "audio_prediction_aggressiveness": {
+          "name": "Prediction aggressiveness",
+          "description": "How aggressively the beat predictor pre-fires transitions (1-100%). Only used in beat_predictive mode."
+        },
+        "audio_latency_compensation_ms": {
+          "name": "Latency compensation",
+          "description": "Milliseconds to compensate for audio processing latency (0-500ms). Only used in beat_predictive mode."
+        },
+        "audio_color_by_frequency": {
+          "name": "Color by frequency",
+          "description": "Map spectral centroid to palette position. Low frequencies select warm colors, high frequencies select cool colors."
+        },
+        "audio_rolloff_brightness": {
+          "name": "Rolloff brightness",
+          "description": "Scale brightness based on spectral rolloff. Brighter timbres produce brighter lights."
         }
       }
     },

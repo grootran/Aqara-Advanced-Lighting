@@ -1,8 +1,17 @@
 import { LitElement, html, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { ref, createRef, Ref } from 'lit/directives/ref.js';
-import { panelStyles } from './styles';
-import { xyToRgb, rgbToXy } from './color-utils';
+import {
+  baseStyles, scaffoldStyles, sectionStyles, presetStyles,
+  activateStyles, configStyles, editorHostStyles, sharedFormStyles,
+} from './styles/index';
+import { xyToRgb } from './color-utils';
+import { localize } from './editor-constants';
+import { PreferencesController } from './preferences-controller';
+import './running-operations';
+import './config-tab';
+import { getEntityFriendlyName, getEntityIcon, getEntityState, getEntityColor, hasRGBColorMode, hasCCTColorMode, getEntityDeviceType } from './entity-utils';
+import { builtinEffectToUser, builtinPatternToUser, builtinCCTToUser, builtinSegmentSequenceToUser, builtinDynamicSceneToUser } from './preset-duplicate';
 import {
   renderEffectThumbnail,
   renderSegmentPatternThumbnail,
@@ -29,10 +38,7 @@ import {
   UserCCTSequencePreset,
   UserSegmentSequencePreset,
   UserDynamicScenePreset,
-  UserPreferences,
-  XYColor,
   PresetSortOption,
-  PresetSortPreferences,
   SegmentZoneResolved,
   EditorDraftCache,
   FavoritePresetRef,
@@ -41,13 +47,13 @@ import {
   Translations,
   RunningOperation,
   RunningOperationsResponse,
+  EntityAudioConfig,
 } from './types';
 import './effect-editor';
 import './pattern-editor';
 import './cct-sequence-editor';
 import './segment-sequence-editor';
 import './dynamic-scene-editor';
-import './transition-curve-editor';
 import './color-history-swatches';
 
 // HA tile card custom element interface (created via document.createElement)
@@ -64,22 +70,9 @@ export class AqaraPanel extends LitElement {
   @state() private _presets?: PresetsData;
   @state() private _loading = true;
   @state() private _error?: string;
-  @state() private _selectedEntities: string[] = [];
-  @state() private _brightness = 100;
-  @state() private _useCustomBrightness = false;
-  @state() private _useStaticSceneMode = false;
-  @state() private _ignoreExternalChanges = false;
-  @state() private _overrideControlMode: string = 'pause_changed';
-  @state() private _bareTurnOnOnly = false;
-  @state() private _detectNonHaChanges = false;
-  @state() private _softwareTransitionEntities: string[] = [];
-  @state() private _useDistributionModeOverride = false;
-  @state() private _distributionModeOverride = 'shuffle_rotate';
-  @state() private _collapsed: Record<string, boolean> = { instances: true };
+  private _prefs = new PreferencesController(this);
   @state() private _hasIncompatibleLights = false;
-  @state() private _includeAllLights = false;
   @state() private _favorites: Favorite[] = [];
-  @state() private _activeFavoriteId: string | null = null;
   @state() private _renamingFavoriteId: string | null = null;
   @state() private _renamingFavoriteName = '';
   @state() private _favoriteEditModeId: string | null = null;
@@ -93,14 +86,10 @@ export class AqaraPanel extends LitElement {
   @state() private _cctPreviewActive = false;
   @state() private _segmentSequencePreviewActive = false;
   @state() private _scenePreviewActive = false;
-  @state() private _sortPreferences: PresetSortPreferences = {};
-  @state() private _colorHistory: XYColor[] = [];
   @state() private _backendVersion?: string;
   @state() private _frontendVersion = '__FRONTEND_VERSION__';
-  @state() private _supportedEntities: Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; ieee_address?: string; segment_count?: number; backend_type?: string; is_group?: boolean; member_count?: number }> = new Map();
+  @state() private _supportedEntities: Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; ieee_address?: string; segment_count?: number; is_group?: boolean; member_count?: number }> = new Map();
   @state() private _deviceZones: Map<string, Array<{ name: string; segments: string }>> = new Map();
-  @state() private _zoneEditing: Map<string, Array<{ name: string; segments: string }>> = new Map();
-  @state() private _zoneSaving = false;
   @state() private _z2mInstances: Array<{
     entry_id: string;
     title: string;
@@ -109,15 +98,10 @@ export class AqaraPanel extends LitElement {
     device_counts: { t2_rgb: number; t2_cct: number; t1m: number; t1_strip: number; other: number; total: number };
     devices: string[];
   }> = [];
-  @state() private _instanceDevicesExpanded: Set<string> = new Set();
-  @state() private _localCurvature = 1.0;
-  @state() private _applyingCurvature = false;
-  @state() private _curvatureApplied = false;
   @state() private _isExporting = false;
   @state() private _isImporting = false;
   @state() private _isSelectMode = false;
   @state() private _selectedPresetIds: Set<string> = new Set();
-  @state() private _favoritePresets: FavoritePresetRef[] = [];
   @state() private _runningOperations: RunningOperation[] = [];
   @state() private _musicSyncEnabled = false;
   @state() private _musicSyncSensitivity = 'low';
@@ -132,56 +116,32 @@ export class AqaraPanel extends LitElement {
 
   private _tileCardRef: Ref<HTMLElement> = createRef();
   private _tileCards: Map<string, HaTileCard> = new Map();
-  private _preferencesSaveTimer?: ReturnType<typeof setTimeout>;
   private _editorDraftCache: EditorDraftCache = {};
 
-  static styles = panelStyles;
+  static styles = [
+    baseStyles, scaffoldStyles, sectionStyles, presetStyles,
+    activateStyles, configStyles, editorHostStyles, sharedFormStyles,
+  ];
 
   /**
    * Helper method to localize panel strings
-   * Fetches translations from our stored translation object
    */
   private _localize(key: string, values?: Record<string, string>): string {
-    // Navigate through nested translation keys
-    const keys = key.split('.');
-    let translated: string | Translations = this._translations;
-
-    for (const k of keys) {
-      if (typeof translated !== 'object' || !(k in translated)) {
-        return key;
-      }
-      const next: string | Translations | undefined = translated[k];
-      if (next === undefined) return key;
-      translated = next;
-    }
-
-    // Ensure we got a string
-    if (typeof translated !== 'string') {
-      return key;
-    }
-
-    // Replace placeholders like {count} with actual values
-    if (values) {
-      let result = translated;
-      Object.keys(values).forEach(placeholder => {
-        const value = values[placeholder];
-        if (value !== undefined) {
-          result = result.replace(`{${placeholder}}`, value);
-        }
-      });
-      return result;
-    }
-
-    return translated;
+    return localize(this._translations, key, values);
   }
 
   protected firstUpdated(): void {
     this._loadPresets();
     this._loadFavorites();
     this._loadUserPresets();
-    this._loadUserPreferences();
-    this._loadBackendVersion();
-    this._loadSupportedEntities();
+    this._prefs.load(this.hass);
+    this._loadBackendVersion().then(() => {
+      // Only load entities after version check — if setup isn't complete yet,
+      // _checkSetupStatus polling will call _loadSupportedEntities when ready.
+      if (this._setupComplete) {
+        this._loadSupportedEntities();
+      }
+    });
     this._loadRunningOperations();
     this._subscribeToOperationEvents();
 
@@ -194,10 +154,7 @@ export class AqaraPanel extends LitElement {
     super.disconnectedCallback();
     this.removeEventListener('color-history-changed', this._handleColorHistoryChanged as EventListener);
     this.removeEventListener('clear-history', this._handleClearColorHistory as EventListener);
-    if (this._preferencesSaveTimer !== undefined) {
-      clearTimeout(this._preferencesSaveTimer);
-      this._preferencesSaveTimer = undefined;
-    }
+    // Preferences save timer cleanup is handled by the controller's hostDisconnected()
     if (this._runningOpsDebounceTimer !== undefined) {
       clearTimeout(this._runningOpsDebounceTimer);
       this._runningOpsDebounceTimer = undefined;
@@ -211,6 +168,87 @@ export class AqaraPanel extends LitElement {
     this._eventUnsubscribers = [];
   }
 
+  protected willUpdate(changedProps: PropertyValues): void {
+    super.willUpdate(changedProps);
+
+    // Clean up stale favorite preset references when the data they resolve against changes.
+    // _favoritePresets now lives in the controller, so we always check on presets/userPresets changes.
+    // The controller's requestUpdate() also triggers this path after preference loads.
+    if (
+      changedProps.has('_presets') ||
+      changedProps.has('_userPresets')
+    ) {
+      this._cleanStaleFavoriteRefs();
+      this._rebuildPresetLookup();
+    }
+  }
+
+  private _presetLookup = new Map<string, { name: string; icon: string | null }>();
+
+  private _rebuildPresetLookup(): void {
+    const map = new Map<string, { name: string; icon: string | null }>();
+    const add = (id: string, name: string, icon?: string) => {
+      map.set(id, { name, icon: icon || null });
+    };
+    if (this._presets?.dynamic_effects) {
+      for (const presets of Object.values(this._presets.dynamic_effects)) {
+        for (const p of presets) add(p.id, p.name, p.icon);
+      }
+    }
+    for (const p of this._presets?.segment_patterns || []) add(p.id, p.name, p.icon);
+    for (const p of this._presets?.cct_sequences || []) add(p.id, p.name, p.icon);
+    for (const p of this._presets?.segment_sequences || []) add(p.id, p.name, p.icon);
+    for (const p of this._presets?.dynamic_scenes || []) add(p.id, p.name, p.icon);
+    if (this._userPresets) {
+      for (const list of [
+        this._userPresets.effect_presets, this._userPresets.segment_pattern_presets,
+        this._userPresets.cct_sequence_presets, this._userPresets.segment_sequence_presets,
+        this._userPresets.dynamic_scene_presets,
+      ]) {
+        for (const p of list || []) { add(p.id, p.name, p.icon); add(p.name, p.name, p.icon); }
+      }
+    }
+    this._presetLookup = map;
+  }
+
+  /**
+   * Remove favorite refs that point to deleted presets.
+   * Called from willUpdate, not during render.
+   */
+  private _cleanStaleFavoriteRefs(): void {
+    if (this._prefs.state.favoritePresets.length === 0) return;
+
+    const valid = this._prefs.state.favoritePresets.filter(ref => {
+      switch (ref.type) {
+        case 'effect': {
+          for (const key of ['t2_bulb', 't1m', 't1_strip'] as const) {
+            if (this._presets?.dynamic_effects?.[key]?.some(p => p.id === ref.id)) return true;
+          }
+          return this._userPresets?.effect_presets?.some(p => p.id === ref.id) ?? false;
+        }
+        case 'segment_pattern':
+          return (this._presets?.segment_patterns?.some(p => p.id === ref.id) ?? false) ||
+                 (this._userPresets?.segment_pattern_presets?.some(p => p.id === ref.id) ?? false);
+        case 'cct_sequence':
+          return (this._presets?.cct_sequences?.some(p => p.id === ref.id) ?? false) ||
+                 (this._userPresets?.cct_sequence_presets?.some(p => p.id === ref.id) ?? false);
+        case 'segment_sequence':
+          return (this._presets?.segment_sequences?.some(p => p.id === ref.id) ?? false) ||
+                 (this._userPresets?.segment_sequence_presets?.some(p => p.id === ref.id) ?? false);
+        case 'dynamic_scene':
+          return (this._presets?.dynamic_scenes?.some(p => p.id === ref.id) ?? false) ||
+                 (this._userPresets?.dynamic_scene_presets?.some(p => p.id === ref.id) ?? false);
+        default:
+          return false;
+      }
+    });
+
+    if (valid.length !== this._prefs.state.favoritePresets.length) {
+      this._prefs.state.favoritePresets = valid;
+      this._prefs.save(this.hass);
+    }
+  }
+
   protected updated(changedProps: PropertyValues): void {
     super.updated(changedProps);
 
@@ -219,10 +257,12 @@ export class AqaraPanel extends LitElement {
       this._loadPresets();
       this._loadFavorites();
       this._loadUserPresets();
+      this._prefs.load(this.hass);
       this._loadSupportedEntities();
     }
 
-    // Update tile card when selection or hass changes
+    // Update tile card on any re-render (selectedEntities is in controller state,
+    // so we always check; the method is cheap when nothing changed)
     this._updateTileCard();
   }
 
@@ -237,7 +277,7 @@ export class AqaraPanel extends LitElement {
     }
 
     // If no entities selected, clear all cards
-    if (!this._selectedEntities.length) {
+    if (!this._prefs.state.selectedEntities.length) {
       this._tileCards.forEach((card) => {
         if (card.parentElement) {
           card.remove();
@@ -251,7 +291,7 @@ export class AqaraPanel extends LitElement {
     await customElements.whenDefined('hui-tile-card');
 
     // Track which entities are currently selected
-    const selectedSet = new Set(this._selectedEntities);
+    const selectedSet = new Set(this._prefs.state.selectedEntities);
 
     // Remove cards for entities that are no longer selected or orphaned
     for (const [entityId, card] of this._tileCards.entries()) {
@@ -264,7 +304,7 @@ export class AqaraPanel extends LitElement {
     }
 
     // Create or update cards for each selected entity
-    for (const entityId of this._selectedEntities) {
+    for (const entityId of this._prefs.state.selectedEntities) {
       let card = this._tileCards.get(entityId);
 
       // Check if card exists and is attached to the current container
@@ -324,197 +364,38 @@ export class AqaraPanel extends LitElement {
     }
   }
 
-  private async _loadUserPreferences(): Promise<void> {
-    if (!this.hass) return;
-
-    try {
-      const prefs = await this.hass.callApi<UserPreferences>(
-        'GET',
-        'aqara_advanced_lighting/user_preferences'
-      );
-
-      // One-time migration from localStorage
-      if (
-        prefs.color_history.length === 0 &&
-        Object.keys(prefs.sort_preferences).length === 0
-      ) {
-        const migrated = this._migrateLocalStoragePreferences();
-        if (migrated) {
-          const updated = await this.hass.callApi<UserPreferences>(
-            'PUT',
-            'aqara_advanced_lighting/user_preferences',
-            migrated as unknown as Record<string, unknown>
-          );
-          this._colorHistory = updated.color_history;
-          this._sortPreferences = updated.sort_preferences;
-          // Clean up localStorage after successful migration
-          localStorage.removeItem('aqara_lighting_color_history');
-          localStorage.removeItem('aqara_lighting_sort_preferences');
-          return;
-        }
-      }
-
-      this._colorHistory = prefs.color_history;
-      this._sortPreferences = prefs.sort_preferences;
-      this._favoritePresets = prefs.favorite_presets || [];
-      if (prefs.collapsed_sections) {
-        this._collapsed = prefs.collapsed_sections;
-      }
-      if (prefs.include_all_lights !== undefined) {
-        this._includeAllLights = prefs.include_all_lights;
-      }
-      if (prefs.static_scene_mode !== undefined) {
-        this._useStaticSceneMode = prefs.static_scene_mode;
-      }
-      if (prefs.distribution_mode_override) {
-        this._useDistributionModeOverride = true;
-        this._distributionModeOverride = prefs.distribution_mode_override;
-      }
-      if (prefs.brightness_override != null) {
-        this._useCustomBrightness = true;
-        this._brightness = prefs.brightness_override;
-      }
-    } catch (err) {
-      console.warn('Failed to load user preferences:', err);
-      // Fall back to localStorage as read-only source if server unavailable
-      this._loadSortPreferencesFromLocalStorage();
-    }
-
-    // Load global preferences (separate endpoint, not per-user)
-    try {
-      const globalPrefs = await this.hass.callApi<{ignore_external_changes?: boolean; software_transition_entities?: string[]; override_control_mode?: string; bare_turn_on_only?: boolean; detect_non_ha_changes?: boolean}>(
-        'GET', 'aqara_advanced_lighting/global_preferences'
-      );
-      if (globalPrefs.ignore_external_changes !== undefined) {
-        this._ignoreExternalChanges = globalPrefs.ignore_external_changes;
-      }
-      if (globalPrefs.override_control_mode) {
-        this._overrideControlMode = globalPrefs.override_control_mode;
-      }
-      if (globalPrefs.software_transition_entities) {
-        this._softwareTransitionEntities = globalPrefs.software_transition_entities;
-      }
-      if (globalPrefs.bare_turn_on_only !== undefined) {
-        this._bareTurnOnOnly = globalPrefs.bare_turn_on_only;
-      }
-      if (globalPrefs.detect_non_ha_changes !== undefined) {
-        this._detectNonHaChanges = globalPrefs.detect_non_ha_changes;
-      }
-    } catch (err) {
-      console.warn('Failed to load global preferences:', err);
-    }
-  }
-
-  private _migrateLocalStoragePreferences(): Partial<UserPreferences> | null {
-    const migrated: Partial<UserPreferences> = {};
-    let hasMigrationData = false;
-
-    try {
-      const localColors = localStorage.getItem('aqara_lighting_color_history');
-      if (localColors) {
-        const parsed = JSON.parse(localColors);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          migrated.color_history = parsed;
-          hasMigrationData = true;
-        }
-      }
-    } catch {
-      // Ignore parse errors
-    }
-
-    try {
-      const localSort = localStorage.getItem('aqara_lighting_sort_preferences');
-      if (localSort) {
-        const parsed = JSON.parse(localSort);
-        if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
-          migrated.sort_preferences = parsed;
-          hasMigrationData = true;
-        }
-      }
-    } catch {
-      // Ignore parse errors
-    }
-
-    return hasMigrationData ? migrated : null;
-  }
-
-  private _loadSortPreferencesFromLocalStorage(): void {
-    try {
-      const stored = localStorage.getItem('aqara_lighting_sort_preferences');
-      if (stored) {
-        this._sortPreferences = JSON.parse(stored) as PresetSortPreferences;
-      }
-    } catch {
-      // Ignore
-    }
-  }
-
-  private _saveUserPreferences(immediate = false): void {
-    if (!this.hass) return;
-
-    // Clear any pending debounced save
-    if (this._preferencesSaveTimer !== undefined) {
-      clearTimeout(this._preferencesSaveTimer);
-      this._preferencesSaveTimer = undefined;
-    }
-
-    const doSave = () => {
-      this.hass.callApi<UserPreferences>(
-        'PUT',
-        'aqara_advanced_lighting/user_preferences',
-        {
-          color_history: this._colorHistory,
-          sort_preferences: this._sortPreferences,
-          collapsed_sections: this._collapsed,
-          include_all_lights: this._includeAllLights,
-          favorite_presets: this._favoritePresets,
-          static_scene_mode: this._useStaticSceneMode,
-          distribution_mode_override: this._useDistributionModeOverride ? this._distributionModeOverride : null,
-          brightness_override: this._useCustomBrightness ? this._brightness : null,
-        } as unknown as Record<string, unknown>
-      ).catch(err => {
-        console.warn('Failed to save user preferences:', err);
-      });
-    };
-
-    if (immediate) {
-      doSave();
-    } else {
-      this._preferencesSaveTimer = setTimeout(doSave, 500);
-    }
-  }
-
   private _handleColorHistoryChanged = (e: Event): void => {
     const detail = (e as CustomEvent).detail;
     if (detail && Array.isArray(detail.colorHistory)) {
-      this._colorHistory = detail.colorHistory;
-      this._saveUserPreferences();
+      this._prefs.state.colorHistory = detail.colorHistory;
+      this._prefs.save(this.hass);
     }
   };
 
   private _handleClearColorHistory = (_e: Event): void => {
-    this._colorHistory = [];
-    this._saveUserPreferences(true); // Immediate save for clear
+    this._prefs.state.colorHistory = [];
+    this._prefs.save(this.hass, true); // Immediate save for clear
   };
 
   /** Check if a preset is in the favorites list. */
   private _isPresetFavorited(type: PresetType, id: string): boolean {
-    return this._favoritePresets.some(fav => fav.type === type && fav.id === id);
+    return this._prefs.state.favoritePresets.some(fav => fav.type === type && fav.id === id);
   }
 
   /** Toggle favorite status for a preset. Stops propagation to prevent activation. */
   private _toggleFavoritePreset(type: PresetType, id: string, event: Event): void {
     event.stopPropagation();
-    const index = this._favoritePresets.findIndex(fav => fav.type === type && fav.id === id);
+    const index = this._prefs.state.favoritePresets.findIndex(fav => fav.type === type && fav.id === id);
     if (index >= 0) {
-      this._favoritePresets = [
-        ...this._favoritePresets.slice(0, index),
-        ...this._favoritePresets.slice(index + 1),
+      this._prefs.state.favoritePresets = [
+        ...this._prefs.state.favoritePresets.slice(0, index),
+        ...this._prefs.state.favoritePresets.slice(index + 1),
       ];
     } else {
-      this._favoritePresets = [...this._favoritePresets, { type, id }];
+      this._prefs.state.favoritePresets = [...this._prefs.state.favoritePresets, { type, id }];
     }
-    this._saveUserPreferences(true);
+    this._prefs.save(this.hass, true);
+    this.requestUpdate();
   }
 
   /** Render a star icon for favorite toggling on preset buttons. */
@@ -531,6 +412,54 @@ export class AqaraPanel extends LitElement {
     `;
   }
 
+  /** Check if a builtin preset is hidden. */
+  private _isBuiltinPresetHidden(type: PresetType, id: string): boolean {
+    return this._prefs.state.hiddenBuiltinPresets.some(h => h.type === type && h.id === id);
+  }
+
+  /** Hide a builtin preset. Removes from favorites and shows a toast. */
+  private _hideBuiltinPreset(type: PresetType, id: string, event: Event): void {
+    event.stopPropagation();
+    // Add to hidden list
+    if (!this._isBuiltinPresetHidden(type, id)) {
+      this._prefs.state.hiddenBuiltinPresets = [...this._prefs.state.hiddenBuiltinPresets, { type, id }];
+    }
+    // Remove from favorites if present
+    const favIdx = this._prefs.state.favoritePresets.findIndex(f => f.type === type && f.id === id);
+    if (favIdx >= 0) {
+      this._prefs.state.favoritePresets = [
+        ...this._prefs.state.favoritePresets.slice(0, favIdx),
+        ...this._prefs.state.favoritePresets.slice(favIdx + 1),
+      ];
+    }
+    this._prefs.save(this.hass, true);
+    this.requestUpdate();
+    this._showToast(this._localize('presets.preset_hidden'));
+  }
+
+  /** Restore all hidden builtin presets. */
+  private _restoreAllHiddenPresets(): void {
+    if (this._prefs.state.hiddenBuiltinPresets.length === 0) return;
+    this._prefs.state.hiddenBuiltinPresets = [];
+    this._prefs.save(this.hass, true);
+    this.requestUpdate();
+    this._showToast(this._localize('presets.presets_restored'));
+  }
+
+  /** Render the hide button for builtin preset cards (bottom-right position). */
+  private _renderHideButton(type: PresetType, id: string) {
+    return html`
+      <div class="preset-card-actions preset-card-actions-right">
+        <ha-icon-button
+          @click=${(e: Event) => this._hideBuiltinPreset(type, id, e)}
+          title="${this._localize('tooltips.preset_hide')}"
+        >
+          <ha-icon icon="mdi:eye-off-outline"></ha-icon>
+        </ha-icon-button>
+      </div>
+    `;
+  }
+
   /**
    * Resolve favorite preset references to actual preset objects.
    * Tracks source device type for device-specific presets (effects, patterns, sequences).
@@ -544,7 +473,10 @@ export class AqaraPanel extends LitElement {
   }> {
     const resolved: Array<{ ref: FavoritePresetRef; preset: AnyPreset; isUser: boolean; deviceType?: string }> = [];
 
-    for (const ref of this._favoritePresets) {
+    for (const ref of this._prefs.state.favoritePresets) {
+      // Skip builtin presets that have been hidden
+      if (this._isBuiltinPresetHidden(ref.type, ref.id)) continue;
+
       let preset: AnyPreset | null = null;
       let isUser = false;
       let deviceType: string | undefined;
@@ -600,11 +532,7 @@ export class AqaraPanel extends LitElement {
       }
     }
 
-    // Clean up stale references to deleted presets
-    if (resolved.length !== this._favoritePresets.length) {
-      this._favoritePresets = resolved.map(r => r.ref);
-      this._saveUserPreferences();
-    }
+    // Stale reference cleanup is handled by _cleanStaleFavoriteRefs() in willUpdate()
 
     return resolved;
   }
@@ -669,7 +597,7 @@ export class AqaraPanel extends LitElement {
   }
 
   private _getSortPreference(sectionId: string): PresetSortOption {
-    return this._sortPreferences[sectionId] || 'name-asc';
+    return this._prefs.getSortPreference(sectionId);
   }
 
   private async _loadBackendVersion(): Promise<void> {
@@ -723,7 +651,7 @@ export class AqaraPanel extends LitElement {
     try {
       const data = await this.hass.callApi<{ entities?: any[]; light_groups?: any[]; instances?: any[] }>('GET', 'aqara_advanced_lighting/supported_entities');
       // Build a map for fast lookup
-      const entityMap = new Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; ieee_address?: string; segment_count?: number; backend_type?: string; is_group?: boolean; member_count?: number }>();
+      const entityMap = new Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; ieee_address?: string; segment_count?: number; is_group?: boolean; member_count?: number }>();
       for (const entity of data.entities || []) {
         entityMap.set(entity.entity_id, {
           device_type: entity.device_type,
@@ -731,7 +659,6 @@ export class AqaraPanel extends LitElement {
           z2m_friendly_name: entity.z2m_friendly_name,
           ieee_address: entity.ieee_address,
           segment_count: entity.segment_count,
-          backend_type: entity.backend_type,
         });
       }
 
@@ -747,6 +674,11 @@ export class AqaraPanel extends LitElement {
       }
 
       this._supportedEntities = entityMap;
+
+      // Load zone data for resolved zone lookup (editors need this)
+      if (this._prefs.state.selectedEntities.length > 0) {
+        this._loadZonesForSelectedDevices();
+      }
 
       // Store instances data
       this._z2mInstances = data.instances || [];
@@ -783,7 +715,7 @@ export class AqaraPanel extends LitElement {
 
   private _syncMusicSyncState(): void {
     const activeMusicSync = this._runningOperations.find(
-      op => op.type === 'music_sync' && op.entity_id && this._selectedEntities.includes(op.entity_id)
+      op => op.type === 'music_sync' && op.entity_id && this._prefs.state.selectedEntities.includes(op.entity_id)
     );
 
     if (activeMusicSync) {
@@ -834,7 +766,7 @@ export class AqaraPanel extends LitElement {
    */
   private _getSelectedSegmentDevices(): Map<string, { device_type: string; segment_count: number; z2m_friendly_name: string; entity_id: string }> {
     const devices = new Map<string, { device_type: string; segment_count: number; z2m_friendly_name: string; entity_id: string }>();
-    for (const entityId of this._selectedEntities) {
+    for (const entityId of this._prefs.state.selectedEntities) {
       const info = this._supportedEntities.get(entityId);
       if (!info?.ieee_address) continue;
       if (info.device_type !== 't1m' && info.device_type !== 't1_strip') continue;
@@ -856,7 +788,7 @@ export class AqaraPanel extends LitElement {
   }
 
   /**
-   * Load zones for a specific device from the backend.
+   * Load zones for a specific device from the backend (read-only, for resolved zone lookup).
    */
   private async _loadZonesForDevice(ieeeAddress: string): Promise<void> {
     if (!this.hass) return;
@@ -866,14 +798,13 @@ export class AqaraPanel extends LitElement {
         ([name, segments]) => ({ name, segments: segments as string })
       );
       this._deviceZones = new Map(this._deviceZones).set(ieeeAddress, zones);
-      this._zoneEditing = new Map(this._zoneEditing).set(ieeeAddress, zones.map(z => ({ ...z })));
     } catch (err) {
       console.warn('Failed to load zones for device:', ieeeAddress, err);
     }
   }
 
   /**
-   * Load zones for all selected segment-capable devices.
+   * Load zones for all selected segment-capable devices (read-only).
    */
   private async _loadZonesForSelectedDevices(): Promise<void> {
     const devices = this._getSelectedSegmentDevices();
@@ -882,170 +813,12 @@ export class AqaraPanel extends LitElement {
     );
   }
 
-  /**
-   * Validate that all segment numbers in a range string are within the device maximum.
-   * Returns an error message if invalid, or null if valid.
-   */
-  private _validateSegmentRange(rangeStr: string, maxSegments: number, zoneName: string): string | null {
-    const trimmed = rangeStr.trim().toLowerCase();
-    // Keywords are always valid
-    const keywords = new Set(['odd', 'even', 'all', 'first-half', 'second-half']);
-    if (keywords.has(trimmed)) return null;
-
-    // Parse comma-separated parts
-    const parts = trimmed.split(',');
-    for (const part of parts) {
-      const p = part.trim();
-      const rangeMatch = p.match(/^(\d+)-(\d+)$/);
-      if (rangeMatch) {
-        const start = parseInt(rangeMatch[1] ?? '', 10);
-        const end = parseInt(rangeMatch[2] ?? '', 10);
-        if (isNaN(start) || isNaN(end)) {
-          return this._localize('config.zone_invalid_range')
-            .replace('{name}', zoneName).replace('{range}', p);
-        }
-        if (start > maxSegments || end > maxSegments) {
-          const exceeding = Math.max(start, end);
-          return this._localize('config.zone_out_of_range')
-            .replace('{name}', zoneName)
-            .replace('{segment}', String(exceeding))
-            .replace('{max}', String(maxSegments));
-        }
-      } else {
-        const num = parseInt(p, 10);
-        if (isNaN(num)) {
-          return this._localize('config.zone_invalid_range')
-            .replace('{name}', zoneName).replace('{range}', p);
-        }
-        if (num > maxSegments) {
-          return this._localize('config.zone_out_of_range')
-            .replace('{name}', zoneName)
-            .replace('{segment}', String(num))
-            .replace('{max}', String(maxSegments));
-        }
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Save zones for a device.
-   */
-  private async _saveZones(ieeeAddress: string, maxSegments: number): Promise<void> {
-    const editZones = this._zoneEditing.get(ieeeAddress) || [];
-    const zonesPayload: Record<string, string> = {};
-    const namesSeen = new Set<string>();
-
-    for (const zone of editZones) {
-      const name = zone.name.trim();
-      const segments = zone.segments.trim();
-      if (!name && !segments) continue;
-      if (!name) {
-        this._showToast(this._localize('config.zone_name_required'));
-        return;
-      }
-      if (!segments) {
-        this._showToast(this._localize('config.zone_segments_required'));
-        return;
-      }
-      const nameLower = name.toLowerCase();
-      if (namesSeen.has(nameLower)) {
-        this._showToast(this._localize('config.zone_duplicate_name', { name }));
-        return;
-      }
-      namesSeen.add(nameLower);
-
-      // Validate segment range against device maximum
-      const rangeError = this._validateSegmentRange(segments, maxSegments, name);
-      if (rangeError) {
-        this._showToast(rangeError);
-        return;
-      }
-
-      zonesPayload[name] = segments;
-    }
-
-    this._zoneSaving = true;
-    try {
-      await this.hass!.callApi('PUT', `aqara_advanced_lighting/segment_zones/${encodeURIComponent(ieeeAddress)}`, { zones: zonesPayload });
-      await this._loadZonesForDevice(ieeeAddress);
-      this._showToast(this._localize('config.zone_saved'));
-    } catch (err: any) {
-      this._showToast(err?.body?.message || this._localize('config.zone_save_error'));
-    } finally {
-      this._zoneSaving = false;
-    }
-  }
-
-  /**
-   * Add a new empty zone row for editing.
-   */
-  private _addZoneRow(ieeeAddress: string): void {
-    const current = this._zoneEditing.get(ieeeAddress) || [];
-    const updated = [...current, { name: '', segments: '' }];
-    this._zoneEditing = new Map(this._zoneEditing).set(ieeeAddress, updated);
-  }
-
-  /**
-   * Remove a zone row from the editing list.
-   */
-  private async _removeZoneRow(ieeeAddress: string, index: number): Promise<void> {
-    const current = this._zoneEditing.get(ieeeAddress) || [];
-    const zone = current[index];
-
-    // If this zone exists in the saved data, delete it from the backend immediately
-    if (zone) {
-      const savedZones = this._deviceZones.get(ieeeAddress) || [];
-      const isSaved = savedZones.some(
-        z => z.name.toLowerCase() === zone.name.trim().toLowerCase() && zone.name.trim() !== ''
-      );
-      if (isSaved) {
-        try {
-          await this.hass!.callApi('DELETE', `aqara_advanced_lighting/segment_zones/${encodeURIComponent(ieeeAddress)}/${encodeURIComponent(zone.name.trim())}`);
-          // Reload saved zones from backend to stay in sync
-          await this._loadZonesForDevice(ieeeAddress);
-          return;
-        } catch {
-          this._showToast(this._localize('config.zone_save_error'));
-          return;
-        }
-      }
-    }
-
-    // Unsaved row: just remove from the editing list
-    const updated = current.filter((_, i) => i !== index);
-    this._zoneEditing = new Map(this._zoneEditing).set(ieeeAddress, updated);
-  }
-
-  /**
-   * Update a zone's name or segments field in the editing list.
-   */
-  private _updateZoneField(ieeeAddress: string, index: number, field: 'name' | 'segments', value: string): void {
-    const current = this._zoneEditing.get(ieeeAddress) || [];
-    const updated = current.map((z, i) => i === index ? { ...z, [field]: value } : z);
-    this._zoneEditing = new Map(this._zoneEditing).set(ieeeAddress, updated);
-  }
-
-  /**
-   * Check if zones have been modified from saved state.
-   */
-  private _zonesModified(ieeeAddress: string): boolean {
-    const saved = this._deviceZones.get(ieeeAddress) || [];
-    const editing = this._zoneEditing.get(ieeeAddress) || [];
-    if (saved.length !== editing.length) return true;
-    return saved.some((z, i) => z.name !== editing[i]?.name || z.segments !== editing[i]?.segments);
-  }
-
   private _setSortPreference(sectionId: string, value: PresetSortOption): void {
-    this._sortPreferences = {
-      ...this._sortPreferences,
-      [sectionId]: value,
-    };
-    this._saveUserPreferences();
+    this._prefs.setSortPreference(sectionId, value, this.hass);
   }
 
-  // Sorting utility functions
-  private _sortUserEffectPresets(presets: UserEffectPreset[], sortOption: PresetSortOption): UserEffectPreset[] {
+  // Sorting utility function (generic for all preset types)
+  private _sortPresets<T extends { name: string; created_at?: string }>(presets: T[], sortOption: PresetSortOption): T[] {
     const sorted = [...presets];
     switch (sortOption) {
       case 'name-asc':
@@ -1053,150 +826,17 @@ export class AqaraPanel extends LitElement {
       case 'name-desc':
         return sorted.sort((a, b) => b.name.localeCompare(a.name));
       case 'date-new':
-        return sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        if (sorted.length > 0 && sorted[0]?.created_at) {
+          return sorted.sort((a, b) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime());
+        }
+        return sorted.sort((a, b) => a.name.localeCompare(b.name));
       case 'date-old':
-        return sorted.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        if (sorted.length > 0 && sorted[0]?.created_at) {
+          return sorted.sort((a, b) => new Date(a.created_at!).getTime() - new Date(b.created_at!).getTime());
+        }
+        return sorted.sort((a, b) => a.name.localeCompare(b.name));
       default:
         return sorted;
-    }
-  }
-
-  private _sortUserPatternPresets(presets: UserSegmentPatternPreset[], sortOption: PresetSortOption): UserSegmentPatternPreset[] {
-    const sorted = [...presets];
-    switch (sortOption) {
-      case 'name-asc':
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-      case 'name-desc':
-        return sorted.sort((a, b) => b.name.localeCompare(a.name));
-      case 'date-new':
-        return sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      case 'date-old':
-        return sorted.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      default:
-        return sorted;
-    }
-  }
-
-  private _sortUserCCTSequencePresets(presets: UserCCTSequencePreset[], sortOption: PresetSortOption): UserCCTSequencePreset[] {
-    const sorted = [...presets];
-    switch (sortOption) {
-      case 'name-asc':
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-      case 'name-desc':
-        return sorted.sort((a, b) => b.name.localeCompare(a.name));
-      case 'date-new':
-        return sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      case 'date-old':
-        return sorted.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      default:
-        return sorted;
-    }
-  }
-
-  private _sortUserSegmentSequencePresets(presets: UserSegmentSequencePreset[], sortOption: PresetSortOption): UserSegmentSequencePreset[] {
-    const sorted = [...presets];
-    switch (sortOption) {
-      case 'name-asc':
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-      case 'name-desc':
-        return sorted.sort((a, b) => b.name.localeCompare(a.name));
-      case 'date-new':
-        return sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      case 'date-old':
-        return sorted.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      default:
-        return sorted;
-    }
-  }
-
-  private _sortUserDynamicScenePresets(presets: UserDynamicScenePreset[], sortOption: PresetSortOption): UserDynamicScenePreset[] {
-    const sorted = [...presets];
-    switch (sortOption) {
-      case 'name-asc':
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-      case 'name-desc':
-        return sorted.sort((a, b) => b.name.localeCompare(a.name));
-      case 'date-new':
-        return sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      case 'date-old':
-        return sorted.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      default:
-        return sorted;
-    }
-  }
-
-  private _sortDynamicEffectPresets(presets: DynamicEffectPreset[], sortOption: PresetSortOption): DynamicEffectPreset[] {
-    const sorted = [...presets];
-    switch (sortOption) {
-      case 'name-asc':
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-      case 'name-desc':
-        return sorted.sort((a, b) => b.name.localeCompare(a.name));
-      // Built-in presets don't have dates, so fall back to name sort
-      case 'date-new':
-      case 'date-old':
-      default:
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-    }
-  }
-
-  private _sortSegmentPatternPresets(presets: SegmentPatternPreset[], sortOption: PresetSortOption): SegmentPatternPreset[] {
-    const sorted = [...presets];
-    switch (sortOption) {
-      case 'name-asc':
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-      case 'name-desc':
-        return sorted.sort((a, b) => b.name.localeCompare(a.name));
-      // Built-in presets don't have dates
-      case 'date-new':
-      case 'date-old':
-      default:
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-    }
-  }
-
-  private _sortCCTSequencePresets(presets: CCTSequencePreset[], sortOption: PresetSortOption): CCTSequencePreset[] {
-    const sorted = [...presets];
-    switch (sortOption) {
-      case 'name-asc':
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-      case 'name-desc':
-        return sorted.sort((a, b) => b.name.localeCompare(a.name));
-      // Built-in presets don't have dates
-      case 'date-new':
-      case 'date-old':
-      default:
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-    }
-  }
-
-  private _sortSegmentSequencePresets(presets: SegmentSequencePreset[], sortOption: PresetSortOption): SegmentSequencePreset[] {
-    const sorted = [...presets];
-    switch (sortOption) {
-      case 'name-asc':
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-      case 'name-desc':
-        return sorted.sort((a, b) => b.name.localeCompare(a.name));
-      // Built-in presets don't have dates
-      case 'date-new':
-      case 'date-old':
-      default:
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-    }
-  }
-
-  private _sortDynamicScenePresets(presets: DynamicScenePreset[], sortOption: PresetSortOption): DynamicScenePreset[] {
-    const sorted = [...presets];
-    switch (sortOption) {
-      case 'name-asc':
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-      case 'name-desc':
-        return sorted.sort((a, b) => b.name.localeCompare(a.name));
-      // Built-in presets don't have dates
-      case 'date-new':
-      case 'date-old':
-      default:
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
     }
   }
 
@@ -1293,15 +933,8 @@ export class AqaraPanel extends LitElement {
 
   private _handleTabChange(ev: CustomEvent<{ name: string }>): void {
     const newTab = ev.detail.name as PanelTab;
-    if (!newTab) {
-      return;
-    }
-    if (newTab !== this._activeTab) {
-      this._cacheCurrentEditorDraft();
-      if (this._isSelectMode) {
-        this._exitSelectMode();
-      }
-      this._activeTab = newTab;
+    if (newTab) {
+      this._setActiveTab(newTab);
     }
   }
 
@@ -1351,16 +984,16 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _addFavorite(): Promise<void> {
-    if (!this._selectedEntities.length || !this.hass) return;
+    if (!this._prefs.state.selectedEntities.length || !this.hass) return;
 
-    const firstEntity = this._selectedEntities[0];
-    const autoName = this._selectedEntities.length === 1 && firstEntity
+    const firstEntity = this._prefs.state.selectedEntities[0];
+    const autoName = this._prefs.state.selectedEntities.length === 1 && firstEntity
       ? this._getEntityFriendlyName(firstEntity)
-      : this._localize('target.lights_count', { count: this._selectedEntities.length.toString() });
+      : this._localize('target.lights_count', { count: this._prefs.state.selectedEntities.length.toString() });
 
     try {
       const data = await this.hass.callApi<{ favorite: Favorite }>('POST', 'aqara_advanced_lighting/favorites', {
-        entities: this._selectedEntities,
+        entities: this._prefs.state.selectedEntities,
         name: autoName,
       });
       this._favorites = [...this._favorites, data.favorite];
@@ -1498,86 +1131,37 @@ export class AqaraPanel extends LitElement {
   }
 
   private _selectFavorite(favorite: Favorite): void {
-    this._selectedEntities = [...favorite.entities];
-    this._activeFavoriteId = favorite.id;
+    this._prefs.update({
+      selectedEntities: [...favorite.entities],
+      activeFavoriteId: favorite.id,
+    }, this.hass);
     this._favoriteEditModeId = null;
-    // Load curvature from first T2 entity when favorite is selected
-    this._loadCurvatureFromEntity();
-    // Load zones for selected segment-capable devices
+    // Load zone data for resolved zone lookup
     this._loadZonesForSelectedDevices();
   }
 
   private _getEntityFriendlyName(entityId: string): string {
     if (!this.hass) return entityId;
-    const state = this.hass.states[entityId];
-    if (state && state.attributes.friendly_name) {
-      return state.attributes.friendly_name as string;
-    }
-    return entityId.split('.')[1]?.replace(/_/g, ' ') || entityId;
+    return getEntityFriendlyName(this.hass, entityId);
   }
 
   private _getEntityIcon(entityId: string): string {
     if (!this.hass) return 'mdi:lightbulb';
-    const state = this.hass.states[entityId];
-    if (state) {
-      // Use the entity's icon if available
-      if (state.attributes.icon) {
-        return state.attributes.icon as string;
-      }
-      // Use default icon based on entity domain
-      const domain = entityId.split('.')[0];
-      if (domain === 'light') {
-        return 'mdi:lightbulb';
-      }
-    }
-    return 'mdi:lightbulb';
+    return getEntityIcon(this.hass, entityId);
   }
 
   private _getEntityState(entityId: string): string {
     if (!this.hass) return 'unavailable';
-    const state = this.hass.states[entityId];
-    return state ? state.state : 'unavailable';
+    return getEntityState(this.hass, entityId);
   }
 
   private _getEntityColor(entityId: string): string | null {
     if (!this.hass) return null;
-    const state = this.hass.states[entityId];
-    if (!state || state.state !== 'on') return null;
-
-    // Try to get RGB color
-    if (state.attributes.rgb_color) {
-      const [r, g, b] = state.attributes.rgb_color as number[];
-      return `rgb(${r}, ${g}, ${b})`;
-    }
-
-    // Try to get HS color and convert to RGB (simplified)
-    if (state.attributes.hs_color && Array.isArray(state.attributes.hs_color)) {
-      const hsColor = state.attributes.hs_color as number[];
-      if (hsColor.length >= 2 && typeof hsColor[0] === 'number' && typeof hsColor[1] === 'number') {
-        const h = hsColor[0];
-        const s = hsColor[1];
-        // Convert HS to RGB for display
-        const c = (s / 100) * 255;
-        const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-        const m = 255 - c;
-        let r = 0, g = 0, b = 0;
-
-        if (h < 60) { r = c; g = x; b = 0; }
-        else if (h < 120) { r = x; g = c; b = 0; }
-        else if (h < 180) { r = 0; g = c; b = x; }
-        else if (h < 240) { r = 0; g = x; b = c; }
-        else if (h < 300) { r = x; g = 0; b = c; }
-        else { r = c; g = 0; b = x; }
-
-        return `rgb(${Math.round(r + m)}, ${Math.round(g + m)}, ${Math.round(b + m)})`;
-      }
-    }
-
-    return null;
+    return getEntityColor(this.hass, entityId);
   }
 
   private _getSelectedDeviceTypes(): string[] {
-    if (!this._selectedEntities.length || !this.hass) {
+    if (!this._prefs.state.selectedEntities.length || !this.hass) {
       this._hasIncompatibleLights = false;
       return [];
     }
@@ -1585,7 +1169,7 @@ export class AqaraPanel extends LitElement {
     const deviceTypes = new Set<string>();
     let hasIncompatible = false;
 
-    for (const entityId of this._selectedEntities) {
+    for (const entityId of this._prefs.state.selectedEntities) {
       const dt = this._getEntityDeviceType(entityId);
       if (dt) {
         deviceTypes.add(dt);
@@ -1605,12 +1189,12 @@ export class AqaraPanel extends LitElement {
     // Default to 10 segments (2 meters - standard out-of-box T1 Strip length)
     const defaultSegments = 10;
 
-    if (!this._selectedEntities.length || !this.hass) {
+    if (!this._prefs.state.selectedEntities.length || !this.hass) {
       return defaultSegments;
     }
 
     // Look for T1 Strip entities and get the "length" attribute
-    for (const entityId of this._selectedEntities) {
+    for (const entityId of this._prefs.state.selectedEntities) {
       if (this._getEntityDeviceType(entityId) !== 't1_strip') continue;
 
       const entity = this.hass.states[entityId];
@@ -1693,7 +1277,7 @@ export class AqaraPanel extends LitElement {
    * segment-capable device in the current selection.
    */
   private _getResolvedZonesForSelection(): SegmentZoneResolved[] {
-    for (const entityId of this._selectedEntities) {
+    for (const entityId of this._prefs.state.selectedEntities) {
       const info = this._supportedEntities.get(entityId);
       if (!info?.ieee_address) continue;
       if (info.device_type !== 't1m' && info.device_type !== 't1_strip') continue;
@@ -1734,9 +1318,7 @@ export class AqaraPanel extends LitElement {
   // Effects: T2 RGB, T1M RGB, T1 Strip (entities with RGB effect_list)
   // Check if an entity has RGB color mode support (xy, hs, rgb, rgbw, rgbww)
   private _hasRGBColorMode(entity: { attributes: Record<string, unknown> }): boolean {
-    const colorModes = entity.attributes.supported_color_modes as string[] | undefined;
-    return !!colorModes && Array.isArray(colorModes) &&
-      colorModes.some(mode => ['xy', 'hs', 'rgb', 'rgbw', 'rgbww'].includes(mode));
+    return hasRGBColorMode(entity);
   }
 
   /**
@@ -1747,94 +1329,21 @@ export class AqaraPanel extends LitElement {
    * effect_list fallback for Z2M entities.
    */
   private _getEntityDeviceType(entityId: string): string | null {
-    const entity = this.hass?.states[entityId];
-    if (!entity) return null;
-
-    // Backend supported entities map is authoritative
-    const supportedEntity = this._supportedEntities.get(entityId);
-    if (supportedEntity) {
-      if (supportedEntity.device_type === 't1m') {
-        // Distinguish T1M RGB from T1M White using supported_color_modes
-        return this._hasRGBColorMode(entity) ? 't1m' : 't1m_white';
-      }
-      if (supportedEntity.device_type && supportedEntity.device_type !== 'unknown') {
-        return supportedEntity.device_type;
-      }
-    }
-
-    // Generic light classification when "include all lights" is on
-    if (this._includeAllLights) {
-      if (this._hasRGBColorMode(entity)) return 'generic_rgb';
-      const colorModes = entity.attributes.supported_color_modes as string[] | undefined;
-      if (colorModes?.includes('color_temp')) return 'generic_cct';
-    }
-
-    // Legacy fallback: detect from effect_list (Z2M only, ZHA lacks this)
-    const effectList = entity.attributes.effect_list as string[] | undefined;
-    if (effectList && Array.isArray(effectList)) {
-      if (effectList.includes('flow1') || effectList.includes('flow2') || effectList.includes('rolling')) return 't1m';
-      if (effectList.includes('rainbow1') || effectList.includes('rainbow2') || effectList.includes('chasing') || effectList.includes('flicker') || effectList.includes('dash')) return 't1_strip';
-      if (effectList.includes('candlelight')) return 't2_bulb';
-    } else if (!effectList && entity.attributes.color_temp_kelvin !== undefined) {
-      return 't2_cct';
-    }
-
-    return null;
+    if (!this.hass) return null;
+    return getEntityDeviceType(this.hass, entityId, this._supportedEntities, this._prefs.state.includeAllLights);
   }
 
-  // Effects: T2 bulb, T1M RGB, T1 Strip (Aqara-only)
-  private _isEffectsCompatible(): boolean {
-    if (!this.hass || !this._selectedEntities.length) return false;
-    return this._selectedEntities.some(entityId => {
-      if (!this._supportedEntities.has(entityId)) return false;
-      const dt = this._getEntityDeviceType(entityId);
-      return dt === 't2_bulb' || dt === 't1m' || dt === 't1_strip';
-    });
-  }
-
-  // Patterns: T1M RGB, T1 Strip only (segment-capable devices)
-  private _isPatternsCompatible(): boolean {
-    if (!this.hass || !this._selectedEntities.length) return false;
-    return this._selectedEntities.some(entityId => {
-      if (!this._supportedEntities.has(entityId)) return false;
-      const dt = this._getEntityDeviceType(entityId);
-      return dt === 't1m' || dt === 't1_strip';
-    });
-  }
-
-  // CCT: Entities with color_temp support (T2 RGB, T2 CCT, T1M White, T1 Strip, generic)
-  // T1M RGB endpoint has color_temp but doesn't support CCT sequences
-  private _isCCTCompatible(): boolean {
-    if (!this.hass || !this._selectedEntities.length) return false;
-    return this._selectedEntities.some(entityId => {
-      const entity = this.hass!.states[entityId];
-      if (!entity) return false;
-      const hasCCT = entity.attributes.color_temp_kelvin !== undefined ||
-             entity.attributes.min_color_temp_kelvin !== undefined;
-      if (!hasCCT) return false;
-      // T1M RGB endpoint has color_temp but doesn't support CCT sequences
-      const dt = this._getEntityDeviceType(entityId);
-      if (dt === 't1m') return false;
-      return true;
-    });
-  }
-
-  // Segments: T1M RGB, T1 Strip only (segment-capable devices)
-  private _isSegmentsCompatible(): boolean {
-    if (!this.hass || !this._selectedEntities.length) return false;
-    return this._selectedEntities.some(entityId => {
-      if (!this._supportedEntities.has(entityId)) return false;
-      const dt = this._getEntityDeviceType(entityId);
-      return dt === 't1m' || dt === 't1_strip';
-    });
-  }
+  private _isEffectsCompatible(): boolean { return this._getEffectsCompatibleEntities().length > 0; }
+  private _isPatternsCompatible(): boolean { return this._getPatternsCompatibleEntities().length > 0; }
+  private _isCCTCompatible(): boolean { return this._getCCTCompatibleEntities().length > 0; }
+  private _isSegmentsCompatible(): boolean { return this._getSegmentsCompatibleEntities().length > 0; }
 
   // Filter methods - return only compatible entities from selection
   // These are used to send commands only to compatible devices when multiple device types are selected
 
   private _getEffectsCompatibleEntities(): string[] {
     if (!this.hass) return [];
-    return this._selectedEntities.filter(entityId => {
+    return this._prefs.state.selectedEntities.filter(entityId => {
       if (!this._supportedEntities.has(entityId)) return false;
       const dt = this._getEntityDeviceType(entityId);
       return dt === 't2_bulb' || dt === 't1m' || dt === 't1_strip';
@@ -1843,7 +1352,7 @@ export class AqaraPanel extends LitElement {
 
   private _getPatternsCompatibleEntities(): string[] {
     if (!this.hass) return [];
-    return this._selectedEntities.filter(entityId => {
+    return this._prefs.state.selectedEntities.filter(entityId => {
       if (!this._supportedEntities.has(entityId)) return false;
       const dt = this._getEntityDeviceType(entityId);
       return dt === 't1m' || dt === 't1_strip';
@@ -1852,7 +1361,7 @@ export class AqaraPanel extends LitElement {
 
   private _getCCTCompatibleEntities(): string[] {
     if (!this.hass) return [];
-    return this._selectedEntities.filter(entityId => {
+    return this._prefs.state.selectedEntities.filter(entityId => {
       const entity = this.hass!.states[entityId];
       if (!entity) return false;
       const hasCCT = entity.attributes.color_temp_kelvin !== undefined ||
@@ -1867,19 +1376,10 @@ export class AqaraPanel extends LitElement {
 
   private _getSegmentsCompatibleEntities(): string[] {
     if (!this.hass) return [];
-    return this._selectedEntities.filter(entityId => {
+    return this._prefs.state.selectedEntities.filter(entityId => {
       if (!this._supportedEntities.has(entityId)) return false;
       const dt = this._getEntityDeviceType(entityId);
       return dt === 't1m' || dt === 't1_strip';
-    });
-  }
-
-  // T2 devices only (for transition curve and initial brightness settings)
-  private _getT2CompatibleEntities(): string[] {
-    if (!this.hass) return [];
-    return this._selectedEntities.filter(entityId => {
-      const dt = this._getEntityDeviceType(entityId);
-      return dt === 't2_bulb' || dt === 't2_cct';
     });
   }
 
@@ -1903,8 +1403,8 @@ export class AqaraPanel extends LitElement {
     const showSegmentSequences = hasSelection && (hasT1M || hasT1Strip);
     // CCT sequences: Aqara + generic lights with color_temp support
     const showCCTSequences = hasSelection && (hasT2 || hasT2CCT || hasT1MWhite || hasT1Strip || hasGenericRGB || hasGenericCCT);
-    // Dynamic scenes: Aqara RGB + generic RGB lights
-    const showDynamicScenes = hasSelection && (hasT2 || hasT1M || hasT1Strip || hasGenericRGB);
+    // Dynamic scenes: Any light with color capability (RGB or CCT - backend adapts colors)
+    const showDynamicScenes = hasSelection && (hasT2 || hasT2CCT || hasT1M || hasT1MWhite || hasT1Strip || hasGenericRGB || hasGenericCCT);
     // Music sync: T1 Strip only
     const showMusicSync = hasSelection && hasT1Strip;
 
@@ -1927,90 +1427,188 @@ export class AqaraPanel extends LitElement {
   private _handleEntityChanged(e: CustomEvent): void {
     const value = e.detail.value;
     if (!value) {
-      this._selectedEntities = [];
-      this._activeFavoriteId = null;
+      this._prefs.update({ selectedEntities: [], activeFavoriteId: null }, this.hass);
       return;
     }
 
     // Entity selector with multiple: true returns string[] directly
-    if (Array.isArray(value)) {
-      this._selectedEntities = value;
-    } else {
-      // Single entity case (shouldn't happen with multiple: true, but handle it)
-      this._selectedEntities = [value];
-    }
+    const entities = Array.isArray(value) ? value : [value];
 
     // Clear active favorite when manually changing selection
-    this._activeFavoriteId = null;
+    this._prefs.update({ selectedEntities: entities, activeFavoriteId: null }, this.hass);
 
     // Clear editor drafts so device type auto-set reflects the new selection
     // (drafts set _hasUserInteraction=true which blocks auto-set)
     this._clearEditorDraft();
 
-    // Load curvature from first T2 entity when selection changes
-    this._loadCurvatureFromEntity();
-
-    // Load zones for selected segment-capable devices
+    // Load zone data for resolved zone lookup
     this._loadZonesForSelectedDevices();
   }
 
   private _handleIncludeAllLightsToggle(e: Event): void {
-    this._includeAllLights = (e.target as HTMLInputElement).checked;
-    this._saveUserPreferences();
+    const checked = (e.target as HTMLInputElement).checked;
+    this._prefs.update({ includeAllLights: checked }, this.hass);
 
     // When toggling off, filter out non-Aqara lights from current selection
-    if (!this._includeAllLights) {
+    if (!checked) {
       const supportedEntityIds = new Set(this._supportedEntities.keys());
-      const filtered = this._selectedEntities.filter(id => supportedEntityIds.has(id));
-      if (filtered.length !== this._selectedEntities.length) {
-        this._selectedEntities = filtered;
+      const filtered = this._prefs.state.selectedEntities.filter(id => supportedEntityIds.has(id));
+      if (filtered.length !== this._prefs.state.selectedEntities.length) {
+        this._prefs.state.selectedEntities = filtered;
+        this.requestUpdate();
       }
     }
   }
 
   private _handleBrightnessChange(e: CustomEvent): void {
-    this._brightness = e.detail.value;
-    this._saveUserPreferences();
+    this._prefs.update({ brightness: e.detail.value }, this.hass);
   }
 
   private _handleCustomBrightnessToggle(e: Event): void {
-    this._useCustomBrightness = (e.target as HTMLInputElement).checked;
-    this._saveUserPreferences();
+    this._prefs.update({ useCustomBrightness: (e.target as HTMLInputElement).checked }, this.hass);
   }
 
   private _handleStaticSceneModeToggle(e: Event): void {
-    this._useStaticSceneMode = (e.target as HTMLInputElement).checked;
-    this._saveUserPreferences();
+    this._prefs.update({ useStaticSceneMode: (e.target as HTMLInputElement).checked }, this.hass);
   }
 
   private _handleIgnoreExternalChangesToggle(e: Event): void {
-    this._ignoreExternalChanges = (e.target as HTMLInputElement).checked;
-    this._saveGlobalPreferences();
+    this._prefs.state.ignoreExternalChanges = (e.target as HTMLInputElement).checked;
+    this.requestUpdate();
+    this._prefs.saveGlobalPreferences(this.hass);
   }
 
   private _handleOverrideControlModeChanged(e: CustomEvent): void {
-    this._overrideControlMode = e.detail.value;
-    this._saveGlobalPreferences();
+    this._prefs.state.overrideControlMode = e.detail.value;
+    this.requestUpdate();
+    this._prefs.saveGlobalPreferences(this.hass);
   }
 
   private _handleBareTurnOnOnlyToggle(e: Event): void {
-    this._bareTurnOnOnly = (e.target as HTMLInputElement).checked;
-    this._saveGlobalPreferences();
+    this._prefs.state.bareTurnOnOnly = (e.target as HTMLInputElement).checked;
+    this.requestUpdate();
+    this._prefs.saveGlobalPreferences(this.hass);
   }
 
   private _handleDetectNonHaChangesToggle(e: Event): void {
-    this._detectNonHaChanges = (e.target as HTMLInputElement).checked;
-    this._saveGlobalPreferences();
+    this._prefs.state.detectNonHaChanges = (e.target as HTMLInputElement).checked;
+    this.requestUpdate();
+    this._prefs.saveGlobalPreferences(this.hass);
   }
 
   private _handleDistributionModeOverrideToggle(e: Event): void {
-    this._useDistributionModeOverride = (e.target as HTMLInputElement).checked;
-    this._saveUserPreferences();
+    this._prefs.update({ useDistributionModeOverride: (e.target as HTMLInputElement).checked }, this.hass);
   }
 
   private _handleDistributionModeOverrideChange(e: CustomEvent): void {
-    this._distributionModeOverride = e.detail.value || 'shuffle_rotate';
-    this._saveUserPreferences();
+    this._prefs.update({ distributionModeOverride: e.detail.value || 'shuffle_rotate' }, this.hass);
+  }
+
+  private _handleAudioReactiveToggle(e: Event): void {
+    const checked = (e.target as HTMLInputElement).checked;
+    if (checked) {
+      // Audio-reactive conflicts with brightness, static mode, and distribution overrides
+      this._prefs.update({
+        useAudioReactive: true,
+        useCustomBrightness: false,
+        useStaticSceneMode: false,
+        useDistributionModeOverride: false,
+      }, this.hass);
+    } else {
+      this._prefs.update({ useAudioReactive: false }, this.hass);
+    }
+  }
+
+  private _handleAudioOverrideEntityChange(e: CustomEvent): void {
+    this._prefs.update({ audioOverrideEntity: e.detail.value || '' }, this.hass);
+  }
+
+  private _handleAudioOverrideSensitivityChange(e: CustomEvent): void {
+    this._prefs.update({ audioOverrideSensitivity: e.detail.value ?? 50 }, this.hass);
+  }
+
+  private _handleAudioOverrideColorAdvanceChange(e: CustomEvent): void {
+    this._prefs.update({ audioOverrideColorAdvance: e.detail.value || 'on_onset' }, this.hass);
+  }
+
+  private _handleAudioOverrideDetectionModeChange(e: CustomEvent): void {
+    this._prefs.update({ audioOverrideDetectionMode: e.detail.value || 'spectral_flux' }, this.hass);
+  }
+
+  private _handleAudioOverridePredictionAggressivenessChange(e: CustomEvent): void {
+    this._prefs.update({ audioOverridePredictionAggressiveness: e.detail.value ?? 50 }, this.hass);
+  }
+
+  private _handleAudioOverrideLatencyCompensationChange(e: CustomEvent): void {
+    this._prefs.update({ audioOverrideLatencyCompensationMs: e.detail.value ?? 150 }, this.hass);
+  }
+
+  private _handleAudioOverrideTransitionSpeedChange(e: CustomEvent): void {
+    this._prefs.update({ audioOverrideTransitionSpeed: e.detail.value ?? 50 }, this.hass);
+  }
+
+  // Audio presets (UI-only, same definitions as scene editor)
+  private static readonly AUDIO_PRESETS: Record<string, {
+    color_advance: string; detection_mode: string; sensitivity: number;
+    transition_speed: number; brightness_response: boolean; frequency_zone: boolean;
+    color_by_frequency: boolean; rolloff_brightness: boolean; silence_degradation: boolean;
+    prediction_aggressiveness: number; latency_compensation_ms: number;
+  }> = {
+    beat: { color_advance: 'on_onset', detection_mode: 'spectral_flux', sensitivity: 60, transition_speed: 80, brightness_response: true, frequency_zone: false, color_by_frequency: false, rolloff_brightness: false, silence_degradation: true, prediction_aggressiveness: 50, latency_compensation_ms: 150 },
+    ambient: { color_advance: 'intensity_breathing', detection_mode: 'spectral_flux', sensitivity: 50, transition_speed: 20, brightness_response: true, frequency_zone: false, color_by_frequency: false, rolloff_brightness: true, silence_degradation: true, prediction_aggressiveness: 50, latency_compensation_ms: 150 },
+    concert: { color_advance: 'beat_predictive', detection_mode: 'complex_domain', sensitivity: 50, transition_speed: 50, brightness_response: true, frequency_zone: true, color_by_frequency: true, rolloff_brightness: false, silence_degradation: true, prediction_aggressiveness: 70, latency_compensation_ms: 150 },
+    chill: { color_advance: 'continuous', detection_mode: 'spectral_flux', sensitivity: 40, transition_speed: 30, brightness_response: true, frequency_zone: false, color_by_frequency: false, rolloff_brightness: false, silence_degradation: true, prediction_aggressiveness: 50, latency_compensation_ms: 150 },
+    club: { color_advance: 'onset_flash', detection_mode: 'bass_energy', sensitivity: 70, transition_speed: 95, brightness_response: true, frequency_zone: false, color_by_frequency: false, rolloff_brightness: false, silence_degradation: false, prediction_aggressiveness: 50, latency_compensation_ms: 150 },
+  };
+
+  private get _currentAudioOverridePreset(): string {
+    for (const [name, p] of Object.entries(AqaraPanel.AUDIO_PRESETS)) {
+      if (this._prefs.state.audioOverrideColorAdvance === p.color_advance &&
+          this._prefs.state.audioOverrideDetectionMode === p.detection_mode &&
+          this._prefs.state.audioOverrideSensitivity === p.sensitivity &&
+          this._prefs.state.audioOverrideTransitionSpeed === p.transition_speed &&
+          this._prefs.state.audioOverrideBrightnessResponse === p.brightness_response &&
+          this._prefs.state.audioOverrideFrequencyZone === p.frequency_zone &&
+          this._prefs.state.audioOverrideColorByFrequency === p.color_by_frequency &&
+          this._prefs.state.audioOverrideRolloffBrightness === p.rolloff_brightness &&
+          this._prefs.state.audioOverrideSilenceDegradation === p.silence_degradation &&
+          this._prefs.state.audioOverridePredictionAggressiveness === p.prediction_aggressiveness &&
+          this._prefs.state.audioOverrideLatencyCompensationMs === p.latency_compensation_ms) {
+        return name;
+      }
+    }
+    return 'custom';
+  }
+
+  private get _audioPresetOptions() {
+    return [
+      { value: 'beat', label: this._localize('dynamic_scene.audio_preset_beat') || 'Beat' },
+      { value: 'ambient', label: this._localize('dynamic_scene.audio_preset_ambient') || 'Ambient' },
+      { value: 'concert', label: this._localize('dynamic_scene.audio_preset_concert') || 'Concert' },
+      { value: 'chill', label: this._localize('dynamic_scene.audio_preset_chill') || 'Chill' },
+      { value: 'club', label: this._localize('dynamic_scene.audio_preset_club') || 'Club' },
+      { value: 'custom', label: this._localize('dynamic_scene.audio_preset_custom') || 'Custom' },
+    ];
+  }
+
+  private _handleAudioOverridePresetChange(e: CustomEvent): void {
+    const preset = e.detail.value;
+    if (preset === 'custom') return;
+    const p = AqaraPanel.AUDIO_PRESETS[preset];
+    if (!p) return;
+    this._prefs.update({
+      audioOverrideColorAdvance: p.color_advance,
+      audioOverrideDetectionMode: p.detection_mode,
+      audioOverrideSensitivity: p.sensitivity,
+      audioOverrideTransitionSpeed: p.transition_speed,
+      audioOverrideBrightnessResponse: p.brightness_response,
+      audioOverrideFrequencyZone: p.frequency_zone,
+      audioOverrideColorByFrequency: p.color_by_frequency,
+      audioOverrideRolloffBrightness: p.rolloff_brightness,
+      audioOverrideSilenceDegradation: p.silence_degradation,
+      audioOverridePredictionAggressiveness: p.prediction_aggressiveness,
+      audioOverrideLatencyCompensationMs: p.latency_compensation_ms,
+    }, this.hass);
   }
 
   private get _distributionModeOverrideOptions() {
@@ -2021,52 +1619,38 @@ export class AqaraPanel extends LitElement {
     ];
   }
 
-  private async _saveGlobalPreferences(): Promise<void> {
-    try {
-      await this.hass.callApi('PUT', 'aqara_advanced_lighting/global_preferences', {
-        ignore_external_changes: this._ignoreExternalChanges,
-        override_control_mode: this._overrideControlMode,
-        software_transition_entities: this._softwareTransitionEntities,
-        bare_turn_on_only: this._bareTurnOnOnly,
-        detect_non_ha_changes: this._detectNonHaChanges,
-      });
-    } catch (err) {
-      console.warn('Failed to save global preferences:', err);
+  /**
+   * Apply partial global preferences from config tab child component.
+   * Updates local state fields and persists via the preferences controller.
+   */
+  private _applyGlobalPreferencesFromConfigTab(prefs: Record<string, unknown>): void {
+    if ('software_transition_entities' in prefs) {
+      this._prefs.state.softwareTransitionEntities = prefs.software_transition_entities as string[];
     }
+    if ('entity_audio_config' in prefs) {
+      this._prefs.state.entityAudioConfig = prefs.entity_audio_config as Record<string, EntityAudioConfig>;
+    }
+    this.requestUpdate();
+    this._prefs.saveGlobalPreferences(this.hass);
   }
 
   private _handleExpansionChange(sectionId: string, e: CustomEvent): void {
-    const expanded = e.detail.expanded;
-    this._collapsed = {
-      ...this._collapsed,
-      [sectionId]: !expanded,
-    };
-    this._saveUserPreferences();
-  }
-
-  private _toggleInstanceDevices(entryId: string): void {
-    const next = new Set(this._instanceDevicesExpanded);
-    if (next.has(entryId)) {
-      next.delete(entryId);
-    } else {
-      next.add(entryId);
-    }
-    this._instanceDevicesExpanded = next;
+    this._prefs.setCollapsed(sectionId, !e.detail.expanded, this.hass);
   }
 
   private async _activateDynamicEffect(preset: DynamicEffectPreset): Promise<void> {
-    if (!this._selectedEntities.length) return;
+    if (!this._prefs.state.selectedEntities.length) return;
 
-    const serviceData: any = {
-      entity_id: this._selectedEntities,
+    const serviceData: Record<string, unknown> = {
+      entity_id: this._prefs.state.selectedEntities,
       preset: preset.id,
       turn_on: true,
       sync: true,
     };
 
     // Only include brightness if custom brightness is enabled
-    if (this._useCustomBrightness) {
-      serviceData.brightness = this._brightness;
+    if (this._prefs.state.useCustomBrightness) {
+      serviceData.brightness = this._prefs.state.brightness;
     }
 
     await this.hass.callService('aqara_advanced_lighting', 'set_dynamic_effect', serviceData);
@@ -2074,18 +1658,18 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _activateSegmentPattern(preset: SegmentPatternPreset): Promise<void> {
-    if (!this._selectedEntities.length) return;
+    if (!this._prefs.state.selectedEntities.length) return;
 
-    const serviceData: any = {
-      entity_id: this._selectedEntities,
+    const serviceData: Record<string, unknown> = {
+      entity_id: this._prefs.state.selectedEntities,
       preset: preset.id,
       turn_on: true,
       sync: true,
     };
 
     // Only include brightness if custom brightness is enabled
-    if (this._useCustomBrightness) {
-      serviceData.brightness = this._brightness;
+    if (this._prefs.state.useCustomBrightness) {
+      serviceData.brightness = this._prefs.state.brightness;
     }
 
     await this.hass.callService('aqara_advanced_lighting', 'set_segment_pattern', serviceData);
@@ -2093,11 +1677,11 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _activateCCTSequence(preset: CCTSequencePreset): Promise<void> {
-    if (!this._selectedEntities.length) return;
+    if (!this._prefs.state.selectedEntities.length) return;
 
     const isAdaptive = preset.mode === 'solar' || preset.mode === 'schedule';
     await this.hass.callService('aqara_advanced_lighting', 'start_cct_sequence', {
-      entity_id: this._selectedEntities,
+      entity_id: this._prefs.state.selectedEntities,
       preset: preset.id,
       ...(!isAdaptive && { turn_on: true }),
       sync: true,
@@ -2106,10 +1690,10 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _activateSegmentSequence(preset: SegmentSequencePreset): Promise<void> {
-    if (!this._selectedEntities.length) return;
+    if (!this._prefs.state.selectedEntities.length) return;
 
     await this.hass.callService('aqara_advanced_lighting', 'start_segment_sequence', {
-      entity_id: this._selectedEntities,
+      entity_id: this._prefs.state.selectedEntities,
       preset: preset.id,
       turn_on: true,
       sync: true,
@@ -2118,17 +1702,17 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _activateDynamicScene(preset: DynamicScenePreset): Promise<void> {
-    if (!this._selectedEntities.length) return;
+    if (!this._prefs.state.selectedEntities.length) return;
 
     // When brightness override is enabled, replace all per-color brightness
-    const overrideBrightness = this._useCustomBrightness ? this._brightness : null;
+    const overrideBrightness = this._prefs.state.useCustomBrightness ? this._prefs.state.brightness : null;
 
     const serviceData: Record<string, unknown> = {
-      entity_id: this._selectedEntities,
+      entity_id: this._prefs.state.selectedEntities,
       scene_name: preset.name,
       transition_time: preset.transition_time,
       hold_time: preset.hold_time,
-      distribution_mode: this._useDistributionModeOverride ? this._distributionModeOverride : preset.distribution_mode,
+      distribution_mode: this._prefs.state.useDistributionModeOverride ? this._prefs.state.distributionModeOverride : preset.distribution_mode,
       random_order: preset.random_order,
       loop_mode: preset.loop_mode,
       end_behavior: preset.end_behavior,
@@ -2152,570 +1736,46 @@ export class AqaraPanel extends LitElement {
     }));
 
     // Static mode: apply colors once without starting a transition loop
-    if (this._useStaticSceneMode) {
+    if (this._prefs.state.useStaticSceneMode) {
       serviceData.static = true;
     }
+
+    this._applyAudioOverrides(serviceData);
 
     await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
     await this._loadRunningOperations();
   }
 
-  // --- Running operations rendering and actions ---
-
-  private _getEntityName(entityId: string): string {
-    const state = this.hass?.states?.[entityId];
-    return (state?.attributes?.friendly_name as string) || entityId;
-  }
-
-  private _formatAutoResumeRemaining(seconds: number): string {
-    if (seconds >= 60) {
-      const mins = Math.ceil(seconds / 60);
-      return `${mins}m`;
+  private _applyAudioOverrides(serviceData: Record<string, unknown>): void {
+    if (this._prefs.state.useAudioReactive && this._prefs.state.audioOverrideEntity) {
+      serviceData.audio_entity = this._prefs.state.audioOverrideEntity;
+      serviceData.audio_sensitivity = this._prefs.state.audioOverrideSensitivity;
+      serviceData.audio_color_advance = this._prefs.state.audioOverrideColorAdvance;
+      serviceData.audio_transition_speed = this._prefs.state.audioOverrideTransitionSpeed;
+      serviceData.audio_brightness_response = this._prefs.state.audioOverrideBrightnessResponse;
+      serviceData.audio_detection_mode = this._prefs.state.audioOverrideDetectionMode;
+      serviceData.audio_frequency_zone = this._prefs.state.audioOverrideFrequencyZone;
+      serviceData.audio_silence_degradation = this._prefs.state.audioOverrideSilenceDegradation;
+      serviceData.audio_prediction_aggressiveness = this._prefs.state.audioOverridePredictionAggressiveness;
+      serviceData.audio_latency_compensation_ms = this._prefs.state.audioOverrideLatencyCompensationMs;
     }
-    return `${seconds}s`;
-  }
-
-  private _resolvePresetInfo(presetId: string | null): { name: string | null; icon: string | null } {
-    if (!presetId) return { name: null, icon: null };
-
-    // Search built-in effects (keyed by device type)
-    if (this._presets?.dynamic_effects) {
-      for (const presets of Object.values(this._presets.dynamic_effects)) {
-        const found = presets.find(p => p.id === presetId);
-        if (found) return { name: found.name, icon: found.icon || null };
-      }
-    }
-
-    // Search built-in segment patterns
-    const pattern = this._presets?.segment_patterns?.find(p => p.id === presetId);
-    if (pattern) return { name: pattern.name, icon: pattern.icon || null };
-
-    // Search built-in CCT sequences
-    const cct = this._presets?.cct_sequences?.find(p => p.id === presetId);
-    if (cct) return { name: cct.name, icon: cct.icon || null };
-
-    // Search built-in segment sequences
-    const seg = this._presets?.segment_sequences?.find(p => p.id === presetId);
-    if (seg) return { name: seg.name, icon: seg.icon || null };
-
-    // Search built-in dynamic scenes
-    const scene = this._presets?.dynamic_scenes?.find(p => p.id === presetId);
-    if (scene) return { name: scene.name, icon: scene.icon || null };
-
-    // Search user presets (match by id or name)
-    if (this._userPresets) {
-      const allUserPresets = [
-        ...(this._userPresets.effect_presets || []),
-        ...(this._userPresets.segment_pattern_presets || []),
-        ...(this._userPresets.cct_sequence_presets || []),
-        ...(this._userPresets.segment_sequence_presets || []),
-        ...(this._userPresets.dynamic_scene_presets || []),
-      ];
-      const userPreset = allUserPresets.find(
-        p => p.id === presetId || p.name === presetId,
-      );
-      if (userPreset) return { name: userPreset.name, icon: userPreset.icon || null };
-    }
-
-    return { name: presetId, icon: null };
-  }
-
-  private _renderRunningOperations() {
-    if (this._runningOperations.length === 0) {
-      return html`
-        <div class="running-ops-empty">
-          ${this._localize('target.no_running_operations')}
-        </div>
-      `;
-    }
-
-    const displayItems = this._buildDisplayOperations(this._runningOperations);
-
-    return html`
-      <div class="running-ops-container">
-        <div class="running-ops-list">
-          ${displayItems.map(item =>
-            Array.isArray(item)
-              ? this._renderGroupedSequenceOp(item)
-              : this._renderOperationCard(item),
-          )}
-        </div>
-      </div>
-    `;
-  }
-
-  /**
-   * Group sequence operations sharing the same preset into arrays.
-   * Single-entity sequences stay as individual RunningOperation objects.
-   */
-  private _buildDisplayOperations(
-    ops: RunningOperation[],
-  ): (RunningOperation | RunningOperation[])[] {
-    const result: (RunningOperation | RunningOperation[])[] = [];
-    const seqGroupIndex = new Map<string, number>();
-
-    for (const op of ops) {
-      if (
-        (op.type === 'cct_sequence' || op.type === 'segment_sequence') &&
-        op.preset_id
-      ) {
-        const key = `${op.type}:${op.preset_id}`;
-        const idx = seqGroupIndex.get(key);
-        if (idx !== undefined) {
-          const existing = result[idx];
-          if (Array.isArray(existing)) {
-            existing.push(op);
-          } else {
-            result[idx] = [existing as RunningOperation, op];
-          }
-        } else {
-          seqGroupIndex.set(key, result.length);
-          result.push(op);
-        }
-      } else {
-        result.push(op);
-      }
-    }
-
-    return result;
-  }
-
-  private _renderOperationCard(op: RunningOperation) {
-    switch (op.type) {
-      case 'effect':
-        return this._renderEffectOp(op);
-      case 'cct_sequence':
-      case 'segment_sequence':
-        return this._renderSequenceOp(op);
-      case 'dynamic_scene':
-        return this._renderSceneOp(op);
-      case 'music_sync':
-        return this._renderMusicSyncOp(op);
-      case 'circadian':
-        return this._renderCircadianOp(op);
-      default:
-        return '';
-    }
-  }
-
-  private _renderEffectOp(op: RunningOperation) {
-    const entityName = this._getEntityName(op.entity_id!);
-    const preset = this._resolvePresetInfo(op.preset_id);
-    const typeLabel = this._localize('target.effect_button');
-    return html`
-      <div class="running-op-card">
-        <div class="running-op-info">
-          <ha-icon class="running-op-icon" icon="${preset.icon || 'mdi:palette'}"></ha-icon>
-          <div class="running-op-details">
-            <span class="running-op-name">${preset.name || typeLabel}</span>
-            <span class="running-op-entity">
-              ${preset.name ? html`<span class="running-op-type">${typeLabel}</span>` : ''}
-              <span class="running-op-entity-name">${entityName}</span>
-            </span>
-          </div>
-        </div>
-        <div class="running-op-actions">
-          <ha-icon-button
-            .label=${this._localize('target.stop')}
-            @click=${() => this._stopRunningEffect(op.entity_id!)}
-          >
-            <ha-icon icon="mdi:stop"></ha-icon>
-          </ha-icon-button>
-        </div>
-      </div>
-    `;
-  }
-
-  private _renderSequenceOp(op: RunningOperation) {
-    const entityName = this._getEntityName(op.entity_id!);
-    const preset = this._resolvePresetInfo(op.preset_id);
-    const isCCT = op.type === 'cct_sequence';
-    const isSolar = isCCT && op.mode === 'solar';
-    const isSchedule = isCCT && op.mode === 'schedule';
-    const fallbackIcon = isSolar ? 'mdi:white-balance-sunny' : isSchedule ? 'mdi:clock-outline' : isCCT ? 'mdi:thermometer' : 'mdi:led-strip-variant';
-    const typeLabel = isSolar
-      ? this._localize('target.solar_cct_button')
-      : isSchedule
-        ? this._localize('target.schedule_cct_button')
-        : isCCT
-          ? this._localize('target.cct_button')
-          : this._localize('target.segment_button');
-    const isPaused = op.paused || op.externally_paused;
-
-    return html`
-      <div class="running-op-card ${isPaused ? 'op-paused' : ''} ${op.externally_paused ? 'externally-paused' : ''}">
-        <div class="running-op-info">
-          <ha-icon class="running-op-icon" icon="${preset.icon || fallbackIcon}"></ha-icon>
-          <div class="running-op-details">
-            <span class="running-op-name">${preset.name || typeLabel}</span>
-            <span class="running-op-entity">
-              ${preset.name ? html`<span class="running-op-type">${typeLabel}</span>` : ''}
-              <span class="running-op-entity-name">${entityName}</span>
-            </span>
-            ${op.paused || op.externally_paused ? html`
-              <span class="running-op-pause-row">
-                ${op.paused ? html`<span class="running-op-status paused-text">${this._localize('target.paused')}</span>` : ''}
-                ${op.externally_paused ? html`<span class="running-op-status externally-paused-text">${this._localize('target.externally_paused')}${op.auto_resume_remaining ? html` (${this._formatAutoResumeRemaining(op.auto_resume_remaining)})` : ''}</span>` : ''}
-                ${op.override_attributes && 'brightness' in op.override_attributes && (op.override_attributes as {brightness: boolean; color: boolean}).brightness !== (op.override_attributes as {brightness: boolean; color: boolean}).color
-                  ? html`<span class="running-op-status override-detail">${
-                      (op.override_attributes as {brightness: boolean; color: boolean}).brightness
-                        ? this._localize('target.paused_brightness_only')
-                        : this._localize('target.paused_color_only')
-                    }</span>`
-                  : ''}
-              </span>
-            ` : ''}
-          </div>
-        </div>
-        <div class="running-op-actions">
-          ${op.externally_paused
-            ? html`
-                <ha-icon-button
-                  .label=${this._localize('target.resume_control')}
-                  @click=${() => this._resumeEntityControl(op.entity_id!)}
-                >
-                  <ha-icon icon="mdi:play-circle-outline"></ha-icon>
-                </ha-icon-button>
-              `
-            : html`
-                <ha-icon-button
-                  .label=${op.paused ? this._localize('target.resume') : this._localize('target.pause')}
-                  @click=${() => this._toggleSequencePause(op)}
-                >
-                  <ha-icon icon="mdi:${op.paused ? 'play' : 'pause'}"></ha-icon>
-                </ha-icon-button>
-              `
-          }
-          <ha-icon-button
-            .label=${this._localize('target.stop')}
-            @click=${() => this._stopRunningSequence(op)}
-          >
-            <ha-icon icon="mdi:stop"></ha-icon>
-          </ha-icon-button>
-        </div>
-      </div>
-    `;
-  }
-
-  private _renderGroupedSequenceOp(ops: RunningOperation[]) {
-    const first = ops[0]!;
-    const preset = this._resolvePresetInfo(first.preset_id);
-    const isCCT = first.type === 'cct_sequence';
-    const isSolar = isCCT && first.mode === 'solar';
-    const isSchedule = isCCT && first.mode === 'schedule';
-    const fallbackIcon = isSolar
-      ? 'mdi:white-balance-sunny'
-      : isSchedule
-        ? 'mdi:clock-outline'
-        : isCCT
-          ? 'mdi:thermometer'
-          : 'mdi:led-strip-variant';
-    const typeLabel = isSolar
-      ? this._localize('target.solar_cct_button')
-      : isSchedule
-        ? this._localize('target.schedule_cct_button')
-        : isCCT
-          ? this._localize('target.cct_button')
-          : this._localize('target.segment_button');
-
-    const entityChips = ops.map(op => {
-      const name = this._getEntityName(op.entity_id!);
-      return html`<span class="entity-chip">${name}</span>`;
-    });
-
-    const anyPaused = ops.some(op => op.paused);
-    const extPausedOps = ops.filter(op => op.externally_paused);
-    const isPaused = anyPaused || extPausedOps.length > 0;
-
-    return html`
-      <div class="running-op-card scene-op-card ${isPaused ? 'op-paused' : ''}">
-        <div class="running-op-header">
-          <div class="running-op-info">
-            <ha-icon class="running-op-icon" icon="${preset.icon || fallbackIcon}"></ha-icon>
-            <div class="running-op-details">
-              <span class="running-op-name">${preset.name || typeLabel}</span>
-              ${preset.name ? html`<span class="running-op-entity"><span class="running-op-type">${typeLabel}</span></span>` : ''}
-              ${anyPaused || extPausedOps.length > 0 ? html`
-                <span class="running-op-pause-row">
-                  ${anyPaused ? html`<span class="running-op-status paused-text">${this._localize('target.paused')}</span>` : ''}
-                  ${extPausedOps.length > 0
-                    ? html`<span class="running-op-status externally-paused-text">
-                        ${this._localize('target.entities_externally_paused', { count: String(extPausedOps.length) })}
-                      </span>`
-                    : ''}
-                  ${this._renderGroupedOverrideDetail(extPausedOps)}
-                </span>
-              ` : ''}
-            </div>
-          </div>
-          <div class="running-op-actions">
-            ${extPausedOps.length > 0
-              ? html`
-                  <ha-icon-button
-                    .label=${this._localize('target.resume_control')}
-                    @click=${() => this._resumeSceneEntities(extPausedOps.map(op => op.entity_id!))}
-                  >
-                    <ha-icon icon="mdi:play-circle-outline"></ha-icon>
-                  </ha-icon-button>
-                `
-              : ''}
-            <ha-icon-button
-              .label=${anyPaused ? this._localize('target.resume') : this._localize('target.pause')}
-              @click=${() => this._toggleGroupedSequencePause(ops)}
-            >
-              <ha-icon icon="mdi:${anyPaused ? 'play' : 'pause'}"></ha-icon>
-            </ha-icon-button>
-            <ha-icon-button
-              .label=${this._localize('target.stop')}
-              @click=${() => this._stopGroupedSequence(ops)}
-            >
-              <ha-icon icon="mdi:stop"></ha-icon>
-            </ha-icon-button>
-          </div>
-        </div>
-        <div class="entity-chip-list">
-          ${entityChips}
-        </div>
-      </div>
-    `;
-  }
-
-  private _renderSceneOp(op: RunningOperation) {
-    const preset = this._resolvePresetInfo(op.preset_id);
-    const entityChips = (op.entity_ids || []).map(id => {
-      const name = this._getEntityName(id);
-      const cap = op.entity_capabilities?.[id];
-      const isSoftwareTransition = cap?.includes('software_transition');
-      const badges: unknown[] = [];
-      if (cap?.includes('cct_mode')) {
-        badges.push(html`<span class="chip-badge">${this._localize('target.capability_cct')}</span>`);
-      }
-      if (cap?.includes('brightness_only')) {
-        badges.push(html`<span class="chip-badge">${this._localize('target.capability_brightness')}</span>`);
-      }
-      if (cap?.includes('on_off_only')) {
-        badges.push(html`<span class="chip-badge">${this._localize('target.capability_on_off')}</span>`);
-      }
-      if (isSoftwareTransition) {
-        badges.push(html`<span class="chip-badge">${this._localize('target.capability_software_transition')}</span>`);
-      }
-      return html`<span class="entity-chip ${badges.length ? 'has-badge' : ''}">${name}${badges}</span>`;
-    });
-    const extPausedEntities = op.externally_paused_entities || [];
-    const isPaused = op.paused || extPausedEntities.length > 0;
-
-    return html`
-      <div class="running-op-card scene-op-card ${isPaused ? 'op-paused' : ''}">
-        <div class="running-op-header">
-          <div class="running-op-info">
-            <ha-icon class="running-op-icon" icon="${preset.icon || 'mdi:palette-swatch-variant'}"></ha-icon>
-            <div class="running-op-details">
-              <span class="running-op-name">${preset.name || this._localize('target.scene_button')}</span>
-              ${preset.name ? html`<span class="running-op-entity"><span class="running-op-type">${this._localize('target.scene_button')}</span></span>` : ''}
-              ${op.paused || extPausedEntities.length > 0 ? html`
-                <span class="running-op-pause-row">
-                  ${op.paused ? html`<span class="running-op-status paused-text">${this._localize('target.paused')}</span>` : ''}
-                  ${extPausedEntities.length > 0
-                    ? html`<span class="running-op-status externally-paused-text">
-                        ${this._localize('target.entities_externally_paused', { count: String(extPausedEntities.length) })}
-                      </span>`
-                    : ''}
-                  ${this._renderSceneOverrideDetail(op, extPausedEntities)}
-                </span>
-              ` : ''}
-            </div>
-          </div>
-          <div class="running-op-actions">
-            ${extPausedEntities.length > 0
-              ? html`
-                  <ha-icon-button
-                    .label=${this._localize('target.resume_control')}
-                    @click=${() => this._resumeSceneEntities(extPausedEntities)}
-                  >
-                    <ha-icon icon="mdi:play-circle-outline"></ha-icon>
-                  </ha-icon-button>
-                `
-              : ''}
-            <ha-icon-button
-              .label=${op.paused ? this._localize('target.resume') : this._localize('target.pause')}
-              @click=${() => this._toggleScenePause(op)}
-            >
-              <ha-icon icon="mdi:${op.paused ? 'play' : 'pause'}"></ha-icon>
-            </ha-icon-button>
-            <ha-icon-button
-              .label=${this._localize('target.stop')}
-              @click=${() => this._stopRunningScene(op)}
-            >
-              <ha-icon icon="mdi:stop"></ha-icon>
-            </ha-icon-button>
-          </div>
-        </div>
-        <div class="entity-chip-list">
-          ${entityChips}
-        </div>
-      </div>
-    `;
-  }
-
-  private _renderGroupedOverrideDetail(extPausedOps: RunningOperation[]) {
-    // Summarize per-attribute overrides across grouped externally-paused ops
-    if (extPausedOps.length === 0) return '';
-    let brightnessCount = 0;
-    let colorCount = 0;
-    for (const op of extPausedOps) {
-      const attrs = op.override_attributes as {brightness: boolean; color: boolean} | undefined;
-      if (attrs) {
-        if (attrs.brightness) brightnessCount++;
-        if (attrs.color) colorCount++;
-      }
-    }
-    // Only show detail when there's a partial override (not both or neither)
-    const hasPartial = extPausedOps.some(op => {
-      const attrs = op.override_attributes as {brightness: boolean; color: boolean} | undefined;
-      return attrs && (attrs.brightness !== attrs.color);
-    });
-    if (!hasPartial) return '';
-    const parts: unknown[] = [];
-    if (brightnessCount > 0 && brightnessCount < extPausedOps.length) {
-      parts.push(html`<span class="running-op-status override-detail">${brightnessCount} ${this._localize('target.paused_brightness_only').toLowerCase()}</span>`);
-    }
-    if (colorCount > 0 && colorCount < extPausedOps.length) {
-      parts.push(html`<span class="running-op-status override-detail">${colorCount} ${this._localize('target.paused_color_only').toLowerCase()}</span>`);
-    }
-    return parts;
-  }
-
-  private _renderSceneOverrideDetail(op: RunningOperation, extPausedEntities: string[]) {
-    if (extPausedEntities.length === 0) return '';
-    // Scene override_attributes is keyed by entity_id
-    const overrideMap = op.override_attributes as Record<string, {brightness: boolean; color: boolean}> | undefined;
-    if (!overrideMap) return '';
-    let brightnessCount = 0;
-    let colorCount = 0;
-    for (const eid of extPausedEntities) {
-      const attrs = overrideMap[eid];
-      if (attrs) {
-        if (attrs.brightness) brightnessCount++;
-        if (attrs.color) colorCount++;
-      }
-    }
-    const hasPartial = extPausedEntities.some(eid => {
-      const attrs = overrideMap[eid];
-      return attrs && (attrs.brightness !== attrs.color);
-    });
-    if (!hasPartial) return '';
-    const parts: unknown[] = [];
-    if (brightnessCount > 0 && brightnessCount < extPausedEntities.length) {
-      parts.push(html`<span class="running-op-status override-detail">${brightnessCount} ${this._localize('target.paused_brightness_only').toLowerCase()}</span>`);
-    }
-    if (colorCount > 0 && colorCount < extPausedEntities.length) {
-      parts.push(html`<span class="running-op-status override-detail">${colorCount} ${this._localize('target.paused_color_only').toLowerCase()}</span>`);
-    }
-    return parts;
-  }
-
-  private async _stopRunningEffect(entityId: string): Promise<void> {
-    await this.hass.callService('aqara_advanced_lighting', 'stop_effect', {
-      entity_id: [entityId],
-      restore_state: true,
-    });
-  }
-
-  private async _toggleSequencePause(op: RunningOperation): Promise<void> {
-    if (!op.entity_id) return;
-    const isCCT = op.type === 'cct_sequence';
-    const service = op.paused
-      ? (isCCT ? 'resume_cct_sequence' : 'resume_segment_sequence')
-      : (isCCT ? 'pause_cct_sequence' : 'pause_segment_sequence');
-    await this.hass.callService('aqara_advanced_lighting', service, {
-      entity_id: [op.entity_id],
-    });
-  }
-
-  private async _stopRunningSequence(op: RunningOperation): Promise<void> {
-    if (!op.entity_id) return;
-    const service = op.type === 'cct_sequence'
-      ? 'stop_cct_sequence'
-      : 'stop_segment_sequence';
-    await this.hass.callService('aqara_advanced_lighting', service, {
-      entity_id: [op.entity_id],
-    });
-  }
-
-  private async _toggleGroupedSequencePause(ops: RunningOperation[]): Promise<void> {
-    const isCCT = ops[0]!.type === 'cct_sequence';
-    const anyPaused = ops.some(op => op.paused);
-    const service = anyPaused
-      ? (isCCT ? 'resume_cct_sequence' : 'resume_segment_sequence')
-      : (isCCT ? 'pause_cct_sequence' : 'pause_segment_sequence');
-    await this.hass.callService('aqara_advanced_lighting', service, {
-      entity_id: ops.map(op => op.entity_id!),
-    });
-  }
-
-  private async _stopGroupedSequence(ops: RunningOperation[]): Promise<void> {
-    const service = ops[0]!.type === 'cct_sequence'
-      ? 'stop_cct_sequence'
-      : 'stop_segment_sequence';
-    await this.hass.callService('aqara_advanced_lighting', service, {
-      entity_id: ops.map(op => op.entity_id!),
-    });
-  }
-
-  private async _toggleScenePause(op: RunningOperation): Promise<void> {
-    if (!op.entity_ids?.length) return;
-    const service = op.paused ? 'resume_dynamic_scene' : 'pause_dynamic_scene';
-    await this.hass.callService('aqara_advanced_lighting', service, {
-      entity_id: op.entity_ids,
-    });
-  }
-
-  private async _stopRunningScene(op: RunningOperation): Promise<void> {
-    if (!op.entity_ids?.length) return;
-    await this.hass.callService('aqara_advanced_lighting', 'stop_dynamic_scene', {
-      entity_id: op.entity_ids,
-    });
-  }
-
-  private async _resumeEntityControl(entityId: string): Promise<void> {
-    await this.hass.callService('aqara_advanced_lighting', 'resume_entity_control', {
-      entity_id: [entityId],
-    });
-  }
-
-  private async _resumeSceneEntities(entityIds: string[]): Promise<void> {
-    await this.hass.callService('aqara_advanced_lighting', 'resume_entity_control', {
-      entity_id: entityIds,
-    });
   }
 
   // Filter user effect presets for a specific device type section
-  private _getUserEffectPresetsForDeviceType(deviceType: string): UserEffectPreset[] {
-    if (!this._userPresets?.effect_presets) return [];
-
-    return this._userPresets.effect_presets.filter((preset) => {
-      // If preset has no device_type, show in all sections
+  private _filterByDeviceType<T extends { device_type?: string }>(presets: T[], deviceType: string): T[] {
+    return presets.filter((preset) => {
       if (!preset.device_type) return true;
-      // Match t1 and t1m presets
-      if (deviceType === 't1m' && (preset.device_type === 't1' || preset.device_type === 't1m')) {
-        return true;
-      }
+      if (deviceType === 't1m' && (preset.device_type === 't1' || preset.device_type === 't1m')) return true;
       return preset.device_type === deviceType;
     });
   }
 
-  private _getUserPatternPresetsForDeviceType(deviceType: string): UserSegmentPatternPreset[] {
-    if (!this._userPresets?.segment_pattern_presets) return [];
+  private _getUserEffectPresetsForDeviceType(deviceType: string): UserEffectPreset[] {
+    return this._filterByDeviceType(this._userPresets?.effect_presets || [], deviceType);
+  }
 
-    return this._userPresets.segment_pattern_presets.filter((preset) => {
-      // If preset has no device_type, show in all sections
-      if (!preset.device_type) return true;
-      // Match t1 and t1m presets
-      if (deviceType === 't1m' && (preset.device_type === 't1' || preset.device_type === 't1m')) {
-        return true;
-      }
-      return preset.device_type === deviceType;
-    });
+  private _getUserPatternPresetsForDeviceType(deviceType: string): UserSegmentPatternPreset[] {
+    return this._filterByDeviceType(this._userPresets?.segment_pattern_presets || [], deviceType);
   }
 
   private _getFilteredUserCCTSequencePresets(): UserCCTSequencePreset[] {
@@ -2726,17 +1786,7 @@ export class AqaraPanel extends LitElement {
   }
 
   private _getUserSegmentSequencePresetsForDeviceType(deviceType: string): UserSegmentSequencePreset[] {
-    if (!this._userPresets?.segment_sequence_presets) return [];
-
-    return this._userPresets.segment_sequence_presets.filter((preset) => {
-      // If preset has no device_type, show in all sections
-      if (!preset.device_type) return true;
-      // Match t1 and t1m presets
-      if (deviceType === 't1m' && (preset.device_type === 't1' || preset.device_type === 't1m')) {
-        return true;
-      }
-      return preset.device_type === deviceType;
-    });
+    return this._filterByDeviceType(this._userPresets?.segment_sequence_presets || [], deviceType);
   }
 
   private _getFilteredUserDynamicScenePresets(): UserDynamicScenePreset[] {
@@ -2748,10 +1798,10 @@ export class AqaraPanel extends LitElement {
 
   // Activate user presets
   private async _activateUserEffectPreset(preset: UserEffectPreset): Promise<void> {
-    if (!this._selectedEntities.length) return;
+    if (!this._prefs.state.selectedEntities.length) return;
 
     const serviceData: Record<string, unknown> = {
-      entity_id: this._selectedEntities,
+      entity_id: this._prefs.state.selectedEntities,
       effect: preset.effect,
       speed: preset.effect_speed,
       preset: preset.name,
@@ -2768,8 +1818,8 @@ export class AqaraPanel extends LitElement {
 
     if (preset.effect_brightness !== undefined) {
       serviceData.brightness = preset.effect_brightness;
-    } else if (this._useCustomBrightness) {
-      serviceData.brightness = this._brightness;
+    } else if (this._prefs.state.useCustomBrightness) {
+      serviceData.brightness = this._prefs.state.brightness;
     }
 
     if (preset.effect_segments) {
@@ -2781,7 +1831,7 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _activateUserPatternPreset(preset: UserSegmentPatternPreset): Promise<void> {
-    if (!this._selectedEntities.length) return;
+    if (!this._prefs.state.selectedEntities.length) return;
 
     // Validate preset has segments
     if (!preset.segments || !Array.isArray(preset.segments) || preset.segments.length === 0) {
@@ -2802,7 +1852,7 @@ export class AqaraPanel extends LitElement {
     }
 
     const serviceData: Record<string, unknown> = {
-      entity_id: this._selectedEntities,
+      entity_id: this._prefs.state.selectedEntities,
       segment_colors,
       preset: preset.name,
       turn_on: true,
@@ -2810,8 +1860,8 @@ export class AqaraPanel extends LitElement {
       turn_off_unspecified: true,
     };
 
-    if (this._useCustomBrightness) {
-      serviceData.brightness = this._brightness;
+    if (this._prefs.state.useCustomBrightness) {
+      serviceData.brightness = this._prefs.state.brightness;
     }
 
     try {
@@ -2823,13 +1873,13 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _activateUserCCTSequencePreset(preset: UserCCTSequencePreset): Promise<void> {
-    if (!this._selectedEntities.length) return;
+    if (!this._prefs.state.selectedEntities.length) return;
 
     // Adaptive presets (solar/schedule) are resolved by name on the backend.
     // Don't turn on lights -- the loop waits for them to be turned on.
     if (preset.mode === 'solar' || preset.mode === 'schedule') {
       await this.hass.callService('aqara_advanced_lighting', 'start_cct_sequence', {
-        entity_id: this._selectedEntities,
+        entity_id: this._prefs.state.selectedEntities,
         preset: preset.name,
         sync: true,
       });
@@ -2838,7 +1888,7 @@ export class AqaraPanel extends LitElement {
     }
 
     const serviceData: Record<string, unknown> = {
-      entity_id: this._selectedEntities,
+      entity_id: this._prefs.state.selectedEntities,
       preset: preset.name,
       loop_mode: preset.loop_mode,
       end_behavior: preset.end_behavior,
@@ -2867,10 +1917,10 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _activateUserSegmentSequencePreset(preset: UserSegmentSequencePreset): Promise<void> {
-    if (!this._selectedEntities.length) return;
+    if (!this._prefs.state.selectedEntities.length) return;
 
     const serviceData: Record<string, unknown> = {
-      entity_id: this._selectedEntities,
+      entity_id: this._prefs.state.selectedEntities,
       preset: preset.name,
       loop_mode: preset.loop_mode,
       end_behavior: preset.end_behavior,
@@ -2909,17 +1959,17 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _activateUserDynamicScenePreset(preset: UserDynamicScenePreset): Promise<void> {
-    if (!this._selectedEntities.length) return;
+    if (!this._prefs.state.selectedEntities.length) return;
 
     // When brightness override is enabled, replace all per-color brightness
-    const overrideBrightness = this._useCustomBrightness ? this._brightness : null;
+    const overrideBrightness = this._prefs.state.useCustomBrightness ? this._prefs.state.brightness : null;
 
     const serviceData: Record<string, unknown> = {
-      entity_id: this._selectedEntities,
+      entity_id: this._prefs.state.selectedEntities,
       scene_name: preset.name,
       transition_time: preset.transition_time,
       hold_time: preset.hold_time,
-      distribution_mode: this._useDistributionModeOverride ? this._distributionModeOverride : preset.distribution_mode,
+      distribution_mode: this._prefs.state.useDistributionModeOverride ? this._prefs.state.distributionModeOverride : preset.distribution_mode,
       random_order: preset.random_order,
       loop_mode: preset.loop_mode,
       end_behavior: preset.end_behavior,
@@ -2943,8 +1993,28 @@ export class AqaraPanel extends LitElement {
     }));
 
     // Static mode: apply colors once without starting a transition loop
-    if (this._useStaticSceneMode) {
+    if (this._prefs.state.useStaticSceneMode) {
       serviceData.static = true;
+    }
+
+    // Audio reactive override (panel override takes precedence over preset audio settings)
+    this._applyAudioOverrides(serviceData);
+    if (!(this._prefs.state.useAudioReactive && this._prefs.state.audioOverrideEntity) && preset.audio_color_advance) {
+      // Pass through preset-level audio settings when no panel override is active
+      // Use preset's audio_entity if set, otherwise fall back to user's default
+      const audioEntity = preset.audio_entity || this._prefs.state.audioOverrideEntity;
+      if (audioEntity) {
+        serviceData.audio_entity = audioEntity;
+        serviceData.audio_sensitivity = preset.audio_sensitivity;
+        serviceData.audio_brightness_response = preset.audio_brightness_response;
+        serviceData.audio_color_advance = preset.audio_color_advance;
+        serviceData.audio_transition_speed = preset.audio_transition_speed;
+        serviceData.audio_detection_mode = preset.audio_detection_mode;
+        serviceData.audio_frequency_zone = preset.audio_frequency_zone;
+        serviceData.audio_silence_degradation = preset.audio_silence_degradation;
+        serviceData.audio_prediction_aggressiveness = preset.audio_prediction_aggressiveness;
+        serviceData.audio_latency_compensation_ms = preset.audio_latency_compensation_ms;
+      }
     }
 
     await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
@@ -3074,7 +2144,22 @@ export class AqaraPanel extends LitElement {
       case 'presets':
         return this._renderPresetsTab();
       case 'config':
-        return this._renderConfigTab();
+        return html`
+          <aqara-config-tab
+            .hass=${this.hass}
+            .selectedEntities=${this._prefs.state.selectedEntities}
+            .supportedEntities=${this._supportedEntities}
+            .translations=${this._translations}
+            .collapsed=${this._prefs.state.collapsed}
+            .includeAllLights=${this._prefs.state.includeAllLights}
+            .z2mInstances=${this._z2mInstances}
+            .softwareTransitionEntities=${this._prefs.state.softwareTransitionEntities}
+            .entityAudioConfig=${this._prefs.state.entityAudioConfig}
+            @collapsed-changed=${(e: CustomEvent) => this._prefs.setCollapsed(e.detail.sectionId, e.detail.collapsed, this.hass)}
+            @global-preferences-changed=${(e: CustomEvent) => this._applyGlobalPreferencesFromConfigTab(e.detail)}
+            @toast=${(e: CustomEvent) => this._showToast(e.detail.message)}
+          ></aqara-config-tab>
+        `;
       default:
         return this._renderActivateTab();
     }
@@ -3082,10 +2167,10 @@ export class AqaraPanel extends LitElement {
 
   private _renderActivateTab() {
     const filtered = this._filterPresets();
-    const hasSelection = this._selectedEntities.length > 0;
+    const hasSelection = this._prefs.state.selectedEntities.length > 0;
 
     const targetSectionId = 'target_controls';
-    const isTargetExpanded = !this._collapsed[targetSectionId];
+    const isTargetExpanded = !this._prefs.state.collapsed[targetSectionId];
 
     return html`
       <ha-expansion-panel
@@ -3096,7 +2181,7 @@ export class AqaraPanel extends LitElement {
         <div slot="header" class="section-header">
           <div>
             <div class="section-title">${this._localize('target.section_title')}</div>
-            <div class="section-subtitle">${hasSelection ? this._localize(this._selectedEntities.length === 1 ? 'target.lights_selected' : 'target.lights_selected_plural', {count: this._selectedEntities.length.toString()}) : this._localize('target.select_lights')}</div>
+            <div class="section-subtitle">${hasSelection ? this._localize(this._prefs.state.selectedEntities.length === 1 ? 'target.lights_selected' : 'target.lights_selected_plural', {count: this._prefs.state.selectedEntities.length.toString()}) : this._localize('target.select_lights')}</div>
           </div>
         </div>
         <div class="section-content controls-content">
@@ -3111,19 +2196,19 @@ export class AqaraPanel extends LitElement {
                         multiple: true,
                         domain: 'light',
                         // Filter to only show supported Aqara entities unless toggle is on
-                        ...(!this._includeAllLights && this._supportedEntities.size > 0
+                        ...(!this._prefs.state.includeAllLights && this._supportedEntities.size > 0
                           ? { include_entities: Array.from(this._supportedEntities.keys()) }
                           : {}),
                       },
                     }}
-                    .value=${this._selectedEntities}
+                    .value=${this._prefs.state.selectedEntities}
                     @value-changed=${this._handleEntityChanged}
                   ></ha-selector>
                 </div>
                 <div class="include-all-lights-toggle">
                   <label class="toggle-label">
                     <ha-switch
-                      .checked=${this._includeAllLights}
+                      .checked=${this._prefs.state.includeAllLights}
                       @change=${this._handleIncludeAllLightsToggle}
                       title="${this._localize('target.include_all_lights_hint')}"
                     ></ha-switch>
@@ -3154,7 +2239,7 @@ export class AqaraPanel extends LitElement {
                         const entityColor = this._getEntityColor(firstEntity);
                         const isOn = entityState === 'on';
                         const isUnavailable = entityState === 'unavailable' || entityState === 'unknown';
-                        const isActive = this._activeFavoriteId === favorite.id;
+                        const isActive = this._prefs.state.activeFavoriteId === favorite.id;
 
                         // Determine icon background and color styles
                         let iconBackgroundStyle = '';
@@ -3254,7 +2339,7 @@ export class AqaraPanel extends LitElement {
         ? html`
             <ha-expansion-panel
               outlined
-              .expanded=${!this._collapsed['controls']}
+              .expanded=${!this._prefs.state.collapsed['controls']}
               @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange('controls', e)}
             >
               <div slot="header" class="section-header">
@@ -3263,7 +2348,13 @@ export class AqaraPanel extends LitElement {
                 </div>
               </div>
               <div class="section-content controls-content">
-                ${this._renderRunningOperations()}
+                <aqara-running-operations
+                  .hass=${this.hass}
+                  .operations=${this._runningOperations}
+                  .presetLookup=${this._presetLookup}
+                  .translations=${this._translations}
+                  @operations-changed=${() => this._loadRunningOperations()}
+                ></aqara-running-operations>
               </div>
             </ha-expansion-panel>
           `
@@ -3273,7 +2364,7 @@ export class AqaraPanel extends LitElement {
         ? html`
             <ha-expansion-panel
               outlined
-              .expanded=${this._collapsed['activation_overrides'] === undefined ? false : !this._collapsed['activation_overrides']}
+              .expanded=${this._prefs.state.collapsed['activation_overrides'] === undefined ? false : !this._prefs.state.collapsed['activation_overrides']}
               @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange('activation_overrides', e)}
             >
               <div slot="header" class="section-header">
@@ -3283,34 +2374,187 @@ export class AqaraPanel extends LitElement {
               </div>
               <div class="section-content controls-content">
                 <div class="overrides-grid">
-                  <div class="override-item">
+                  <div class="override-item" style="opacity: ${this._prefs.state.useAudioReactive ? '0.5' : '1'}">
                     <span class="form-label">${this._localize('target.custom_brightness_label')}</span>
                     <ha-switch
-                      .checked=${this._useCustomBrightness}
+                      .checked=${this._prefs.state.useCustomBrightness}
+                      .disabled=${this._prefs.state.useAudioReactive}
                       @change=${this._handleCustomBrightnessToggle}
                     ></ha-switch>
                   </div>
 
-                  <div class="override-item">
+                  <div class="override-item" style="opacity: ${this._prefs.state.useAudioReactive ? '0.5' : '1'}">
                     <span class="form-label">${this._localize('target.static_scene_mode_label')}</span>
                     <ha-switch
-                      .checked=${this._useStaticSceneMode}
+                      .checked=${this._prefs.state.useStaticSceneMode}
+                      .disabled=${this._prefs.state.useAudioReactive}
                       @change=${this._handleStaticSceneModeToggle}
                     ></ha-switch>
                   </div>
 
-                  <div class="override-item">
+                  <div class="override-item" style="opacity: ${this._prefs.state.useAudioReactive ? '0.5' : '1'}">
                     <span class="form-label">${this._localize('target.distribution_mode_override_label')}</span>
                     <ha-switch
-                      .checked=${this._useDistributionModeOverride}
+                      .checked=${this._prefs.state.useDistributionModeOverride}
+                      .disabled=${this._prefs.state.useAudioReactive}
                       @change=${this._handleDistributionModeOverrideToggle}
+                    ></ha-switch>
+                  </div>
+
+                  <div class="override-item">
+                    <span class="form-label">${this._localize('target.audio_reactive_label') || 'Audio reactive'}</span>
+                    <ha-switch
+                      .checked=${this._prefs.state.useAudioReactive}
+                      @change=${this._handleAudioReactiveToggle}
                     ></ha-switch>
                   </div>
                 </div>
 
-                ${this._useDistributionModeOverride
+                ${this._prefs.state.useAudioReactive
+                  ? html`
+                      <!-- Row 1: Audio preset + Entity selector -->
+                      <div class="audio-override-row">
+                        <div>
+                          <span class="form-label">${this._localize('dynamic_scene.audio_preset_label') || 'Audio preset'}</span>
+                          <ha-selector
+                            .hass=${this.hass}
+                            .selector=${{ select: { options: this._audioPresetOptions, mode: 'dropdown' } }}
+                            .value=${this._currentAudioOverridePreset}
+                            @value-changed=${this._handleAudioOverridePresetChange}
+                          ></ha-selector>
+                        </div>
+                        <div>
+                          <span class="form-label">${this._localize('target.audio_entity_label') || 'Audio sensor entity'}</span>
+                          <ha-selector
+                            .hass=${this.hass}
+                            .selector=${{ entity: { domain: 'binary_sensor' } }}
+                            .value=${this._prefs.state.audioOverrideEntity}
+                            @value-changed=${this._handleAudioOverrideEntityChange}
+                          ></ha-selector>
+                        </div>
+                      </div>
+                      <!-- Row 2: Detection mode + Color advance -->
+                      <div class="audio-override-row">
+                        <div>
+                          <span class="form-label">${this._localize('dynamic_scene.audio_detection_mode_label') || 'Detection mode'}</span>
+                          <ha-selector
+                            .hass=${this.hass}
+                            .selector=${{ select: { options: [
+                              { value: 'spectral_flux', label: this._localize('dynamic_scene.audio_detection_spectral_flux') || 'Spectral flux (all genres)' },
+                              { value: 'bass_energy', label: this._localize('dynamic_scene.audio_detection_bass_energy') || 'Bass energy (rhythmic music)' },
+                              { value: 'complex_domain', label: this._localize('dynamic_scene.audio_detection_complex_domain') || 'Complex domain (phase+magnitude)' },
+                            ], mode: 'dropdown' } }}
+                            .value=${this._prefs.state.audioOverrideDetectionMode}
+                            @value-changed=${this._handleAudioOverrideDetectionModeChange}
+                          ></ha-selector>
+                        </div>
+                        <div>
+                          <span class="form-label">${this._localize('dynamic_scene.audio_color_advance_label') || 'Color advance'}</span>
+                          <ha-selector
+                            .hass=${this.hass}
+                            .selector=${{ select: { options: [
+                              { value: 'on_onset', label: this._localize('dynamic_scene.audio_mode_on_onset') || 'Color cycle' },
+                              { value: 'continuous', label: this._localize('dynamic_scene.audio_mode_continuous') || 'Continuous' },
+                              { value: 'beat_predictive', label: this._localize('dynamic_scene.audio_mode_beat_predictive') || 'Beat predictive' },
+                              { value: 'intensity_breathing', label: this._localize('dynamic_scene.audio_mode_intensity_breathing') || 'Intensity breathing' },
+                              { value: 'onset_flash', label: this._localize('dynamic_scene.audio_mode_onset_flash') || 'Brightness flash' },
+                            ], mode: 'dropdown' } }}
+                            .value=${this._prefs.state.audioOverrideColorAdvance}
+                            @value-changed=${this._handleAudioOverrideColorAdvanceChange}
+                          ></ha-selector>
+                        </div>
+                      </div>
+                      <!-- Row 3: Sensitivity + Transition speed -->
+                      <div class="audio-override-row">
+                        <div>
+                          <span class="form-label">${this._localize('dynamic_scene.audio_sensitivity_label') || 'Sensitivity'}</span>
+                          <ha-selector
+                            .hass=${this.hass}
+                            .selector=${{ number: { min: 1, max: 100, mode: 'slider', unit_of_measurement: '%' } }}
+                            .value=${this._prefs.state.audioOverrideSensitivity}
+                            @value-changed=${this._handleAudioOverrideSensitivityChange}
+                          ></ha-selector>
+                        </div>
+                        <div>
+                          <span class="form-label">${this._localize('dynamic_scene.audio_transition_speed_label') || 'Transition speed'}</span>
+                          <ha-selector
+                            .hass=${this.hass}
+                            .disabled=${!(this._prefs.state.audioOverrideColorAdvance === 'on_onset' || this._prefs.state.audioOverrideColorAdvance === 'beat_predictive' || this._prefs.state.audioOverrideColorAdvance === 'onset_flash')}
+                            .selector=${{ number: { min: 1, max: 100, mode: 'slider', unit_of_measurement: '%' } }}
+                            .value=${this._prefs.state.audioOverrideTransitionSpeed}
+                            @value-changed=${this._handleAudioOverrideTransitionSpeedChange}
+                          ></ha-selector>
+                        </div>
+                      </div>
+                      <!-- Row 4: Prediction aggressiveness + Latency compensation -->
+                      <div class="audio-override-row">
+                        <div>
+                          <span class="form-label">${this._localize('dynamic_scene.audio_prediction_aggressiveness_label') || 'Prediction aggressiveness'}</span>
+                          <ha-selector
+                            .hass=${this.hass}
+                            .disabled=${this._prefs.state.audioOverrideColorAdvance !== 'beat_predictive'}
+                            .selector=${{ number: { min: 1, max: 100, mode: 'slider', unit_of_measurement: '%' } }}
+                            .value=${this._prefs.state.audioOverridePredictionAggressiveness}
+                            @value-changed=${this._handleAudioOverridePredictionAggressivenessChange}
+                          ></ha-selector>
+                        </div>
+                        <div>
+                          <span class="form-label">${this._localize('dynamic_scene.audio_latency_compensation_label') || 'Latency compensation'}</span>
+                          <ha-selector
+                            .hass=${this.hass}
+                            .disabled=${this._prefs.state.audioOverrideColorAdvance !== 'beat_predictive'}
+                            .selector=${{ number: { min: 0, max: 500, mode: 'slider', unit_of_measurement: 'ms' } }}
+                            .value=${this._prefs.state.audioOverrideLatencyCompensationMs}
+                            @value-changed=${this._handleAudioOverrideLatencyCompensationChange}
+                          ></ha-selector>
+                        </div>
+                      </div>
+                      <!-- Toggles: 4-per-row desktop, 2-per-row mobile -->
+                      <div class="audio-toggles-grid">
+                        <div class="override-item">
+                          <span class="form-label">${this._localize('dynamic_scene.audio_brightness_response_label') || 'Brightness response'}</span>
+                          <ha-switch
+                            .checked=${this._prefs.state.audioOverrideBrightnessResponse}
+                            .disabled=${!(this._prefs.state.audioOverrideColorAdvance === 'on_onset' || this._prefs.state.audioOverrideColorAdvance === 'continuous' || this._prefs.state.audioOverrideColorAdvance === 'beat_predictive')}
+                            @change=${(e: Event) => { this._prefs.update({ audioOverrideBrightnessResponse: (e.target as HTMLInputElement).checked }, this.hass); }}
+                          ></ha-switch>
+                        </div>
+                        <div class="override-item">
+                          <span class="form-label">${this._localize('dynamic_scene.audio_frequency_zone_label') || 'Frequency zone'}</span>
+                          <ha-switch
+                            .checked=${this._prefs.state.audioOverrideFrequencyZone}
+                            @change=${(e: Event) => { this._prefs.update({ audioOverrideFrequencyZone: (e.target as HTMLInputElement).checked }, this.hass); }}
+                          ></ha-switch>
+                        </div>
+                        <div class="override-item">
+                          <span class="form-label">${this._localize('dynamic_scene.audio_silence_degradation_label') || 'Silence degradation'}</span>
+                          <ha-switch
+                            .checked=${this._prefs.state.audioOverrideSilenceDegradation}
+                            @change=${(e: Event) => { this._prefs.update({ audioOverrideSilenceDegradation: (e.target as HTMLInputElement).checked }, this.hass); }}
+                          ></ha-switch>
+                        </div>
+                        <div class="override-item">
+                          <span class="form-label">${this._localize('dynamic_scene.audio_color_by_frequency_label') || 'Color by frequency'}</span>
+                          <ha-switch
+                            .checked=${this._prefs.state.audioOverrideColorByFrequency}
+                            @change=${(e: Event) => { this._prefs.update({ audioOverrideColorByFrequency: (e.target as HTMLInputElement).checked }, this.hass); }}
+                          ></ha-switch>
+                        </div>
+                        <div class="override-item">
+                          <span class="form-label">${this._localize('dynamic_scene.audio_rolloff_brightness_label') || 'Rolloff brightness'}</span>
+                          <ha-switch
+                            .checked=${this._prefs.state.audioOverrideRolloffBrightness}
+                            @change=${(e: Event) => { this._prefs.update({ audioOverrideRolloffBrightness: (e.target as HTMLInputElement).checked }, this.hass); }}
+                          ></ha-switch>
+                        </div>
+                      </div>
+                    `
+                  : ''}
+
+                ${this._prefs.state.useDistributionModeOverride
                   ? html`
                       <div class="brightness-slider">
+                        <span class="form-label">${this._localize('target.distribution_mode_override_label') || 'Color assignment'}</span>
                         <ha-selector
                           .hass=${this.hass}
                           .selector=${{
@@ -3319,16 +2563,17 @@ export class AqaraPanel extends LitElement {
                               mode: 'dropdown',
                             },
                           }}
-                          .value=${this._distributionModeOverride}
+                          .value=${this._prefs.state.distributionModeOverride}
                           @value-changed=${this._handleDistributionModeOverrideChange}
                         ></ha-selector>
                       </div>
                     `
                   : ''}
 
-                ${this._useCustomBrightness
+                ${this._prefs.state.useCustomBrightness
                   ? html`
                       <div class="brightness-slider">
+                        <span class="form-label">${this._localize('target.brightness_override_label') || 'Brightness'}</span>
                         <ha-selector
                           .hass=${this.hass}
                           .selector=${{
@@ -3339,7 +2584,7 @@ export class AqaraPanel extends LitElement {
                               unit_of_measurement: '%',
                             },
                           }}
-                          .value=${this._brightness}
+                          .value=${this._prefs.state.brightness}
                           @value-changed=${this._handleBrightnessChange}
                         ></ha-selector>
                       </div>
@@ -3350,7 +2595,7 @@ export class AqaraPanel extends LitElement {
 
             <ha-expansion-panel
               outlined
-              .expanded=${this._collapsed['override_detection'] === undefined ? false : !this._collapsed['override_detection']}
+              .expanded=${this._prefs.state.collapsed['override_detection'] === undefined ? false : !this._prefs.state.collapsed['override_detection']}
               @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange('override_detection', e)}
             >
               <div slot="header" class="section-header">
@@ -3363,7 +2608,7 @@ export class AqaraPanel extends LitElement {
                   <div class="override-item">
                     <span class="form-label">${this._localize('target.ignore_external_changes_label')}</span>
                     <ha-switch
-                      .checked=${this._ignoreExternalChanges}
+                      .checked=${this._prefs.state.ignoreExternalChanges}
                       @change=${this._handleIgnoreExternalChangesToggle}
                     ></ha-switch>
                   </div>
@@ -3381,8 +2626,8 @@ export class AqaraPanel extends LitElement {
                           mode: 'dropdown',
                         },
                       }}
-                      .value=${this._overrideControlMode}
-                      .disabled=${this._ignoreExternalChanges}
+                      .value=${this._prefs.state.overrideControlMode}
+                      .disabled=${this._prefs.state.ignoreExternalChanges}
                       @value-changed=${this._handleOverrideControlModeChanged}
                     ></ha-selector>
                   </div>
@@ -3390,8 +2635,8 @@ export class AqaraPanel extends LitElement {
                   <div class="override-item">
                     <span class="form-label">${this._localize('target.bare_turn_on_only_label')}</span>
                     <ha-switch
-                      .checked=${this._bareTurnOnOnly}
-                      .disabled=${this._ignoreExternalChanges}
+                      .checked=${this._prefs.state.bareTurnOnOnly}
+                      .disabled=${this._prefs.state.ignoreExternalChanges}
                       @change=${this._handleBareTurnOnOnlyToggle}
                     ></ha-switch>
                   </div>
@@ -3399,8 +2644,8 @@ export class AqaraPanel extends LitElement {
                   <div class="override-item">
                     <span class="form-label">${this._localize('target.detect_non_ha_changes_label')}</span>
                     <ha-switch
-                      .checked=${this._detectNonHaChanges}
-                      .disabled=${this._ignoreExternalChanges}
+                      .checked=${this._prefs.state.detectNonHaChanges}
+                      .disabled=${this._prefs.state.ignoreExternalChanges}
                       @change=${this._handleDetectNonHaChangesToggle}
                     ></ha-switch>
                   </div>
@@ -3477,7 +2722,7 @@ export class AqaraPanel extends LitElement {
   private _renderEffectsTab() {
     const editingEffect = this._editingPreset?.type === 'effect' ? this._editingPreset.preset as UserEffectPreset : undefined;
     const isCompatible = this._isEffectsCompatible();
-    const hasSelection = this._selectedEntities.length > 0;
+    const hasSelection = this._prefs.state.selectedEntities.length > 0;
 
     return html`
       <ha-card class="editor-form">
@@ -3501,7 +2746,7 @@ export class AqaraPanel extends LitElement {
           .previewActive=${this._effectPreviewActive}
           .stripSegmentCount=${this._getT1StripSegmentCount()}
           .deviceContext=${this._getDeviceContextForEditor('effect')}
-          .colorHistory=${this._colorHistory}
+          .colorHistory=${this._prefs.state.colorHistory}
           @save=${this._handleEffectSave}
           @preview=${this._handleEffectPreview}
           @stop-preview=${this._handleEffectStopPreview}
@@ -3632,7 +2877,7 @@ export class AqaraPanel extends LitElement {
   private _renderPatternsTab() {
     const editingPattern = this._editingPreset?.type === 'pattern' ? this._editingPreset.preset as UserSegmentPatternPreset : undefined;
     const isCompatible = this._isPatternsCompatible();
-    const hasSelection = this._selectedEntities.length > 0;
+    const hasSelection = this._prefs.state.selectedEntities.length > 0;
 
     return html`
       <ha-card class="editor-form">
@@ -3655,7 +2900,7 @@ export class AqaraPanel extends LitElement {
           .isCompatible=${isCompatible}
           .stripSegmentCount=${this._getT1StripSegmentCount()}
           .deviceContext=${this._getDeviceContextForEditor('pattern')}
-          .colorHistory=${this._colorHistory}
+          .colorHistory=${this._prefs.state.colorHistory}
           .previewActive=${this._patternPreviewActive}
           @save=${this._handlePatternSave}
           @preview=${this._handlePatternPreview}
@@ -3725,7 +2970,7 @@ export class AqaraPanel extends LitElement {
   private _renderCCTTab() {
     const editingCCT = this._editingPreset?.type === 'cct' ? this._editingPreset.preset as UserCCTSequencePreset : undefined;
     const isCompatible = this._isCCTCompatible();
-    const hasSelection = this._selectedEntities.length > 0;
+    const hasSelection = this._prefs.state.selectedEntities.length > 0;
 
     return html`
       <ha-card class="editor-form">
@@ -3746,7 +2991,7 @@ export class AqaraPanel extends LitElement {
           .editMode=${!!editingCCT && !this._editingPreset?.isDuplicate}
           .hasSelectedEntities=${hasSelection}
           .isCompatible=${isCompatible}
-          .selectedEntities=${this._selectedEntities}
+          .selectedEntities=${this._prefs.state.selectedEntities}
           .previewActive=${this._cctPreviewActive}
           .deviceContext=${this._getDeviceContextForEditor('cct')}
           @save=${this._handleCCTSave}
@@ -3830,7 +3075,7 @@ export class AqaraPanel extends LitElement {
   private _renderSegmentsTab() {
     const editingSegment = this._editingPreset?.type === 'segment' ? this._editingPreset.preset as UserSegmentSequencePreset : undefined;
     const isCompatible = this._isSegmentsCompatible();
-    const hasSelection = this._selectedEntities.length > 0;
+    const hasSelection = this._prefs.state.selectedEntities.length > 0;
 
     return html`
       <ha-card class="editor-form">
@@ -3854,7 +3099,7 @@ export class AqaraPanel extends LitElement {
           .previewActive=${this._segmentSequencePreviewActive}
           .stripSegmentCount=${this._getT1StripSegmentCount()}
           .deviceContext=${this._getDeviceContextForEditor('segment')}
-          .colorHistory=${this._colorHistory}
+          .colorHistory=${this._prefs.state.colorHistory}
           @save=${this._handleSegmentSequenceSave}
           @preview=${this._handleSegmentSequencePreview}
           @stop-preview=${this._handleSegmentSequenceStopPreview}
@@ -3942,30 +3187,33 @@ export class AqaraPanel extends LitElement {
     this._segmentSequencePreviewActive = false;
   }
 
-  // Dynamic scenes: Any light with RGB color mode (T2 RGB, T1M RGB endpoint, T1 Strip)
+  // Dynamic scenes: Any light with color capability (RGB or CCT - backend adapts XY to color_temp)
   private _isScenesCompatible(): boolean {
-    if (!this.hass || !this._selectedEntities.length) return false;
-    return this._selectedEntities.some(entityId => {
+    if (!this.hass || !this._prefs.state.selectedEntities.length) return false;
+    return this._prefs.state.selectedEntities.some(entityId => {
       const entity = this.hass!.states[entityId];
       if (!entity) return false;
-      // Dynamic scenes require RGB color capability
-      return this._hasRGBColorMode(entity);
+      return this._hasRGBColorMode(entity) || this._hasCCTColorMode(entity);
     });
+  }
+
+  private _hasCCTColorMode(entity: { attributes: Record<string, unknown> }): boolean {
+    return hasCCTColorMode(entity);
   }
 
   private _getScenesCompatibleEntities(): string[] {
     if (!this.hass) return [];
-    return this._selectedEntities.filter(entityId => {
+    return this._prefs.state.selectedEntities.filter(entityId => {
       const entity = this.hass!.states[entityId];
       if (!entity) return false;
-      return this._hasRGBColorMode(entity);
+      return this._hasRGBColorMode(entity) || this._hasCCTColorMode(entity);
     });
   }
 
   private _renderScenesTab() {
     const editingScene = this._editingPreset?.type === 'dynamic_scene' ? this._editingPreset.preset as UserDynamicScenePreset : undefined;
     const isCompatible = this._isScenesCompatible();
-    const hasSelection = this._selectedEntities.length > 0;
+    const hasSelection = this._prefs.state.selectedEntities.length > 0;
 
     return html`
       <ha-card class="editor-form">
@@ -3986,9 +3234,9 @@ export class AqaraPanel extends LitElement {
           .editMode=${!!editingScene && !this._editingPreset?.isDuplicate}
           .hasSelectedEntities=${hasSelection}
           .isCompatible=${isCompatible}
-          .selectedEntities=${this._selectedEntities}
+          .selectedEntities=${this._prefs.state.selectedEntities}
           .previewActive=${this._scenePreviewActive}
-          .colorHistory=${this._colorHistory}
+          .colorHistory=${this._prefs.state.colorHistory}
           @save=${this._handleSceneSave}
           @preview=${this._handleScenePreview}
           @stop-preview=${this._handleSceneStopPreview}
@@ -4238,7 +3486,7 @@ export class AqaraPanel extends LitElement {
     const totalCount = effectPresets.length + patternPresets.length + cctPresets.length + segmentPresets.length + scenePresets.length;
 
     const myPresetsSectionId = 'my_presets_overview';
-    const myPresetsExpanded = !this._collapsed[myPresetsSectionId];
+    const myPresetsExpanded = !this._prefs.state.collapsed[myPresetsSectionId];
 
     return html`
       <ha-expansion-panel
@@ -4310,8 +3558,31 @@ export class AqaraPanel extends LitElement {
                   <ha-icon icon="mdi:checkbox-multiple-marked-outline" slot="icon"></ha-icon>
                   ${this._localize('presets.select_button')}
                 </ha-button>
+
+                <ha-button
+                  @click=${() => this._restoreAllHiddenPresets()}
+                  .disabled=${this._prefs.state.hiddenBuiltinPresets.length === 0}
+                >
+                  <ha-icon icon="mdi:eye-outline" slot="icon"></ha-icon>
+                  ${this._localize('presets.restore_hidden_button')}
+                  ${this._prefs.state.hiddenBuiltinPresets.length > 0
+                    ? html` (${this._prefs.state.hiddenBuiltinPresets.length})`
+                    : ''}
+                </ha-button>
               </div>
             `}
+          <div class="audio-default-selector" style="padding: 8px 16px; border-top: 1px solid var(--divider-color);">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+              <ha-icon icon="mdi:microphone" style="color: var(--secondary-text-color);"></ha-icon>
+              <span style="font-size: 0.9em; font-weight: 500;">${this._localize('presets.default_audio_sensor')}</span>
+            </div>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{ entity: { domain: 'binary_sensor' } }}
+              .value=${this._prefs.state.audioOverrideEntity}
+              @value-changed=${this._handleAudioOverrideEntityChange}
+            ></ha-selector>
+          </div>
         </div>
       </ha-expansion-panel>
 
@@ -4330,7 +3601,7 @@ export class AqaraPanel extends LitElement {
               (p) => this._editEffectPreset(p),
               'effect',
               (p) => this._renderUserEffectIcon(p),
-              (presets, opt) => this._sortUserEffectPresets(presets, opt),
+              (presets, opt) => this._sortPresets(presets, opt),
               (p) => this._duplicateUserEffectPreset(p),
             )}
 
@@ -4340,7 +3611,7 @@ export class AqaraPanel extends LitElement {
               (p) => this._editPatternPreset(p),
               'segment_pattern',
               (p) => this._renderUserPatternIcon(p),
-              (presets, opt) => this._sortUserPatternPresets(presets, opt),
+              (presets, opt) => this._sortPresets(presets, opt),
               (p) => this._duplicateUserPatternPreset(p),
             )}
 
@@ -4351,7 +3622,7 @@ export class AqaraPanel extends LitElement {
                   (p) => this._editCCTSequencePreset(p),
                   'cct_sequence',
                   (p) => this._renderUserCCTIcon(p),
-                  (presets, opt) => this._sortUserCCTSequencePresets(presets, opt),
+                  (presets, opt) => this._sortPresets(presets, opt),
                   (p) => this._duplicateUserCCTSequencePreset(p),
                 )
               : ''}
@@ -4362,7 +3633,7 @@ export class AqaraPanel extends LitElement {
               (p) => this._editSegmentSequencePreset(p),
               'segment_sequence',
               (p) => this._renderUserSegmentSequenceIcon(p),
-              (presets, opt) => this._sortUserSegmentSequencePresets(presets, opt),
+              (presets, opt) => this._sortPresets(presets, opt),
               (p) => this._duplicateUserSegmentSequencePreset(p),
             )}
 
@@ -4373,7 +3644,7 @@ export class AqaraPanel extends LitElement {
                   (p) => this._editDynamicScenePreset(p),
                   'dynamic_scene',
                   (p) => this._renderUserDynamicSceneIcon(p),
-                  (presets, opt) => this._sortUserDynamicScenePresets(presets, opt),
+                  (presets, opt) => this._sortPresets(presets, opt),
                   (p) => this._duplicateUserDynamicScenePreset(p),
                 )
               : ''}
@@ -4434,7 +3705,7 @@ export class AqaraPanel extends LitElement {
     sortFn: (presets: T[], sortOption: PresetSortOption) => T[],
     onDuplicate: (preset: T) => void,
   ) {
-    const isExpanded = !this._collapsed[sectionId];
+    const isExpanded = !this._prefs.state.collapsed[sectionId];
     const sortOption = this._getSortPreference(sectionId);
     const sortedPresets = sortFn(presets, sortOption);
 
@@ -4561,57 +3832,20 @@ export class AqaraPanel extends LitElement {
   }
 
   // Duplicate user preset methods - open editor in create mode with preset data pre-filled
-  private _duplicateUserEffectPreset(preset: UserEffectPreset): void {
-    const copy: UserEffectPreset = {
-      ...preset,
-      id: '',
-      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
-      created_at: '',
-      modified_at: '',
-    };
-    this._clearEditorDraft('effects');
-    this._editingPreset = { type: 'effect', preset: copy, isDuplicate: true };
-    this._setActiveTab('effects');
+  private _duplicateUserPreset<T extends { id: string; name: string; created_at: string; modified_at: string }>(
+    preset: T, type: string, tab: PanelTab
+  ): void {
+    const copy = { ...preset, id: '', name: `${preset.name} ${this._localize('presets.copy_suffix')}`, created_at: '', modified_at: '' };
+    this._clearEditorDraft(tab);
+    this._editingPreset = { type, preset: copy as any, isDuplicate: true };
+    this._setActiveTab(tab);
   }
 
-  private _duplicateUserPatternPreset(preset: UserSegmentPatternPreset): void {
-    const copy: UserSegmentPatternPreset = {
-      ...preset,
-      id: '',
-      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
-      created_at: '',
-      modified_at: '',
-    };
-    this._clearEditorDraft('patterns');
-    this._editingPreset = { type: 'pattern', preset: copy, isDuplicate: true };
-    this._setActiveTab('patterns');
-  }
-
-  private _duplicateUserCCTSequencePreset(preset: UserCCTSequencePreset): void {
-    const copy: UserCCTSequencePreset = {
-      ...preset,
-      id: '',
-      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
-      created_at: '',
-      modified_at: '',
-    };
-    this._clearEditorDraft('cct');
-    this._editingPreset = { type: 'cct', preset: copy, isDuplicate: true };
-    this._setActiveTab('cct');
-  }
-
-  private _duplicateUserSegmentSequencePreset(preset: UserSegmentSequencePreset): void {
-    const copy: UserSegmentSequencePreset = {
-      ...preset,
-      id: '',
-      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
-      created_at: '',
-      modified_at: '',
-    };
-    this._clearEditorDraft('segments');
-    this._editingPreset = { type: 'segment', preset: copy, isDuplicate: true };
-    this._setActiveTab('segments');
-  }
+  private _duplicateUserEffectPreset(preset: UserEffectPreset): void { this._duplicateUserPreset(preset, 'effect', 'effects'); }
+  private _duplicateUserPatternPreset(preset: UserSegmentPatternPreset): void { this._duplicateUserPreset(preset, 'pattern', 'patterns'); }
+  private _duplicateUserCCTSequencePreset(preset: UserCCTSequencePreset): void { this._duplicateUserPreset(preset, 'cct', 'cct'); }
+  private _duplicateUserSegmentSequencePreset(preset: UserSegmentSequencePreset): void { this._duplicateUserPreset(preset, 'segment', 'segments'); }
+  private _duplicateUserDynamicScenePreset(preset: UserDynamicScenePreset): void { this._duplicateUserPreset(preset, 'dynamic_scene', 'scenes'); }
 
   private _editDynamicScenePreset(preset: UserDynamicScenePreset): void {
     this._clearEditorDraft('scenes');
@@ -4619,32 +3853,9 @@ export class AqaraPanel extends LitElement {
     this._setActiveTab('scenes');
   }
 
-  private _duplicateUserDynamicScenePreset(preset: UserDynamicScenePreset): void {
-    const copy: UserDynamicScenePreset = {
-      ...preset,
-      id: '',
-      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
-      created_at: '',
-      modified_at: '',
-    };
-    this._clearEditorDraft('scenes');
-    this._editingPreset = { type: 'dynamic_scene', preset: copy, isDuplicate: true };
-    this._setActiveTab('scenes');
-  }
-
   // Duplicate built-in preset methods - convert from built-in format to user format and open editor
   private _duplicateBuiltinEffectPreset(preset: DynamicEffectPreset, deviceType: string): void {
-    const userPreset: UserEffectPreset = {
-      id: '',
-      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
-      effect: preset.effect,
-      effect_speed: preset.speed,
-      effect_brightness: preset.brightness != null ? Math.round(preset.brightness / 255 * 100) : 100,
-      effect_colors: preset.colors.map((c) => rgbToXy(c[0]!, c[1]!, c[2]!)),
-      device_type: deviceType,
-      created_at: '',
-      modified_at: '',
-    };
+    const userPreset = builtinEffectToUser(preset, deviceType, this._localize('presets.copy_suffix'));
     this._clearEditorDraft('effects');
     this._editingPreset = { type: 'effect', preset: userPreset, isDuplicate: true };
     this._setActiveTab('effects');
@@ -4659,95 +3870,29 @@ export class AqaraPanel extends LitElement {
     }
   }
 
-  private _scaleSegmentPattern<T>(source: T[], targetCount: number): T[] {
-    const sourceCount = source.length;
-    if (targetCount < 1 || sourceCount < 1) return [];
-    if (targetCount === sourceCount) return [...source];
-    return Array.from({ length: targetCount }, (_, i) =>
-      source[Math.floor(i * sourceCount / targetCount)]!
-    );
-  }
-
   private _duplicateBuiltinPatternPreset(preset: SegmentPatternPreset, deviceType: string): void {
-    const targetCount = this._getDeviceSegmentCount(deviceType);
-    const scaled = this._scaleSegmentPattern(preset.segments, targetCount);
-    const userPreset: UserSegmentPatternPreset = {
-      id: '',
-      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
-      device_type: deviceType,
-      segments: scaled.map((seg, index) => ({
-        segment: index + 1,
-        color: { r: seg[0]!, g: seg[1]!, b: seg[2]! },
-      })),
-      created_at: '',
-      modified_at: '',
-    };
+    const userPreset = builtinPatternToUser(preset, deviceType, this._getDeviceSegmentCount(deviceType), this._localize('presets.copy_suffix'));
     this._clearEditorDraft('patterns');
     this._editingPreset = { type: 'pattern', preset: userPreset, isDuplicate: true };
     this._setActiveTab('patterns');
   }
 
   private _duplicateBuiltinCCTSequencePreset(preset: CCTSequencePreset): void {
-    const mode = (preset as any).mode as string | undefined;
-    const userPreset: UserCCTSequencePreset = {
-      id: '',
-      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
-      steps: mode ? [] : (preset.steps || []).map((step) => ({
-        ...step,
-        brightness: Math.round(step.brightness / 255 * 100),
-      })),
-      loop_mode: preset.loop_mode,
-      loop_count: preset.loop_count,
-      end_behavior: preset.end_behavior,
-      ...(mode === 'solar' ? { mode: 'solar', solar_steps: ((preset as any).solar_steps || []).map((s: any) => ({
-        ...s,
-        brightness: Math.round(s.brightness / 255 * 100),
-      })) } : {}),
-      ...(mode === 'schedule' ? { mode: 'schedule', schedule_steps: ((preset as any).schedule_steps || []).map((s: any) => ({
-        ...s,
-        brightness: Math.round(s.brightness / 255 * 100),
-      })) } : {}),
-      created_at: '',
-      modified_at: '',
-    };
+    const userPreset = builtinCCTToUser(preset, this._localize('presets.copy_suffix'));
     this._clearEditorDraft('cct');
     this._editingPreset = { type: 'cct', preset: userPreset, isDuplicate: true };
     this._setActiveTab('cct');
   }
 
   private _duplicateBuiltinSegmentSequencePreset(preset: SegmentSequencePreset, deviceType: string): void {
-    const userPreset: UserSegmentSequencePreset = {
-      id: '',
-      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
-      device_type: deviceType,
-      steps: preset.steps.map((step) => ({ ...step })),
-      loop_mode: preset.loop_mode,
-      loop_count: preset.loop_count,
-      end_behavior: preset.end_behavior,
-      created_at: '',
-      modified_at: '',
-    };
+    const userPreset = builtinSegmentSequenceToUser(preset, deviceType, this._localize('presets.copy_suffix'));
     this._clearEditorDraft('segments');
     this._editingPreset = { type: 'segment', preset: userPreset, isDuplicate: true };
     this._setActiveTab('segments');
   }
 
   private _duplicateBuiltinDynamicScenePreset(preset: DynamicScenePreset): void {
-    const userPreset: UserDynamicScenePreset = {
-      id: '',
-      name: `${preset.name} ${this._localize('presets.copy_suffix')}`,
-      colors: preset.colors.map((color) => ({ ...color })),
-      transition_time: preset.transition_time,
-      hold_time: preset.hold_time,
-      distribution_mode: preset.distribution_mode,
-      offset_delay: preset.offset_delay,
-      random_order: preset.random_order,
-      loop_mode: preset.loop_mode,
-      loop_count: preset.loop_count,
-      end_behavior: preset.end_behavior,
-      created_at: '',
-      modified_at: '',
-    };
+    const userPreset = builtinDynamicSceneToUser(preset, this._localize('presets.copy_suffix'));
     this._clearEditorDraft('scenes');
     this._editingPreset = { type: 'dynamic_scene', preset: userPreset, isDuplicate: true };
     this._setActiveTab('scenes');
@@ -4816,7 +3961,7 @@ export class AqaraPanel extends LitElement {
     if (compatible.length === 0) return '';
 
     const sectionId = 'favorite_presets';
-    const isExpanded = !this._collapsed[sectionId];
+    const isExpanded = !this._prefs.state.collapsed[sectionId];
     const sortOption = this._getSortPreference(sectionId);
     const sortedFavorites = this._sortResolvedFavorites(compatible, sortOption);
 
@@ -4856,14 +4001,15 @@ export class AqaraPanel extends LitElement {
 
   private _renderDynamicEffectsSection(title: string, presets: DynamicEffectPreset[], deviceType: string) {
     const sectionId = `dynamic_${title.toLowerCase().replace(/\s+/g, '_')}`;
-    const isExpanded = !this._collapsed[sectionId];
+    const isExpanded = !this._prefs.state.collapsed[sectionId];
     const userPresets = this._getUserEffectPresetsForDeviceType(deviceType);
-    const totalCount = userPresets.length + presets.length;
+    const visibleBuiltinPresets = presets.filter(p => !this._isBuiltinPresetHidden('effect', p.id));
+    const totalCount = userPresets.length + visibleBuiltinPresets.length;
 
     // Apply sorting
     const sortOption = this._getSortPreference(sectionId);
-    const sortedUserPresets = this._sortUserEffectPresets(userPresets, sortOption);
-    const sortedBuiltinPresets = this._sortDynamicEffectPresets(presets, sortOption);
+    const sortedUserPresets = this._sortPresets(userPresets, sortOption);
+    const sortedBuiltinPresets = this._sortPresets(visibleBuiltinPresets, sortOption);
 
     return html`
       <ha-expansion-panel
@@ -4908,6 +4054,7 @@ export class AqaraPanel extends LitElement {
                     <ha-icon icon="mdi:content-copy"></ha-icon>
                   </ha-icon-button>
                 </div>
+                ${this._renderHideButton('effect', preset.id)}
                 <div class="preset-icon">
                   ${this._renderPresetIcon(preset.icon, 'mdi:lightbulb-on')}
                 </div>
@@ -4922,7 +4069,7 @@ export class AqaraPanel extends LitElement {
 
   private _renderMusicSyncSection() {
     const sectionId = 'music_sync';
-    const isExpanded = !this._collapsed[sectionId];
+    const isExpanded = !this._prefs.state.collapsed[sectionId];
 
     const effects = [
       { id: 'random', icon: 'random.svg' },
@@ -5008,7 +4155,7 @@ export class AqaraPanel extends LitElement {
     this._musicSyncEnabled = enabled;
 
     // Get T1 Strip entities from selection
-    const stripEntities = this._selectedEntities.filter(entityId => {
+    const stripEntities = this._prefs.state.selectedEntities.filter(entityId => {
       const dt = this._getEntityDeviceType(entityId);
       return dt === 't1_strip';
     });
@@ -5026,7 +4173,7 @@ export class AqaraPanel extends LitElement {
     this._musicSyncSensitivity = sensitivity;
     if (!this._musicSyncEnabled) return;
 
-    const stripEntities = this._selectedEntities.filter(entityId => {
+    const stripEntities = this._prefs.state.selectedEntities.filter(entityId => {
       const dt = this._getEntityDeviceType(entityId);
       return dt === 't1_strip';
     });
@@ -5044,7 +4191,7 @@ export class AqaraPanel extends LitElement {
     this._musicSyncEffect = effect;
     if (!this._musicSyncEnabled) return;
 
-    const stripEntities = this._selectedEntities.filter(entityId => {
+    const stripEntities = this._prefs.state.selectedEntities.filter(entityId => {
       const dt = this._getEntityDeviceType(entityId);
       return dt === 't1_strip';
     });
@@ -5058,84 +4205,17 @@ export class AqaraPanel extends LitElement {
     });
   }
 
-  private _renderMusicSyncOp(op: RunningOperation) {
-    const entityName = this._getEntityName(op.entity_id!);
-    return html`
-      <div class="running-op-card">
-        <div class="running-op-info">
-          <ha-icon class="running-op-icon" icon="mdi:music-note"></ha-icon>
-          <div class="running-op-details">
-            <span class="running-op-name">${this._localize('music_sync.active_label')}</span>
-            <span class="running-op-entity">
-              <span class="running-op-type">${this._localize('music_sync.title')}</span>
-              <span class="running-op-entity-name">${entityName}</span>
-            </span>
-          </div>
-        </div>
-        <div class="running-op-actions">
-          <ha-icon-button
-            .label=${this._localize('target.stop')}
-            @click=${() => this._stopMusicSync(op.entity_id!)}
-          >
-            <ha-icon icon="mdi:stop"></ha-icon>
-          </ha-icon-button>
-        </div>
-      </div>
-    `;
-  }
-
-  private async _stopMusicSync(entityId: string): Promise<void> {
-    await this.hass.callService('aqara_advanced_lighting', 'set_music_sync', {
-      entity_id: [entityId],
-      enabled: false,
-    });
-  }
-
-  private _renderCircadianOp(op: RunningOperation) {
-    const entityName = this._getEntityName(op.entity_id!);
-    const preset = this._resolvePresetInfo(op.preset_id);
-    return html`
-      <div class="running-op-card">
-        <div class="running-op-info">
-          <ha-icon class="running-op-icon" icon="${preset.icon || 'mdi:white-balance-sunny'}"></ha-icon>
-          <div class="running-op-details">
-            <span class="running-op-name">${preset.name || this._localize('target.circadian_label')}</span>
-            <span class="running-op-entity">
-              ${preset.name ? html`<span class="running-op-type">${this._localize('target.circadian_label')}</span>` : ''}
-              <span class="running-op-entity-name">${entityName}</span>
-              ${op.current_color_temp ? html`<span class="running-op-status">${op.current_color_temp}K</span>` : ''}
-            </span>
-          </div>
-        </div>
-        <div class="running-op-actions">
-          <ha-icon-button
-            .label=${this._localize('target.stop')}
-            @click=${() => this._stopCircadian(op.entity_id!)}
-          >
-            <ha-icon icon="mdi:stop"></ha-icon>
-          </ha-icon-button>
-        </div>
-      </div>
-    `;
-  }
-
-  private async _stopCircadian(entityId: string): Promise<void> {
-    await this.hass.callService('aqara_advanced_lighting', 'stop_circadian_mode', {
-      entity_id: [entityId],
-    });
-    await this._loadRunningOperations();
-  }
-
   private _renderSegmentPatternsSection(title: string, builtinPresets: SegmentPatternPreset[], deviceType: string) {
     const sectionId = `segment_pat_${title.toLowerCase().replace(/\s+/g, '_')}`;
-    const isExpanded = !this._collapsed[sectionId];
+    const isExpanded = !this._prefs.state.collapsed[sectionId];
     const userPresets = this._getUserPatternPresetsForDeviceType(deviceType);
-    const totalCount = userPresets.length + builtinPresets.length;
+    const visibleBuiltinPresets = builtinPresets.filter(p => !this._isBuiltinPresetHidden('segment_pattern', p.id));
+    const totalCount = userPresets.length + visibleBuiltinPresets.length;
 
     // Apply sorting
     const sortOption = this._getSortPreference(sectionId);
-    const sortedUserPresets = this._sortUserPatternPresets(userPresets, sortOption);
-    const sortedBuiltinPresets = this._sortSegmentPatternPresets(builtinPresets, sortOption);
+    const sortedUserPresets = this._sortPresets(userPresets, sortOption);
+    const sortedBuiltinPresets = this._sortPresets(visibleBuiltinPresets, sortOption);
 
     return html`
       <ha-expansion-panel
@@ -5180,6 +4260,7 @@ export class AqaraPanel extends LitElement {
                     <ha-icon icon="mdi:content-copy"></ha-icon>
                   </ha-icon-button>
                 </div>
+                ${this._renderHideButton('segment_pattern', preset.id)}
                 <div class="preset-icon">
                   ${this._renderPresetIcon(preset.icon, 'mdi:palette')}
                 </div>
@@ -5247,27 +4328,35 @@ export class AqaraPanel extends LitElement {
     if (preset.icon) {
       return this._renderPresetIcon(preset.icon, 'mdi:lamps');
     }
-    return renderDynamicSceneThumbnail(preset)
+    const thumb = renderDynamicSceneThumbnail(preset)
       ?? html`<ha-icon icon="mdi:lamps"></ha-icon>`;
+    if (preset.audio_entity || preset.audio_color_advance) {
+      return html`${thumb}<span class="audio-badge"><ha-icon icon="mdi:waveform"></ha-icon></span>`;
+    }
+    return thumb;
   }
 
   /** Render a builtin dynamic scene preset icon: always use gradient thumbnail. */
   private _renderBuiltinDynamicSceneIcon(preset: DynamicScenePreset) {
-    return renderDynamicSceneThumbnail(preset)
+    const thumb = renderDynamicSceneThumbnail(preset)
       ?? html`<ha-icon icon="mdi:lamps"></ha-icon>`;
+    if (preset.audio_color_advance) {
+      return html`${thumb}<span class="audio-badge"><ha-icon icon="mdi:waveform"></ha-icon></span>`;
+    }
+    return thumb;
   }
 
   private _renderCCTSequencesSection() {
     const sectionId = 'cct_sequences';
-    const isExpanded = !this._collapsed[sectionId];
+    const isExpanded = !this._prefs.state.collapsed[sectionId];
     const userPresets = this._getFilteredUserCCTSequencePresets();
-    const builtinPresets = this._presets!.cct_sequences;
-    const totalCount = userPresets.length + builtinPresets.length;
+    const visibleBuiltinPresets = this._presets!.cct_sequences.filter(p => !this._isBuiltinPresetHidden('cct_sequence', p.id));
+    const totalCount = userPresets.length + visibleBuiltinPresets.length;
 
     // Apply sorting
     const sortOption = this._getSortPreference(sectionId);
-    const sortedUserPresets = this._sortUserCCTSequencePresets(userPresets, sortOption);
-    const sortedBuiltinPresets = this._sortCCTSequencePresets(builtinPresets, sortOption);
+    const sortedUserPresets = this._sortPresets(userPresets, sortOption);
+    const sortedBuiltinPresets = this._sortPresets(visibleBuiltinPresets, sortOption);
 
     return html`
       <ha-expansion-panel
@@ -5312,6 +4401,7 @@ export class AqaraPanel extends LitElement {
                     <ha-icon icon="mdi:content-copy"></ha-icon>
                   </ha-icon-button>
                 </div>
+                ${this._renderHideButton('cct_sequence', preset.id)}
                 <div class="preset-icon">
                   ${this._renderPresetIcon(preset.icon, 'mdi:temperature-kelvin')}
                 </div>
@@ -5326,14 +4416,15 @@ export class AqaraPanel extends LitElement {
 
   private _renderSegmentSequencesSection(title: string, builtinPresets: SegmentSequencePreset[], deviceType: string) {
     const sectionId = `segment_seq_${title.toLowerCase().replace(/\s+/g, '_')}`;
-    const isExpanded = !this._collapsed[sectionId];
+    const isExpanded = !this._prefs.state.collapsed[sectionId];
     const userPresets = this._getUserSegmentSequencePresetsForDeviceType(deviceType);
-    const totalCount = userPresets.length + builtinPresets.length;
+    const visibleBuiltinPresets = builtinPresets.filter(p => !this._isBuiltinPresetHidden('segment_sequence', p.id));
+    const totalCount = userPresets.length + visibleBuiltinPresets.length;
 
     // Apply sorting
     const sortOption = this._getSortPreference(sectionId);
-    const sortedUserPresets = this._sortUserSegmentSequencePresets(userPresets, sortOption);
-    const sortedBuiltinPresets = this._sortSegmentSequencePresets(builtinPresets, sortOption);
+    const sortedUserPresets = this._sortPresets(userPresets, sortOption);
+    const sortedBuiltinPresets = this._sortPresets(visibleBuiltinPresets, sortOption);
 
     return html`
       <ha-expansion-panel
@@ -5378,6 +4469,7 @@ export class AqaraPanel extends LitElement {
                     <ha-icon icon="mdi:content-copy"></ha-icon>
                   </ha-icon-button>
                 </div>
+                ${this._renderHideButton('segment_sequence', preset.id)}
                 <div class="preset-icon">
                   ${this._renderPresetIcon(preset.icon, 'mdi:animation-play')}
                 </div>
@@ -5392,15 +4484,15 @@ export class AqaraPanel extends LitElement {
 
   private _renderDynamicScenesSection() {
     const sectionId = 'dynamic_scenes';
-    const isExpanded = !this._collapsed[sectionId];
+    const isExpanded = !this._prefs.state.collapsed[sectionId];
     const userPresets = this._getFilteredUserDynamicScenePresets();
-    const builtinPresets = this._presets!.dynamic_scenes || [];
-    const totalCount = userPresets.length + builtinPresets.length;
+    const visibleBuiltinPresets = (this._presets!.dynamic_scenes || []).filter(p => !this._isBuiltinPresetHidden('dynamic_scene', p.id));
+    const totalCount = userPresets.length + visibleBuiltinPresets.length;
 
     // Apply sorting
     const sortOption = this._getSortPreference(sectionId);
-    const sortedUserPresets = this._sortUserDynamicScenePresets(userPresets, sortOption);
-    const sortedBuiltinPresets = this._sortDynamicScenePresets(builtinPresets, sortOption);
+    const sortedUserPresets = this._sortPresets(userPresets, sortOption);
+    const sortedBuiltinPresets = this._sortPresets(visibleBuiltinPresets, sortOption);
 
     return html`
       <ha-expansion-panel
@@ -5445,6 +4537,7 @@ export class AqaraPanel extends LitElement {
                     <ha-icon icon="mdi:content-copy"></ha-icon>
                   </ha-icon-button>
                 </div>
+                ${this._renderHideButton('dynamic_scene', preset.id)}
                 <div class="preset-icon">
                   ${this._renderBuiltinDynamicSceneIcon(preset)}
                 </div>
@@ -5457,950 +4550,6 @@ export class AqaraPanel extends LitElement {
     `;
   }
 
-  private _renderConfigTab() {
-    const hasSelection = this._selectedEntities.length > 0;
-    const deviceTypes = this._getSelectedDeviceTypes();
-    const hasT2Device = deviceTypes.includes('t2_bulb') || deviceTypes.includes('t2_cct');
-    const hasT1Strip = deviceTypes.includes('t1_strip');
-    const hasSegmentDevice = deviceTypes.includes('t1m') || deviceTypes.includes('t1_strip');
-
-    // Find T2 config entities - first one for display, all for applying
-    const transitionCurveEntity = this._findTransitionCurveEntity();
-    const initialBrightnessEntity = this._findInitialBrightnessEntity();
-
-    // Find T1 Strip length entity
-    const t1StripLengthEntity = this._findT1StripLengthEntity();
-
-    // Find dimming entities - first one for display (all lights support these)
-    const onOffDurationEntity = this._findOnOffDurationEntity();
-    const offOnDurationEntity = this._findOffOnDurationEntity();
-    const dimmingRangeMinEntity = this._findDimmingRangeMinEntity();
-    const dimmingRangeMaxEntity = this._findDimmingRangeMaxEntity();
-
-    // Get current values from number entities
-    const initialBrightnessValue = initialBrightnessEntity && this.hass?.states[initialBrightnessEntity]
-      ? parseFloat(this.hass.states[initialBrightnessEntity].state) || 0
-      : 0;
-
-    const t1StripLengthValue = t1StripLengthEntity && this.hass?.states[t1StripLengthEntity]
-      ? parseFloat(this.hass.states[t1StripLengthEntity].state) || 2
-      : 2;
-
-    const onOffDurationValue = onOffDurationEntity && this.hass?.states[onOffDurationEntity]
-      ? parseFloat(this.hass.states[onOffDurationEntity].state) || 0
-      : 0;
-
-    const offOnDurationValue = offOnDurationEntity && this.hass?.states[offOnDurationEntity]
-      ? parseFloat(this.hass.states[offOnDurationEntity].state) || 0
-      : 0;
-
-    const dimmingRangeMinValue = dimmingRangeMinEntity && this.hass?.states[dimmingRangeMinEntity]
-      ? parseFloat(this.hass.states[dimmingRangeMinEntity].state) || 1
-      : 1;
-
-    const dimmingRangeMaxValue = dimmingRangeMaxEntity && this.hass?.states[dimmingRangeMaxEntity]
-      ? parseFloat(this.hass.states[dimmingRangeMaxEntity].state) || 100
-      : 100;
-
-    // Check if any dimming controls are available (number entities from Z2M or ZHA quirk)
-    const hasDimmingEntities = onOffDurationEntity || offOnDurationEntity || dimmingRangeMinEntity || dimmingRangeMaxEntity;
-
-    return html`
-      <!-- Zigbee Instances Info Section -->
-      <ha-expansion-panel
-        outlined
-        .expanded=${!this._collapsed['instances']}
-        @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange('instances', e)}
-      >
-        <div slot="header" class="section-header">
-          <div>
-            <div class="section-title">${this._localize('instances.section_title')}</div>
-            <div class="section-subtitle">${(() => {
-              const instanceCount = this._z2mInstances.length;
-              const deviceCount = this._z2mInstances.reduce((sum, i) => sum + i.device_counts.total, 0);
-              const key = instanceCount === 1 && deviceCount === 1 ? 'instances.subtitle_single' : 'instances.subtitle_plural';
-              return this._localize(key, { count: String(instanceCount), devices: String(deviceCount) });
-            })()}</div>
-          </div>
-        </div>
-        <div class="section-content" style="display: block; padding: 0;">
-          ${this._z2mInstances.length === 0
-            ? html`
-                <div style="padding: 16px; text-align: center; color: var(--secondary-text-color);">
-                  <ha-icon icon="mdi:information-outline" style="margin-right: 8px;"></ha-icon>
-                  ${this._localize('instances.no_instances')}
-                </div>
-              `
-            : html`
-                <div class="instance-grid">
-                  ${this._z2mInstances.map(instance => {
-                    const isExpanded = this._instanceDevicesExpanded.has(instance.entry_id);
-                    const maxVisible = 5;
-                    const visibleDevices = isExpanded ? instance.devices : instance.devices.slice(0, maxVisible);
-                    const hiddenCount = instance.devices.length - maxVisible;
-                    const isZ2M = instance.backend_type === 'z2m';
-
-                    const typeCounts: Array<{ key: string; count: number }> = [];
-                    if (instance.device_counts.t2_rgb > 0) typeCounts.push({ key: 't2_rgb', count: instance.device_counts.t2_rgb });
-                    if (instance.device_counts.t2_cct > 0) typeCounts.push({ key: 't2_cct', count: instance.device_counts.t2_cct });
-                    if (instance.device_counts.t1m > 0) typeCounts.push({ key: 't1m', count: instance.device_counts.t1m });
-                    if (instance.device_counts.t1_strip > 0) typeCounts.push({ key: 't1_strip', count: instance.device_counts.t1_strip });
-                    if (instance.device_counts.other > 0) typeCounts.push({ key: 'other', count: instance.device_counts.other });
-
-                    return html`
-                      <div class="instance-card">
-                        <div class="instance-header">
-                          <span class="instance-badge ${isZ2M ? 'instance-badge--z2m' : 'instance-badge--zha'}">
-                            ${isZ2M ? 'Z2M' : 'ZHA'}
-                          </span>
-                          <div class="instance-info">
-                            <span class="instance-name">${instance.title}</span>
-                            ${isZ2M && instance.z2m_base_topic && instance.title !== instance.z2m_base_topic ? html`
-                              <span class="instance-topic">${instance.z2m_base_topic}</span>
-                            ` : ''}
-                          </div>
-                        </div>
-                        ${typeCounts.length > 0 ? html`
-                          <div class="instance-type-chips">
-                            ${typeCounts.map(tc => html`
-                              <span class="instance-type-chip">${this._localize('instances.' + tc.key)} x${tc.count}</span>
-                            `)}
-                          </div>
-                        ` : ''}
-                        ${instance.devices.length > 0 ? html`
-                          <div class="instance-device-chips">
-                            ${visibleDevices.map(device => html`
-                              <span class="instance-device-chip">${device}</span>
-                            `)}
-                            ${!isExpanded && hiddenCount > 0 ? html`
-                              <span
-                                class="instance-device-chip instance-device-chip--more"
-                                @click=${() => this._toggleInstanceDevices(instance.entry_id)}
-                              >
-                                ${this._localize('instances.more_devices', { count: String(hiddenCount) })}
-                              </span>
-                            ` : ''}
-                            ${isExpanded && hiddenCount > 0 ? html`
-                              <span
-                                class="instance-device-chip instance-device-chip--more"
-                                @click=${() => this._toggleInstanceDevices(instance.entry_id)}
-                              >
-                                ${this._localize('instances.show_less')}
-                              </span>
-                            ` : ''}
-                          </div>
-                        ` : ''}
-                      </div>
-                    `;
-                  })}
-                </div>
-              `}
-        </div>
-      </ha-expansion-panel>
-
-      <!-- Generic Lights Section -->
-      <ha-expansion-panel
-        outlined
-        .expanded=${this._collapsed['generic_lights'] === undefined ? false : !this._collapsed['generic_lights']}
-        @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange('generic_lights', e)}
-      >
-        <div slot="header" class="section-header">
-          <div>
-            <div class="section-title">${this._localize('config.generic_lights_title')}</div>
-            <div class="section-subtitle">${this._localize('config.generic_lights_subtitle')}</div>
-          </div>
-        </div>
-        <div class="section-content" style="display: block; padding: 16px;">
-          <p style="margin: 0 0 16px 0; font-size: var(--ha-font-size-s, 12px); color: var(--secondary-text-color);">${this._localize('config.software_transitions_description')}</p>
-          <ha-selector
-            .hass=${this.hass}
-            .selector=${{ entity: { domain: 'light', multiple: true } }}
-            .value=${this._softwareTransitionEntities}
-            .label=${this._localize('config.software_transitions_label')}
-            @value-changed=${this._softwareTransitionEntitiesChanged}
-          ></ha-selector>
-        </div>
-      </ha-expansion-panel>
-
-      ${!hasSelection
-        ? html`
-            <ha-card class="controls">
-              <div class="control-row">
-                <div class="control-input">
-                  <ha-alert alert-type="info">
-                    ${this._localize('config.select_light_message')}
-                  </ha-alert>
-                </div>
-              </div>
-            </ha-card>
-          `
-        : ''}
-
-      ${hasT2Device
-        ? html`
-            <ha-expansion-panel
-              outlined
-              .expanded=${true}
-            >
-              <div slot="header" class="section-header">
-                <div>
-                  <div class="section-title">${this._localize('config.transition_settings')}</div>
-                </div>
-              </div>
-              <div class="section-content" style="display: block; padding: 0;">
-                <div class="transition-settings-grid">
-                  <div class="transition-curve-column">
-                    <transition-curve-editor
-                      .hass=${this.hass}
-                      .curvature=${this._localCurvature}
-                      @curvature-input=${this._handleCurvatureInput}
-                    ></transition-curve-editor>
-                  </div>
-                  <div class="initial-brightness-column">
-                    <div class="initial-brightness-content">
-                      <!-- Curvature controls -->
-                      <div class="form-section" style="margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--divider-color);">
-                        <div class="curve-control-row">
-                          <div class="curve-control-info">
-                            <span class="form-label">${this._localize('config.custom_curvature_label')}</span>
-                            <div style="font-size: var(--ha-font-size-s, 12px); color: var(--secondary-text-color);">
-                              ${this._getCurvatureDescription()}
-                            </div>
-                          </div>
-                          <div class="curve-control-actions">
-                            <ha-selector
-                              .hass=${this.hass}
-                              .selector=${{
-                                number: {
-                                  min: 0.2,
-                                  max: 6,
-                                  step: 0.01,
-                                  mode: 'box',
-                                },
-                              }}
-                              .value=${this._localCurvature}
-                              @value-changed=${this._handleCurvatureNumberChange}
-                              style="width: 80px;"
-                            ></ha-selector>
-                            <ha-button
-                              @click=${this._applyCurvature}
-                              ?disabled=${!transitionCurveEntity || this._applyingCurvature || this._curvatureApplied}
-                            >
-                              ${this._curvatureApplied
-                                ? html`<ha-svg-icon .path=${'M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z'}></ha-svg-icon> ${this._localize('config.curvature_applied_button')}`
-                                : this._applyingCurvature
-                                  ? this._localize('config.applying_button')
-                                  : this._localize('config.apply_button')}
-                            </ha-button>
-                          </div>
-                        </div>
-                        <div class="curve-legend">
-                          <span class="legend-item">
-                            <span class="legend-dot fast-slow"></span>
-                            ${this._localize('config.curve_legend_fast_slow')}
-                          </span>
-                          <span class="legend-item">
-                            <span class="legend-dot linear"></span>
-                            ${this._localize('config.curve_legend_linear')}
-                          </span>
-                          <span class="legend-item">
-                            <span class="legend-dot slow-fast"></span>
-                            ${this._localize('config.curve_legend_slow_fast')}
-                          </span>
-                        </div>
-                      </div>
-
-                      <!-- Initial Brightness -->
-                      <div class="form-section">
-                        <span class="form-label">${this._localize('config.initial_brightness_label')}</span>
-                        <ha-selector
-                          .hass=${this.hass}
-                          .selector=${{
-                            number: {
-                              min: 0,
-                              max: 50,
-                              step: 1,
-                              mode: 'slider',
-                              unit_of_measurement: '%',
-                            },
-                          }}
-                          .value=${initialBrightnessValue}
-                          @value-changed=${(e: CustomEvent) => this._handleInitialBrightnessChange(e)}
-                          ?disabled=${!initialBrightnessEntity}
-                        ></ha-selector>
-                        ${!initialBrightnessEntity ? html`
-                          <div style="margin-top: 8px; font-size: var(--ha-font-size-s, 12px); color: var(--secondary-text-color);">
-                            ${this._localize('config.initial_brightness_not_found')}
-                          </div>
-                        ` : ''}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </ha-expansion-panel>
-          `
-        : ''}
-
-      ${hasSelection
-        ? html`
-            <ha-expansion-panel
-              outlined
-              .expanded=${true}
-            >
-              <div slot="header" class="section-header">
-                <div>
-                  <div class="section-title">${this._localize('config.dimming_settings_title')}</div>
-                </div>
-              </div>
-              <div class="section-content" style="display: block; padding: 0;">
-                <div class="dimming-settings-grid">
-                  <div class="dimming-setting-item">
-                    <div class="dimming-setting-content">
-                      <span class="form-label">${this._localize('config.on_to_off_duration_label')}</span>
-                      <ha-selector
-                        .hass=${this.hass}
-                        .selector=${{
-                          number: {
-                            min: 0,
-                            max: 10,
-                            step: 0.1,
-                            mode: 'slider',
-                            unit_of_measurement: 's',
-                          },
-                        }}
-                        .value=${onOffDurationValue}
-                        @value-changed=${(e: CustomEvent) => this._handleOnOffDurationChange(e)}
-                        ?disabled=${!onOffDurationEntity}
-                      ></ha-selector>
-                      ${!onOffDurationEntity ? html`
-                        <div class="entity-not-found">${this._localize('config.entity_not_found')}</div>
-                      ` : ''}
-                    </div>
-                  </div>
-                  <div class="dimming-setting-item">
-                    <div class="dimming-setting-content">
-                      <span class="form-label">${this._localize('config.off_to_on_duration_label')}</span>
-                      <ha-selector
-                        .hass=${this.hass}
-                        .selector=${{
-                          number: {
-                            min: 0,
-                            max: 10,
-                            step: 0.1,
-                            mode: 'slider',
-                            unit_of_measurement: 's',
-                          },
-                        }}
-                        .value=${offOnDurationValue}
-                        @value-changed=${(e: CustomEvent) => this._handleOffOnDurationChange(e)}
-                        ?disabled=${!offOnDurationEntity}
-                      ></ha-selector>
-                      ${!offOnDurationEntity ? html`
-                        <div class="entity-not-found">${this._localize('config.entity_not_found')}</div>
-                      ` : ''}
-                    </div>
-                  </div>
-                  <div class="dimming-setting-item">
-                    <div class="dimming-setting-content">
-                      <span class="form-label">${this._localize('config.dimming_range_min_label')}</span>
-                      <ha-selector
-                        .hass=${this.hass}
-                        .selector=${{
-                          number: {
-                            min: 1,
-                            max: Math.min(99, dimmingRangeMaxValue - 1),
-                            step: 1,
-                            mode: 'slider',
-                            unit_of_measurement: '%',
-                          },
-                        }}
-                        .value=${dimmingRangeMinValue}
-                        @value-changed=${(e: CustomEvent) => this._handleDimmingRangeMinChange(e)}
-                        ?disabled=${!dimmingRangeMinEntity}
-                      ></ha-selector>
-                      ${!dimmingRangeMinEntity ? html`
-                        <div class="entity-not-found">${this._localize('config.entity_not_found')}</div>
-                      ` : ''}
-                    </div>
-                  </div>
-                  <div class="dimming-setting-item">
-                    <div class="dimming-setting-content">
-                      <span class="form-label">${this._localize('config.dimming_range_max_label')}</span>
-                      <ha-selector
-                        .hass=${this.hass}
-                        .selector=${{
-                          number: {
-                            min: Math.max(2, dimmingRangeMinValue + 1),
-                            max: 100,
-                            step: 1,
-                            mode: 'slider',
-                            unit_of_measurement: '%',
-                          },
-                        }}
-                        .value=${dimmingRangeMaxValue}
-                        @value-changed=${(e: CustomEvent) => this._handleDimmingRangeMaxChange(e)}
-                        ?disabled=${!dimmingRangeMaxEntity}
-                      ></ha-selector>
-                      ${!dimmingRangeMaxEntity ? html`
-                        <div class="entity-not-found">${this._localize('config.entity_not_found')}</div>
-                      ` : ''}
-                    </div>
-                  </div>
-                </div>
-                ${!hasDimmingEntities ? html`
-                  <div style="padding: 16px; text-align: center; color: var(--secondary-text-color);">
-                    <ha-icon icon="mdi:information-outline" style="margin-right: 8px;"></ha-icon>
-                    ${this._localize('config.dimming_not_available')}
-                  </div>
-                ` : ''}
-              </div>
-            </ha-expansion-panel>
-          `
-        : ''}
-
-      ${hasT1Strip
-        ? html`
-            <ha-expansion-panel
-              outlined
-              .expanded=${true}
-            >
-              <div slot="header" class="section-header">
-                <div>
-                  <div class="section-title">${this._localize('sections.t1_strip_settings')}</div>
-                </div>
-              </div>
-              <div class="section-content" style="display: block; padding: 16px;">
-                <div class="form-section">
-                  <span class="form-label">${this._localize('config.strip_length_label')}</span>
-                  <ha-selector
-                    .hass=${this.hass}
-                    .selector=${{
-                      number: {
-                        min: 1,
-                        max: 10,
-                        step: 0.2,
-                        mode: 'slider',
-                        unit_of_measurement: 'm',
-                      },
-                    }}
-                    .value=${t1StripLengthValue}
-                    @value-changed=${(e: CustomEvent) => this._handleT1StripLengthChange(e)}
-                    ?disabled=${!t1StripLengthEntity}
-                  ></ha-selector>
-                  <div style="margin-top: 8px; font-size: var(--ha-font-size-s, 12px); color: var(--secondary-text-color);">
-                    ${t1StripLengthEntity
-                      ? this._localize('config.strip_length_info')
-                      : this._localize('config.strip_length_not_found')}
-                  </div>
-                </div>
-              </div>
-            </ha-expansion-panel>
-          `
-        : ''}
-
-      ${hasSegmentDevice ? this._renderSegmentZonesSection() : ''}
-
-    `;
-  }
-
-  private _softwareTransitionEntitiesChanged(e: CustomEvent): void {
-    this._softwareTransitionEntities = e.detail.value || [];
-    this._saveGlobalPreferences();
-  }
-
-  private _renderSegmentZonesSection() {
-    const segmentDevices = this._getSelectedSegmentDevices();
-
-    if (segmentDevices.size === 0) {
-      // Only show info message if there is a selection but no segment devices
-      if (this._selectedEntities.length > 0) {
-        const deviceTypes = this._getSelectedDeviceTypes();
-        const hasNonSegmentDevice = deviceTypes.some(dt => dt !== 't1m' && dt !== 't1_strip');
-        if (hasNonSegmentDevice) {
-          return html`
-            <ha-expansion-panel outlined .expanded=${false}>
-              <div slot="header" class="section-header">
-                <div>
-                  <div class="section-title">${this._localize('config.segment_zones_title')}</div>
-                  <div class="section-subtitle">${this._localize('config.segment_zones_subtitle')}</div>
-                </div>
-              </div>
-              <div class="section-content" style="display: block; padding: 16px;">
-                <ha-alert alert-type="info">
-                  ${this._localize('config.zone_no_segment_devices')}
-                </ha-alert>
-              </div>
-            </ha-expansion-panel>
-          `;
-        }
-      }
-      return '';
-    }
-
-    // Count total zones across all devices for the subtitle
-    const totalZones = Array.from(segmentDevices.keys()).reduce(
-      (sum, ieee) => sum + (this._zoneEditing.get(ieee) || []).length, 0,
-    );
-    const deviceCount = segmentDevices.size;
-    const zoneSectionId = 'segment_zones';
-    const isZonesExpanded = this._collapsed[zoneSectionId] === undefined ? true : !this._collapsed[zoneSectionId];
-
-    return html`
-      <ha-expansion-panel
-        outlined
-        .expanded=${isZonesExpanded}
-        @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange(zoneSectionId, e)}
-      >
-        <div slot="header" class="section-header">
-          <div>
-            <div class="section-title">${this._localize('config.segment_zones_title')}</div>
-            <div class="section-subtitle">${totalZones > 0
-              ? this._localize('config.segment_zones_subtitle_count', { zones: totalZones.toString(), devices: deviceCount.toString() })
-              : this._localize('config.segment_zones_subtitle')}</div>
-          </div>
-        </div>
-        <div class="section-content" style="display: block; padding: 0;">
-          ${Array.from(segmentDevices.entries()).map(([ieee, device]) => {
-            const editZones = this._zoneEditing.get(ieee) || [];
-            const modified = this._zonesModified(ieee);
-            return html`
-              <div class="zone-device-section">
-                <div class="zone-device-header">
-                  <ha-icon icon="${this._getEntityIcon(device.entity_id)}"></ha-icon>
-                  <span>${device.z2m_friendly_name}</span>
-                  <span class="zone-device-segments">${this._localize('config.segment_count', { count: device.segment_count.toString() })}</span>
-                </div>
-                <div class="zone-device-toolbar">
-                  <ha-button @click=${() => this._addZoneRow(ieee)}>
-                    <ha-icon icon="mdi:plus"></ha-icon>
-                    <span class="zone-btn-label">${this._localize('config.zone_add_button')}</span>
-                  </ha-button>
-                  <div class="toolbar-spacer"></div>
-                  ${modified ? html`
-                    <span class="zone-unsaved-indicator">
-                      <span class="zone-unsaved-dot"></span>
-                      ${this._localize('config.zone_unsaved_changes')}
-                    </span>
-                  ` : ''}
-                  <ha-button
-                    @click=${() => this._saveZones(ieee, device.segment_count)}
-                    ?disabled=${!modified || this._zoneSaving}
-                  >
-                    <ha-icon icon="mdi:content-save-outline"></ha-icon>
-                    <span class="zone-btn-label">${this._localize('config.zone_save_button')}</span>
-                  </ha-button>
-                </div>
-                ${editZones.length === 0
-                  ? html`
-                    <div class="zone-empty-state">
-                      <ha-icon icon="mdi:vector-square-plus"></ha-icon>
-                      <span class="zone-empty-title">${this._localize('config.zone_no_zones')}</span>
-                      <span class="zone-empty-hint">${this._localize('config.zone_empty_hint')}</span>
-                    </div>`
-                  : html`
-                    <div class="zone-list">
-                      ${editZones.map((zone, index) => html`
-                        <div class="zone-row">
-                          <div class="zone-row-header">
-                            <ha-selector
-                              class="zone-name-input"
-                              .hass=${this.hass}
-                              .selector=${{ text: {} }}
-                              .value=${zone.name}
-                              .label=${this._localize('config.zone_name_label')}
-                              @value-changed=${(e: CustomEvent) => this._updateZoneField(ieee, index, 'name', e.detail.value)}
-                            ></ha-selector>
-                            <ha-icon-button
-                              @click=${() => this._removeZoneRow(ieee, index)}
-                              title=${this._localize('config.zone_delete_tooltip')}
-                            >
-                              <ha-icon icon="mdi:delete-outline"></ha-icon>
-                            </ha-icon-button>
-                          </div>
-                          <segment-selector
-                            .mode=${'selection'}
-                            .maxSegments=${device.segment_count}
-                            .value=${zone.segments}
-                            .hideControls=${true}
-                            @value-changed=${(e: CustomEvent) => this._updateZoneField(ieee, index, 'segments', e.detail.value)}
-                          ></segment-selector>
-                        </div>
-                      `)}
-                    </div>
-                  `}
-              </div>
-            `;
-          })}
-        </div>
-      </ha-expansion-panel>
-    `;
-  }
-
-  private async _handleInitialBrightnessChange(e: CustomEvent): Promise<void> {
-    if (!this.hass) return;
-
-    const value = e.detail.value;
-    if (typeof value !== 'number') return;
-
-    // Find all initial brightness entities for all selected T2 devices
-    const brightnessEntities = this._findAllInitialBrightnessEntities();
-
-    if (brightnessEntities.length) {
-      // Z2M path: write via number entities
-      try {
-        await Promise.all(
-          brightnessEntities.map(entityId =>
-            this.hass!.callService('number', 'set_value', {
-              entity_id: entityId,
-              value: value,
-            })
-          )
-        );
-      } catch (err) {
-        console.error('Failed to set initial brightness:', err);
-      }
-    }
-  }
-
-  /**
-   * Core helper: find a sibling number entity for a given light entity.
-   * Uses multiple strategies to handle different naming conventions across backends:
-   *   1. Direct name substitution (Z2M standard naming)
-   *   2. Z2M friendly name from backend metadata
-   *   3. HA device registry lookup (works for ZHA and any backend)
-   *   4. Fuzzy word match (last resort)
-   */
-  private _findSiblingNumberEntity(lightEntityId: string, suffix: string): string | undefined {
-    if (!this.hass) return undefined;
-
-    // Pattern 1: Direct name substitution (works for Z2M standard naming)
-    const baseName = lightEntityId.replace('light.', '');
-    const directId = `number.${baseName}_${suffix}`;
-    if (this.hass.states[directId]) return directId;
-
-    // Pattern 2: Z2M friendly name from backend metadata
-    const supportedEntity = this._supportedEntities.get(lightEntityId);
-    if (supportedEntity?.z2m_friendly_name) {
-      const z2mBase = supportedEntity.z2m_friendly_name.toLowerCase().replace(/\s+/g, '_');
-      const z2mId = `number.${z2mBase}_${suffix}`;
-      if (this.hass.states[z2mId]) return z2mId;
-    }
-
-    // Pattern 3: HA device registry lookup (works for ZHA where entity naming differs)
-    if (this.hass.entities) {
-      const lightEntry = this.hass.entities[lightEntityId];
-      if (lightEntry?.device_id) {
-        for (const [eid, entry] of Object.entries(this.hass.entities)) {
-          if (
-            entry.device_id === lightEntry.device_id &&
-            eid.startsWith('number.') &&
-            eid.endsWith(`_${suffix}`)
-          ) {
-            if (this.hass.states[eid]) return eid;
-          }
-        }
-      }
-    }
-
-    // Pattern 4: Fuzzy word match (last resort)
-    const deviceWords = baseName.toLowerCase().split('_');
-    if (deviceWords.length >= 2) {
-      for (const eid of Object.keys(this.hass.states)) {
-        if (eid.startsWith('number.') && eid.endsWith(`_${suffix}`)) {
-          const stateBase = eid.slice(7, eid.length - suffix.length - 1).toLowerCase();
-          const stateWords = stateBase.split('_');
-          if (stateWords.length >= 2 &&
-              deviceWords[0] === stateWords[0] && deviceWords[1] === stateWords[1]) {
-            return eid;
-          }
-        }
-      }
-    }
-
-    return undefined;
-  }
-
-  /**
-   * Find sibling number entities for multiple light entities.
-   * Returns unique results only.
-   */
-  private _findAllSiblingNumberEntities(lightEntityIds: string[], suffix: string): string[] {
-    if (!this.hass) return [];
-    const results: string[] = [];
-    for (const lightId of lightEntityIds) {
-      const found = this._findSiblingNumberEntity(lightId, suffix);
-      if (found && !results.includes(found)) {
-        results.push(found);
-      }
-    }
-    return results;
-  }
-
-  private _findTransitionCurveEntity(): string | undefined {
-    const t2Entities = this._getT2CompatibleEntities();
-    for (const eid of t2Entities) {
-      const found = this._findSiblingNumberEntity(eid, 'transition_curve_curvature');
-      if (found) return found;
-    }
-    return undefined;
-  }
-
-  private _findInitialBrightnessEntity(): string | undefined {
-    const t2Entities = this._getT2CompatibleEntities();
-    for (const eid of t2Entities) {
-      const found = this._findSiblingNumberEntity(eid, 'transition_initial_brightness');
-      if (found) return found;
-    }
-    return undefined;
-  }
-
-  private _findAllTransitionCurveEntities(): string[] {
-    return this._findAllSiblingNumberEntities(this._getT2CompatibleEntities(), 'transition_curve_curvature');
-  }
-
-  private _findAllInitialBrightnessEntities(): string[] {
-    return this._findAllSiblingNumberEntities(this._getT2CompatibleEntities(), 'transition_initial_brightness');
-  }
-
-  private _findAllDimmingEntities(suffix: string): string[] {
-    return this._findAllSiblingNumberEntities(this._selectedEntities, suffix);
-  }
-
-  private _findDimmingEntity(suffix: string): string | undefined {
-    for (const eid of this._selectedEntities) {
-      if (!this.hass?.states[eid]) continue;
-      const found = this._findSiblingNumberEntity(eid, suffix);
-      if (found) return found;
-    }
-    return undefined;
-  }
-
-  private _findOnOffDurationEntity(): string | undefined {
-    return this._findDimmingEntity('on_off_duration');
-  }
-
-  private _findOffOnDurationEntity(): string | undefined {
-    return this._findDimmingEntity('off_on_duration');
-  }
-
-  private _findDimmingRangeMinEntity(): string | undefined {
-    return this._findDimmingEntity('dimming_range_minimum');
-  }
-
-  private _findDimmingRangeMaxEntity(): string | undefined {
-    return this._findDimmingEntity('dimming_range_maximum');
-  }
-
-  private async _handleDimmingSettingChange(
-    e: CustomEvent,
-    ...suffixes: string[]
-  ): Promise<void> {
-    if (!this.hass) return;
-
-    const value = e.detail.value;
-    if (typeof value !== 'number') return;
-
-    // Find all entities across all suffixes
-    const entities: string[] = [];
-    for (const suffix of suffixes) {
-      for (const eid of this._findAllDimmingEntities(suffix)) {
-        if (!entities.includes(eid)) entities.push(eid);
-      }
-    }
-    if (!entities.length) return;
-
-    // Apply to all devices
-    try {
-      await Promise.all(
-        entities.map(entityId =>
-          this.hass!.callService('number', 'set_value', {
-            entity_id: entityId,
-            value: value,
-          })
-        )
-      );
-    } catch (err) {
-      console.error('Failed to set dimming setting:', err);
-    }
-  }
-
-  private async _handleDimmingRangeMinChange(e: CustomEvent): Promise<void> {
-    const minEntityId = this._findDimmingRangeMinEntity();
-    const maxEntityId = this._findDimmingRangeMaxEntity();
-    if (!this.hass || !minEntityId) return;
-
-    const newMin = e.detail.value;
-    if (typeof newMin !== 'number') return;
-
-    // Get current max value from entity
-    const maxValue = maxEntityId && this.hass.states[maxEntityId]
-      ? parseFloat(this.hass.states[maxEntityId].state) || 100
-      : 100;
-
-    // Validate: min cannot exceed max
-    if (newMin >= maxValue) {
-      return;
-    }
-
-    await this._handleDimmingSettingChange(e, 'dimming_range_minimum');
-  }
-
-  private async _handleDimmingRangeMaxChange(e: CustomEvent): Promise<void> {
-    const minEntityId = this._findDimmingRangeMinEntity();
-    const maxEntityId = this._findDimmingRangeMaxEntity();
-    if (!this.hass || !maxEntityId) return;
-
-    const newMax = e.detail.value;
-    if (typeof newMax !== 'number') return;
-
-    // Get current min value from entity
-    const minValue = minEntityId && this.hass.states[minEntityId]
-      ? parseFloat(this.hass.states[minEntityId].state) || 1
-      : 1;
-
-    // Validate: max cannot be less than min
-    if (newMax <= minValue) {
-      return;
-    }
-
-    await this._handleDimmingSettingChange(e, 'dimming_range_maximum');
-  }
-
-  private async _handleOnOffDurationChange(e: CustomEvent): Promise<void> {
-    const entity = this._findOnOffDurationEntity();
-    if (!this.hass || !entity) return;
-
-    await this._handleDimmingSettingChange(e, 'on_off_duration');
-  }
-
-  private async _handleOffOnDurationChange(e: CustomEvent): Promise<void> {
-    const entity = this._findOffOnDurationEntity();
-    if (!this.hass || !entity) return;
-
-    await this._handleDimmingSettingChange(e, 'off_on_duration');
-  }
-
-  // T1 Strip specific methods
-  private _getT1StripCompatibleEntities(): string[] {
-    if (!this.hass) return [];
-    return this._selectedEntities.filter(entityId => {
-      return this._getEntityDeviceType(entityId) === 't1_strip';
-    });
-  }
-
-  private _findT1StripLengthEntity(): string | undefined {
-    const t1StripEntities = this._getT1StripCompatibleEntities();
-    for (const eid of t1StripEntities) {
-      const found = this._findSiblingNumberEntity(eid, 'length');
-      if (found) return found;
-    }
-    return undefined;
-  }
-
-  private _findAllT1StripLengthEntities(): string[] {
-    return this._findAllSiblingNumberEntities(this._getT1StripCompatibleEntities(), 'length');
-  }
-
-  private async _handleT1StripLengthChange(e: CustomEvent): Promise<void> {
-    if (!this.hass) return;
-
-    const value = e.detail.value;
-    if (typeof value !== 'number') return;
-
-    const entities = this._findAllT1StripLengthEntities();
-
-    if (entities.length) {
-      // Z2M path: write via number entities
-      try {
-        await Promise.all(
-          entities.map(entityId =>
-            this.hass!.callService('number', 'set_value', {
-              entity_id: entityId,
-              value: value,
-            })
-          )
-        );
-      } catch (err) {
-        console.error('Failed to set T1 Strip length:', err);
-      }
-    }
-  }
-
-  // Curvature control methods
-  private _handleCurvatureInput(e: CustomEvent): void {
-    const { curvature } = e.detail;
-    if (typeof curvature === 'number') {
-      this._localCurvature = curvature;
-    }
-  }
-
-  private _handleCurvatureNumberChange(e: CustomEvent): void {
-    const value = e.detail.value;
-    if (typeof value === 'number') {
-      // Clamp to valid range
-      const clamped = Math.max(0.2, Math.min(6.0, value));
-      this._localCurvature = Math.round(clamped * 100) / 100;
-    }
-  }
-
-  private _getCurvatureDescription(): string {
-    if (this._localCurvature < 0.9) {
-      return this._localize('config.curvature_fast_slow');
-    } else if (this._localCurvature <= 1.1) {
-      return this._localize('config.curvature_linear');
-    } else {
-      return this._localize('config.curvature_slow_fast');
-    }
-  }
-
-  private async _applyCurvature(): Promise<void> {
-    if (!this.hass) return;
-
-    this._applyingCurvature = true;
-
-    try {
-      const entities = this._findAllTransitionCurveEntities();
-
-      if (entities.length) {
-        // Z2M path: write via number entities
-        await Promise.all(
-          entities.map(entityId =>
-            this.hass!.callService('number', 'set_value', {
-              entity_id: entityId,
-              value: this._localCurvature,
-            })
-          )
-        );
-      }
-
-      this._curvatureApplied = true;
-      this._showToast(this._localize('config.curvature_applied'));
-      setTimeout(() => {
-        this._curvatureApplied = false;
-      }, 2000);
-    } catch (err) {
-      console.error('Failed to set transition curve curvature:', err);
-      this._showToast(this._localize('config.curvature_apply_error'));
-    } finally {
-      this._applyingCurvature = false;
-    }
-  }
-
-  private _loadCurvatureFromEntity(): void {
-    const entityId = this._findTransitionCurveEntity();
-    if (this.hass && entityId) {
-      const entity = this.hass.states[entityId];
-      if (entity) {
-        const curvature = parseFloat(entity.state);
-        if (!isNaN(curvature) && curvature >= 0.2 && curvature <= 6.0) {
-          this._localCurvature = Math.round(curvature * 100) / 100;
-          return;
-        }
-      }
-    }
-
-  }
 
 }
 

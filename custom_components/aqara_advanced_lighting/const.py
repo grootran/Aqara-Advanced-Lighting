@@ -80,11 +80,6 @@ PAYLOAD_EFFECT_COLORS: Final = "effect_colors"
 PAYLOAD_SEGMENT_COLORS: Final = "segment_colors"
 PAYLOAD_EFFECT_SEGMENTS: Final = "effect_segments"
 
-# Color constraints
-MIN_EFFECT_COLORS: Final = 1
-MAX_EFFECT_COLORS: Final = 8
-MIN_GRADIENT_COLORS: Final = 2
-MAX_GRADIENT_COLORS: Final = 6
 MIN_SPEED: Final = 1
 MAX_SPEED: Final = 100
 
@@ -142,29 +137,9 @@ SOFTWARE_TRANSITION_T1_STRIP_INTERVAL: Final = 0.5
 T1_STRIP_SEGMENTS_PER_METER: Final = 5
 T1_STRIP_DEFAULT_SEGMENT_COUNT: Final = 10  # 2 meters
 
-# CIE 1931 color gamut triangles for Aqara lights
-# These define the actual color space the lights can produce
-# Format: [(red_x, red_y), (green_x, green_y), (blue_x, blue_y)]
-AQARA_COLOR_GAMUT_T1M: Final = [(0.68, 0.31), (0.15, 0.06), (0.15, 0.70)]
-AQARA_COLOR_GAMUT_T1_STRIP: Final = [(0.68, 0.31), (0.15, 0.06), (0.15, 0.70)]
-AQARA_COLOR_GAMUT_T2_BULB: Final = [(0.68, 0.31), (0.15, 0.06), (0.15, 0.70)]
-
-# Map model IDs to gamuts
-AQARA_COLOR_GAMUTS: Final = {
-    MODEL_T1M_20_SEGMENT: AQARA_COLOR_GAMUT_T1M,
-    MODEL_T1M_26_SEGMENT: AQARA_COLOR_GAMUT_T1M,
-    MODEL_T1_STRIP: AQARA_COLOR_GAMUT_T1_STRIP,
-    MODEL_T2_BULB_E26: AQARA_COLOR_GAMUT_T2_BULB,
-    MODEL_T2_BULB_E27: AQARA_COLOR_GAMUT_T2_BULB,
-    MODEL_T2_BULB_GU10_230V: AQARA_COLOR_GAMUT_T2_BULB,
-    MODEL_T2_BULB_GU10_110V: AQARA_COLOR_GAMUT_T2_BULB,
-}
-
 # Brightness constraints (UI uses percentage, devices use 1-255)
 MIN_BRIGHTNESS_PERCENT: Final = 1  # Minimum percentage for UI
 MAX_BRIGHTNESS_PERCENT: Final = 100  # Maximum percentage for UI
-MIN_BRIGHTNESS_DEVICE: Final = 1  # Minimum value for device
-MAX_BRIGHTNESS_DEVICE: Final = 255  # Maximum value for device
 
 # CCT sequence constraints
 MIN_COLOR_TEMP_KELVIN: Final = 2700
@@ -180,7 +155,6 @@ MAX_LOOP_COUNT: Final = 100
 
 # Smooth transition settings using light's built-in transition capability
 # These values balance smoothness with command overhead
-TRANSITION_STEP_INTERVAL: Final = 0.1  # Seconds between transition steps (100ms for smooth easing curve)
 MIN_TRANSITION_STEPS: Final = 10  # Minimum steps for any transition (ensures smooth easing even for short transitions)
 
 # CCT sequence loop modes
@@ -246,51 +220,72 @@ MUSIC_SYNC_SENSITIVITY_ENUM: Final = {
     MUSIC_SYNC_SENSITIVITY_HIGH: 2,
 }
 
+# On-device audio opt-in configuration keys
+CONF_AUDIO_ON_SERVICE: Final = "audio_on_service"
+CONF_AUDIO_OFF_SERVICE: Final = "audio_off_service"
+CONF_AUDIO_ON_SERVICE_DATA: Final = "audio_on_service_data"
+CONF_AUDIO_OFF_SERVICE_DATA: Final = "audio_off_service_data"
+
+# Audio-reactive dynamic scene constants
+AUDIO_COLOR_ADVANCE_ON_ONSET: Final = "on_onset"
+AUDIO_COLOR_ADVANCE_CONTINUOUS: Final = "continuous"
+AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE: Final = "beat_predictive"
+AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING: Final = "intensity_breathing"
+AUDIO_COLOR_ADVANCE_ONSET_FLASH: Final = "onset_flash"
+
+VALID_AUDIO_COLOR_ADVANCE: Final = [
+    AUDIO_COLOR_ADVANCE_ON_ONSET,
+    AUDIO_COLOR_ADVANCE_CONTINUOUS,
+    AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
+    AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING,
+    AUDIO_COLOR_ADVANCE_ONSET_FLASH,
+]
+
+# Audio detection mode constants
+AUDIO_DETECTION_MODE_SPECTRAL_FLUX: Final = "spectral_flux"
+AUDIO_DETECTION_MODE_BASS_ENERGY: Final = "bass_energy"
+AUDIO_DETECTION_MODE_COMPLEX_DOMAIN: Final = "complex_domain"
+VALID_AUDIO_DETECTION_MODES: Final = [
+    AUDIO_DETECTION_MODE_SPECTRAL_FLUX,
+    AUDIO_DETECTION_MODE_BASS_ENERGY,
+    AUDIO_DETECTION_MODE_COMPLEX_DOMAIN,
+]
+DEFAULT_AUDIO_DETECTION_MODE: Final = AUDIO_DETECTION_MODE_SPECTRAL_FLUX
+
+# Audio prediction, silence, and frequency zone constants
+MIN_AUDIO_PREDICTION_AGGRESSIVENESS: Final = 1
+MAX_AUDIO_PREDICTION_AGGRESSIVENESS: Final = 100
+DEFAULT_AUDIO_PREDICTION_AGGRESSIVENESS: Final = 50
+DEFAULT_LATENCY_COMPENSATION_MS: Final = 150
+
+DEFAULT_AUDIO_SILENCE_DEGRADATION: Final = True
+DEFAULT_AUDIO_FREQUENCY_ZONE: Final = False
+
+SILENCE_DEGRADATION_BLEND_SECONDS: Final = 5.0
+SILENCE_DEGRADATION_STEP_SECONDS: Final = 12.0
+
+# Audio parameter constraints
+MIN_AUDIO_SENSITIVITY: Final = 1
+MAX_AUDIO_SENSITIVITY: Final = 100
+DEFAULT_AUDIO_SENSITIVITY: Final = 50
+MIN_AUDIO_TRANSITION_SPEED: Final = 1
+MAX_AUDIO_TRANSITION_SPEED: Final = 100
+DEFAULT_AUDIO_TRANSITION_SPEED: Final = 50
+
+# Audio sensor unavailability timeout (seconds)
+AUDIO_SENSOR_UNAVAILABLE_TIMEOUT: Final = 60.0
+
+# T1 Strip audio mode mapping
+T1_STRIP_AUDIO_SENSITIVITY_CUTOFF: Final = 50
+
 # Runtime data key for active music sync tracking
 DATA_ACTIVE_MUSIC_SYNC: Final = "active_music_sync"
 
-# Segment sequence constraints
-MIN_SEGMENT_COLORS: Final = 1
-MAX_SEGMENT_COLORS: Final = 6
 MIN_DURATION: Final = 0.0
 MAX_DURATION: Final = 3600.0  # 1 hour
 
-# Effect types for T1M (ACN031/ACN032)
-EFFECT_T1M_FLOW1: Final = "flow1"
-EFFECT_T1M_FLOW2: Final = "flow2"
-EFFECT_T1M_FADING: Final = "fading"
-EFFECT_T1M_HOPPING: Final = "hopping"
-EFFECT_T1M_BREATHING: Final = "breathing"
-EFFECT_T1M_ROLLING: Final = "rolling"
-
-# Effect types for T1 Strip
-EFFECT_T1_BREATHING: Final = "breathing"
-EFFECT_T1_RAINBOW1: Final = "rainbow1"
-EFFECT_T1_CHASING: Final = "chasing"
-EFFECT_T1_FLASH: Final = "flash"
-EFFECT_T1_HOPPING: Final = "hopping"
-EFFECT_T1_RAINBOW2: Final = "rainbow2"
-EFFECT_T1_FLICKER: Final = "flicker"
-EFFECT_T1_DASH: Final = "dash"
-
-# Effect types for T2 Bulb
-EFFECT_T2_BREATHING: Final = "breathing"
-EFFECT_T2_CANDLELIGHT: Final = "candlelight"
-EFFECT_T2_FADING: Final = "fading"
-EFFECT_T2_FLASH: Final = "flash"
-
-# Device capability keys
-CAPABILITY_SEGMENT_COUNT: Final = "segment_count"
-CAPABILITY_SUPPORTED_EFFECTS: Final = "supported_effects"
-CAPABILITY_SUPPORTS_SEGMENT_ADDRESSING: Final = "supports_segment_addressing"
-CAPABILITY_SUPPORTS_EFFECT_SEGMENTS: Final = "supports_effect_segments"
-CAPABILITY_MODEL_NAME: Final = "model_name"
-
 # Runtime data storage keys
-DATA_COORDINATOR: Final = "coordinator"
 DATA_STATE_MANAGER: Final = "state_manager"
-DATA_DEVICE_REGISTRY: Final = "device_registry"
-DATA_UNSUB: Final = "unsub"
 DATA_CCT_SEQUENCE_MANAGER: Final = "cct_sequence_manager"
 DATA_SEGMENT_SEQUENCE_MANAGER: Final = "segment_sequence_manager"
 DATA_FAVORITES_STORE: Final = "favorites_store"
@@ -650,7 +645,6 @@ PRESET_SEGMENT_SEQ_WAVE: Final = "wave"
 PRESET_SEGMENT_SEQ_SPARKLE: Final = "sparkle"
 PRESET_SEGMENT_SEQ_THEATER_CHASE: Final = "theater_chase"
 PRESET_SEGMENT_SEQ_RAINBOW_FILL: Final = "rainbow_fill"
-PRESET_SEGMENT_SEQ_COMET: Final = "comet"
 PRESET_SEGMENT_SEQ_STELLA_BLUE: Final = "stella_blue"
 
 # Image processing constants
@@ -678,19 +672,3 @@ def brightness_percent_to_device(percent: int) -> int:
     # Formula: device = round((percent / 100) * 254) + 1
     # This ensures: 1% -> 1, 100% -> 255
     return round(((percent - 1) / 99) * 254) + 1
-
-
-def xy_in_gamut(x: float, y: float, gamut: list[tuple[float, float]]) -> bool:
-    """Check if XY coordinates are within the specified gamut triangle.
-
-    Args:
-        x: X coordinate (0.0-1.0)
-        y: Y coordinate (0.0-1.0)
-        gamut: List of three tuples representing the gamut triangle vertices
-
-    Returns:
-        True if the point is within the gamut, False otherwise
-    """
-    from homeassistant.util.color import check_point_in_lamps_reach
-
-    return check_point_in_lamps_reach((x, y), gamut)

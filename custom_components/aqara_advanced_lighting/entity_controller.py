@@ -7,8 +7,6 @@ centralized listener that uses HA Context to distinguish integration
 service calls from external changes.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import time
@@ -55,14 +53,12 @@ _COLOR_KEYS = frozenset({
     "rgbw_color", "rgbww_color", "color_name",
 })
 
-
 def _state_attributes_equal(old_state: State, new_state: State) -> bool:
     """Check if light-relevant attributes are unchanged between two states."""
     for attr in _WATCHED_ATTRS:
         if old_state.attributes.get(attr) != new_state.attributes.get(attr):
             return False
     return True
-
 
 def _detect_changed_attributes(old_state: State, new_state: State) -> OverrideAttributes:
     """Detect which attribute categories changed between two states.
@@ -108,7 +104,6 @@ def _detect_changed_attributes(old_state: State, new_state: State) -> OverrideAt
         changed |= OverrideAttributes.COLOR
     return changed
 
-
 def _detect_service_call_attributes(service_data: dict[str, Any]) -> OverrideAttributes:
     """Detect which attribute categories a service call is setting.
 
@@ -127,10 +122,9 @@ def _detect_service_call_attributes(service_data: dict[str, Any]) -> OverrideAtt
         attributes = OverrideAttributes.ALL
     return attributes
 
-
 NON_HA_BRIGHTNESS_THRESHOLD = 25   # ~10% of 0-255 range
 NON_HA_COLOR_TEMP_THRESHOLD = 100  # 100K
-
+RESTORE_GRACE_PERIOD: float = 15.0  # seconds to suppress external change detection after solar restore
 
 def detect_drift(
     expected_ct: int,
@@ -150,7 +144,6 @@ def detect_drift(
     if actual_ct is not None and abs(actual_ct - expected_ct) > NON_HA_COLOR_TEMP_THRESHOLD:
         override |= OverrideAttributes.COLOR
     return override
-
 
 class AutoResumeTimer:
     """Cancellable single-shot timer for automatic resume after manual override."""
@@ -204,7 +197,6 @@ class AutoResumeTimer:
         except asyncio.CancelledError:
             pass
 
-
 class EntityController:
     """Centralized controller for entity conflict resolution and external change detection.
 
@@ -219,6 +211,8 @@ class EntityController:
         self._pending_restore: set[str] = set()
         self._auto_resume_timers: dict[str, AutoResumeTimer] = {}
         self._service_pause_times: dict[str, float] = {}
+        self._restore_grace_times: dict[str, float] = {}
+        self._preset_paused_solar: dict[str, CCTSequenceManager] = {}
         self._state_listener_remove: Any | None = None
         self._service_listener_remove: Any | None = None
 
@@ -317,6 +311,22 @@ class EntityController:
                 )
                 return
 
+            # After a solar sequence restore (HA restart), device state
+            # reports may arrive with attributes that differ from the
+            # pre-restart cached state.  These are NOT user overrides —
+            # suppress external-change detection during the grace window.
+            restore_time = self._restore_grace_times.get(entity_id)
+            if restore_time is not None:
+                if (time.monotonic() - restore_time) < RESTORE_GRACE_PERIOD:
+                    _LOGGER.debug(
+                        "Ignoring state change on %s during restore "
+                        "grace period (%.1fs remaining)",
+                        entity_id,
+                        RESTORE_GRACE_PERIOD - (time.monotonic() - restore_time),
+                    )
+                    return
+                self._restore_grace_times.pop(entity_id, None)
+
             # Detect which attributes changed and pause
             changed = _detect_changed_attributes(old_state, new_state)
             if changed == OverrideAttributes.NONE:
@@ -410,12 +420,16 @@ class EntityController:
         conflicting actions are running on the same entity.
 
         For dynamic scenes: detaches entity (scene continues for others).
-        For CCT/segment sequences: stops the sequence for that entity.
+        For adaptive CCT sequences: pauses (not stops) so they can
+            auto-resume when the interrupting preset is later stopped.
+        For standard CCT/segment sequences: stops the sequence.
         Also clears effect_active flag so the frontend stops showing
         one-time actions (effects, patterns) as active.
         """
         self._externally_paused.pop(entity_id, None)
         self._pending_restore.discard(entity_id)
+        # Clear stale preset-pause reference so it can be freshly set below
+        self._preset_paused_solar.pop(entity_id, None)
         if timer := self._auto_resume_timers.pop(entity_id, None):
             timer.cancel()
 
@@ -432,12 +446,21 @@ class EntityController:
             if dsm and dsm.is_scene_running(entity_id):
                 dsm.detach_entity(entity_id)
 
-            # Stop CCT sequence
+            # Stop or pause CCT sequence
             cct: CCTSequenceManager | None = instance_data.get(
                 DATA_CCT_SEQUENCE_MANAGER
             )
             if cct and cct.is_sequence_running(entity_id):
-                await cct.stop_sequence(entity_id)
+                if cct.is_adaptive_sequence(entity_id):
+                    # Pause solar/schedule sequences so they can auto-resume
+                    cct.pause_sequence(entity_id)
+                    self._preset_paused_solar[entity_id] = cct
+                    _LOGGER.info(
+                        "Preset-paused solar/schedule CCT for %s",
+                        entity_id,
+                    )
+                else:
+                    await cct.stop_sequence(entity_id)
 
             # Stop segment sequence
             seg: SegmentSequenceManager | None = instance_data.get(
@@ -526,12 +549,98 @@ class EntityController:
         """Clear tracking when an entity's controlling action stops.
 
         Called by managers during cleanup to remove stale tracking.
+        Does NOT clear _preset_paused_solar — that is managed by
+        check_and_resume_solar() and stop_all_for_entity() to avoid
+        wiping the reference before auto-resume can use it.
         """
         self._externally_paused.pop(entity_id, None)
         self._pending_restore.discard(entity_id)
         self._service_pause_times.pop(entity_id, None)
         if timer := self._auto_resume_timers.pop(entity_id, None):
             timer.cancel()
+
+    def is_entity_preset_paused(self, entity_id: str) -> bool:
+        """Check if an entity has a solar/schedule CCT paused by a preset."""
+        return entity_id in self._preset_paused_solar
+
+    async def check_and_resume_solar(self, entity_id: str) -> None:
+        """Resume a preset-paused solar/schedule CCT if no other actions are running.
+
+        Called after a non-solar preset is stopped. Checks that nothing else
+        is actively controlling the entity before resuming the solar loop.
+
+        Handles two cases:
+        - Task still alive (non-CCT preset interrupted): unpause + force apply
+        - Task was killed (standard CCT used same manager): restart from saved data
+        """
+        cct_manager = self._preset_paused_solar.get(entity_id)
+        if cct_manager is None:
+            return
+
+        task_alive = cct_manager.is_sequence_running(entity_id)
+        has_solar_data = cct_manager.has_solar_data(entity_id)
+
+        # Nothing to resume from
+        if not task_alive and not has_solar_data:
+            self._preset_paused_solar.pop(entity_id, None)
+            return
+
+        # Check if any other continuous action is still running on this entity
+        for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():
+            state_mgr: StateManager | None = instance_data.get(DATA_STATE_MANAGER)
+            if state_mgr and state_mgr.is_effect_active(entity_id):
+                return
+
+            dsm: DynamicSceneManager | None = instance_data.get(
+                DATA_DYNAMIC_SCENE_MANAGER
+            )
+            if dsm and dsm.is_scene_running(entity_id):
+                return
+
+            seg: SegmentSequenceManager | None = instance_data.get(
+                DATA_SEGMENT_SEQUENCE_MANAGER
+            )
+            if seg and seg.is_sequence_running(entity_id):
+                return
+
+            # Check for non-solar CCT sequences (on any manager)
+            other_cct: CCTSequenceManager | None = instance_data.get(
+                DATA_CCT_SEQUENCE_MANAGER
+            )
+            if other_cct and other_cct.is_sequence_running(entity_id):
+                # Skip the paused solar's own task (it's ours to resume)
+                if other_cct is cct_manager and task_alive:
+                    continue
+                return
+
+        # Nothing else is running — resume or restart the solar/schedule CCT
+        del self._preset_paused_solar[entity_id]
+
+        if task_alive:
+            # Non-CCT preset interrupted: task is paused, just unpause
+            if cct_manager.resume_sequence(entity_id):
+                await cct_manager.force_apply_current(entity_id)
+                _LOGGER.info(
+                    "Auto-resumed preset-paused solar/schedule CCT for %s",
+                    entity_id,
+                )
+            else:
+                _LOGGER.warning(
+                    "Failed to resume preset-paused solar/schedule CCT for %s",
+                    entity_id,
+                )
+        else:
+            # Standard CCT killed the task: restart from preserved solar data
+            if await cct_manager.restart_solar_sequence(entity_id):
+                _LOGGER.info(
+                    "Auto-restarted preset-paused solar/schedule CCT for %s",
+                    entity_id,
+                )
+            else:
+                _LOGGER.warning(
+                    "Failed to restart preset-paused solar/schedule CCT for %s",
+                    entity_id,
+                )
 
     def cleanup(self) -> None:
         """Remove listeners and clear state.
@@ -547,6 +656,7 @@ class EntityController:
         self._externally_paused.clear()
         self._pending_restore.clear()
         self._service_pause_times.clear()
+        self._preset_paused_solar.clear()
         for timer in self._auto_resume_timers.values():
             timer.cancel()
         self._auto_resume_timers.clear()
@@ -584,6 +694,15 @@ class EntityController:
                 return True
 
         return False
+
+    def set_restore_grace(self, entity_id: str) -> None:
+        """Suppress external-change detection for *entity_id* during startup.
+
+        Called after restoring a solar/schedule sequence so that device
+        state reports arriving shortly after HA restart are not mistaken
+        for manual overrides.
+        """
+        self._restore_grace_times[entity_id] = time.monotonic()
 
     def get_auto_resume_remaining(self, entity_id: str) -> float | None:
         """Get remaining seconds on the auto-resume timer for an entity.
@@ -772,6 +891,7 @@ class EntityController:
         flow1, not off).
         """
         self._externally_paused.pop(entity_id, None)
+        self._restore_grace_times.pop(entity_id, None)
 
         for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():
             # Clear effect/pattern active flag and schedule restore on next turn-on
@@ -813,6 +933,10 @@ class EntityController:
             )
             if seg and seg.is_sequence_running(entity_id):
                 await seg.stop_sequence(entity_id)
+
+        # If non-solar actions were cleared and there's a preset-paused solar
+        # sequence, resume it. The solar loop will wait while the light is off.
+        await self.check_and_resume_solar(entity_id)
 
         self.hass.bus.async_fire(
             EVENT_ENTITY_EXTERNALLY_CONTROLLED,

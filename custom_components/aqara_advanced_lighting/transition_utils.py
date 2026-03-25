@@ -6,8 +6,6 @@ model resolution, and the shared software CCT transition algorithm used by
 both Zigbee backends and the dynamic scene manager.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
@@ -35,7 +33,6 @@ _LOGGER = logging.getLogger(__name__)
 # Parameters: (entity_id, color_temp_kelvin, brightness, transition_or_None)
 ApplyCctCallback = Callable[[str, int, int, float | None], Awaitable[None]]
 
-
 def ease_in_out_cubic(t: float) -> float:
     """Cubic easing function for smooth transitions.
 
@@ -48,7 +45,6 @@ def ease_in_out_cubic(t: float) -> float:
     if t < 0.5:
         return 4 * t * t * t
     return 1 - pow(-2 * t + 2, 3) / 2
-
 
 def get_software_step_interval(model_id: str, transition: float) -> float:
     """Calculate the step interval for software-interpolated transitions.
@@ -81,54 +77,30 @@ def get_software_step_interval(model_id: str, transition: float) -> float:
     )
     return max(interval, min_interval)
 
-
 def get_entity_model_id(hass: HomeAssistant, entity_id: str) -> str | None:
     """Resolve an entity ID to its Aqara device model ID.
 
-    Uses entity routing and backend device lookup to find the model
-    without requiring a direct backend reference.
-
-    Args:
-        hass: Home Assistant instance
-        entity_id: The Home Assistant entity ID
+    Uses the shared entity routing lookup to find the backend instance,
+    then resolves the device model from the backend.
 
     Returns:
-        Model ID string (e.g. "lumi.light.acn031") or None if not found
+        Model ID string (e.g. "lumi.light.acn031") or None if not found.
     """
-    if DOMAIN not in hass.data:
+    from .entity_routing import get_instance_for_entity
+
+    _entry_id, instance_data = get_instance_for_entity(hass, entity_id)
+    if not instance_data:
         return None
-
-    # Fast path: use entity routing map
-    entity_routing = hass.data[DOMAIN].get("entity_routing", {})
-    entry_id = entity_routing.get(entity_id)
-
-    if entry_id:
-        instance_data = hass.data[DOMAIN].get("entries", {}).get(entry_id)
-        if instance_data:
-            backend = instance_data.get("backend")
-            if backend:
-                device = backend.get_device_for_entity(entity_id)
-                if device:
-                    return device.model_id
-
-    # Fallback: search all instances
-    entries = hass.data[DOMAIN].get("entries", {})
-    for eid, instance_data in entries.items():
-        backend = instance_data.get("backend")
-        if backend:
-            device = backend.get_device_for_entity(entity_id)
-            if device:
-                # Update routing cache for next time
-                entity_routing[entity_id] = eid
-                return device.model_id
-
+    backend = instance_data.get("backend")
+    if backend:
+        device = backend.get_device_for_entity(entity_id)
+        if device:
+            return device.model_id
     return None
-
 
 # ---------------------------------------------------------------------------
 # Shared CCT transition and light control helpers
 # ---------------------------------------------------------------------------
-
 
 def make_service_apply_callback(
     hass: HomeAssistant,
@@ -164,7 +136,6 @@ def make_service_apply_callback(
         )
 
     return _apply
-
 
 async def software_cct_transition(
     hass: HomeAssistant,
@@ -278,7 +249,6 @@ async def software_cct_transition(
     _LOGGER.debug("Software transition complete for %s", entity_id)
     return True
 
-
 async def apply_cct_step(
     hass: HomeAssistant,
     backend: DeviceBackend,
@@ -369,7 +339,6 @@ async def apply_cct_step(
 
     _LOGGER.debug("Transition complete for %s", entity_id)
     return True
-
 
 async def turn_off_light(
     hass: HomeAssistant,

@@ -5,15 +5,9 @@
  */
 
 import { XYColor } from './types';
+import { roundXY } from './color-utils';
 
 const MAX_HISTORY_SIZE = 8;
-
-/**
- * Round XY coordinate to 4 decimal places for comparison
- */
-function roundXY(value: number): number {
-  return Math.round(value * 10000) / 10000;
-}
 
 /**
  * Check if two XY colors match at 4 decimal precision

@@ -2,9 +2,8 @@ import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, RGBColor, XYColor, SegmentColorEntry, UserSegmentPatternPreset, DeviceContext, PatternEditorDraft, Translations } from './types';
 import { xyToRgb, rgbToXy } from './color-utils';
-import { colorPickerStyles } from './styles';
-import { DEVICE_LABELS, editorFormStyles, localize } from './editor-constants';
-// Note: hs-color-picker import removed - color picking handled by segment-selector
+import { colorPickerStyles } from './styles/color-picker';
+import { DEVICE_LABELS, DEFAULT_PALETTE, editorFormStyles, localize } from './editor-constants';
 
 // Segment counts per device type
 const SEGMENT_COUNTS: Record<string, number> = {
@@ -12,16 +11,6 @@ const SEGMENT_COUNTS: Record<string, number> = {
   t1m: 26,
   t1_strip: 50, // 10 meters x 5 segments per meter (max)
 };
-
-// Default palette colors in XY space
-const DEFAULT_PALETTE: XYColor[] = [
-  { x: 0.6800, y: 0.3100 },    // Red
-  { x: 0.1700, y: 0.7000 },    // Green
-  { x: 0.1500, y: 0.0600 },    // Blue
-  { x: 0.4200, y: 0.5100 },    // Yellow
-  { x: 0.3800, y: 0.1600 },    // Magenta
-  { x: 0.2200, y: 0.3300 },    // Cyan
-];
 
 @customElement('pattern-editor')
 export class PatternEditor extends LitElement {
@@ -76,81 +65,6 @@ export class PatternEditor extends LitElement {
     colorPickerStyles,
     editorFormStyles,
     css`
-    .segment-grid-container {
-      background: var(--card-background-color);
-      border-radius: 8px;
-      padding: 16px;
-    }
-
-    .segment-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
-      gap: 4px;
-      margin-bottom: 12px;
-    }
-
-    .segment-cell {
-      aspect-ratio: 1;
-      border-radius: 4px;
-      cursor: pointer;
-      border: 2px solid var(--divider-color);
-      transition: all 0.15s ease;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 10px;
-      font-weight: 600;
-      color: var(--secondary-text-color);
-      background: var(--primary-background-color);
-    }
-
-    .segment-cell:hover {
-      transform: scale(1.1);
-      z-index: 1;
-    }
-
-    .segment-cell.selected {
-      border-color: var(--primary-color);
-      box-shadow: 0 0 0 2px var(--primary-color);
-    }
-
-    .segment-cell.colored {
-      border-color: transparent;
-      color: transparent;
-    }
-
-    /* Clear mode cursor */
-    .segment-grid.clear-mode .segment-cell.colored {
-      cursor: not-allowed;
-    }
-
-    .segment-grid.clear-mode .segment-cell.colored:hover {
-      opacity: 0.7;
-    }
-
-    /* Select mode cursor */
-    .segment-grid.select-mode .segment-cell {
-      cursor: crosshair;
-    }
-
-    .segment-grid.select-mode .segment-cell:hover {
-      border-color: var(--info-color, #2196f3);
-    }
-
-    .grid-controls {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      padding-top: 8px;
-      border-top: 1px solid var(--divider-color);
-    }
-
-    .grid-info {
-      font-size: 12px;
-      color: var(--secondary-text-color);
-      margin-top: 8px;
-    }
-
     /* Sub-tabs for pattern modes */
     .mode-tabs {
       display: flex;
@@ -256,10 +170,6 @@ export class PatternEditor extends LitElement {
     }
 
     @media (max-width: 600px) {
-      .grid-controls {
-        flex-direction: column;
-      }
-
       .mode-tabs {
         overflow-x: auto;
       }

@@ -9,13 +9,12 @@
 
 import { html, TemplateResult } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
-import { xyToRgb, rgbToHex, rgbToHs } from './color-utils';
+import { xyToRgb, rgbToHex, rgbToHs, xyToHex, kelvinToRgb } from './color-utils';
 import type {
   DynamicSceneColor,
   DynamicScenePreset,
   RGBColor,
   SolarStep,
-  XYColor,
   UserDynamicScenePreset,
   UserEffectPreset,
   UserSegmentPatternPreset,
@@ -29,9 +28,6 @@ const CX = 200;
 const CY = 200;
 const R = 180;
 
-// Donut ring radii for segment sequence thumbnails
-const RING_OUTER = 180;
-const RING_INNER = 80;
 
 /**
  * Convert an angle in degrees to cartesian coordinates on the circle.
@@ -60,36 +56,6 @@ function pieSlice(startDeg: number, endDeg: number, color: string): string {
   return `<path fill="${color}" stroke="${color}" stroke-width="1" d="M${CX},${CY} L${x1},${y1} A${R},${R} 0 ${large},1 ${x2},${y2} Z" />`;
 }
 
-/**
- * Build an SVG path string for a donut arc (ring segment).
- */
-function donutArc(startDeg: number, endDeg: number, color: string): string {
-  if (endDeg - startDeg >= 360) {
-    // Full ring
-    return [
-      `<circle cx="${CX}" cy="${CY}" r="${RING_OUTER}" fill="${color}" />`,
-      `<circle cx="${CX}" cy="${CY}" r="${RING_INNER}" fill="var(--card-background-color, #fff)" />`,
-    ].join('');
-  }
-  const [x1o, y1o] = toXY(startDeg, RING_OUTER);
-  const [x2o, y2o] = toXY(endDeg, RING_OUTER);
-  const [x2i, y2i] = toXY(endDeg, RING_INNER);
-  const [x1i, y1i] = toXY(startDeg, RING_INNER);
-  const large = endDeg - startDeg > 180 ? 1 : 0;
-  // stroke matching fill eliminates anti-alias hairline gaps between segments
-  return (
-    `<path fill="${color}" stroke="${color}" stroke-width="1" d="` +
-    `M${x1o},${y1o} A${RING_OUTER},${RING_OUTER} 0 ${large},1 ${x2o},${y2o} ` +
-    `L${x2i},${y2i} A${RING_INNER},${RING_INNER} 0 ${large},0 ${x1i},${y1i} Z" />`
-  );
-}
-
-/**
- * Convert a CIE 1931 XY color to a hex string at full brightness.
- */
-function xyToHex(c: XYColor): string {
-  return rgbToHex(xyToRgb(c.x, c.y, 255));
-}
 
 /**
  * Convert a DynamicSceneColor (XY + brightness_pct) to a hex string.
@@ -225,41 +191,8 @@ function capSlices(slices: MergedSlice[]): MergedSlice[] {
 // Kelvin to approximate sRGB
 // ---------------------------------------------------------------------------
 
-/**
- * Convert color temperature in Kelvin (2700-6500) to an approximate hex color.
- * Uses Tanner Helland's algorithm.
- */
 function kelvinToHex(kelvin: number): string {
-  const temp = kelvin / 100;
-  let r: number;
-  let g: number;
-  let b: number;
-
-  if (temp <= 66) {
-    r = 255;
-  } else {
-    r = 329.698727446 * Math.pow(temp - 60, -0.1332047592);
-    r = Math.max(0, Math.min(255, r));
-  }
-
-  if (temp <= 66) {
-    g = 99.4708025861 * Math.log(temp) - 161.1195681661;
-  } else {
-    g = 288.1221695283 * Math.pow(temp - 60, -0.0755148492);
-  }
-  g = Math.max(0, Math.min(255, g));
-
-  if (temp >= 66) {
-    b = 255;
-  } else if (temp <= 19) {
-    b = 0;
-  } else {
-    b = 138.5177312231 * Math.log(temp - 10) - 305.0447927307;
-    b = Math.max(0, Math.min(255, b));
-  }
-
-  const toHex = (n: number) => Math.round(n).toString(16).padStart(2, '0');
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+  return rgbToHex(kelvinToRgb(kelvin));
 }
 
 // ---------------------------------------------------------------------------
@@ -267,16 +200,14 @@ function kelvinToHex(kelvin: number): string {
 // ---------------------------------------------------------------------------
 
 function wrapSvg(innerContent: string): string {
-  return `<svg viewBox="0 0 ${SIZE} ${SIZE}" xmlns="http://www.w3.org/2000/svg">${innerContent}</svg>`;
+  // Crop viewBox to circle bounds (CX-R, CY-R, 2*R, 2*R) so the circle
+  // fills the container edge-to-edge, matching image thumbnail sizing.
+  const vbX = CX - R;
+  const vbY = CY - R;
+  const vbSize = R * 2;
+  return `<svg viewBox="${vbX} ${vbY} ${vbSize} ${vbSize}" xmlns="http://www.w3.org/2000/svg">${innerContent}</svg>`;
 }
 
-/**
- * Wrap SVG content with a class for rectangular gradient thumbnails.
- * The class allows CSS to override the default circular border-radius.
- */
-function wrapGradientSvg(innerContent: string): string {
-  return `<svg class="gradient-thumb" viewBox="0 0 ${SIZE} ${SIZE}" xmlns="http://www.w3.org/2000/svg">${innerContent}</svg>`;
-}
 
 // ---------------------------------------------------------------------------
 // Public render functions
@@ -296,7 +227,7 @@ export function renderSegmentPatternThumbnail(
   const slices = mergeSegments(preset.segments);
   const paths = slices.map((s) => pieSlice(s.startDeg, s.endDeg, s.hex)).join('');
 
-  return html`${unsafeSvg(wrapSvg(paths))}`;
+  return html`${unsafeHTML(wrapSvg(paths))}`;
 }
 
 /**
@@ -313,7 +244,7 @@ export function renderEffectThumbnail(
 
   if (colors.length === 1) {
     const hex = xyToHex(colors[0]!);
-    return html`${unsafeSvg(wrapSvg(`<circle cx="${CX}" cy="${CY}" r="${R}" fill="${hex}" />`))}`;
+    return html`${unsafeHTML(wrapSvg(`<circle cx="${CX}" cy="${CY}" r="${R}" fill="${hex}" />`))}`;
   }
 
   const degPer = 360 / colors.length;
@@ -321,14 +252,14 @@ export function renderEffectThumbnail(
     .map((c, i) => pieSlice(i * degPer, (i + 1) * degPer, xyToHex(c)))
     .join('');
 
-  return html`${unsafeSvg(wrapSvg(paths))}`;
+  return html`${unsafeHTML(wrapSvg(paths))}`;
 }
 
 /**
- * Segment sequence preset -- donut ring from first step's colors.
+ * Segment sequence preset -- pie chart from first step's colors.
  *
- * Renders the colors of the first animation step as arcs in a ring to
- * distinguish these from solid-pie segment pattern thumbnails.
+ * Renders the colors of the first animation step as pie slices, matching
+ * the circular style of segment pattern and effect thumbnails.
  */
 export function renderSegmentSequenceThumbnail(
   preset: UserSegmentSequencePreset,
@@ -352,28 +283,22 @@ export function renderSegmentSequenceThumbnail(
   const slices = mergeHexColors(hexColors);
 
   if (slices.length === 1) {
-    const arcs = [
-      `<circle cx="${CX}" cy="${CY}" r="${RING_OUTER}" fill="${slices[0]!.hex}" />`,
-      `<circle cx="${CX}" cy="${CY}" r="${RING_INNER}" fill="var(--card-background-color, #fff)" />`,
-    ].join('');
-    return html`${unsafeSvg(wrapSvg(arcs))}`;
+    return html`${unsafeHTML(wrapSvg(
+      `<circle cx="${CX}" cy="${CY}" r="${R}" fill="${slices[0]!.hex}" />`,
+    ))}`;
   }
 
-  const arcs = slices
-    .map((s) => donutArc(s.startDeg, s.endDeg, s.hex))
+  const paths = slices
+    .map((s) => pieSlice(s.startDeg, s.endDeg, s.hex))
     .join('');
 
-  return html`${unsafeSvg(wrapSvg(arcs))}`;
+  return html`${unsafeHTML(wrapSvg(paths))}`;
 }
 
 // ---------------------------------------------------------------------------
 // Solar mode -- arc gradient representing the sun's path
 // ---------------------------------------------------------------------------
 
-/** Arc geometry for the solar thumbnail. */
-const ARC_CY = 290;
-const ARC_OUTER = 180;
-const ARC_INNER = 80;
 
 /**
  * Order solar steps into a sunrise-to-sunset narrative.
@@ -395,12 +320,12 @@ function orderSolarSteps(steps: SolarStep[]): SolarStep[] {
 }
 
 /**
- * Solar CCT preset -- semicircular arc gradient.
+ * Solar CCT preset -- circular gradient with horizon accent.
  *
- * Renders the color temperature steps as a thick arc band evoking the sun's
- * path from horizon to horizon. A thin horizon line sits below the arc.
- * Steps are ordered sunrise-to-sunset: rising (ascending elevation), any-phase,
- * then setting (descending elevation).
+ * Renders the color temperature steps as a horizontal gradient clipped to a
+ * circle, with a subtle horizon line across the center to evoke the sun's
+ * path. Steps are ordered sunrise-to-sunset: rising (ascending elevation),
+ * any-phase, then setting (descending elevation).
  */
 function renderSolarThumbnail(
   preset: UserCCTSequencePreset,
@@ -411,23 +336,20 @@ function renderSolarThumbnail(
   const ordered = orderSolarSteps(steps);
   const temps = ordered.map((s) => s.color_temp);
 
-  // Single temperature -- solid-fill arc
+  const horizon =
+    `<line x1="${CX - R}" y1="${CY}" x2="${CX + R}" y2="${CY}" ` +
+    `stroke="var(--secondary-text-color, #888)" stroke-width="2" stroke-opacity="0.3" />`;
+
+  // Single temperature -- solid-fill circle with horizon
   if (temps.length === 1) {
     const hex = kelvinToHex(temps[0]!);
-    const arcPath =
-      `M ${CX - ARC_OUTER},${ARC_CY} ` +
-      `A ${ARC_OUTER},${ARC_OUTER} 0 0,1 ${CX + ARC_OUTER},${ARC_CY} ` +
-      `L ${CX + ARC_INNER},${ARC_CY} ` +
-      `A ${ARC_INNER},${ARC_INNER} 0 0,0 ${CX - ARC_INNER},${ARC_CY} Z`;
-    const horizon =
-      `<line x1="15" y1="${ARC_CY}" x2="385" y2="${ARC_CY}" ` +
-      `stroke="var(--secondary-text-color, #888)" stroke-width="2" stroke-opacity="0.4" />`;
-    return html`${unsafeSvg(wrapGradientSvg(
-      `<path fill="${hex}" d="${arcPath}" />${horizon}`,
+    return html`${unsafeHTML(wrapSvg(
+      `<circle cx="${CX}" cy="${CY}" r="${R}" fill="${hex}" />${horizon}`,
     ))}`;
   }
 
   const gradientId = `solar-${preset.id}`;
+  const clipId = `solar-clip-${preset.id}`;
   const stops = temps
     .map((t, i) => {
       const offset = Math.round((i / (temps.length - 1)) * 100);
@@ -435,22 +357,15 @@ function renderSolarThumbnail(
     })
     .join('');
 
-  // Horizontal gradient mapped onto the arc band
-  const arcPath =
-    `M ${CX - ARC_OUTER},${ARC_CY} ` +
-    `A ${ARC_OUTER},${ARC_OUTER} 0 0,1 ${CX + ARC_OUTER},${ARC_CY} ` +
-    `L ${CX + ARC_INNER},${ARC_CY} ` +
-    `A ${ARC_INNER},${ARC_INNER} 0 0,0 ${CX - ARC_INNER},${ARC_CY} Z`;
-
-  const horizon =
-    `<line x1="15" y1="${ARC_CY}" x2="385" y2="${ARC_CY}" ` +
-    `stroke="var(--secondary-text-color, #888)" stroke-width="2" stroke-opacity="0.4" />`;
-
   const inner =
-    `<defs><linearGradient id="${gradientId}" x1="0" y1="0" x2="1" y2="0">${stops}</linearGradient></defs>` +
-    `<path fill="url(#${gradientId})" d="${arcPath}" />${horizon}`;
+    `<defs>` +
+    `<clipPath id="${clipId}"><circle cx="${CX}" cy="${CY}" r="${R}" /></clipPath>` +
+    `<linearGradient id="${gradientId}" x1="0" y1="0" x2="1" y2="0">${stops}</linearGradient>` +
+    `</defs>` +
+    `<rect fill="url(#${gradientId})" x="0" y="0" width="${SIZE}" height="${SIZE}" clip-path="url(#${clipId})" />` +
+    horizon;
 
-  return html`${unsafeSvg(wrapGradientSvg(inner))}`;
+  return html`${unsafeHTML(wrapSvg(inner))}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -480,7 +395,7 @@ function parseScheduleMinutes(time: string): number {
 }
 
 /**
- * Schedule CCT preset -- smooth vertical gradient.
+ * Schedule CCT preset -- vertical gradient clipped to circle.
  *
  * Renders a top-to-bottom gradient with stops positioned proportionally
  * to each step's time-of-day. The vertical flow reads as a timeline
@@ -499,11 +414,11 @@ function renderScheduleThumbnail(
   );
   const temps = sorted.map((s) => s.color_temp);
 
-  // Single step -- solid fill rectangle
+  // Single step -- solid fill circle
   if (temps.length === 1) {
     const hex = kelvinToHex(temps[0]!);
-    return html`${unsafeSvg(wrapGradientSvg(
-      `<rect fill="${hex}" x="10" y="10" width="380" height="380" rx="8" />`,
+    return html`${unsafeHTML(wrapSvg(
+      `<circle cx="${CX}" cy="${CY}" r="${R}" fill="${hex}" />`,
     ))}`;
   }
 
@@ -514,6 +429,7 @@ function renderScheduleThumbnail(
   const span = maxTime - minTime;
 
   const gradientId = `sched-${preset.id}`;
+  const clipId = `sched-clip-${preset.id}`;
   const stops = temps
     .map((t, i) => {
       const offset = span > 0
@@ -523,12 +439,15 @@ function renderScheduleThumbnail(
     })
     .join('');
 
-  // Vertical gradient (top to bottom)
+  // Vertical gradient (top to bottom) clipped to circle
   const inner =
-    `<defs><linearGradient id="${gradientId}" x1="0" y1="0" x2="0" y2="1">${stops}</linearGradient></defs>` +
-    `<rect fill="url(#${gradientId})" x="10" y="10" width="380" height="380" rx="8" />`;
+    `<defs>` +
+    `<clipPath id="${clipId}"><circle cx="${CX}" cy="${CY}" r="${R}" /></clipPath>` +
+    `<linearGradient id="${gradientId}" x1="0" y1="0" x2="0" y2="1">${stops}</linearGradient>` +
+    `</defs>` +
+    `<rect fill="url(#${gradientId})" x="0" y="0" width="${SIZE}" height="${SIZE}" clip-path="url(#${clipId})" />`;
 
-  return html`${unsafeSvg(wrapGradientSvg(inner))}`;
+  return html`${unsafeHTML(wrapSvg(inner))}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -538,9 +457,9 @@ function renderScheduleThumbnail(
 /**
  * CCT sequence preset -- renders based on mode.
  *
- * Standard mode: warm-to-cool horizontal gradient.
- * Solar mode: semicircular arc gradient (sun path).
- * Schedule mode: vertical stacked color bands (time slots).
+ * Standard mode: warm-to-cool horizontal gradient in circle.
+ * Solar mode: horizontal gradient in circle with horizon accent.
+ * Schedule mode: vertical gradient in circle (time slots).
  *
  * Uses a unique gradient/clip ID per preset to avoid DOM collisions when
  * multiple CCT thumbnails are rendered on the same page.
@@ -558,15 +477,16 @@ export function renderCCTSequenceThumbnail(
     .filter((t): t is number => t !== undefined && t !== null);
   if (temps.length === 0) return null;
 
-  // Single temperature -- solid fill rectangle
+  // Single temperature -- solid fill circle
   if (temps.length === 1) {
     const hex = kelvinToHex(temps[0]!);
-    return html`${unsafeSvg(wrapGradientSvg(
-      `<rect fill="${hex}" x="10" y="10" width="380" height="380" rx="8" />`,
+    return html`${unsafeHTML(wrapSvg(
+      `<circle cx="${CX}" cy="${CY}" r="${R}" fill="${hex}" />`,
     ))}`;
   }
 
   const gradientId = `cct-${preset.id}`;
+  const clipId = `cct-clip-${preset.id}`;
   const stops = temps
     .map((t, i) => {
       const offset = Math.round((i / (temps.length - 1)) * 100);
@@ -574,12 +494,15 @@ export function renderCCTSequenceThumbnail(
     })
     .join('');
 
-  // Horizontal gradient from left to right
+  // Horizontal gradient from left to right, clipped to circle
   const inner =
-    `<defs><linearGradient id="${gradientId}" x1="0" y1="0" x2="1" y2="0">${stops}</linearGradient></defs>` +
-    `<rect fill="url(#${gradientId})" x="10" y="10" width="380" height="380" rx="8" />`;
+    `<defs>` +
+    `<clipPath id="${clipId}"><circle cx="${CX}" cy="${CY}" r="${R}" /></clipPath>` +
+    `<linearGradient id="${gradientId}" x1="0" y1="0" x2="1" y2="0">${stops}</linearGradient>` +
+    `</defs>` +
+    `<rect fill="url(#${gradientId})" x="0" y="0" width="${SIZE}" height="${SIZE}" clip-path="url(#${clipId})" />`;
 
-  return html`${unsafeSvg(wrapGradientSvg(inner))}`;
+  return html`${unsafeHTML(wrapSvg(inner))}`;
 }
 
 /**
@@ -597,21 +520,23 @@ function dynamicSceneColorHue(c: DynamicSceneColor): number {
  * Dynamic scene preset -- diagonal gradient with hue-sorted colors.
  *
  * Renders colors as a smooth gradient flowing from top-left to bottom-right
- * in a rounded rectangle. Colors are sorted by hue angle for visual
+ * clipped to a circle. Colors are sorted by hue angle for visual
  * smoothness, with per-color brightness applied to the stops.
  *
  * Accepts a DynamicSceneColor array, UserDynamicScenePreset, or DynamicScenePreset.
  */
+
 export function renderDynamicSceneThumbnail(
   colorsOrPreset: DynamicSceneColor[] | UserDynamicScenePreset | DynamicScenePreset,
 ): TemplateResult | null {
-  // If the preset has an image thumbnail, render it as an <img> instead of SVG
+  // If the preset has an image thumbnail, render it as an <img> instead of SVG.
+  // Audio-reactive badge is handled via DOM overlay in the panel for all types.
   if (!Array.isArray(colorsOrPreset) && (colorsOrPreset as UserDynamicScenePreset).thumbnail) {
     const thumbId = (colorsOrPreset as UserDynamicScenePreset).thumbnail;
     return html`<img
       src="/api/aqara_advanced_lighting/thumbnails/${thumbId}"
       alt="Preset thumbnail"
-      style="width:100%;height:100%;object-fit:cover;border-radius:4px"
+      style="object-fit:cover"
     />`;
   }
 
@@ -628,11 +553,11 @@ export function renderDynamicSceneThumbnail(
 
   if (colors.length === 0) return null;
 
-  // Single color -- solid fill rectangle
+  // Single color -- solid fill circle
   if (colors.length === 1) {
     const hex = dynamicSceneColorToHex(colors[0]!);
-    return html`${unsafeSvg(wrapGradientSvg(
-      `<rect fill="${hex}" x="10" y="10" width="380" height="380" rx="8" />`,
+    return html`${unsafeHTML(wrapSvg(
+      `<circle cx="${CX}" cy="${CY}" r="${R}" fill="${hex}" />`,
     ))}`;
   }
 
@@ -641,6 +566,7 @@ export function renderDynamicSceneThumbnail(
     (a, b) => dynamicSceneColorHue(a) - dynamicSceneColorHue(b),
   );
 
+  const clipId = `${gradientId}-clip`;
   const stops = sorted
     .map((c, i) => {
       const offset = Math.round((i / (sorted.length - 1)) * 100);
@@ -648,21 +574,14 @@ export function renderDynamicSceneThumbnail(
     })
     .join('');
 
-  // Diagonal gradient from top-left to bottom-right
+  // Diagonal gradient from top-left to bottom-right, clipped to circle
   const inner =
-    `<defs><linearGradient id="${gradientId}" x1="0" y1="0" x2="1" y2="1">${stops}</linearGradient></defs>` +
-    `<rect fill="url(#${gradientId})" x="10" y="10" width="380" height="380" rx="8" />`;
+    `<defs>` +
+    `<clipPath id="${clipId}"><circle cx="${CX}" cy="${CY}" r="${R}" /></clipPath>` +
+    `<linearGradient id="${gradientId}" x1="0" y1="0" x2="1" y2="1">${stops}</linearGradient>` +
+    `</defs>` +
+    `<rect fill="url(#${gradientId})" x="0" y="0" width="${SIZE}" height="${SIZE}" clip-path="url(#${clipId})" />`;
 
-  return html`${unsafeSvg(wrapGradientSvg(inner))}`;
+  return html`${unsafeHTML(wrapSvg(inner))}`;
 }
 
-// ---------------------------------------------------------------------------
-// Lit-safe SVG injection
-// ---------------------------------------------------------------------------
-
-/**
- * Wrap unsafeHTML for SVG string injection into Lit templates.
- */
-function unsafeSvg(svgString: string): ReturnType<typeof unsafeHTML> {
-  return unsafeHTML(svgString);
-}

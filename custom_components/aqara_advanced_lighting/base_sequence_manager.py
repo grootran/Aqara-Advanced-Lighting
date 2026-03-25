@@ -7,13 +7,11 @@ _apply_step() (and optionally _prepare_execution / _get_start_step) to
 implement sequence-type-specific behavior.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import uuid
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Any
 
 from .const import (
     EVENT_SEQUENCE_COMPLETED,
@@ -41,10 +39,7 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-SequenceT = TypeVar("SequenceT")
-
-
-class BaseSequenceManager(ABC, Generic[SequenceT]):
+class BaseSequenceManager[SequenceT](ABC):
     """Base class for sequence managers with shared lifecycle and execution loop."""
 
     _sequence_type: str  # Subclass sets to SEQUENCE_TYPE_CCT or SEQUENCE_TYPE_SEGMENT
@@ -624,38 +619,37 @@ class BaseSequenceManager(ABC, Generic[SequenceT]):
                 # Check loop conditions
                 loops_executed += 1
 
-                if sequence.loop_mode == "once":  # type: ignore[attr-defined]
-                    break
-                elif (
-                    sequence.loop_mode == "count"  # type: ignore[attr-defined]
-                    and loops_executed >= max_loops
-                ):
-                    break
-                # For "continuous", loop continues indefinitely
+                match sequence.loop_mode:  # type: ignore[attr-defined]
+                    case "once":
+                        break
+                    case "count" if loops_executed >= max_loops:
+                        break
+                    # "continuous" continues indefinitely
 
             # Sequence completed naturally
             completed_naturally = True
 
-            if sequence.end_behavior == "turn_off":  # type: ignore[attr-defined]
-                try:
-                    await self.backend.async_turn_off_light(entity_id)
+            match sequence.end_behavior:  # type: ignore[attr-defined]
+                case "turn_off":
+                    try:
+                        await self.backend.async_turn_off_light(entity_id)
+                        _LOGGER.info(
+                            "%s sequence completed, turned off %s",
+                            self._sequence_type.upper(),
+                            entity_id,
+                        )
+                    except Exception as ex:
+                        _LOGGER.warning(
+                            "Failed to turn off %s after sequence: %s", entity_id, ex
+                        )
+                case "restore":
+                    await self._restore_entity_state(entity_id)
+                case _:
                     _LOGGER.info(
-                        "%s sequence completed, turned off %s",
+                        "%s sequence completed, maintaining state for %s",
                         self._sequence_type.upper(),
                         entity_id,
                     )
-                except Exception as ex:
-                    _LOGGER.warning(
-                        "Failed to turn off %s after sequence: %s", entity_id, ex
-                    )
-            elif sequence.end_behavior == "restore":  # type: ignore[attr-defined]
-                await self._restore_entity_state(entity_id)
-            else:
-                _LOGGER.info(
-                    "%s sequence completed, maintaining state for %s",
-                    self._sequence_type.upper(),
-                    entity_id,
-                )
 
         except Exception as ex:
             _LOGGER.error(

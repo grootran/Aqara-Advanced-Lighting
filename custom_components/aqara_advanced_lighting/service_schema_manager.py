@@ -4,8 +4,6 @@ Updates service action dropdowns with both built-in and user-saved presets
 at runtime, using the same mechanism as device trigger capabilities.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Callable
 from copy import deepcopy
@@ -90,7 +88,6 @@ _PRESET_TYPE_TO_STORAGE_KEY: dict[str, str] = {
     PRESET_TYPE_SEGMENT_SEQUENCE: "segment_sequence_presets",
     PRESET_TYPE_DYNAMIC_SCENE: "dynamic_scene_presets",
 }
-
 
 class ServiceSchemaManager:
     """Manages dynamic service schema updates for preset dropdowns.

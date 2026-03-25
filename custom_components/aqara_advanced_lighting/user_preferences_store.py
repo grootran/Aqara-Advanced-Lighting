@@ -1,7 +1,5 @@
 """Per-user preferences storage for Aqara Advanced Lighting."""
 
-from __future__ import annotations
-
 import logging
 from typing import Any, TypedDict
 
@@ -12,8 +10,6 @@ from .const import DOMAIN, MAX_COLOR_HISTORY_SIZE
 
 _LOGGER = logging.getLogger(__name__)
 
-
-
 class _Unset:
     """Sentinel for distinguishing 'not provided' from None."""
 
@@ -21,7 +17,6 @@ _UNSET = _Unset()
 
 STORAGE_KEY = f"{DOMAIN}.user_preferences"
 STORAGE_VERSION = 1
-
 
 class UserPreferences(TypedDict):
     """Per-user preferences."""
@@ -34,7 +29,22 @@ class UserPreferences(TypedDict):
     static_scene_mode: bool
     distribution_mode_override: str | None
     brightness_override: int | None
-
+    use_audio_reactive: bool
+    audio_override_entity: str
+    audio_override_sensitivity: int
+    audio_override_color_advance: str
+    audio_override_transition_speed: int
+    audio_override_brightness_response: bool
+    audio_override_detection_mode: str
+    audio_override_frequency_zone: bool
+    audio_override_silence_degradation: bool
+    audio_override_prediction_aggressiveness: int
+    audio_override_latency_compensation_ms: int
+    audio_override_color_by_frequency: bool
+    audio_override_rolloff_brightness: bool
+    hidden_builtin_presets: list[dict[str, str]]
+    selected_entities: list[str]
+    active_favorite_id: str | None
 
 DEFAULT_PREFERENCES: UserPreferences = {
     "color_history": [],
@@ -45,10 +55,25 @@ DEFAULT_PREFERENCES: UserPreferences = {
     "static_scene_mode": False,
     "distribution_mode_override": None,
     "brightness_override": None,
+    "use_audio_reactive": False,
+    "audio_override_entity": "",
+    "audio_override_sensitivity": 50,
+    "audio_override_color_advance": "on_onset",
+    "audio_override_transition_speed": 50,
+    "audio_override_brightness_response": True,
+    "audio_override_detection_mode": "spectral_flux",
+    "audio_override_frequency_zone": False,
+    "audio_override_silence_degradation": True,
+    "audio_override_prediction_aggressiveness": 50,
+    "audio_override_latency_compensation_ms": 150,
+    "audio_override_color_by_frequency": False,
+    "audio_override_rolloff_brightness": False,
+    "hidden_builtin_presets": [],
+    "selected_entities": [],
+    "active_favorite_id": None,
 }
 
 GLOBAL_PREFERENCES_KEY = "__global__"
-
 
 class GlobalPreferences(TypedDict):
     """Integration-wide preferences (not per-user)."""
@@ -58,7 +83,7 @@ class GlobalPreferences(TypedDict):
     override_control_mode: str
     bare_turn_on_only: bool
     detect_non_ha_changes: bool
-
+    entity_audio_config: dict[str, dict[str, str]]
 
 DEFAULT_GLOBAL_PREFERENCES: GlobalPreferences = {
     "ignore_external_changes": False,
@@ -66,8 +91,8 @@ DEFAULT_GLOBAL_PREFERENCES: GlobalPreferences = {
     "override_control_mode": "pause_changed",
     "bare_turn_on_only": False,
     "detect_non_ha_changes": False,
+    "entity_audio_config": {},
 }
-
 
 class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
     """Manages per-user preferences storage, keyed by HA user ID."""
@@ -85,16 +110,8 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
             raw_global = self._data.pop(GLOBAL_PREFERENCES_KEY, None)
             if raw_global and isinstance(raw_global, dict):
                 self._global_data = {
-                    "ignore_external_changes": raw_global.get(
-                        "ignore_external_changes", False
-                    ),
-                    "software_transition_entities": raw_global.get(
-                        "software_transition_entities", []
-                    ),
-                    "override_control_mode": raw_global.get(
-                        "override_control_mode",
-                        DEFAULT_GLOBAL_PREFERENCES["override_control_mode"],
-                    ),
+                    key: raw_global.get(key, default)
+                    for key, default in DEFAULT_GLOBAL_PREFERENCES.items()
                 }
             else:
                 self._global_data = {**DEFAULT_GLOBAL_PREFERENCES}
@@ -130,6 +147,22 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
                 "static_scene_mode": prefs.get("static_scene_mode", False),
                 "distribution_mode_override": prefs.get("distribution_mode_override"),
                 "brightness_override": prefs.get("brightness_override"),
+                "use_audio_reactive": prefs.get("use_audio_reactive", False),
+                "audio_override_entity": prefs.get("audio_override_entity", ""),
+                "audio_override_sensitivity": prefs.get("audio_override_sensitivity", 50),
+                "audio_override_color_advance": prefs.get("audio_override_color_advance", "on_onset"),
+                "audio_override_transition_speed": prefs.get("audio_override_transition_speed", 50),
+                "audio_override_brightness_response": prefs.get("audio_override_brightness_response", True),
+                "audio_override_detection_mode": prefs.get("audio_override_detection_mode", "spectral_flux"),
+                "audio_override_frequency_zone": prefs.get("audio_override_frequency_zone", False),
+                "audio_override_silence_degradation": prefs.get("audio_override_silence_degradation", True),
+                "audio_override_prediction_aggressiveness": prefs.get("audio_override_prediction_aggressiveness", 50),
+                "audio_override_latency_compensation_ms": prefs.get("audio_override_latency_compensation_ms", 150),
+                "audio_override_color_by_frequency": prefs.get("audio_override_color_by_frequency", False),
+                "audio_override_rolloff_brightness": prefs.get("audio_override_rolloff_brightness", False),
+                "hidden_builtin_presets": prefs.get("hidden_builtin_presets", []),
+                "selected_entities": prefs.get("selected_entities", []),
+                "active_favorite_id": prefs.get("active_favorite_id"),
             }
         return {**DEFAULT_PREFERENCES}
 
@@ -194,6 +227,22 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
         static_scene_mode: bool | None = None,
         distribution_mode_override: str | None | _Unset = _UNSET,
         brightness_override: int | None | _Unset = _UNSET,
+        use_audio_reactive: bool | None | _Unset = _UNSET,
+        audio_override_entity: str | None | _Unset = _UNSET,
+        audio_override_sensitivity: int | None | _Unset = _UNSET,
+        audio_override_color_advance: str | None | _Unset = _UNSET,
+        audio_override_transition_speed: int | None | _Unset = _UNSET,
+        audio_override_brightness_response: bool | None | _Unset = _UNSET,
+        audio_override_detection_mode: str | None | _Unset = _UNSET,
+        audio_override_frequency_zone: bool | None | _Unset = _UNSET,
+        audio_override_silence_degradation: bool | None | _Unset = _UNSET,
+        audio_override_prediction_aggressiveness: int | None | _Unset = _UNSET,
+        audio_override_latency_compensation_ms: int | None | _Unset = _UNSET,
+        audio_override_color_by_frequency: bool | None | _Unset = _UNSET,
+        audio_override_rolloff_brightness: bool | None | _Unset = _UNSET,
+        hidden_builtin_presets: list[dict[str, str]] | None = None,
+        selected_entities: list[str] | None = None,
+        active_favorite_id: str | None | _Unset = _UNSET,
     ) -> UserPreferences:
         """Partially update a user's preferences.
 
@@ -209,6 +258,22 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
             static_scene_mode: Whether to apply scenes statically, or None to leave unchanged.
             distribution_mode_override: Distribution mode override string, None to clear, or _UNSET to leave unchanged.
             brightness_override: Brightness override value (1-100), None to clear, or _UNSET to leave unchanged.
+            use_audio_reactive: Whether audio-reactive override is enabled, or _UNSET to leave unchanged.
+            audio_override_entity: Audio sensor entity ID, or _UNSET to leave unchanged.
+            audio_override_sensitivity: Audio sensitivity (1-100), or _UNSET to leave unchanged.
+            audio_override_color_advance: Color advance mode string, or _UNSET to leave unchanged.
+            audio_override_transition_speed: Transition speed (1-100), or _UNSET to leave unchanged.
+            audio_override_brightness_response: Whether brightness responds to audio, or _UNSET to leave unchanged.
+            audio_override_detection_mode: Detection mode string, or _UNSET to leave unchanged.
+            audio_override_frequency_zone: Whether frequency zone distribution is enabled, or _UNSET to leave unchanged.
+            audio_override_silence_degradation: Whether silence degradation is enabled, or _UNSET to leave unchanged.
+            audio_override_prediction_aggressiveness: Prediction aggressiveness (1-100), or _UNSET to leave unchanged.
+            audio_override_latency_compensation_ms: Latency compensation in ms, or _UNSET to leave unchanged.
+            audio_override_color_by_frequency: Whether color-by-frequency is enabled, or _UNSET to leave unchanged.
+            audio_override_rolloff_brightness: Whether rolloff brightness is enabled, or _UNSET to leave unchanged.
+            hidden_builtin_presets: Hidden builtin preset references, or None to leave unchanged.
+            selected_entities: Selected entity IDs, or None to leave unchanged.
+            active_favorite_id: Active favorite ID, None to clear, or _UNSET to leave unchanged.
 
         Returns:
             The full updated preferences.
@@ -242,6 +307,54 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
         if not isinstance(brightness_override, _Unset):
             self._data[user_id]["brightness_override"] = brightness_override
 
+        if not isinstance(use_audio_reactive, _Unset):
+            self._data[user_id]["use_audio_reactive"] = use_audio_reactive
+
+        if not isinstance(audio_override_entity, _Unset):
+            self._data[user_id]["audio_override_entity"] = audio_override_entity
+
+        if not isinstance(audio_override_sensitivity, _Unset):
+            self._data[user_id]["audio_override_sensitivity"] = audio_override_sensitivity
+
+        if not isinstance(audio_override_color_advance, _Unset):
+            self._data[user_id]["audio_override_color_advance"] = audio_override_color_advance
+
+        if not isinstance(audio_override_transition_speed, _Unset):
+            self._data[user_id]["audio_override_transition_speed"] = audio_override_transition_speed
+
+        if not isinstance(audio_override_brightness_response, _Unset):
+            self._data[user_id]["audio_override_brightness_response"] = audio_override_brightness_response
+
+        if not isinstance(audio_override_detection_mode, _Unset):
+            self._data[user_id]["audio_override_detection_mode"] = audio_override_detection_mode
+
+        if not isinstance(audio_override_frequency_zone, _Unset):
+            self._data[user_id]["audio_override_frequency_zone"] = audio_override_frequency_zone
+
+        if not isinstance(audio_override_silence_degradation, _Unset):
+            self._data[user_id]["audio_override_silence_degradation"] = audio_override_silence_degradation
+
+        if not isinstance(audio_override_prediction_aggressiveness, _Unset):
+            self._data[user_id]["audio_override_prediction_aggressiveness"] = audio_override_prediction_aggressiveness
+
+        if not isinstance(audio_override_latency_compensation_ms, _Unset):
+            self._data[user_id]["audio_override_latency_compensation_ms"] = audio_override_latency_compensation_ms
+
+        if not isinstance(audio_override_color_by_frequency, _Unset):
+            self._data[user_id]["audio_override_color_by_frequency"] = audio_override_color_by_frequency
+
+        if not isinstance(audio_override_rolloff_brightness, _Unset):
+            self._data[user_id]["audio_override_rolloff_brightness"] = audio_override_rolloff_brightness
+
+        if hidden_builtin_presets is not None:
+            self._data[user_id]["hidden_builtin_presets"] = hidden_builtin_presets
+
+        if selected_entities is not None:
+            self._data[user_id]["selected_entities"] = selected_entities
+
+        if not isinstance(active_favorite_id, _Unset):
+            self._data[user_id]["active_favorite_id"] = active_favorite_id
+
         await self.async_save()
 
         _LOGGER.debug("Updated preferences for user %s", user_id)
@@ -262,6 +375,7 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
         override_control_mode: str | None = None,
         bare_turn_on_only: bool | None = None,
         detect_non_ha_changes: bool | None = None,
+        entity_audio_config: dict[str, dict[str, str]] | None = None,
     ) -> GlobalPreferences:
         """Update integration-wide global preferences.
 
@@ -281,6 +395,9 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
 
         if detect_non_ha_changes is not None:
             self._global_data["detect_non_ha_changes"] = detect_non_ha_changes
+
+        if entity_audio_config is not None:
+            self._global_data["entity_audio_config"] = entity_audio_config
 
         await self.async_save()
         _LOGGER.debug("Updated global preferences")

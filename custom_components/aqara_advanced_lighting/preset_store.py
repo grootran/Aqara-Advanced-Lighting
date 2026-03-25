@@ -1,7 +1,5 @@
 """User presets storage for Aqara Advanced Lighting."""
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 import logging
@@ -28,7 +26,6 @@ from .models import RGBColor, XYColor
 
 _LOGGER = logging.getLogger(__name__)
 
-
 def get_preset_store(hass: HomeAssistant) -> PresetStore | None:
     """Get the preset store from hass.data."""
     if DOMAIN not in hass.data:
@@ -45,7 +42,6 @@ def get_preset_store(hass: HomeAssistant) -> PresetStore | None:
             list(hass.data[DOMAIN].keys()),
         )
     return preset_store
-
 
 STORAGE_KEY = f"{DOMAIN}.presets"
 STORAGE_VERSION = 1
@@ -110,9 +106,13 @@ _ALLOWED_FIELDS: dict[str, set[str]] = {
         "loop_count",
         "end_behavior",
         "thumbnail",
+        "audio_entity",
+        "audio_sensitivity",
+        "audio_brightness_response",
+        "audio_color_advance",
+        "audio_transition_speed",
     },
 }
-
 
 def _migrate_rgb_colors_to_xy(colors: list[dict[str, Any]]) -> list[dict[str, float]]:
     """Migrate RGB color format to XY format.
@@ -147,7 +147,6 @@ def _migrate_rgb_colors_to_xy(colors: list[dict[str, Any]]) -> list[dict[str, fl
 
     return xy_colors
 
-
 def _migrate_effect_preset(preset: dict[str, Any]) -> dict[str, Any]:
     """Migrate effect preset colors from RGB to XY.
 
@@ -171,7 +170,6 @@ def _migrate_effect_preset(preset: dict[str, Any]) -> dict[str, Any]:
         )
 
     return preset
-
 
 def _migrate_segment_sequence_preset(preset: dict[str, Any]) -> dict[str, Any]:
     """Migrate segment sequence preset colors from RGB to XY.
@@ -209,7 +207,6 @@ def _migrate_segment_sequence_preset(preset: dict[str, Any]) -> dict[str, Any]:
 
     return preset
 
-
 def _migrate_loop_mode(preset: dict[str, Any]) -> dict[str, Any]:
     """Migrate loop_mode value from 'loop' to 'count'.
 
@@ -229,7 +226,6 @@ def _migrate_loop_mode(preset: dict[str, Any]) -> dict[str, Any]:
 
     return preset
 
-
 class UserEffectPreset(TypedDict):
     """User-defined effect preset."""
 
@@ -245,7 +241,6 @@ class UserEffectPreset(TypedDict):
     created_at: str
     modified_at: str
 
-
 class UserSegmentPatternPreset(TypedDict):
     """User-defined segment pattern preset."""
 
@@ -256,7 +251,6 @@ class UserSegmentPatternPreset(TypedDict):
     segments: list[dict[str, Any]]
     created_at: str
     modified_at: str
-
 
 class UserCCTSequencePreset(TypedDict):
     """User-defined CCT sequence preset."""
@@ -270,7 +264,6 @@ class UserCCTSequencePreset(TypedDict):
     end_behavior: str
     created_at: str
     modified_at: str
-
 
 class UserSegmentSequencePreset(TypedDict):
     """User-defined segment sequence preset."""
@@ -286,7 +279,6 @@ class UserSegmentSequencePreset(TypedDict):
     clear_segments: NotRequired[bool]
     created_at: str
     modified_at: str
-
 
 class UserDynamicScenePreset(TypedDict):
     """User-defined dynamic scene preset."""
@@ -305,7 +297,11 @@ class UserDynamicScenePreset(TypedDict):
     end_behavior: str
     created_at: str
     modified_at: str
-
+    audio_entity: NotRequired[str | None]
+    audio_sensitivity: NotRequired[int]
+    audio_brightness_response: NotRequired[bool]
+    audio_color_advance: NotRequired[str]
+    audio_transition_speed: NotRequired[int]
 
 class PresetsData(TypedDict):
     """Storage data structure for all user presets."""
@@ -316,7 +312,6 @@ class PresetsData(TypedDict):
     segment_sequence_presets: list[UserSegmentSequencePreset]
     dynamic_scene_presets: list[UserDynamicScenePreset]
 
-
 _DEFAULT_PRESETS_DATA: PresetsData = {
     "effect_presets": [],
     "segment_pattern_presets": [],
@@ -324,7 +319,6 @@ _DEFAULT_PRESETS_DATA: PresetsData = {
     "segment_sequence_presets": [],
     "dynamic_scene_presets": [],
 }
-
 
 class PresetStore(BaseStore[PresetsData]):
     """Manages global user presets storage."""
@@ -1192,6 +1186,11 @@ class PresetStore(BaseStore[PresetsData]):
                         "loop_mode": preset["loop_mode"],
                         "loop_count": preset.get("loop_count"),
                         "end_behavior": preset["end_behavior"],
+                        "audio_entity": preset.get("audio_entity"),
+                        "audio_sensitivity": preset.get("audio_sensitivity"),
+                        "audio_brightness_response": preset.get("audio_brightness_response"),
+                        "audio_color_advance": preset.get("audio_color_advance"),
+                        "audio_transition_speed": preset.get("audio_transition_speed"),
                     }
 
                     await self.add_preset(PRESET_TYPE_DYNAMIC_SCENE, new_preset_data)

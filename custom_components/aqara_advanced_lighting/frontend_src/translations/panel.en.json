@@ -38,8 +38,8 @@
     "override_control_mode_label": "Change control mode",
     "override_mode_pause_all": "Pause all",
     "override_mode_pause_changed": "Pause changed only",
-    "bare_turn_on_only_label": "Treat parameterized turn-on as override",
-    "detect_non_ha_changes_label": "Detect non-HA changes",
+    "bare_turn_on_only_label": "Parameterized turn-on",
+    "detect_non_ha_changes_label": "Non-HA changes",
     "paused_brightness_only": "Brightness overridden",
     "paused_color_only": "Color overridden",
     "distribution_mode_override_label": "Scene color assignment",
@@ -73,7 +73,15 @@
     "capability_brightness": "Brightness",
     "capability_on_off": "On/off",
     "capability_software_transition": "Software transition",
-    "circadian_label": "Circadian"
+    "circadian_label": "Circadian",
+    "audio_reactive_label": "Audio reactive",
+    "audio_entity_label": "Audio sensor entity",
+    "audio_tier_rich": "Beat sync",
+    "audio_sensor_unavailable": "Audio sensor unavailable",
+    "audio_bpm_label": "BPM",
+    "sensitivity": "Sensitivity",
+    "audio_squelch_label": "Noise gate",
+    "brightness_override_label": "Brightness"
   },
   "devices": {
     "t2_bulb": "T2 Bulb",
@@ -114,13 +122,17 @@
     "import_error_unknown": "An unexpected error occurred",
     "export_error_network": "Network error during export",
     "select_button": "Select",
+    "restore_hidden_button": "Restore hidden",
+    "preset_hidden": "Preset hidden",
+    "presets_restored": "All hidden presets restored",
     "select_cancel": "Cancel",
     "select_all": "Select all",
     "deselect_all": "Deselect all",
     "export_selected_button": "Export selected ({count})",
     "export_selected_success": "{count} presets exported",
     "copy_suffix": "(copy)",
-    "presets_count": "{count} presets"
+    "presets_count": "{count} presets",
+    "default_audio_sensor": "Default audio sensor for audio-reactive presets"
   },
   "dialogs": {
     "create_effect_title": "Create Effect Preset",
@@ -202,7 +214,13 @@
     "generic_lights_subtitle": "Non-Aqara lights used in scenes and sequences",
     "software_transitions_label": "Use software transitions",
     "software_transitions_description": "Use the integration's cubic-easing transition engine instead of the light's hardware transitions. Enable this if you notice jerky transitions on specific lights.",
-    "no_generic_lights": "No generic lights have been used in scenes yet."
+    "no_generic_lights": "No generic lights have been used in scenes yet.",
+    "audio_on_device_title": "On-device audio mode",
+    "audio_on_device_description": "Configure service calls to activate/deactivate native audio-reactive mode on lights with built-in audio capabilities.",
+    "audio_on_service_label": "Activate service (e.g., light.turn_on)",
+    "audio_on_service_data_label": "Activate service data (JSON)",
+    "audio_off_service_label": "Deactivate service",
+    "audio_off_service_data_label": "Deactivate service data (JSON)"
   },
   "instances": {
     "section_title": "Zigbee integrations",
@@ -237,6 +255,7 @@
     "preset_edit": "Edit preset",
     "preset_duplicate": "Duplicate preset",
     "preset_delete": "Delete preset",
+    "preset_hide": "Hide preset",
     "version_mismatch": "Version mismatch detected: Backend (v{backend}) and frontend (v{frontend}) versions differ. Please refresh the page or restart Home Assistant to resolve this issue.",
     "setup_in_progress": "The integration is still initializing. Device discovery is in progress and some features may not work correctly until setup completes."
   },
@@ -289,6 +308,7 @@
     "colors_label": "Colors (1-8)",
     "colors_brightness_label": "Colors and brightness (1-8)",
     "color_picker_title": "Select color",
+    "color_temp_label": "Color temp",
     "apply_button": "Apply",
     "color_temperature_label": "Color temperature ({value}K)",
     "transition_time_label": "Transition time",
@@ -388,7 +408,41 @@
     "scene_brightness_label": "Maximum scene brightness",
     "offset_delay_label": "Offset delay between lights",
     "end_behavior_restore": "Restore previous state",
-    "select_lights_for_preview": "Select light entities in the Activate tab to preview dynamic scenes on your devices."
+    "select_lights_for_preview": "Select light entities in the Activate tab to preview dynamic scenes on your devices.",
+    "audio_reactive_label": "Audio reactive",
+    "audio_entity_label": "Audio sensor entity",
+    "audio_sensitivity_label": "Sensitivity",
+    "audio_transition_speed_label": "Transition speed",
+    "audio_color_advance_label": "Color advance",
+    "audio_color_advance_on_onset": "Color cycle",
+    "audio_color_advance_continuous": "Continuous",
+    "audio_brightness_response_label": "Brightness response",
+    "audio_overrides_timing_note": "When audio reactive is enabled, transition time and hold time are controlled by the audio signal.",
+    "audio_mode_on_onset": "Color cycle",
+    "audio_mode_continuous": "Continuous",
+    "audio_mode_beat_predictive": "Beat predictive",
+    "audio_mode_intensity_breathing": "Intensity breathing",
+    "audio_mode_onset_flash": "Brightness flash",
+    "audio_detection_mode_label": "Detection mode",
+    "audio_detection_spectral_flux": "Spectral flux (all genres)",
+    "audio_detection_bass_energy": "Bass energy (rhythmic music)",
+    "audio_frequency_zone_label": "Frequency zone distribution",
+    "audio_frequency_zone_helper": "Requires 3+ lights",
+    "audio_silence_degradation_label": "Silence degradation",
+    "audio_prediction_aggressiveness_label": "Prediction aggressiveness",
+    "audio_latency_compensation_label": "Latency compensation",
+    "audio_detection_complex_domain": "Complex domain (phase + magnitude)",
+    "audio_color_by_frequency_label": "Color by frequency",
+    "audio_color_by_frequency_helper": "Map spectral brightness to palette position",
+    "audio_rolloff_brightness_label": "Rolloff brightness",
+    "audio_rolloff_brightness_helper": "Scale brightness by timbral brightness",
+    "audio_preset_label": "Audio preset",
+    "audio_preset_beat": "Beat",
+    "audio_preset_ambient": "Ambient",
+    "audio_preset_concert": "Concert",
+    "audio_preset_chill": "Chill",
+    "audio_preset_club": "Club",
+    "audio_preset_custom": "Custom"
   },
   "image_extractor": {
     "upload_tab": "Upload",
@@ -403,5 +457,20 @@
     "error_no_file": "No file selected",
     "error_server": "Error {status}",
     "error_failed": "Extraction failed"
+  },
+  "card": {
+    "name": "Aqara Advanced Lighting Presets",
+    "description": "Displays and activates your favorited Aqara Advanced Lighting presets for a specific entity.",
+    "default_title": "Favorite Presets",
+    "error_loading": "Failed to load preset data",
+    "empty_no_favorites": "No compatible favorites for this device",
+    "editor": {
+      "entities_label": "Entities",
+      "title_label": "Title",
+      "columns_label": "Columns (0 = auto)",
+      "compact_label": "Compact mode",
+      "show_names_label": "Show preset names",
+      "highlight_user_label": "Highlight user presets"
+    }
   }
 }

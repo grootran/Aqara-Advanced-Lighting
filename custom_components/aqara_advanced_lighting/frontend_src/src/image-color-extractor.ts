@@ -7,6 +7,7 @@
 import { LitElement, html, css, TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, DynamicSceneColor, Translations } from './types';
+import { localize } from './editor-constants';
 
 const API_BASE = '/api/aqara_advanced_lighting';
 
@@ -31,16 +32,7 @@ export class ImageColorExtractor extends LitElement {
   private _selectedFile?: File;
 
   private _localize(key: string): string {
-    const parts = key.split('.');
-    let obj: any = this.translations;
-    for (const part of parts) {
-      obj = obj?.[part];
-    }
-    return typeof obj === 'string' ? obj : '';
-  }
-
-  private _fetchWithAuth(path: string, init?: RequestInit): Promise<Response> {
-    return this.hass.fetchWithAuth(path, init);
+    return localize(this.translations, key);
   }
 
   protected render(): TemplateResult {
@@ -173,11 +165,11 @@ export class ImageColorExtractor extends LitElement {
   }
 
   private _handleBrightnessToggle(e: Event): void {
-    this._extractBrightness = (e.target as any).checked;
+    this._extractBrightness = (e.target as HTMLInputElement).checked;
   }
 
   private _handleThumbnailToggle(e: Event): void {
-    this._saveThumbnail = (e.target as any).checked;
+    this._saveThumbnail = (e.target as HTMLInputElement).checked;
   }
 
   public async extract(): Promise<void> {
@@ -201,12 +193,12 @@ export class ImageColorExtractor extends LitElement {
         formData.append('save_thumbnail', this._saveThumbnail ? 'true' : 'false');
         formData.append('extract_brightness', this._extractBrightness ? 'true' : 'false');
 
-        response = await this._fetchWithAuth(`${API_BASE}/extract_colors`, {
+        response = await this.hass.fetchWithAuth(`${API_BASE}/extract_colors`, {
           method: 'POST',
           body: formData,
         });
       } else {
-        response = await this._fetchWithAuth(`${API_BASE}/extract_colors`, {
+        response = await this.hass.fetchWithAuth(`${API_BASE}/extract_colors`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

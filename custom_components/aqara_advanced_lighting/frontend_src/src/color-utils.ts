@@ -13,7 +13,7 @@ import { RGBColor, XYColor, HSColor } from './types';
  * @param value - Coordinate value to round
  * @returns Rounded value to 4 decimal places
  */
-function roundXY(value: number): number {
+export function roundXY(value: number): number {
   return Math.round(value * 10000) / 10000;
 }
 
@@ -120,21 +120,6 @@ export function rgbToHex(color: RGBColor): string {
 }
 
 /**
- * Convert hex color string to RGB
- *
- * @param hex - Hex color string (e.g., "#ff0000" or "ff0000")
- * @returns RGB color object
- */
-export function hexToRgb(hex: string): RGBColor {
-  const cleanHex = hex.replace('#', '');
-  return {
-    r: parseInt(cleanHex.slice(0, 2), 16),
-    g: parseInt(cleanHex.slice(2, 4), 16),
-    b: parseInt(cleanHex.slice(4, 6), 16),
-  };
-}
-
-/**
  * Convert XY to hex color string
  *
  * @param color - XY color object
@@ -144,17 +129,6 @@ export function hexToRgb(hex: string): RGBColor {
 export function xyToHex(color: XYColor, brightness: number = 255): string {
   const rgb = xyToRgb(color.x, color.y, brightness);
   return rgbToHex(rgb);
-}
-
-/**
- * Convert hex color string to XY
- *
- * @param hex - Hex color string (e.g., "#ff0000" or "ff0000")
- * @returns XY color object
- */
-export function hexToXy(hex: string): XYColor {
-  const rgb = hexToRgb(hex);
-  return rgbToXy(rgb.r, rgb.g, rgb.b);
 }
 
 /**
@@ -260,28 +234,6 @@ export function hsToXy(color: HSColor): XYColor {
 }
 
 /**
- * Convert HS color to hex string
- *
- * @param color - HS color object
- * @returns Hex color string
- */
-export function hsToHex(color: HSColor): string {
-  const rgb = hsToRgb(color.h, color.s);
-  return rgbToHex(rgb);
-}
-
-/**
- * Convert hex string to HS color
- *
- * @param hex - Hex color string
- * @returns HS color object
- */
-export function hexToHs(hex: string): HSColor {
-  const rgb = hexToRgb(hex);
-  return rgbToHs(rgb.r, rgb.g, rgb.b);
-}
-
-/**
  * Calculate a complementary color from the given XY color
  * Uses hue rotation by 180 degrees on the color wheel
  *
@@ -300,6 +252,60 @@ export function getComplementaryColor(color: XYColor): XYColor {
 
   // Convert back to XY
   return hsToXy(complementary);
+}
+
+/**
+ * Convert color temperature in Kelvin to RGB
+ * Uses Tanner Helland's algorithm for accurate CCT approximation
+ *
+ * @param kelvin - Color temperature (1000-12000K typical range)
+ * @returns RGB color object with values 0-255
+ */
+export function kelvinToRgb(kelvin: number): RGBColor {
+  const temp = kelvin / 100;
+  let r: number;
+  let g: number;
+  let b: number;
+
+  if (temp <= 66) {
+    r = 255;
+  } else {
+    r = 329.698727446 * Math.pow(temp - 60, -0.1332047592);
+    r = Math.max(0, Math.min(255, r));
+  }
+
+  if (temp <= 66) {
+    g = 99.4708025861 * Math.log(temp) - 161.1195681661;
+  } else {
+    g = 288.1221695283 * Math.pow(temp - 60, -0.0755148492);
+  }
+  g = Math.max(0, Math.min(255, g));
+
+  if (temp >= 66) {
+    b = 255;
+  } else if (temp <= 19) {
+    b = 0;
+  } else {
+    b = 138.5177312231 * Math.log(temp - 10) - 305.0447927307;
+    b = Math.max(0, Math.min(255, b));
+  }
+
+  return {
+    r: Math.round(r),
+    g: Math.round(g),
+    b: Math.round(b),
+  };
+}
+
+/**
+ * Convert color temperature in Kelvin to XY color (CIE 1931)
+ *
+ * @param kelvin - Color temperature (1000-12000K typical range)
+ * @returns XY color object
+ */
+export function kelvinToXy(kelvin: number): XYColor {
+  const rgb = kelvinToRgb(kelvin);
+  return rgbToXy(rgb.r, rgb.g, rgb.b);
 }
 
 /**

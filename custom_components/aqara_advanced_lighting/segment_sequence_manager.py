@@ -1,11 +1,9 @@
 """Segment Sequence Manager for Aqara Advanced Lighting."""
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import random
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, override
 
 from .base_sequence_manager import BaseSequenceManager
 from .const import (
@@ -20,7 +18,6 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-
 class SegmentSequenceManager(BaseSequenceManager[SegmentSequence]):
     """Manages RGB segment sequence execution as background tasks."""
 
@@ -33,6 +30,7 @@ class SegmentSequenceManager(BaseSequenceManager[SegmentSequence]):
 
     # -- BaseSequenceManager hooks --
 
+    @override
     def _get_start_step(
         self, sequence: SegmentSequence, loops_executed: int
     ) -> int:
@@ -49,11 +47,12 @@ class SegmentSequenceManager(BaseSequenceManager[SegmentSequence]):
             return 1
         return 0
 
+    @override
     async def _prepare_execution(
         self, entity_id: str, sequence: SegmentSequence
     ) -> bool:
         """Get segment count and optionally clear segments before starting."""
-        total_segments = await self._get_device_segment_count(entity_id)
+        total_segments = self._total_segments.get(entity_id) or await self._get_device_segment_count(entity_id)
         _LOGGER.info("Segment count for %s: %d", entity_id, total_segments)
         if total_segments == 0:
             _LOGGER.error(
@@ -88,6 +87,7 @@ class SegmentSequenceManager(BaseSequenceManager[SegmentSequence]):
 
         return True
 
+    @override
     async def _apply_step(
         self,
         entity_id: str,
@@ -309,56 +309,57 @@ class SegmentSequenceManager(BaseSequenceManager[SegmentSequence]):
 
         segment_colors = []
 
-        if mode == "individual":
-            for i in range(min(len(segments), len(colors))):
-                segment_colors.append(
-                    SegmentColor(segment=segments[i], color=colors[i])
-                )
-
-        elif mode == "blocks_repeat":
-            for i, segment in enumerate(segments):
-                color = colors[i % len(colors)]
-                segment_colors.append(SegmentColor(segment=segment, color=color))
-
-        elif mode == "blocks_expand":
-            block_size = len(segments) // len(colors)
-            remainder = len(segments) % len(colors)
-
-            segment_idx = 0
-            for color_idx, color in enumerate(colors):
-                size = block_size + (1 if color_idx < remainder else 0)
-                for _ in range(size):
-                    if segment_idx < len(segments):
-                        segment_colors.append(
-                            SegmentColor(segment=segments[segment_idx], color=color)
-                        )
-                        segment_idx += 1
-
-        elif mode == "gradient":
-            if len(colors) < 2:
-                for segment in segments:
+        match mode:
+            case "individual":
+                for i in range(min(len(segments), len(colors))):
                     segment_colors.append(
-                        SegmentColor(segment=segment, color=colors[0])
+                        SegmentColor(segment=segments[i], color=colors[i])
                     )
-            else:
+
+            case "blocks_repeat":
                 for i, segment in enumerate(segments):
-                    position = i / max(len(segments) - 1, 1)
-                    color_position = position * (len(colors) - 1)
-                    color_idx = int(color_position)
-                    color_idx = min(color_idx, len(colors) - 2)
-                    local_position = color_position - color_idx
+                    color = colors[i % len(colors)]
+                    segment_colors.append(SegmentColor(segment=segment, color=color))
 
-                    color1 = colors[color_idx]
-                    color2 = colors[color_idx + 1]
+            case "blocks_expand":
+                block_size = len(segments) // len(colors)
+                remainder = len(segments) % len(colors)
 
-                    r = int(color1.r + (color2.r - color1.r) * local_position)
-                    g = int(color1.g + (color2.g - color1.g) * local_position)
-                    b = int(color1.b + (color2.b - color1.b) * local_position)
+                segment_idx = 0
+                for color_idx, color in enumerate(colors):
+                    size = block_size + (1 if color_idx < remainder else 0)
+                    for _ in range(size):
+                        if segment_idx < len(segments):
+                            segment_colors.append(
+                                SegmentColor(segment=segments[segment_idx], color=color)
+                            )
+                            segment_idx += 1
 
-                    interpolated_color = RGBColor(r=r, g=g, b=b)
-                    segment_colors.append(
-                        SegmentColor(segment=segment, color=interpolated_color)
-                    )
+            case "gradient":
+                if len(colors) < 2:
+                    for segment in segments:
+                        segment_colors.append(
+                            SegmentColor(segment=segment, color=colors[0])
+                        )
+                else:
+                    for i, segment in enumerate(segments):
+                        position = i / max(len(segments) - 1, 1)
+                        color_position = position * (len(colors) - 1)
+                        color_idx = int(color_position)
+                        color_idx = min(color_idx, len(colors) - 2)
+                        local_position = color_position - color_idx
+
+                        color1 = colors[color_idx]
+                        color2 = colors[color_idx + 1]
+
+                        r = int(color1.r + (color2.r - color1.r) * local_position)
+                        g = int(color1.g + (color2.g - color1.g) * local_position)
+                        b = int(color1.b + (color2.b - color1.b) * local_position)
+
+                        interpolated_color = RGBColor(r=r, g=g, b=b)
+                        segment_colors.append(
+                            SegmentColor(segment=segment, color=interpolated_color)
+                        )
 
         return segment_colors
 
@@ -374,47 +375,48 @@ class SegmentSequenceManager(BaseSequenceManager[SegmentSequence]):
         Returns:
             Reordered list of segments
         """
-        if pattern == "all":
-            return segments
-        elif pattern == "sequential_forward":
-            return sorted(segments)
-        elif pattern == "sequential_reverse":
-            return sorted(segments, reverse=True)
-        elif pattern == "random":
-            shuffled = segments.copy()
-            random.shuffle(shuffled)
-            return shuffled
-        elif pattern == "ping_pong":
-            forward = sorted(segments)
-            reverse = sorted(segments, reverse=True)[1:-1] if len(segments) > 2 else []
-            return forward + reverse
-        elif pattern == "center_out":
-            sorted_segments = sorted(segments)
-            mid = len(sorted_segments) // 2
-            result = []
-            left, right = mid - 1, mid
-            while left >= 0 or right < len(sorted_segments):
-                if right < len(sorted_segments):
-                    result.append(sorted_segments[right])
-                    right += 1
-                if left >= 0:
+        match pattern:
+            case "all":
+                return segments
+            case "sequential_forward":
+                return sorted(segments)
+            case "sequential_reverse":
+                return sorted(segments, reverse=True)
+            case "random":
+                shuffled = segments.copy()
+                random.shuffle(shuffled)
+                return shuffled
+            case "ping_pong":
+                forward = sorted(segments)
+                reverse = sorted(segments, reverse=True)[1:-1] if len(segments) > 2 else []
+                return forward + reverse
+            case "center_out":
+                sorted_segments = sorted(segments)
+                mid = len(sorted_segments) // 2
+                result = []
+                left, right = mid - 1, mid
+                while left >= 0 or right < len(sorted_segments):
+                    if right < len(sorted_segments):
+                        result.append(sorted_segments[right])
+                        right += 1
+                    if left >= 0:
+                        result.append(sorted_segments[left])
+                        left -= 1
+                return result
+            case "edges_in":
+                sorted_segments = sorted(segments)
+                result = []
+                left, right = 0, len(sorted_segments) - 1
+                while left <= right:
                     result.append(sorted_segments[left])
-                    left -= 1
-            return result
-        elif pattern == "edges_in":
-            sorted_segments = sorted(segments)
-            result = []
-            left, right = 0, len(sorted_segments) - 1
-            while left <= right:
-                result.append(sorted_segments[left])
-                if left != right:
-                    result.append(sorted_segments[right])
-                left += 1
-                right -= 1
-            return result
-        elif pattern == "paired":
-            sorted_segments = sorted(segments)
-            return sorted_segments
+                    if left != right:
+                        result.append(sorted_segments[right])
+                    left += 1
+                    right -= 1
+                return result
+            case "paired":
+                sorted_segments = sorted(segments)
+                return sorted_segments
 
         return segments
 

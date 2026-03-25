@@ -366,7 +366,7 @@ async def test_attach_trigger_single_entity(
         # Verify the event config passed to event_trigger
         call_args = mock_attach.call_args
         event_config = call_args[0][1]  # Second positional arg is the config
-        assert event_config["event_type"] == EVENT_SEQUENCE_STARTED
+        assert event_config["event_type"][0].template == EVENT_SEQUENCE_STARTED
         assert event_config["event_data"][EVENT_ATTR_ENTITY_ID] == "light.bedroom"
         assert event_config["event_data"][EVENT_ATTR_SEQUENCE_TYPE] == SEQUENCE_TYPE_CCT
 
@@ -458,7 +458,7 @@ async def test_attach_trigger_effect_no_sequence_type_filter(
 
         call_args = mock_attach.call_args
         event_config = call_args[0][1]
-        assert event_config["event_type"] == EVENT_EFFECT_ACTIVATED
+        assert event_config["event_type"][0].template == EVENT_EFFECT_ACTIVATED
         assert EVENT_ATTR_SEQUENCE_TYPE not in event_config["event_data"]
         assert event_config["event_data"][EVENT_ATTR_ENTITY_ID] == "light.bedroom"
 

@@ -1,7 +1,7 @@
 {
   "domain": "aqara_advanced_lighting",
   "name": "Aqara Advanced Lighting",
-  "after_dependencies": ["mqtt", "zha"],
+  "after_dependencies": ["lovelace", "mqtt", "zha"],
   "codeowners": ["@absent42"],
   "config_flow": true,
   "dependencies": ["http"],
@@ -11,5 +11,5 @@
   "issue_tracker": "https://github.com/absent42/Aqara-Advanced-Lighting/issues",
   "quality_scale": "custom",
   "requirements": [],
-  "version": "1.1.0"
+  "version": "1.2.0"
 }

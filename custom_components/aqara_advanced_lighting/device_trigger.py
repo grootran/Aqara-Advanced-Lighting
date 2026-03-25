@@ -1,7 +1,5 @@
 """Device triggers for Aqara Advanced Lighting."""
 
-from __future__ import annotations
-
 import logging
 from typing import Any
 
@@ -146,7 +144,6 @@ _TRIGGER_EVENT_MAP: dict[str, tuple[str, str | None]] = {
     TRIGGER_TYPE_MUSIC_SYNC_DISABLED: (EVENT_MUSIC_SYNC_DISABLED, None),
 }
 
-
 async def async_get_trigger_capabilities(
     hass: HomeAssistant, config: ConfigType
 ) -> dict[str, vol.Schema]:
@@ -186,7 +183,6 @@ async def async_get_trigger_capabilities(
         )
     }
 
-
 async def async_get_triggers(
     hass: HomeAssistant, device_id: str
 ) -> list[dict[str, Any]]:
@@ -212,7 +208,6 @@ async def async_get_triggers(
         }
         for trigger_type in sorted(TRIGGER_TYPES)
     ]
-
 
 async def async_attach_trigger(
     hass: HomeAssistant,

@@ -1,7 +1,5 @@
 """Favorites storage for Aqara Advanced Lighting."""
 
-from __future__ import annotations
-
 import logging
 import uuid
 from typing import TypedDict
@@ -16,14 +14,12 @@ _LOGGER = logging.getLogger(__name__)
 STORAGE_KEY = f"{DOMAIN}.favorites"
 STORAGE_VERSION = 1
 
-
 class Favorite(TypedDict):
     """A favorite entity group."""
 
     id: str
     name: str
     entities: list[str]
-
 
 class FavoritesStore(BaseStore[dict[str, list[Favorite]]]):
     """Manages per-user favorite entities storage."""

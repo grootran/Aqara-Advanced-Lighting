@@ -2,9 +2,9 @@ import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, RGBColor, XYColor, UserEffectPreset, DeviceContext, EffectEditorDraft, Translations } from './types';
 import { xyToHex, rgbToXy, getComplementaryColor } from './color-utils';
-import { colorPickerStyles } from './styles';
+import { colorPickerStyles } from './styles/color-picker';
 import { addColorToHistory } from './color-history';
-import { ALL_DEVICE_LABELS, editorFormStyles, localize, hasNewHaDialog, dialogHeadingLegacy, dialogActions } from './editor-constants';
+import { ALL_DEVICE_LABELS, editorFormStyles, localize, dialogActions } from './editor-constants';
 import './xy-color-picker';
 import './color-history-swatches';
 
@@ -287,9 +287,7 @@ export class EffectEditor extends LitElement {
     }
   }
 
-  private _colorToHex(color: XYColor): string {
-    return xyToHex(color, 255);
-  }
+
 
   private _getEffectIconUrl(effect: string): string {
     return `/api/aqara_advanced_lighting/icons/${effect}.svg`;
@@ -521,18 +519,18 @@ export class EffectEditor extends LitElement {
                     class="color-swatch"
                     role="button"
                     tabindex="0"
-                    style="background-color: ${this._colorToHex(color)}"
+                    style="background-color: ${xyToHex(color)}"
                     @click=${() => this._openColorPicker(index)}
                     @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._openColorPicker(index); } }}
-                    title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_edit')}"
-                    aria-label="${this._localize('editors.color_label') || 'Color'} ${index + 1}: ${this._colorToHex(color)}"
+                    title="${this._localize('tooltips.color_edit')}"
+                    aria-label="${this._localize('editors.color_label') || 'Color'} ${index + 1}: ${xyToHex(color)}"
                   ></div>
                   ${this._colors.length > 1
                     ? html`
                         <button
                           class="color-remove"
                           @click=${() => this._removeColor(index)}
-                          title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_remove')}"
+                          title="${this._localize('tooltips.color_remove')}"
                         >
                           <ha-icon icon="mdi:close"></ha-icon>
                         </button>
@@ -545,7 +543,7 @@ export class EffectEditor extends LitElement {
               <div
                 class="add-color-icon"
                 @click=${this._addColor}
-                title="${this.hass.localize('component.aqara_advanced_lighting.panel.tooltips.color_add')}"
+                title="${this._localize('tooltips.color_add')}"
               >
                 <ha-icon icon="mdi:plus"></ha-icon>
               </div>
@@ -557,32 +555,22 @@ export class EffectEditor extends LitElement {
         <ha-dialog
           .open=${this._editingColorIndex !== null && this._editingColor !== null}
           @closed=${this._closeColorPicker}
-          .headerTitle=${hasNewHaDialog() ? this._localize('editors.color_picker_title') : undefined}
-          .heading=${!hasNewHaDialog() ? dialogHeadingLegacy(
-            this._localize('editors.color_picker_title'),
-            this._editingColor ? html`
-              <div
-                class="color-picker-modal-preview"
-                style="background-color: ${this._colorToHex(this._editingColor)}"
-              ></div>
-            ` : undefined,
-          ) : undefined}
+          .headerTitle=${this._localize('editors.color_picker_title')}
         >
-          ${hasNewHaDialog() ? html`
-            <span slot="headerNavigationIcon"></span>
-            ${this._editingColor ? html`
-              <div
-                slot="headerActionItems"
-                class="color-picker-modal-preview"
-                style="background-color: ${this._colorToHex(this._editingColor)}"
-              ></div>
-            ` : ''}
+          <span slot="headerNavigationIcon"></span>
+          ${this._editingColor ? html`
+            <div
+              slot="headerActionItems"
+              class="color-picker-modal-preview"
+              style="background-color: ${xyToHex(this._editingColor)}"
+            ></div>
           ` : ''}
           ${this._editingColor ? html`
             <xy-color-picker
               .color=${this._editingColor}
               .size=${220}
               .showRgbInputs=${true}
+              .translations=${this.translations}
               @color-changed=${this._handleColorPickerChange}
             ></xy-color-picker>
             <color-history-swatches

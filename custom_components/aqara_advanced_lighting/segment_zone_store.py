@@ -1,7 +1,5 @@
 """Per-device segment zone storage for Aqara Advanced Lighting."""
 
-from __future__ import annotations
-
 import logging
 import re
 
@@ -9,6 +7,8 @@ from homeassistant.core import HomeAssistant
 
 from .base_store import BaseStore
 from .const import DOMAIN
+
+_SEGMENT_RANGE_PATTERN = re.compile(r"^(\d+(-\d+)?)(,\s*\d+(-\d+)?)*$")
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,7 +28,6 @@ RESERVED_ZONE_NAMES: frozenset[str] = frozenset({
 MAX_ZONE_NAME_LENGTH = 50
 MIN_ZONE_NAME_LENGTH = 1
 MAX_ZONES_PER_DEVICE = 20
-
 
 def validate_zone_name(name: str) -> str | None:
     """Validate a zone name.
@@ -62,7 +61,6 @@ def validate_zone_name(name: str) -> str | None:
 
     return None
 
-
 def validate_segment_range(segment_range: str) -> str | None:
     """Validate a segment range string format.
 
@@ -78,22 +76,18 @@ def validate_segment_range(segment_range: str) -> str | None:
 
     # Allow valid segment range syntax: numbers, ranges, commas, keywords
     # We don't fully parse here (parse_segment_range does that), just basic format check
-    valid_pattern = re.compile(
-        r"^(\d+(-\d+)?)(,\s*\d+(-\d+)?)*$"
-    )
     keywords = {"odd", "even", "all", "first-half", "second-half"}
 
     if segment_range.lower() in keywords:
         return None
 
-    if not valid_pattern.match(segment_range):
+    if not _SEGMENT_RANGE_PATTERN.match(segment_range):
         return (
             f"Invalid segment range format: `{segment_range}`. "
             "Use numbers (5), ranges (1-10), or comma-separated (1-5,10,15-20)"
         )
 
     return None
-
 
 class SegmentZoneStore(BaseStore[dict[str, dict[str, str]]]):
     """Manages per-device segment zone definitions.

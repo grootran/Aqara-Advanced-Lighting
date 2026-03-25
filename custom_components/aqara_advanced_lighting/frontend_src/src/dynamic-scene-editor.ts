@@ -7,14 +7,14 @@ import { LitElement, html, css, PropertyValues, TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, XYColor, UserDynamicScenePreset, DynamicSceneEditorDraft, DynamicSceneColor, Translations } from './types';
 import { xyToHex, getAnalogousColor } from './color-utils';
-import { colorPickerStyles } from './styles';
+import { colorPickerStyles } from './styles/color-picker';
 import { addColorToHistory } from './color-history';
 import { ReorderableStepsMixin, reorderableStepStyles, ReorderableStepItem } from './reorderable-steps-mixin';
-import { editorFormStyles, localize, hasNewHaDialog, dialogHeadingLegacy, dialogActions } from './editor-constants';
+import { editorFormStyles, localize, loopModeOptions, endBehaviorOptions, dialogActions } from './editor-constants';
 import './xy-color-picker';
 import './color-history-swatches';
 import './image-color-extractor';
-import { ColorsExtractedDetail } from './image-color-extractor';
+import type { ColorsExtractedDetail } from './image-color-extractor';
 
 // Editable color slot with unique ID for drag/drop
 interface EditableColor extends DynamicSceneColor, ReorderableStepItem {}
@@ -52,6 +52,88 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   @state() private _showExtractor = false;
   @state() private _extractorMode: 'upload' | 'url' = 'upload';
   @state() private _thumbnail?: string;
+  @state() private _audioEnabled = false;
+  @state() private _audioEntity = '';
+  @state() private _audioSensitivity = 50;
+  @state() private _audioBrightnessResponse = true;
+  @state() private _audioColorAdvance: 'on_onset' | 'continuous' | 'beat_predictive' | 'intensity_breathing' | 'onset_flash' = 'on_onset';
+  @state() private _audioTransitionSpeed = 50;
+  @state() private _audioDetectionMode: 'spectral_flux' | 'bass_energy' | 'complex_domain' = 'spectral_flux';
+  @state() private _audioFrequencyZone = false;
+  @state() private _audioSilenceDegradation = true;
+  @state() private _audioPredictionAggressiveness = 50;
+  @state() private _audioLatencyCompensationMs = 150;
+  @state() private _audioColorByFrequency = false;
+  @state() private _audioRolloffBrightness = false;
+
+  // Audio preset definitions (UI-only, not stored in model)
+  private static readonly AUDIO_PRESETS: Record<string, {
+    color_advance: string; detection_mode: string; sensitivity: number;
+    transition_speed: number; brightness_response: boolean; frequency_zone: boolean;
+    color_by_frequency: boolean; rolloff_brightness: boolean; silence_degradation: boolean;
+    prediction_aggressiveness: number; latency_compensation_ms: number;
+  }> = {
+    beat: {
+      color_advance: 'on_onset', detection_mode: 'spectral_flux', sensitivity: 60,
+      transition_speed: 80, brightness_response: true, frequency_zone: false,
+      color_by_frequency: false, rolloff_brightness: false, silence_degradation: true,
+      prediction_aggressiveness: 50, latency_compensation_ms: 150,
+    },
+    ambient: {
+      color_advance: 'intensity_breathing', detection_mode: 'spectral_flux', sensitivity: 50,
+      transition_speed: 20, brightness_response: true, frequency_zone: false,
+      color_by_frequency: false, rolloff_brightness: true, silence_degradation: true,
+      prediction_aggressiveness: 50, latency_compensation_ms: 150,
+    },
+    concert: {
+      color_advance: 'beat_predictive', detection_mode: 'complex_domain', sensitivity: 50,
+      transition_speed: 50, brightness_response: true, frequency_zone: true,
+      color_by_frequency: true, rolloff_brightness: false, silence_degradation: true,
+      prediction_aggressiveness: 70, latency_compensation_ms: 150,
+    },
+    chill: {
+      color_advance: 'continuous', detection_mode: 'spectral_flux', sensitivity: 40,
+      transition_speed: 30, brightness_response: true, frequency_zone: false,
+      color_by_frequency: false, rolloff_brightness: false, silence_degradation: true,
+      prediction_aggressiveness: 50, latency_compensation_ms: 150,
+    },
+    club: {
+      color_advance: 'onset_flash', detection_mode: 'bass_energy', sensitivity: 70,
+      transition_speed: 95, brightness_response: true, frequency_zone: false,
+      color_by_frequency: false, rolloff_brightness: false, silence_degradation: false,
+      prediction_aggressiveness: 50, latency_compensation_ms: 150,
+    },
+  };
+
+  private get _currentAudioPreset(): string {
+    for (const [name, p] of Object.entries(DynamicSceneEditor.AUDIO_PRESETS)) {
+      if (this._audioColorAdvance === p.color_advance &&
+          this._audioDetectionMode === p.detection_mode &&
+          this._audioSensitivity === p.sensitivity &&
+          this._audioTransitionSpeed === p.transition_speed &&
+          this._audioBrightnessResponse === p.brightness_response &&
+          this._audioFrequencyZone === p.frequency_zone &&
+          this._audioColorByFrequency === p.color_by_frequency &&
+          this._audioRolloffBrightness === p.rolloff_brightness &&
+          this._audioSilenceDegradation === p.silence_degradation &&
+          this._audioPredictionAggressiveness === p.prediction_aggressiveness &&
+          this._audioLatencyCompensationMs === p.latency_compensation_ms) {
+        return name;
+      }
+    }
+    return 'custom';
+  }
+
+  private get _audioPresetOptions() {
+    return [
+      { value: 'beat', label: this._localize('dynamic_scene.audio_preset_beat') || 'Beat' },
+      { value: 'ambient', label: this._localize('dynamic_scene.audio_preset_ambient') || 'Ambient' },
+      { value: 'concert', label: this._localize('dynamic_scene.audio_preset_concert') || 'Concert' },
+      { value: 'chill', label: this._localize('dynamic_scene.audio_preset_chill') || 'Chill' },
+      { value: 'club', label: this._localize('dynamic_scene.audio_preset_club') || 'Club' },
+      { value: 'custom', label: this._localize('dynamic_scene.audio_preset_custom') || 'Custom' },
+    ];
+  }
 
   // Alias for cleaner code
   private get _colors(): EditableColor[] {
@@ -62,29 +144,42 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._steps = value;
   }
 
-  private get _loopModeOptions() {
-    return [
-      { value: 'once', label: this._localize('options.loop_mode_once') },
-      { value: 'count', label: this._localize('options.loop_mode_count') },
-      { value: 'continuous', label: this._localize('options.loop_mode_continuous') },
-    ];
+  private _cachedLoopModeOptions: { value: string; label: string }[] = [];
+  private _cachedEndBehaviorOptions: { value: string; label: string }[] = [];
+  private _cachedAudioColorAdvanceOptions: { value: string; label: string }[] = [];
+  private _cachedAudioDetectionModeOptions: { value: string; label: string }[] = [];
+  private _cachedDistributionModeOptions: { value: string; label: string }[] = [];
+
+  protected willUpdate(changedProps: PropertyValues): void {
+    if (changedProps.has('translations')) {
+      const loc = (k: string) => this._localize(k);
+      this._cachedLoopModeOptions = loopModeOptions(loc);
+      this._cachedEndBehaviorOptions = endBehaviorOptions(loc, 'dynamic_scene.end_behavior_restore');
+      this._cachedAudioColorAdvanceOptions = [
+        { value: 'on_onset', label: loc('dynamic_scene.audio_mode_on_onset') || 'Color cycle' },
+        { value: 'continuous', label: loc('dynamic_scene.audio_mode_continuous') || 'Continuous' },
+        { value: 'beat_predictive', label: loc('dynamic_scene.audio_mode_beat_predictive') || 'Beat predictive' },
+        { value: 'intensity_breathing', label: loc('dynamic_scene.audio_mode_intensity_breathing') || 'Intensity breathing' },
+        { value: 'onset_flash', label: loc('dynamic_scene.audio_mode_onset_flash') || 'Brightness flash' },
+      ];
+      this._cachedAudioDetectionModeOptions = [
+        { value: 'spectral_flux', label: loc('dynamic_scene.audio_detection_spectral_flux') || 'Spectral flux (all genres)' },
+        { value: 'bass_energy', label: loc('dynamic_scene.audio_detection_bass_energy') || 'Bass energy (rhythmic music)' },
+        { value: 'complex_domain', label: loc('dynamic_scene.audio_detection_complex_domain') || 'Complex domain (phase + magnitude)' },
+      ];
+      this._cachedDistributionModeOptions = [
+        { value: 'shuffle_rotate', label: loc('dynamic_scene.distribution_shuffle_rotate') || 'Shuffle and rotate' },
+        { value: 'synchronized', label: loc('dynamic_scene.distribution_synchronized') || 'Synchronized' },
+        { value: 'random', label: loc('dynamic_scene.distribution_random') || 'Random' },
+      ];
+    }
   }
 
-  private get _endBehaviorOptions() {
-    return [
-      { value: 'maintain', label: this._localize('options.end_behavior_maintain') },
-      { value: 'turn_off', label: this._localize('options.end_behavior_turn_off') },
-      { value: 'restore', label: this._localize('dynamic_scene.end_behavior_restore') || 'Restore previous state' },
-    ];
-  }
-
-  private get _distributionModeOptions() {
-    return [
-      { value: 'shuffle_rotate', label: this._localize('dynamic_scene.distribution_shuffle_rotate') || 'Shuffle and rotate' },
-      { value: 'synchronized', label: this._localize('dynamic_scene.distribution_synchronized') || 'Synchronized' },
-      { value: 'random', label: this._localize('dynamic_scene.distribution_random') || 'Random' },
-    ];
-  }
+  private get _loopModeOptions() { return this._cachedLoopModeOptions; }
+  private get _endBehaviorOptions() { return this._cachedEndBehaviorOptions; }
+  private get _audioColorAdvanceOptions() { return this._cachedAudioColorAdvanceOptions; }
+  private get _audioDetectionModeOptions() { return this._cachedAudioDetectionModeOptions; }
+  private get _distributionModeOptions() { return this._cachedDistributionModeOptions; }
 
   static styles = [
     colorPickerStyles,
@@ -319,6 +414,19 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._loopMode = preset.loop_mode;
     this._loopCount = preset.loop_count || 3;
     this._endBehavior = preset.end_behavior;
+    this._audioEnabled = !!(preset.audio_entity || preset.audio_color_advance);
+    this._audioEntity = preset.audio_entity || '';
+    this._audioSensitivity = preset.audio_sensitivity ?? 50;
+    this._audioBrightnessResponse = preset.audio_brightness_response ?? true;
+    this._audioColorAdvance = preset.audio_color_advance ?? 'on_onset';
+    this._audioTransitionSpeed = preset.audio_transition_speed ?? 50;
+    this._audioDetectionMode = preset.audio_detection_mode ?? 'spectral_flux';
+    this._audioFrequencyZone = preset.audio_frequency_zone ?? false;
+    this._audioSilenceDegradation = preset.audio_silence_degradation ?? true;
+    this._audioPredictionAggressiveness = preset.audio_prediction_aggressiveness ?? 50;
+    this._audioLatencyCompensationMs = preset.audio_latency_compensation_ms ?? 150;
+    this._audioColorByFrequency = preset.audio_color_by_frequency ?? false;
+    this._audioRolloffBrightness = preset.audio_rolloff_brightness ?? false;
     this._colors = preset.colors.map((color, index) => ({
       ...color,
       id: `color-${index}-${Date.now()}`,
@@ -344,6 +452,19 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
       loopCount: this._loopCount,
       endBehavior: this._endBehavior,
       hasUserInteraction: this._hasUserInteraction,
+      audioEnabled: this._audioEnabled,
+      audioEntity: this._audioEntity,
+      audioSensitivity: this._audioSensitivity,
+      audioBrightnessResponse: this._audioBrightnessResponse,
+      audioColorAdvance: this._audioColorAdvance,
+      audioTransitionSpeed: this._audioTransitionSpeed,
+      audioDetectionMode: this._audioDetectionMode,
+      audioFrequencyZone: this._audioFrequencyZone,
+      audioSilenceDegradation: this._audioSilenceDegradation,
+      audioPredictionAggressiveness: this._audioPredictionAggressiveness,
+      audioLatencyCompensationMs: this._audioLatencyCompensationMs,
+      audioColorByFrequency: this._audioColorByFrequency,
+      audioRolloffBrightness: this._audioRolloffBrightness,
     };
   }
 
@@ -360,6 +481,19 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._loopCount = 3;
     this._endBehavior = 'restore';
     this._hasUserInteraction = false;
+    this._audioEnabled = false;
+    this._audioEntity = '';
+    this._audioSensitivity = 50;
+    this._audioBrightnessResponse = true;
+    this._audioColorAdvance = 'on_onset';
+    this._audioTransitionSpeed = 50;
+    this._audioDetectionMode = 'spectral_flux';
+    this._audioFrequencyZone = false;
+    this._audioSilenceDegradation = true;
+    this._audioPredictionAggressiveness = 50;
+    this._audioLatencyCompensationMs = 150;
+    this._audioColorByFrequency = false;
+    this._audioRolloffBrightness = false;
     this._addDefaultColors();
   }
 
@@ -375,11 +509,24 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._loopMode = draft.loopMode;
     this._loopCount = draft.loopCount;
     this._endBehavior = draft.endBehavior;
+    this._hasUserInteraction = draft.hasUserInteraction ?? false;
+    this._audioEnabled = draft.audioEnabled ?? false;
+    this._audioEntity = draft.audioEntity ?? '';
+    this._audioSensitivity = draft.audioSensitivity ?? 50;
+    this._audioBrightnessResponse = draft.audioBrightnessResponse ?? true;
+    this._audioColorAdvance = draft.audioColorAdvance ?? 'on_onset';
+    this._audioTransitionSpeed = draft.audioTransitionSpeed ?? 50;
+    this._audioDetectionMode = draft.audioDetectionMode ?? 'spectral_flux';
+    this._audioFrequencyZone = draft.audioFrequencyZone ?? false;
+    this._audioSilenceDegradation = draft.audioSilenceDegradation ?? true;
+    this._audioPredictionAggressiveness = draft.audioPredictionAggressiveness ?? 50;
+    this._audioLatencyCompensationMs = draft.audioLatencyCompensationMs ?? 150;
+    this._audioColorByFrequency = draft.audioColorByFrequency ?? false;
+    this._audioRolloffBrightness = draft.audioRolloffBrightness ?? false;
     this._colors = draft.colors.map((color, index) => ({
       ...color,
       id: `color-${index}-${Date.now()}`,
     }));
-    this._hasUserInteraction = draft.hasUserInteraction ?? false;
   }
 
   private _addDefaultColors(): void {
@@ -443,6 +590,90 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
 
   private _handleEndBehaviorChange(e: CustomEvent): void {
     this._endBehavior = e.detail.value || 'restore';
+    this._hasUserInteraction = true;
+  }
+
+  private _handleAudioEnabledChange(e: CustomEvent): void {
+    this._audioEnabled = e.detail.value ?? false;
+    this._hasUserInteraction = true;
+  }
+
+  private _handleAudioEntityChange(e: CustomEvent): void {
+    this._audioEntity = e.detail.value || '';
+    this._hasUserInteraction = true;
+  }
+
+  private _handleAudioSensitivityChange(e: CustomEvent): void {
+    this._audioSensitivity = e.detail.value ?? 50;
+    this._hasUserInteraction = true;
+  }
+
+  private _handleAudioBrightnessResponseChange(e: CustomEvent): void {
+    this._audioBrightnessResponse = e.detail.value ?? true;
+    this._hasUserInteraction = true;
+  }
+
+  private _handleAudioColorAdvanceChange(e: CustomEvent): void {
+    this._audioColorAdvance = e.detail.value || 'on_onset';
+    this._hasUserInteraction = true;
+  }
+
+  private _handleAudioPresetChange(e: CustomEvent): void {
+    const preset = e.detail.value;
+    if (preset === 'custom') return;
+    const p = DynamicSceneEditor.AUDIO_PRESETS[preset];
+    if (!p) return;
+    this._audioColorAdvance = p.color_advance as any;
+    this._audioDetectionMode = p.detection_mode as any;
+    this._audioSensitivity = p.sensitivity;
+    this._audioTransitionSpeed = p.transition_speed;
+    this._audioBrightnessResponse = p.brightness_response;
+    this._audioFrequencyZone = p.frequency_zone;
+    this._audioColorByFrequency = p.color_by_frequency;
+    this._audioRolloffBrightness = p.rolloff_brightness;
+    this._audioSilenceDegradation = p.silence_degradation;
+    this._audioPredictionAggressiveness = p.prediction_aggressiveness;
+    this._audioLatencyCompensationMs = p.latency_compensation_ms;
+    this._hasUserInteraction = true;
+  }
+
+  private _handleAudioDetectionModeChange(e: CustomEvent): void {
+    this._audioDetectionMode = e.detail.value || 'spectral_flux';
+    this._hasUserInteraction = true;
+  }
+
+  private _handleAudioFrequencyZoneChange(e: CustomEvent): void {
+    this._audioFrequencyZone = e.detail.value ?? false;
+    this._hasUserInteraction = true;
+  }
+
+  private _handleAudioSilenceDegradationChange(e: CustomEvent): void {
+    this._audioSilenceDegradation = e.detail.value ?? true;
+    this._hasUserInteraction = true;
+  }
+
+  private _handleAudioPredictionAggressivenessChange(e: CustomEvent): void {
+    this._audioPredictionAggressiveness = e.detail.value ?? 50;
+    this._hasUserInteraction = true;
+  }
+
+  private _handleAudioLatencyCompensationChange(e: CustomEvent): void {
+    this._audioLatencyCompensationMs = e.detail.value ?? 150;
+    this._hasUserInteraction = true;
+  }
+
+  private _handleAudioColorByFrequencyChange(e: CustomEvent): void {
+    this._audioColorByFrequency = e.detail.value ?? false;
+    this._hasUserInteraction = true;
+  }
+
+  private _handleAudioRolloffBrightnessChange(e: CustomEvent): void {
+    this._audioRolloffBrightness = e.detail.value ?? false;
+    this._hasUserInteraction = true;
+  }
+
+  private _handleAudioTransitionSpeedChange(e: CustomEvent): void {
+    this._audioTransitionSpeed = e.detail.value ?? 50;
     this._hasUserInteraction = true;
   }
 
@@ -566,6 +797,22 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
 
     if (this._loopMode === 'count') {
       data.loop_count = this._loopCount;
+    }
+
+    // Include audio fields only when audio is enabled and an entity is selected
+    if (this._audioEnabled && this._audioEntity) {
+      data.audio_entity = this._audioEntity;
+      data.audio_sensitivity = this._audioSensitivity;
+      data.audio_brightness_response = this._audioBrightnessResponse;
+      data.audio_color_advance = this._audioColorAdvance;
+      data.audio_transition_speed = this._audioTransitionSpeed;
+      data.audio_detection_mode = this._audioDetectionMode;
+      data.audio_frequency_zone = this._audioFrequencyZone;
+      data.audio_silence_degradation = this._audioSilenceDegradation;
+      data.audio_prediction_aggressiveness = this._audioPredictionAggressiveness;
+      data.audio_latency_compensation_ms = this._audioLatencyCompensationMs;
+      data.audio_color_by_frequency = this._audioColorByFrequency;
+      data.audio_rolloff_brightness = this._audioRolloffBrightness;
     }
 
     return data;
@@ -781,47 +1028,25 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
           class="extractor-dialog"
           .open=${this._showExtractor}
           @closed=${() => { this._showExtractor = false; }}
-          .headerTitle=${hasNewHaDialog() ? (this._localize('dynamic_scene.extract_from_image') || 'Extract from image') : undefined}
-          .heading=${!hasNewHaDialog() ? dialogHeadingLegacy(
-            this._localize('dynamic_scene.extract_from_image') || 'Extract from image',
-          ) : undefined}
+          .headerTitle=${this._localize('dynamic_scene.extract_from_image') || 'Extract from image'}
         >
-          ${hasNewHaDialog() ? html`
-            <span slot="headerNavigationIcon"></span>
-            <div slot="headerActionItems" class="extractor-mode-toggle">
-              <button
-                class="mode-btn ${this._extractorMode === 'upload' ? 'active' : ''}"
-                @click=${() => { this._extractorMode = 'upload'; }}
-              >
-                <ha-icon icon="mdi:upload"></ha-icon>
-                ${this._localize('image_extractor.upload_tab')}
-              </button>
-              <button
-                class="mode-btn ${this._extractorMode === 'url' ? 'active' : ''}"
-                @click=${() => { this._extractorMode = 'url'; }}
-              >
-                <ha-icon icon="mdi:link"></ha-icon>
-                ${this._localize('image_extractor.url_tab')}
-              </button>
-            </div>
-          ` : html`
-            <div class="extractor-mode-toggle">
-              <button
-                class="mode-btn ${this._extractorMode === 'upload' ? 'active' : ''}"
-                @click=${() => { this._extractorMode = 'upload'; }}
-              >
-                <ha-icon icon="mdi:upload"></ha-icon>
-                ${this._localize('image_extractor.upload_tab')}
-              </button>
-              <button
-                class="mode-btn ${this._extractorMode === 'url' ? 'active' : ''}"
-                @click=${() => { this._extractorMode = 'url'; }}
-              >
-                <ha-icon icon="mdi:link"></ha-icon>
-                ${this._localize('image_extractor.url_tab')}
-              </button>
-            </div>
-          `}
+          <span slot="headerNavigationIcon"></span>
+          <div slot="headerActionItems" class="extractor-mode-toggle">
+            <button
+              class="mode-btn ${this._extractorMode === 'upload' ? 'active' : ''}"
+              @click=${() => { this._extractorMode = 'upload'; }}
+            >
+              <ha-icon icon="mdi:upload"></ha-icon>
+              ${this._localize('image_extractor.upload_tab')}
+            </button>
+            <button
+              class="mode-btn ${this._extractorMode === 'url' ? 'active' : ''}"
+              @click=${() => { this._extractorMode = 'url'; }}
+            >
+              <ha-icon icon="mdi:link"></ha-icon>
+              ${this._localize('image_extractor.url_tab')}
+            </button>
+          </div>
           <image-color-extractor
             .hass=${this.hass}
             .translations=${this.translations}
@@ -859,6 +1084,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
                   },
                 }}
                 .value=${this._transitionTime}
+                .disabled=${this._audioEnabled}
                 @value-changed=${this._handleTransitionTimeChange}
               ></ha-selector>
             </div>
@@ -879,6 +1105,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
                   },
                 }}
                 .value=${this._holdTime}
+                .disabled=${this._audioEnabled}
                 @value-changed=${this._handleHoldTimeChange}
               ></ha-selector>
             </div>
@@ -946,6 +1173,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
                 },
               }}
               .value=${this._loopMode}
+              .disabled=${this._audioEnabled}
               @value-changed=${this._handleLoopModeChange}
             ></ha-selector>
           </div>
@@ -960,6 +1188,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
                 },
               }}
               .value=${this._endBehavior}
+              .disabled=${this._audioEnabled}
               @value-changed=${this._handleEndBehaviorChange}
             ></ha-selector>
           </div>
@@ -979,42 +1208,255 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
                   },
                 }}
                 .value=${this._loopCount}
+                .disabled=${this._audioEnabled}
                 @value-changed=${this._handleLoopCountChange}
               ></ha-selector>
             </div>
           </div>
         ` : ''}
 
+        <!-- Audio Reactive Section -->
+        <div class="form-section">
+          <div class="form-row-pair">
+            <div class="form-section boolean-left">
+              <span class="form-label">${this._localize('dynamic_scene.audio_reactive_label') || 'Audio reactive'}</span>
+              <ha-selector
+                .hass=${this.hass}
+                .selector=${{ boolean: {} }}
+                .value=${this._audioEnabled}
+                @value-changed=${this._handleAudioEnabledChange}
+              ></ha-selector>
+            </div>
+          </div>
+
+          ${this._audioEnabled ? html`
+            <!-- Row 1: Audio preset + Entity selector -->
+            <div class="form-row-pair">
+              <div class="form-field">
+                <span class="form-label">${this._localize('dynamic_scene.audio_preset_label') || 'Audio preset'}</span>
+                <ha-selector
+                  .hass=${this.hass}
+                  .selector=${{
+                    select: {
+                      options: this._audioPresetOptions,
+                      mode: 'dropdown',
+                    },
+                  }}
+                  .value=${this._currentAudioPreset}
+                  @value-changed=${this._handleAudioPresetChange}
+                ></ha-selector>
+              </div>
+              <div class="form-field">
+                <span class="form-label">${this._localize('dynamic_scene.audio_entity_label') || 'Audio sensor entity'}</span>
+                <ha-selector
+                  .hass=${this.hass}
+                  .selector=${{
+                    entity: {
+                      domain: 'binary_sensor',
+                    },
+                  }}
+                  .value=${this._audioEntity}
+                  @value-changed=${this._handleAudioEntityChange}
+                ></ha-selector>
+              </div>
+            </div>
+
+            <!-- Row 2: Detection mode + Color advance -->
+            <div class="form-row-pair">
+              <div class="form-field">
+                <span class="form-label">${this._localize('dynamic_scene.audio_detection_mode_label') || 'Detection mode'}</span>
+                <ha-selector
+                  .hass=${this.hass}
+                  .selector=${{
+                    select: {
+                      options: this._audioDetectionModeOptions,
+                      mode: 'dropdown',
+                    },
+                  }}
+                  .value=${this._audioDetectionMode}
+                  @value-changed=${this._handleAudioDetectionModeChange}
+                ></ha-selector>
+              </div>
+              <div class="form-field">
+                <span class="form-label">${this._localize('dynamic_scene.audio_color_advance_label') || 'Color advance'}</span>
+                <ha-selector
+                  .hass=${this.hass}
+                  .selector=${{
+                    select: {
+                      options: this._audioColorAdvanceOptions,
+                      mode: 'dropdown',
+                    },
+                  }}
+                  .value=${this._audioColorAdvance}
+                  @value-changed=${this._handleAudioColorAdvanceChange}
+                ></ha-selector>
+              </div>
+            </div>
+
+            <!-- Row 3: Sensitivity + Transition speed -->
+            <div class="timing-section">
+              <div class="timing-field">
+                <div class="timing-label">
+                  <span class="form-label">${this._localize('dynamic_scene.audio_sensitivity_label') || 'Sensitivity'}</span>
+                  <span class="timing-value">${this._audioSensitivity}%</span>
+                </div>
+                <ha-selector
+                  .hass=${this.hass}
+                  .selector=${{
+                    number: {
+                      min: 1,
+                      max: 100,
+                      mode: 'slider',
+                      unit_of_measurement: '%',
+                    },
+                  }}
+                  .value=${this._audioSensitivity}
+                  @value-changed=${this._handleAudioSensitivityChange}
+                ></ha-selector>
+              </div>
+              <div class="timing-field">
+                <div class="timing-label">
+                  <span class="form-label">${this._localize('dynamic_scene.audio_transition_speed_label') || 'Transition speed'}</span>
+                  <span class="timing-value">${this._audioTransitionSpeed}%</span>
+                </div>
+                <ha-selector
+                  .hass=${this.hass}
+                  .disabled=${!(this._audioColorAdvance === 'on_onset' || this._audioColorAdvance === 'beat_predictive' || this._audioColorAdvance === 'onset_flash')}
+                  .selector=${{
+                    number: {
+                      min: 1,
+                      max: 100,
+                      mode: 'slider',
+                      unit_of_measurement: '%',
+                    },
+                  }}
+                  .value=${this._audioTransitionSpeed}
+                  @value-changed=${this._handleAudioTransitionSpeedChange}
+                ></ha-selector>
+              </div>
+            </div>
+
+            <!-- Row 4: Prediction aggressiveness + Latency compensation -->
+            <div class="timing-section">
+              <div class="timing-field">
+                <div class="timing-label">
+                  <span class="form-label">${this._localize('dynamic_scene.audio_prediction_aggressiveness_label') || 'Prediction aggressiveness'}</span>
+                  <span class="timing-value">${this._audioPredictionAggressiveness}%</span>
+                </div>
+                <ha-selector
+                  .hass=${this.hass}
+                  .disabled=${this._audioColorAdvance !== 'beat_predictive'}
+                  .selector=${{
+                    number: {
+                      min: 1,
+                      max: 100,
+                      mode: 'slider',
+                      unit_of_measurement: '%',
+                    },
+                  }}
+                  .value=${this._audioPredictionAggressiveness}
+                  @value-changed=${this._handleAudioPredictionAggressivenessChange}
+                ></ha-selector>
+              </div>
+              <div class="timing-field">
+                <div class="timing-label">
+                  <span class="form-label">${this._localize('dynamic_scene.audio_latency_compensation_label') || 'Latency compensation'}</span>
+                  <span class="timing-value">${this._audioLatencyCompensationMs}ms</span>
+                </div>
+                <ha-selector
+                  .hass=${this.hass}
+                  .disabled=${this._audioColorAdvance !== 'beat_predictive'}
+                  .selector=${{
+                    number: {
+                      min: 0,
+                      max: 500,
+                      mode: 'slider',
+                      unit_of_measurement: 'ms',
+                    },
+                  }}
+                  .value=${this._audioLatencyCompensationMs}
+                  @value-changed=${this._handleAudioLatencyCompensationChange}
+                ></ha-selector>
+              </div>
+            </div>
+
+            <!-- Toggles: 3-per-row desktop, 2-per-row mobile -->
+            <div class="audio-toggles-grid">
+              <div class="form-section boolean-left">
+                <span class="form-label">${this._localize('dynamic_scene.audio_brightness_response_label') || 'Brightness response'}</span>
+                <ha-selector
+                  .hass=${this.hass}
+                  .disabled=${!(this._audioColorAdvance === 'on_onset' || this._audioColorAdvance === 'continuous' || this._audioColorAdvance === 'beat_predictive')}
+                  .selector=${{ boolean: {} }}
+                  .value=${this._audioBrightnessResponse}
+                  @value-changed=${this._handleAudioBrightnessResponseChange}
+                ></ha-selector>
+              </div>
+              <div class="form-section boolean-left">
+                <span class="form-label">${this._localize('dynamic_scene.audio_frequency_zone_label') || 'Frequency zone'}</span>
+                <ha-selector
+                  .hass=${this.hass}
+                  .selector=${{ boolean: {} }}
+                  .value=${this._audioFrequencyZone}
+                  @value-changed=${this._handleAudioFrequencyZoneChange}
+                ></ha-selector>
+              </div>
+              <div class="form-section boolean-left">
+                <span class="form-label">${this._localize('dynamic_scene.audio_silence_degradation_label') || 'Silence degradation'}</span>
+                <ha-selector
+                  .hass=${this.hass}
+                  .selector=${{ boolean: {} }}
+                  .value=${this._audioSilenceDegradation}
+                  @value-changed=${this._handleAudioSilenceDegradationChange}
+                ></ha-selector>
+              </div>
+              <div class="form-section boolean-left">
+                <span class="form-label">${this._localize('dynamic_scene.audio_color_by_frequency_label') || 'Color by frequency'}</span>
+                <ha-selector
+                  .hass=${this.hass}
+                  .selector=${{ boolean: {} }}
+                  .value=${this._audioColorByFrequency}
+                  @value-changed=${this._handleAudioColorByFrequencyChange}
+                ></ha-selector>
+              </div>
+              <div class="form-section boolean-left">
+                <span class="form-label">${this._localize('dynamic_scene.audio_rolloff_brightness_label') || 'Rolloff brightness'}</span>
+                <ha-selector
+                  .hass=${this.hass}
+                  .selector=${{ boolean: {} }}
+                  .value=${this._audioRolloffBrightness}
+                  @value-changed=${this._handleAudioRolloffBrightnessChange}
+                ></ha-selector>
+              </div>
+            </div>
+
+            <div class="preview-warning">
+              <ha-icon icon="mdi:information-outline"></ha-icon>
+              <span>${this._localize('dynamic_scene.audio_overrides_timing_note') || 'When audio reactive is enabled, transition time and hold time are controlled by the audio signal.'}</span>
+            </div>
+          ` : ''}
+        </div>
+
         <!-- Color Picker Modal -->
         <ha-dialog
           .open=${this._editingColorIndex !== null && this._editingColor !== null}
           @closed=${this._closeColorPicker}
-          .headerTitle=${hasNewHaDialog() ? this._localize('editors.color_picker_title') : undefined}
-          .heading=${!hasNewHaDialog() ? dialogHeadingLegacy(
-            this._localize('editors.color_picker_title'),
-            this._editingColor ? html`
-              <div
-                class="color-picker-modal-preview"
-                style="background-color: ${xyToHex(this._editingColor, 255)}"
-              ></div>
-            ` : undefined,
-          ) : undefined}
+          .headerTitle=${this._localize('editors.color_picker_title')}
         >
-          ${hasNewHaDialog() ? html`
-            <span slot="headerNavigationIcon"></span>
-            ${this._editingColor ? html`
-              <div
-                slot="headerActionItems"
-                class="color-picker-modal-preview"
-                style="background-color: ${xyToHex(this._editingColor, 255)}"
-              ></div>
-            ` : ''}
+          <span slot="headerNavigationIcon"></span>
+          ${this._editingColor ? html`
+            <div
+              slot="headerActionItems"
+              class="color-picker-modal-preview"
+              style="background-color: ${xyToHex(this._editingColor, 255)}"
+            ></div>
           ` : ''}
           ${this._editingColor ? html`
             <xy-color-picker
               .color=${this._editingColor}
               .size=${220}
               .showRgbInputs=${true}
+              .translations=${this.translations}
               @color-changed=${this._handleColorPickerChange}
             ></xy-color-picker>
             <color-history-swatches

@@ -2,7 +2,7 @@ import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, CCTSequenceStep, ScheduleStep, UserCCTSequencePreset, DeviceContext, CCTEditorDraft, Translations } from './types';
 import { ReorderableStepsMixin, reorderableStepStyles } from './reorderable-steps-mixin';
-import { editorFormStyles, localize } from './editor-constants';
+import { editorFormStyles, localize, loopModeOptions, endBehaviorOptions } from './editor-constants';
 
 interface EditableStep extends CCTSequenceStep {
   id: string;
@@ -52,37 +52,33 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
   @state() private _previewing = false;
   @state() private _hasUserInteraction = false;
 
-  private get _loopModeOptions() {
-    return [
-      { value: 'once', label: this._localize('options.loop_mode_once') },
-      { value: 'count', label: this._localize('options.loop_mode_count') },
-      { value: 'continuous', label: this._localize('options.loop_mode_continuous') },
-    ];
+  private _cachedLoopModeOptions: { value: string; label: string }[] = [];
+  private _cachedEndBehaviorOptions: { value: string; label: string }[] = [];
+  private _cachedModeOptions: { value: string; label: string }[] = [];
+  private _cachedPhaseOptions: { value: string; label: string }[] = [];
+
+  protected willUpdate(changedProps: PropertyValues): void {
+    if (changedProps.has('translations')) {
+      const loc = (k: string) => this._localize(k);
+      this._cachedLoopModeOptions = loopModeOptions(loc);
+      this._cachedEndBehaviorOptions = endBehaviorOptions(loc);
+      this._cachedModeOptions = [
+        { value: 'standard', label: loc('editors.mode_standard') },
+        { value: 'schedule', label: loc('editors.mode_schedule') },
+        { value: 'solar', label: loc('editors.mode_solar_advanced') },
+      ];
+      this._cachedPhaseOptions = [
+        { value: 'rising', label: loc('options.phase_rising') },
+        { value: 'setting', label: loc('options.phase_setting') },
+        { value: 'any', label: loc('options.phase_any') },
+      ];
+    }
   }
 
-  private get _endBehaviorOptions() {
-    return [
-      { value: 'maintain', label: this._localize('options.end_behavior_maintain') },
-      { value: 'turn_off', label: this._localize('options.end_behavior_turn_off') },
-      { value: 'restore', label: this._localize('options.end_behavior_restore') },
-    ];
-  }
-
-  private get _modeOptions() {
-    return [
-      { value: 'standard', label: this._localize('editors.mode_standard') },
-      { value: 'schedule', label: this._localize('editors.mode_schedule') },
-      { value: 'solar', label: this._localize('editors.mode_solar_advanced') },
-    ];
-  }
-
-  private get _phaseOptions() {
-    return [
-      { value: 'rising', label: this._localize('options.phase_rising') },
-      { value: 'setting', label: this._localize('options.phase_setting') },
-      { value: 'any', label: this._localize('options.phase_any') },
-    ];
-  }
+  private get _loopModeOptions() { return this._cachedLoopModeOptions; }
+  private get _endBehaviorOptions() { return this._cachedEndBehaviorOptions; }
+  private get _modeOptions() { return this._cachedModeOptions; }
+  private get _phaseOptions() { return this._cachedPhaseOptions; }
 
   static styles = [reorderableStepStyles, editorFormStyles, css`
     .step-list {
@@ -345,7 +341,7 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
       position: relative;
       height: 18px;
       margin-top: 2px;
-      padding-left: 28px;
+      margin-left: 28px;
     }
 
     .timeline-labels .timeline-label {

@@ -7,8 +7,6 @@ manufacturer-specific attributes with proper types and handles the
 Aqara manufacturer code automatically.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
@@ -43,6 +41,7 @@ from .transition_utils import (
 )
 from .models import AqaraDevice, DynamicEffect, RGBColor, SegmentColor
 from .mqtt_backend import SUPPORTED_MODELS
+from .segment_utils import parse_segment_range
 from .payload_builder import (
     build_effect_colors_payload,
     build_effect_segments_mask,
@@ -55,7 +54,6 @@ if TYPE_CHECKING:
     from .models import AqaraLightingConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
-
 
 # Aqara manufacturer-specific Zigbee cluster ID
 CLUSTER_MANU_SPECIFIC_LUMI = 0xFCC0
@@ -120,7 +118,6 @@ T2_CCT_MODELS = {
     MODEL_T2_CCT_GU10_110V,
 }
 
-
 def _resolve_zha_model(device: Any) -> str | None:
     """Resolve the canonical model ID for a ZHA device.
 
@@ -152,7 +149,6 @@ def _resolve_zha_model(device: Any) -> str | None:
 
     return None
 
-
 def _get_device_family(model_id: str) -> str | None:
     """Classify model ID into device family.
 
@@ -169,7 +165,6 @@ def _get_device_family(model_id: str) -> str | None:
         return "t2_cct"
     return None
 
-
 def _get_effect_enum(device_family: str) -> dict[str, int]:
     """Get effect name to Zigbee enum mapping for a device family."""
     match device_family:
@@ -181,64 +176,6 @@ def _get_effect_enum(device_family: str) -> dict[str, int]:
             return EFFECT_ENUM_STRIP
         case _:
             return {}
-
-
-def _parse_segment_spec(spec: int | str, max_segments: int) -> list[int]:
-    """Parse a segment specification into a list of 1-based segment numbers.
-
-    Handles: int, "1-5", "odd", "even", "all", "1,3,5"
-    """
-    if isinstance(spec, int):
-        return [spec]
-
-    spec_str = str(spec).strip().lower()
-
-    if spec_str == "all":
-        return list(range(1, max_segments + 1))
-    if spec_str == "odd":
-        return list(range(1, max_segments + 1, 2))
-    if spec_str == "even":
-        return list(range(2, max_segments + 1, 2))
-
-    # Range like "1-5"
-    if "-" in spec_str and "," not in spec_str:
-        parts = spec_str.split("-", 1)
-        try:
-            start, end = int(parts[0]), int(parts[1])
-            if start < 1 or end > max_segments or end < start:
-                _LOGGER.warning(
-                    "Segment range %d-%d out of bounds (max %d)",
-                    start,
-                    end,
-                    max_segments,
-                )
-                return []
-            return list(range(start, end + 1))
-        except ValueError:
-            pass
-
-    # Comma-separated like "1,3,5" (cap at max_segments entries)
-    if "," in spec_str:
-        try:
-            parts = spec_str.split(",")
-            if len(parts) > max_segments:
-                _LOGGER.warning(
-                    "Segment list has %d entries, capping at %d",
-                    len(parts),
-                    max_segments,
-                )
-                parts = parts[:max_segments]
-            return [int(s.strip()) for s in parts]
-        except ValueError:
-            pass
-
-    # Single number as string
-    try:
-        return [int(spec_str)]
-    except ValueError:
-        _LOGGER.warning("Could not parse segment spec: %s", spec)
-        return []
-
 
 class ZHABackend:
     """ZHA backend implementing the DeviceBackend protocol.
@@ -655,7 +592,7 @@ class ZHABackend:
         segments_mask: bytes | None = None
         if device_family == "strip" and effect.effect_segments is not None:
             max_segments = self._get_strip_segment_count(ieee_str)
-            seg_nums = _parse_segment_spec(effect.effect_segments, max_segments)
+            seg_nums = parse_segment_range(effect.effect_segments, max_segments)
             if seg_nums:
                 segments_mask = build_effect_segments_mask(seg_nums, max_segments)
 
@@ -751,7 +688,7 @@ class ZHABackend:
         # Group segments by (color, brightness) to minimize cluster writes
         groups: dict[tuple[int, int, int, int], list[int]] = {}
         for sc in segments:
-            seg_nums = _parse_segment_spec(sc.segment, max_segments)
+            seg_nums = parse_segment_range(sc.segment, max_segments)
             key = (sc.color.r, sc.color.g, sc.color.b, sc.brightness or 254)
             groups.setdefault(key, []).extend(seg_nums)
 
@@ -876,26 +813,3 @@ class ZHABackend:
         _LOGGER.debug("Stopped music sync on %s", entity_id)
 
     # --- Device-specific ---
-
-    async def async_set_transition_curve(
-        self,
-        entity_id: str,
-        curvature: float,
-    ) -> None:
-        """Set transition curve curvature for T2 bulbs.
-
-        Writes the curvature value directly to the manufacturer-specific
-        cluster attribute 0x0528.
-        """
-        ieee_str = self._entity_to_ieee.get(entity_id)
-        if not ieee_str:
-            _LOGGER.warning(
-                "Cannot set transition curve: entity %s not mapped", entity_id
-            )
-            return
-
-        await self._write_cluster_attribute(ieee_str, ATTR_TRANSITION_CURVE, curvature)
-
-        _LOGGER.debug(
-            "Set transition curve curvature for %s: %.1f", entity_id, curvature
-        )

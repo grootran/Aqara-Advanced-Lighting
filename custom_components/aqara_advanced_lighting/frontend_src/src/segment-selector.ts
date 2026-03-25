@@ -22,10 +22,11 @@ import {
   xyToHs,
   hsToXy,
   rgbToHex,
+  xyToHex,
   getComplementaryColor,
 } from './color-utils';
 import { addColorToHistory } from './color-history';
-import { hasNewHaDialog, dialogHeadingLegacy, dialogActions } from './editor-constants';
+import { dialogActions, localize, DEFAULT_PALETTE, DEFAULT_GRADIENT_COLORS, DEFAULT_BLOCK_COLORS } from './editor-constants';
 import './color-history-swatches';
 
 // Component mode types
@@ -33,34 +34,6 @@ type SegmentSelectorMode = 'selection' | 'color' | 'sequence';
 type PatternMode = 'individual' | 'gradient' | 'blocks';
 type ColorSource = 'palette' | 'gradient' | 'blocks' | null;
 type InterpolationMode = 'shortest' | 'longest' | 'rgb';
-
-// Default palettes
-const DEFAULT_PALETTE: XYColor[] = [
-  { x: 0.6800, y: 0.3100 },    // Red
-  { x: 0.1700, y: 0.7000 },    // Green
-  { x: 0.1500, y: 0.0600 },    // Blue
-  { x: 0.4200, y: 0.5100 },    // Yellow
-  { x: 0.3800, y: 0.1600 },    // Magenta
-  { x: 0.2200, y: 0.3300 },    // Cyan
-];
-
-const DEFAULT_GRADIENT_COLORS: XYColor[] = [
-  { x: 0.6800, y: 0.3100 },  // Red
-  { x: 0.1500, y: 0.0600 },  // Blue
-];
-
-const DEFAULT_BLOCK_COLORS: XYColor[] = [
-  { x: 0.6800, y: 0.3100 },  // Red
-  { x: 0.1700, y: 0.7000 },  // Green
-];
-
-/**
- * Convert XY color to hex string
- */
-function xyToHex(xy: XYColor, brightness: number = 255): string {
-  const rgb = xyToRgb(xy.x, xy.y, brightness);
-  return rgbToHex(rgb);
-}
 
 @customElement('segment-selector')
 export class SegmentSelector extends LitElement {
@@ -538,16 +511,12 @@ export class SegmentSelector extends LitElement {
         font-size: 13px;
       }
 
-      /* Color picker ha-dialog styling
-       * Fixed width sized for 8 color history swatches:
+      /* Color picker ha-dialog sizing:
        * 8 x 32px swatches + 7 x 6px gaps = 298px content + 48px padding = 346px
-       * Supports both new (2026.3+) and old (2026.2) ha-dialog CSS variables.
        */
       ha-dialog {
         --ha-dialog-width-md: min(346px, calc(100vw - 32px));
         --ha-dialog-max-width: min(346px, calc(100vw - 32px));
-        --mdc-dialog-min-width: min(346px, calc(100vw - 32px));
-        --mdc-dialog-max-width: min(346px, calc(100vw - 32px));
       }
 
       ha-dialog [slot="headerActionItems"] {
@@ -558,25 +527,6 @@ export class SegmentSelector extends LitElement {
         display: flex;
         gap: 8px;
         justify-content: flex-end;
-      }
-
-      /* Old ha-dialog heading layout */
-      ha-dialog .header_title {
-        display: flex;
-        align-items: center;
-      }
-      ha-dialog .header_title span {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        display: block;
-        padding-left: 4px;
-        padding-right: 4px;
-        flex: 1;
-      }
-      ha-dialog .header_title .header_button {
-        text-decoration: none;
-        color: inherit;
       }
 
       .color-picker-modal-preview {
@@ -909,21 +859,7 @@ export class SegmentSelector extends LitElement {
    * Translation helper
    */
   private _localize(key: string, replacements?: Record<string, string | number>): string {
-    const keys = key.split('.');
-    let value: string | Translations | undefined = this.translations;
-    for (const k of keys) {
-      if (!value || typeof value !== 'object' || !(k in value)) {
-        return key;
-      }
-      value = (value as Translations)[k];
-    }
-    let result = typeof value === 'string' ? value : key;
-    if (replacements) {
-      Object.entries(replacements).forEach(([placeholder, replacement]) => {
-        result = result.replace(`{${placeholder}}`, String(replacement));
-      });
-    }
-    return result;
+    return localize(this.translations, key, replacements as Record<string, string>);
   }
 
   /**
@@ -2109,25 +2045,14 @@ export class SegmentSelector extends LitElement {
       <ha-dialog
         open
         @closed=${this._closeColorPicker}
-        .headerTitle=${hasNewHaDialog() ? this._localize('editors.color_picker_title') : undefined}
-        .heading=${!hasNewHaDialog() ? dialogHeadingLegacy(
-          this._localize('editors.color_picker_title'),
-          html`
-            <div
-              class="color-picker-modal-preview"
-              style="background-color: ${accurateHex}"
-            ></div>
-          `,
-        ) : undefined}
+        .headerTitle=${this._localize('editors.color_picker_title')}
       >
-        ${hasNewHaDialog() ? html`
-          <span slot="headerNavigationIcon"></span>
-          <div
-            slot="headerActionItems"
-            class="color-picker-modal-preview"
-            style="background-color: ${accurateHex}"
-          ></div>
-        ` : ''}
+        <span slot="headerNavigationIcon"></span>
+        <div
+          slot="headerActionItems"
+          class="color-picker-modal-preview"
+          style="background-color: ${accurateHex}"
+        ></div>
         <div class="color-picker-canvas-container">
           ${this._renderColorWheel()}
         </div>

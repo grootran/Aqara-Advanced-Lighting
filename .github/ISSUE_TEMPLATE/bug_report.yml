@@ -51,6 +51,24 @@ body:
       required: true
 
   - type: input
+    id: esphome_version
+    attributes:
+      label: ESPHome Version
+      description: If using audio-reactive features with an ESPHome sensor, what version of ESPHome are you running?
+      placeholder: "e.g., 2025.12.0"
+    validations:
+      required: false
+
+  - type: input
+    id: audio_sensor_hardware
+    attributes:
+      label: Audio Sensor Hardware
+      description: If using audio-reactive features, what ESP32 hardware are you using?
+      placeholder: "e.g., M5Stack ATOM Echo, ATOM Echo S3R, Waveshare ESP32-S3"
+    validations:
+      required: false
+
+  - type: input
     id: z2m_version
     attributes:
       label: Zigbee2MQTT Version
@@ -94,6 +112,7 @@ body:
         - T2 CCT bulb (E26)
         - T2 CCT bulb (E27)
         - T2 CCT bulb (GU10)
+        - ESPHome audio-reactive sensor
         - Multiple devices
         - Not device-specific
     validations:
@@ -208,8 +227,14 @@ body:
         - label: RGB segment sequences
         - label: State restoration
         - label: Panel UI
+        - label: Dashboard card
         - label: Presets
         - label: Favorites
         - label: Device configuration
+        - label: Audio-reactive dynamic scenes
+        - label: Audio-reactive presets / modes
+        - label: On-device audio sync (T1 Strip)
+        - label: ESPHome audio sensor discovery
+        - label: Beat detection / latency compensation
         - label: Service calls
         - label: Other
