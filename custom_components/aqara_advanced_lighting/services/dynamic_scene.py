@@ -15,6 +15,7 @@ from ..const import (
     AUDIO_COLOR_ADVANCE_ON_ONSET,
     DATA_ENTITY_CONTROLLER,
     DATA_PRESET_STORE,
+    DATA_USER_PREFERENCES_STORE,
     DEFAULT_AUDIO_DETECTION_MODE,
     DEFAULT_AUDIO_FREQUENCY_ZONE,
     DEFAULT_AUDIO_PREDICTION_AGGRESSIVENESS,
@@ -39,6 +40,28 @@ from ._helpers import (
 from homeassistant.const import ATTR_ENTITY_ID
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _resolve_audio_entity_fallback(
+    preset: dict[str, Any], default_audio_entity: str
+) -> str | None:
+    """Resolve audio_entity for a preset, falling back to user default.
+
+    Returns the audio entity to use, or None if the preset is not audio-reactive
+    or no default is configured.
+    """
+    # If preset has an explicit audio_entity, use it
+    explicit = preset.get("audio_entity")
+    if explicit:
+        return explicit
+
+    # Only apply fallback for audio-reactive presets
+    if "audio_color_advance" not in preset:
+        return None
+
+    # Use default if configured
+    return default_audio_entity or None
+
 
 async def handle_start_dynamic_scene(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle start_dynamic_scene service call.
@@ -96,6 +119,14 @@ async def handle_start_dynamic_scene(hass: HomeAssistant, call: ServiceCall) -> 
                 translation_key="preset_not_found",
             )
 
+        # Resolve default audio entity from user preferences
+        default_audio_entity = ""
+        prefs_store = hass.data.get(DOMAIN, {}).get(DATA_USER_PREFERENCES_STORE)
+        if prefs_store:
+            user_id = call.context.user_id or "default"
+            prefs = prefs_store.get_preferences(user_id)
+            default_audio_entity = prefs.get("audio_override_entity", "")
+
         colors = [
             DynamicSceneColor(
                 x=c["x"],
@@ -115,7 +146,7 @@ async def handle_start_dynamic_scene(hass: HomeAssistant, call: ServiceCall) -> 
             loop_mode=preset["loop_mode"],
             loop_count=preset.get("loop_count"),
             end_behavior=preset["end_behavior"],
-            audio_entity=preset.get("audio_entity"),
+            audio_entity=_resolve_audio_entity_fallback(preset, default_audio_entity),
             audio_sensitivity=preset.get("audio_sensitivity", DEFAULT_AUDIO_SENSITIVITY),
             audio_brightness_response=preset.get("audio_brightness_response", True),
             audio_color_advance=preset.get("audio_color_advance", AUDIO_COLOR_ADVANCE_ON_ONSET),

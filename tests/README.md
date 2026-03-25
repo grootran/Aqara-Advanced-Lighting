@@ -10,6 +10,8 @@ tests/
 ├── test_audio_mode_handlers.py    # Audio-reactive v2 model fields and mode handlers
 ├── test_audio_on_device.py        # Generic on-device audio opt-in
 ├── test_audio_rich_tier.py        # Rich tier audio-reactive scenes end-to-end
+├── test_audio_preset_fallback.py   # Default audio entity fallback for audio-reactive presets
+├── test_audio_reactive_presets.py  # Audio-reactive preset definitions validation
 ├── test_audio_scene.py            # Audio-reactive dynamic scene model validation
 ├── test_capability_adaptation.py  # Dynamic scene capability adaptation
 ├── test_capability_profile.py     # Light capability detection and color temp conversion
@@ -95,6 +97,29 @@ End-to-end tests for rich tier audio-reactive scenes.
 - Companion discovery maps all 10 sensor roles (bass, mid, high energy, amplitude, bpm, onset, silence, sensitivity, squelch, detection_mode)
 - Rich scene model accepts binary_sensor as audio entity
 - Continuous mode with rich tier is valid
+
+### test_audio_preset_fallback.py (4 tests)
+
+Default audio entity fallback for audio-reactive presets.
+
+- Non-audio presets do not receive a fallback entity
+- Audio presets without audio_entity get the user's default
+- Audio presets with explicit audio_entity preserve it
+- Audio presets get None when no default is configured
+
+### test_audio_reactive_presets.py (112 tests)
+
+Audio-reactive dynamic scene preset definitions validation.
+
+- All 12 audio-reactive presets exist in DYNAMIC_SCENE_PRESETS
+- Required fields present on each preset (parametrized × 12)
+- Valid audio_color_advance, audio_detection_mode, distribution_mode constants (parametrized × 12 each)
+- Transition time within MIN/MAX constants (parametrized × 12)
+- Sensitivity and transition speed within 1–100 range (parametrized × 12 each)
+- Colors have valid CIE xy (0.0–1.0) and brightness (1–100), 1–8 per preset (parametrized × 12)
+- No hardcoded audio_entity in built-in presets (parametrized × 12)
+- Exactly 12 audio-reactive presets total
+- Full coverage of all 5 audio modes and all 3 detection modes
 
 ### test_audio_scene.py (3 tests)
 

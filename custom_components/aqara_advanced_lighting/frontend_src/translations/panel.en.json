@@ -131,7 +131,8 @@
     "export_selected_button": "Export selected ({count})",
     "export_selected_success": "{count} presets exported",
     "copy_suffix": "(copy)",
-    "presets_count": "{count} presets"
+    "presets_count": "{count} presets",
+    "default_audio_sensor": "Default audio sensor for audio-reactive presets"
   },
   "dialogs": {
     "create_effect_title": "Create Effect Preset",

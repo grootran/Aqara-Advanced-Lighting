@@ -1999,18 +1999,22 @@ export class AqaraPanel extends LitElement {
 
     // Audio reactive override (panel override takes precedence over preset audio settings)
     this._applyAudioOverrides(serviceData);
-    if (!(this._prefs.state.useAudioReactive && this._prefs.state.audioOverrideEntity) && preset.audio_entity) {
+    if (!(this._prefs.state.useAudioReactive && this._prefs.state.audioOverrideEntity) && preset.audio_color_advance) {
       // Pass through preset-level audio settings when no panel override is active
-      serviceData.audio_entity = preset.audio_entity;
-      serviceData.audio_sensitivity = preset.audio_sensitivity;
-      serviceData.audio_brightness_response = preset.audio_brightness_response;
-      serviceData.audio_color_advance = preset.audio_color_advance;
-      serviceData.audio_transition_speed = preset.audio_transition_speed;
-      serviceData.audio_detection_mode = preset.audio_detection_mode;
-      serviceData.audio_frequency_zone = preset.audio_frequency_zone;
-      serviceData.audio_silence_degradation = preset.audio_silence_degradation;
-      serviceData.audio_prediction_aggressiveness = preset.audio_prediction_aggressiveness;
-      serviceData.audio_latency_compensation_ms = preset.audio_latency_compensation_ms;
+      // Use preset's audio_entity if set, otherwise fall back to user's default
+      const audioEntity = preset.audio_entity || this._prefs.state.audioOverrideEntity;
+      if (audioEntity) {
+        serviceData.audio_entity = audioEntity;
+        serviceData.audio_sensitivity = preset.audio_sensitivity;
+        serviceData.audio_brightness_response = preset.audio_brightness_response;
+        serviceData.audio_color_advance = preset.audio_color_advance;
+        serviceData.audio_transition_speed = preset.audio_transition_speed;
+        serviceData.audio_detection_mode = preset.audio_detection_mode;
+        serviceData.audio_frequency_zone = preset.audio_frequency_zone;
+        serviceData.audio_silence_degradation = preset.audio_silence_degradation;
+        serviceData.audio_prediction_aggressiveness = preset.audio_prediction_aggressiveness;
+        serviceData.audio_latency_compensation_ms = preset.audio_latency_compensation_ms;
+      }
     }
 
     await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
@@ -3567,6 +3571,18 @@ export class AqaraPanel extends LitElement {
                 </ha-button>
               </div>
             `}
+          <div class="audio-default-selector" style="padding: 8px 16px; border-top: 1px solid var(--divider-color);">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+              <ha-icon icon="mdi:microphone" style="color: var(--secondary-text-color);"></ha-icon>
+              <span style="font-size: 0.9em; font-weight: 500;">${this._localize('presets.default_audio_sensor')}</span>
+            </div>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{ entity: { domain: 'binary_sensor' } }}
+              .value=${this._prefs.state.audioOverrideEntity}
+              @value-changed=${this._handleAudioOverrideEntityChange}
+            ></ha-selector>
+          </div>
         </div>
       </ha-expansion-panel>
 
@@ -4314,7 +4330,7 @@ export class AqaraPanel extends LitElement {
     }
     const thumb = renderDynamicSceneThumbnail(preset)
       ?? html`<ha-icon icon="mdi:lamps"></ha-icon>`;
-    if (preset.audio_entity) {
+    if (preset.audio_entity || preset.audio_color_advance) {
       return html`${thumb}<span class="audio-badge"><ha-icon icon="mdi:waveform"></ha-icon></span>`;
     }
     return thumb;
@@ -4322,8 +4338,12 @@ export class AqaraPanel extends LitElement {
 
   /** Render a builtin dynamic scene preset icon: always use gradient thumbnail. */
   private _renderBuiltinDynamicSceneIcon(preset: DynamicScenePreset) {
-    return renderDynamicSceneThumbnail(preset)
+    const thumb = renderDynamicSceneThumbnail(preset)
       ?? html`<ha-icon icon="mdi:lamps"></ha-icon>`;
+    if (preset.audio_color_advance) {
+      return html`${thumb}<span class="audio-badge"><ha-icon icon="mdi:waveform"></ha-icon></span>`;
+    }
+    return thumb;
   }
 
   private _renderCCTSequencesSection() {

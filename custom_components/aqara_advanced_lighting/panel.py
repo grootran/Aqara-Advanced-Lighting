@@ -431,22 +431,37 @@ def _build_presets_data() -> dict[str, Any]:
     # Build dynamic scenes
     dynamic_scenes = []
     for preset_id, preset_data in DYNAMIC_SCENE_PRESETS.items():
-        dynamic_scenes.append(
-            {
-                "id": preset_id,
-                "name": preset_data["name"],
-                "icon": preset_data.get("icon"),
-                "colors": preset_data["colors"],
-                "transition_time": preset_data["transition_time"],
-                "hold_time": preset_data["hold_time"],
-                "distribution_mode": preset_data["distribution_mode"],
-                "offset_delay": preset_data.get("offset_delay", 0.0),
-                "random_order": preset_data.get("random_order", False),
-                "loop_mode": preset_data["loop_mode"],
-                "loop_count": preset_data.get("loop_count"),
-                "end_behavior": preset_data["end_behavior"],
-            }
-        )
+        scene_entry: dict[str, Any] = {
+            "id": preset_id,
+            "name": preset_data["name"],
+            "icon": preset_data.get("icon"),
+            "colors": preset_data["colors"],
+            "transition_time": preset_data["transition_time"],
+            "hold_time": preset_data["hold_time"],
+            "distribution_mode": preset_data["distribution_mode"],
+            "offset_delay": preset_data.get("offset_delay", 0.0),
+            "random_order": preset_data.get("random_order", False),
+            "loop_mode": preset_data["loop_mode"],
+            "loop_count": preset_data.get("loop_count"),
+            "end_behavior": preset_data["end_behavior"],
+        }
+        # Include audio-reactive fields if present
+        if "audio_color_advance" in preset_data:
+            scene_entry.update({
+                "audio_entity": preset_data.get("audio_entity"),
+                "audio_sensitivity": preset_data.get("audio_sensitivity"),
+                "audio_brightness_response": preset_data.get("audio_brightness_response"),
+                "audio_color_advance": preset_data.get("audio_color_advance"),
+                "audio_transition_speed": preset_data.get("audio_transition_speed"),
+                "audio_detection_mode": preset_data.get("audio_detection_mode"),
+                "audio_frequency_zone": preset_data.get("audio_frequency_zone"),
+                "audio_silence_degradation": preset_data.get("audio_silence_degradation"),
+                "audio_prediction_aggressiveness": preset_data.get("audio_prediction_aggressiveness"),
+                "audio_latency_compensation_ms": preset_data.get("audio_latency_compensation_ms"),
+                "audio_color_by_frequency": preset_data.get("audio_color_by_frequency"),
+                "audio_rolloff_brightness": preset_data.get("audio_rolloff_brightness"),
+            })
+        dynamic_scenes.append(scene_entry)
 
     return {
         "dynamic_effects": dynamic_effects,

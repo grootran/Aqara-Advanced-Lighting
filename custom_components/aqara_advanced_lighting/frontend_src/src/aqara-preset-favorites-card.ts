@@ -856,13 +856,18 @@ export class AqaraPresetFavoritesCard extends LitElement {
         if (isUser) {
           const p = preset as UserDynamicScenePreset;
           const thumb = userIcon(p.icon, 'mdi:lamps', () => renderDynamicSceneThumbnail(p));
-          if (p.audio_entity) {
+          if (p.audio_entity || p.audio_color_advance) {
             return html`${thumb}<span class="audio-badge"><ha-icon icon="mdi:waveform"></ha-icon></span>`;
           }
           return thumb;
         }
-        return renderDynamicSceneThumbnail(preset as DynamicScenePreset)
+        const bp = preset as DynamicScenePreset;
+        const builtinThumb = renderDynamicSceneThumbnail(bp)
           ?? html`<ha-icon icon="mdi:lamps"></ha-icon>`;
+        if (bp.audio_color_advance) {
+          return html`${builtinThumb}<span class="audio-badge"><ha-icon icon="mdi:waveform"></ha-icon></span>`;
+        }
+        return builtinThumb;
       }
       default:
         return html`<ha-icon icon="mdi:star"></ha-icon>`;

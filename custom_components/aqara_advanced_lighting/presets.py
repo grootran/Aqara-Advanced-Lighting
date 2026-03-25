@@ -22,6 +22,14 @@ from .const import (
     DISTRIBUTION_RANDOM,
     DISTRIBUTION_SHUFFLE_ROTATE,
     DISTRIBUTION_SYNCHRONIZED,
+    AUDIO_COLOR_ADVANCE_ON_ONSET,
+    AUDIO_COLOR_ADVANCE_CONTINUOUS,
+    AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
+    AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING,
+    AUDIO_COLOR_ADVANCE_ONSET_FLASH,
+    AUDIO_DETECTION_MODE_SPECTRAL_FLUX,
+    AUDIO_DETECTION_MODE_BASS_ENERGY,
+    AUDIO_DETECTION_MODE_COMPLEX_DOMAIN,
     END_BEHAVIOR_MAINTAIN,
     END_BEHAVIOR_RESTORE,
     END_BEHAVIOR_TURN_OFF,
@@ -1888,5 +1896,309 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "random_order": False,
         "loop_mode": LOOP_MODE_CONTINUOUS,
         "end_behavior": END_BEHAVIOR_RESTORE,
+    },
+    # Audio-reactive presets — Energetic
+    "beat_drop": {
+        "name": "Beat Drop",
+        "icon": "mdi:speaker",
+        "colors": [
+            {"x": 0.5800, "y": 0.2800, "brightness_pct": 80},  # Hot pink
+            {"x": 0.2000, "y": 0.0800, "brightness_pct": 80},  # Electric purple
+            {"x": 0.1700, "y": 0.2400, "brightness_pct": 80},  # Cyan
+            {"x": 0.5800, "y": 0.3900, "brightness_pct": 80},  # Flame orange
+            {"x": 0.4200, "y": 0.5100, "brightness_pct": 80},  # Yellow flash
+        ],
+        "transition_time": 30.0,
+        "hold_time": 45.0,
+        "distribution_mode": DISTRIBUTION_RANDOM,
+        "offset_delay": 0.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_ON_ONSET,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_BASS_ENERGY,
+        "audio_sensitivity": 75,
+        "audio_transition_speed": 80,
+        "audio_brightness_response": True,
+        "audio_silence_degradation": True,
+    },
+    "neon_pulse": {
+        "name": "Neon Pulse",
+        "icon": "mdi:lightbulb-fluorescent-tube",
+        "colors": [
+            {"x": 0.3200, "y": 0.1500, "brightness_pct": 80},  # Magenta
+            {"x": 0.1700, "y": 0.5700, "brightness_pct": 80},  # Neon green
+            {"x": 0.6200, "y": 0.3500, "brightness_pct": 80},  # Neon red
+            {"x": 0.1550, "y": 0.0700, "brightness_pct": 80},  # Deep blue
+            {"x": 0.4600, "y": 0.4700, "brightness_pct": 80},  # Electric yellow
+        ],
+        "transition_time": 30.0,
+        "hold_time": 45.0,
+        "distribution_mode": DISTRIBUTION_SHUFFLE_ROTATE,
+        "offset_delay": 2.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_ON_ONSET,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_SPECTRAL_FLUX,
+        "audio_sensitivity": 60,
+        "audio_transition_speed": 70,
+        "audio_brightness_response": True,
+        "audio_silence_degradation": True,
+    },
+    "dance": {
+        "name": "Dance",
+        "icon": "mdi:dance-ballroom",
+        "colors": [
+            {"x": 0.1500, "y": 0.1100, "brightness_pct": 80},  # Club blue
+            {"x": 0.2700, "y": 0.1200, "brightness_pct": 80},  # Purple
+            {"x": 0.5500, "y": 0.2700, "brightness_pct": 80},  # Hot pink
+            {"x": 0.1550, "y": 0.1700, "brightness_pct": 80},  # Ice blue
+        ],
+        "transition_time": 30.0,
+        "hold_time": 45.0,
+        "distribution_mode": DISTRIBUTION_SYNCHRONIZED,
+        "offset_delay": 0.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_BASS_ENERGY,
+        "audio_sensitivity": 55,
+        "audio_transition_speed": 75,
+        "audio_brightness_response": True,
+        "audio_silence_degradation": True,
+        "audio_prediction_aggressiveness": 65,
+        "audio_latency_compensation_ms": 200,
+    },
+    "concert": {
+        "name": "Concert",
+        "icon": "mdi:guitar-electric",
+        "colors": [
+            {"x": 0.6400, "y": 0.3300, "brightness_pct": 75},  # Red
+            {"x": 0.5500, "y": 0.4000, "brightness_pct": 75},  # Orange
+            {"x": 0.4400, "y": 0.4900, "brightness_pct": 75},  # Gold
+            {"x": 0.5900, "y": 0.2900, "brightness_pct": 75},  # Crimson
+            {"x": 0.5800, "y": 0.3900, "brightness_pct": 75},  # Amber
+        ],
+        "transition_time": 35.0,
+        "hold_time": 50.0,
+        "distribution_mode": DISTRIBUTION_SHUFFLE_ROTATE,
+        "offset_delay": 3.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_COMPLEX_DOMAIN,
+        "audio_sensitivity": 65,
+        "audio_transition_speed": 65,
+        "audio_brightness_response": True,
+        "audio_silence_degradation": True,
+        "audio_prediction_aggressiveness": 75,
+        "audio_latency_compensation_ms": 175,
+    },
+    # Audio-reactive presets — Ambient
+    "lounge": {
+        "name": "Lounge",
+        "icon": "mdi:lava-lamp",
+        "colors": [
+            {"x": 0.2200, "y": 0.1000, "brightness_pct": 50},  # Deep purple
+            {"x": 0.1550, "y": 0.1200, "brightness_pct": 50},  # Blue
+            {"x": 0.2100, "y": 0.3400, "brightness_pct": 50},  # Teal
+            {"x": 0.2500, "y": 0.1300, "brightness_pct": 50},  # Purple-blue
+            {"x": 0.1550, "y": 0.0800, "brightness_pct": 50},  # Navy
+        ],
+        "transition_time": 45.0,
+        "hold_time": 90.0,
+        "distribution_mode": DISTRIBUTION_SYNCHRONIZED,
+        "offset_delay": 0.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_CONTINUOUS,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_SPECTRAL_FLUX,
+        "audio_sensitivity": 45,
+        "audio_transition_speed": 30,
+        "audio_brightness_response": True,
+        "audio_silence_degradation": True,
+    },
+    "tidal_flow": {
+        "name": "Tidal Flow",
+        "icon": "mdi:wave",
+        "colors": [
+            {"x": 0.1600, "y": 0.1800, "brightness_pct": 45},  # Dark navy
+            {"x": 0.1800, "y": 0.2500, "brightness_pct": 45},  # Ocean
+            {"x": 0.2000, "y": 0.3000, "brightness_pct": 45},  # Teal
+            {"x": 0.2200, "y": 0.3200, "brightness_pct": 45},  # Light teal
+            {"x": 0.1700, "y": 0.2100, "brightness_pct": 45},  # Mid navy
+        ],
+        "transition_time": 60.0,
+        "hold_time": 120.0,
+        "distribution_mode": DISTRIBUTION_SHUFFLE_ROTATE,
+        "offset_delay": 8.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_CONTINUOUS,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_BASS_ENERGY,
+        "audio_sensitivity": 40,
+        "audio_transition_speed": 25,
+        "audio_brightness_response": True,
+        "audio_silence_degradation": True,
+    },
+    "deep_breath": {
+        "name": "Deep Breath",
+        "icon": "mdi:meditation",
+        "colors": [
+            {"x": 0.2200, "y": 0.0900, "brightness_pct": 35},  # Dark purple
+            {"x": 0.2300, "y": 0.0800, "brightness_pct": 35},  # Deeper purple
+            {"x": 0.2100, "y": 0.0900, "brightness_pct": 35},  # Purple
+            {"x": 0.2400, "y": 0.0800, "brightness_pct": 35},  # Near-black purple
+        ],
+        "transition_time": 60.0,
+        "hold_time": 120.0,
+        "distribution_mode": DISTRIBUTION_SYNCHRONIZED,
+        "offset_delay": 0.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_SPECTRAL_FLUX,
+        "audio_sensitivity": 35,
+        "audio_transition_speed": 20,
+        "audio_brightness_response": True,
+        "audio_silence_degradation": True,
+    },
+    "ember_glow": {
+        "name": "Ember Glow",
+        "icon": "mdi:campfire",
+        "colors": [
+            {"x": 0.6300, "y": 0.3400, "brightness_pct": 40},  # Dark red
+            {"x": 0.5700, "y": 0.3900, "brightness_pct": 40},  # Burnt orange
+            {"x": 0.5600, "y": 0.4000, "brightness_pct": 40},  # Orange
+            {"x": 0.5200, "y": 0.4200, "brightness_pct": 40},  # Dark brown
+            {"x": 0.6000, "y": 0.3700, "brightness_pct": 40},  # Deep red-brown
+        ],
+        "transition_time": 45.0,
+        "hold_time": 90.0,
+        "distribution_mode": DISTRIBUTION_SHUFFLE_ROTATE,
+        "offset_delay": 10.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_BASS_ENERGY,
+        "audio_sensitivity": 40,
+        "audio_transition_speed": 25,
+        "audio_brightness_response": True,
+        "audio_silence_degradation": True,
+    },
+    # Audio-reactive presets — Experimental
+    "synesthesia": {
+        "name": "Synesthesia",
+        "icon": "mdi:ear-hearing",
+        "colors": [
+            {"x": 0.6400, "y": 0.3300, "brightness_pct": 70},  # Red
+            {"x": 0.5500, "y": 0.4000, "brightness_pct": 70},  # Orange
+            {"x": 0.4200, "y": 0.5100, "brightness_pct": 70},  # Yellow
+            {"x": 0.1700, "y": 0.7000, "brightness_pct": 70},  # Green
+            {"x": 0.1500, "y": 0.0600, "brightness_pct": 70},  # Blue
+            {"x": 0.2000, "y": 0.0800, "brightness_pct": 70},  # Purple
+        ],
+        "transition_time": 30.0,
+        "hold_time": 45.0,
+        "distribution_mode": DISTRIBUTION_SYNCHRONIZED,
+        "offset_delay": 0.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_ONSET_FLASH,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_SPECTRAL_FLUX,
+        "audio_sensitivity": 55,
+        "audio_transition_speed": 50,
+        "audio_brightness_response": True,
+        "audio_silence_degradation": True,
+        "audio_color_by_frequency": True,
+        "audio_rolloff_brightness": False,
+    },
+    "spectral_cascade": {
+        "name": "Spectral Cascade",
+        "icon": "mdi:chart-waterfall",
+        "colors": [
+            {"x": 0.1700, "y": 0.4500, "brightness_pct": 65},  # Cyan-green
+            {"x": 0.1550, "y": 0.1800, "brightness_pct": 65},  # Light blue
+            {"x": 0.1500, "y": 0.0700, "brightness_pct": 65},  # Blue
+            {"x": 0.2000, "y": 0.0700, "brightness_pct": 65},  # Violet
+            {"x": 0.2700, "y": 0.1200, "brightness_pct": 65},  # Magenta
+        ],
+        "transition_time": 30.0,
+        "hold_time": 45.0,
+        "distribution_mode": DISTRIBUTION_SHUFFLE_ROTATE,
+        "offset_delay": 3.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_ONSET_FLASH,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_COMPLEX_DOMAIN,
+        "audio_sensitivity": 50,
+        "audio_transition_speed": 45,
+        "audio_brightness_response": True,
+        "audio_silence_degradation": True,
+        "audio_color_by_frequency": False,
+        "audio_rolloff_brightness": True,
+    },
+    # Audio-reactive presets — Crossover
+    "frequency_split": {
+        "name": "Frequency Split",
+        "icon": "mdi:equalizer",
+        "colors": [
+            {"x": 0.5900, "y": 0.2900, "brightness_pct": 70},  # Red
+            {"x": 0.5800, "y": 0.3900, "brightness_pct": 70},  # Orange
+            {"x": 0.1800, "y": 0.6000, "brightness_pct": 70},  # Green
+            {"x": 0.1800, "y": 0.4200, "brightness_pct": 70},  # Teal
+            {"x": 0.1500, "y": 0.1100, "brightness_pct": 70},  # Blue
+            {"x": 0.2000, "y": 0.0800, "brightness_pct": 70},  # Purple
+        ],
+        "transition_time": 30.0,
+        "hold_time": 60.0,
+        "distribution_mode": DISTRIBUTION_SHUFFLE_ROTATE,
+        "offset_delay": 0.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_CONTINUOUS,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_SPECTRAL_FLUX,
+        "audio_sensitivity": 50,
+        "audio_transition_speed": 45,
+        "audio_brightness_response": True,
+        "audio_silence_degradation": True,
+        "audio_frequency_zone": True,
+    },
+    "deee_lite": {
+        "name": "Deee-Lite",
+        "icon": "mdi:disc-player",
+        "colors": [
+            {"x": 0.5000, "y": 0.2400, "brightness_pct": 75},  # Hot pink
+            {"x": 0.6100, "y": 0.3500, "brightness_pct": 75},  # Red-orange
+            {"x": 0.5100, "y": 0.4400, "brightness_pct": 75},  # Gold
+            {"x": 0.1700, "y": 0.5000, "brightness_pct": 75},  # Mint
+            {"x": 0.1550, "y": 0.1500, "brightness_pct": 75},  # Blue
+        ],
+        "transition_time": 30.0,
+        "hold_time": 45.0,
+        "distribution_mode": DISTRIBUTION_SHUFFLE_ROTATE,
+        "offset_delay": 0.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_BASS_ENERGY,
+        "audio_sensitivity": 60,
+        "audio_transition_speed": 60,
+        "audio_brightness_response": True,
+        "audio_silence_degradation": True,
+        "audio_frequency_zone": True,
+        "audio_prediction_aggressiveness": 55,
+        "audio_latency_compensation_ms": 175,
     },
 }

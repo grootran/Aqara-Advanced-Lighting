@@ -265,7 +265,45 @@ For most users, start with an audio preset instead of configuring individual par
 
 Select a preset and it auto-fills all parameters. Changing any individual parameter switches to **Custom**. You can start with a preset and tweak from there.
 
+#### Built-in audio-reactive presets
+
+The integration includes 12 built-in dynamic scene presets designed for audio-reactive use. These presets have pre-configured audio modes, detection algorithms, and color palettes — just set a **Default Audio Sensor** in the My Presets panel and activate them:
+
+**Energetic** — colors advance on beats, high energy:
+
+| Preset | Audio mode | Detection | Best for |
+|---|---|---|---|
+| **Beat Drop** | On onset | Bass energy | EDM, hip-hop, heavy bass |
+| **Neon Pulse** | On onset | Spectral flux | Pop, funk, live music |
+| **Dance** | Beat predictive | Bass energy | Club, electronic dance |
+| **Concert** | Beat predictive | Complex domain | Live instruments, rock |
+
+**Ambient** — colors flow with energy, subtle:
+
+| Preset | Audio mode | Detection | Best for |
+|---|---|---|---|
+| **Lounge** | Continuous | Spectral flux | Jazz, lo-fi, downtempo |
+| **Tidal Flow** | Continuous | Bass energy | Ambient, drone, soundscapes |
+| **Deep Breath** | Intensity breathing | Spectral flux | Meditation, classical, ASMR |
+| **Ember Glow** | Intensity breathing | Bass energy | Acoustic, folk |
+
+**Experimental** — advanced spectral features:
+
+| Preset | Audio mode | Special feature | Best for |
+|---|---|---|---|
+| **Synesthesia** | Onset flash | Color by frequency | "See" the frequency spectrum |
+| **Spectral Cascade** | Onset flash | Rolloff brightness | Dynamic, varied music |
+
+**Crossover** — frequency zone distribution (3+ lights recommended):
+
+| Preset | Audio mode | Special feature | Best for |
+|---|---|---|---|
+| **Frequency Split** | Continuous | Frequency zones | Sound system visualizer |
+| **Deee-Lite** | Beat predictive | Frequency zones | Funk, house, disco |
+
 ### From the frontend panel
+
+> **Tip:** Set a **Default Audio Sensor** in the **My Presets** panel header to avoid selecting your sensor every time. This default is automatically used when activating any built-in audio-reactive preset, and pre-fills the sensor field in the dynamic scene editor.
 
 1. Open the **Aqara Advanced Lighting** panel in Home Assistant
 2. Create or edit a dynamic scene preset with the colors you want

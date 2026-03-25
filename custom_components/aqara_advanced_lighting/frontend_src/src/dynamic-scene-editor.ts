@@ -414,7 +414,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._loopMode = preset.loop_mode;
     this._loopCount = preset.loop_count || 3;
     this._endBehavior = preset.end_behavior;
-    this._audioEnabled = !!preset.audio_entity;
+    this._audioEnabled = !!(preset.audio_entity || preset.audio_color_advance);
     this._audioEntity = preset.audio_entity || '';
     this._audioSensitivity = preset.audio_sensitivity ?? 50;
     this._audioBrightnessResponse = preset.audio_brightness_response ?? true;

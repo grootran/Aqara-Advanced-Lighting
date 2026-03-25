@@ -105,7 +105,7 @@ export function builtinSegmentSequenceToUser(
 export function builtinDynamicSceneToUser(
   preset: DynamicScenePreset, copyLabel: string,
 ): UserDynamicScenePreset {
-  return {
+  const result: UserDynamicScenePreset = {
     id: '',
     name: `${preset.name} ${copyLabel}`,
     colors: preset.colors.map((color) => ({ ...color })),
@@ -120,4 +120,20 @@ export function builtinDynamicSceneToUser(
     created_at: '',
     modified_at: '',
   };
+  // Copy audio-reactive fields if present
+  if (preset.audio_color_advance) {
+    result.audio_entity = preset.audio_entity;
+    result.audio_sensitivity = preset.audio_sensitivity;
+    result.audio_brightness_response = preset.audio_brightness_response;
+    result.audio_color_advance = preset.audio_color_advance;
+    result.audio_transition_speed = preset.audio_transition_speed;
+    result.audio_detection_mode = preset.audio_detection_mode;
+    result.audio_frequency_zone = preset.audio_frequency_zone;
+    result.audio_silence_degradation = preset.audio_silence_degradation;
+    result.audio_prediction_aggressiveness = preset.audio_prediction_aggressiveness;
+    result.audio_latency_compensation_ms = preset.audio_latency_compensation_ms;
+    result.audio_color_by_frequency = preset.audio_color_by_frequency;
+    result.audio_rolloff_brightness = preset.audio_rolloff_brightness;
+  }
+  return result;
 }
