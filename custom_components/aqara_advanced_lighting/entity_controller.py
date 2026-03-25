@@ -124,6 +124,7 @@ def _detect_service_call_attributes(service_data: dict[str, Any]) -> OverrideAtt
 
 NON_HA_BRIGHTNESS_THRESHOLD = 25   # ~10% of 0-255 range
 NON_HA_COLOR_TEMP_THRESHOLD = 100  # 100K
+RESTORE_GRACE_PERIOD: float = 15.0  # seconds to suppress external change detection after solar restore
 
 def detect_drift(
     expected_ct: int,
@@ -210,6 +211,7 @@ class EntityController:
         self._pending_restore: set[str] = set()
         self._auto_resume_timers: dict[str, AutoResumeTimer] = {}
         self._service_pause_times: dict[str, float] = {}
+        self._restore_grace_times: dict[str, float] = {}
         self._preset_paused_solar: dict[str, CCTSequenceManager] = {}
         self._state_listener_remove: Any | None = None
         self._service_listener_remove: Any | None = None
@@ -308,6 +310,22 @@ class EntityController:
                     time.monotonic() - svc_time,
                 )
                 return
+
+            # After a solar sequence restore (HA restart), device state
+            # reports may arrive with attributes that differ from the
+            # pre-restart cached state.  These are NOT user overrides —
+            # suppress external-change detection during the grace window.
+            restore_time = self._restore_grace_times.get(entity_id)
+            if restore_time is not None:
+                if (time.monotonic() - restore_time) < RESTORE_GRACE_PERIOD:
+                    _LOGGER.debug(
+                        "Ignoring state change on %s during restore "
+                        "grace period (%.1fs remaining)",
+                        entity_id,
+                        RESTORE_GRACE_PERIOD - (time.monotonic() - restore_time),
+                    )
+                    return
+                self._restore_grace_times.pop(entity_id, None)
 
             # Detect which attributes changed and pause
             changed = _detect_changed_attributes(old_state, new_state)
@@ -677,6 +695,15 @@ class EntityController:
 
         return False
 
+    def set_restore_grace(self, entity_id: str) -> None:
+        """Suppress external-change detection for *entity_id* during startup.
+
+        Called after restoring a solar/schedule sequence so that device
+        state reports arriving shortly after HA restart are not mistaken
+        for manual overrides.
+        """
+        self._restore_grace_times[entity_id] = time.monotonic()
+
     def get_auto_resume_remaining(self, entity_id: str) -> float | None:
         """Get remaining seconds on the auto-resume timer for an entity.
 
@@ -864,6 +891,7 @@ class EntityController:
         flow1, not off).
         """
         self._externally_paused.pop(entity_id, None)
+        self._restore_grace_times.pop(entity_id, None)
 
         for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():
             # Clear effect/pattern active flag and schedule restore on next turn-on

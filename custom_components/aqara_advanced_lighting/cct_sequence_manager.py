@@ -545,6 +545,13 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
                 await self.start_sequence(
                     entity_id, sequence, seq_data.get("preset")
                 )
+                # Suppress external-change detection during startup so
+                # device state reports are not mistaken for user overrides.
+                ec = self.hass.data.get(DOMAIN, {}).get(
+                    DATA_ENTITY_CONTROLLER
+                )
+                if ec:
+                    ec.set_restore_grace(entity_id)
                 restored += 1
             except Exception:
                 _LOGGER.warning(
