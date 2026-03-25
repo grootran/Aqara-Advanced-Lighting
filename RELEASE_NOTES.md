@@ -36,6 +36,7 @@ For more detailed information on how this feature works please see the dedicated
   - New ESPHome sensor integration
   - Responsive audio overrides
   - On-device audio mode opt-in for T1 Strip non-Aqara devices with built-in music sync functions
+  - 12 new audio-reative presets
 
 ### **Preset Favorites Lovelace Card**
 
@@ -66,6 +67,7 @@ For more detailed information on how this feature works please see the dedicated
 - RGB input fields snap back
 - Off-state restoration for stopping presets on lights with segments
 - Align solar/schedule CCT timeline labels with bar markers
+- Solar/schedule sequence restarts for lights in on-state during HA reboot
 
 ## Full Changelog
 
