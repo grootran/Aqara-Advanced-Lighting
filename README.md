@@ -36,7 +36,7 @@ _If you want to show your support please_
 
 **Lighting control** -- 13 dynamic RGB effects, per-segment colors and gradients, RGB segment sequences (up to 20 steps with 8 activation patterns), CCT sequences (up to 20 steps with standard, schedule, and solar modes), circadian lighting with sun-tracking and time-based schedules, dynamic scenes with slow color transitions across multiple lights, audio-reactive mode that makes lights respond to music in real time, pause/resume/stop control, change detection with per-attribute override tracking, and flexible segment selection.
 
-**100+ presets** -- 20 effects, 12 segment patterns, 7 CCT sequences (including circadian, warm day, and productive day), 6 segment sequences, 58 dynamic scenes. Create up to 250 custom presets per type (1,250 total) with the visual editors, back them up, and reuse them everywhere.
+**100+ presets** -- 20 effects, 12 segment patterns, 7 CCT sequences (including circadian, warm day, and productive day), 6 segment sequences, 58 dynamic scenes, 12 audio-reactive scenes. Create up to 250 custom presets per type (1,250 total) with the visual editors, back them up, and reuse them everywhere.
 
 **Frontend panel** -- Sidebar-accessible UI with visual editors for every feature type, favorite lights, active presets monitoring with per-attribute override status, activation overrides, change detection settings, generic light configuration, T1 Strip music sync control, and per-device configuration.
 
