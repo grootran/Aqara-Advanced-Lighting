@@ -542,16 +542,18 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
                         solar_steps=solar_steps,
                         auto_resume_delay=seq_data.get("auto_resume_delay", 0),
                     )
-                await self.start_sequence(
-                    entity_id, sequence, seq_data.get("preset")
-                )
-                # Suppress external-change detection during startup so
-                # device state reports are not mistaken for user overrides.
+                # Suppress external-change detection BEFORE starting the
+                # sequence.  start_sequence() has await points where the
+                # event loop can process state_changed events — the grace
+                # must be active before the entity becomes "controlled".
                 ec = self.hass.data.get(DOMAIN, {}).get(
                     DATA_ENTITY_CONTROLLER
                 )
                 if ec:
                     ec.set_restore_grace(entity_id)
+                await self.start_sequence(
+                    entity_id, sequence, seq_data.get("preset")
+                )
                 restored += 1
             except Exception:
                 _LOGGER.warning(
