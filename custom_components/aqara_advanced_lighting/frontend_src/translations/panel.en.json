@@ -38,8 +38,8 @@
     "override_control_mode_label": "Change control mode",
     "override_mode_pause_all": "Pause all",
     "override_mode_pause_changed": "Pause changed only",
-    "bare_turn_on_only_label": "Treat parameterized turn-on as override",
-    "detect_non_ha_changes_label": "Detect non-HA changes",
+    "bare_turn_on_only_label": "Parameterized turn-on",
+    "detect_non_ha_changes_label": "Non-HA changes",
     "paused_brightness_only": "Brightness overridden",
     "paused_color_only": "Color overridden",
     "distribution_mode_override_label": "Scene color assignment",
@@ -79,6 +79,7 @@
     "audio_tier_rich": "Beat sync",
     "audio_sensor_unavailable": "Audio sensor unavailable",
     "audio_bpm_label": "BPM",
+    "sensitivity": "Sensitivity",
     "audio_squelch_label": "Noise gate",
     "brightness_override_label": "Brightness"
   },
