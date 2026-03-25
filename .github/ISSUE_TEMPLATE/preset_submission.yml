@@ -98,22 +98,6 @@ body:
       required: true
 
   - type: textarea
-    id: use_case
-    attributes:
-      label: Recommended Use Case
-      description: When/where would this preset be most effective?
-      placeholder: |
-        Example:
-        - Bedroom relaxation before sleep
-        - Movie watching ambient lighting
-        - Party/celebration atmosphere
-        - Focus/concentration lighting
-        - All-day adaptive lighting for home office (solar/schedule)
-        - Multi-room ambient scene (dynamic scene)
-    validations:
-      required: true
-
-  - type: textarea
     id: preset_configuration
     attributes:
       label: Preset Configuration
@@ -145,25 +129,6 @@ body:
       required: true
 
   - type: textarea
-    id: setup_instructions
-    attributes:
-      label: Setup Instructions
-      description: |
-        Step-by-step instructions for recreating this preset manually (if not using JSON import)
-      placeholder: |
-        1. Open Aqara Advanced Lighting panel
-        2. Select "Create Dynamic Effect"
-        3. Choose effect type: Breathing
-        4. Set speed to: 50
-        5. Add colors:
-           - Color 1: RGB(0, 105, 148) - Deep Ocean Blue
-           - Color 2: RGB(0, 150, 199) - Ocean Blue
-           - Color 3: RGB(72, 202, 228) - Sky Blue
-        6. Save preset as "Ocean Waves"
-    validations:
-      required: false
-
-  - type: textarea
     id: parameters_explained
     attributes:
       label: Parameter Details
@@ -190,19 +155,6 @@ body:
       required: false
 
   - type: dropdown
-    id: complexity
-    attributes:
-      label: Complexity Level
-      description: How complex is this preset to set up?
-      options:
-        - Simple (1-2 colors, basic effect)
-        - Moderate (3-5 colors or segments)
-        - Advanced (6+ colors, complex timing)
-        - Expert (Multiple sequences, precise timing)
-    validations:
-      required: true
-
-  - type: dropdown
     id: brightness_recommendation
     attributes:
       label: Recommended Brightness
@@ -215,38 +167,6 @@ body:
         - Varies by time of day (solar/schedule presets)
     validations:
       required: true
-
-  - type: textarea
-    id: color_palette
-    attributes:
-      label: Color Palette
-      description: |
-        List the colors used with their RGB/HEX values and names (for effects, patterns, and dynamic scenes)
-      placeholder: |
-        1. Deep Ocean Blue - RGB(0, 105, 148) - #006994
-        2. Ocean Blue - RGB(0, 150, 199) - #0096C7
-        3. Sky Blue - RGB(72, 202, 228) - #48CAE4
-
-        For solar/schedule presets, list color temperature steps instead:
-        1. Dawn: 2700K at 50 brightness
-        2. Midday: 6500K at 255 brightness
-      render: markdown
-    validations:
-      required: false
-
-  - type: textarea
-    id: variations
-    attributes:
-      label: Suggested Variations
-      description: |
-        Suggest variations or modifications others might want to try
-      placeholder: |
-        - For warmer tones: Replace blues with orange/red (sunset version)
-        - For faster effect: Increase speed to 80
-        - For Christmas: Use red and green instead of blues
-        - For higher latitudes: Add more solar steps near the horizon
-    validations:
-      required: false
 
   - type: textarea
     id: automation_example
@@ -277,7 +197,6 @@ body:
       label: Integration Version
       description: What version of Aqara Advanced Lighting did you test with?
       options:
-        - 1.3.x (latest)
         - 1.2.x
         - 1.1.x
         - 1.0.x

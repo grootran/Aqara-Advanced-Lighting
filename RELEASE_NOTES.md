@@ -14,7 +14,7 @@ Your existing configuration, presets, and favorites are automatically preserved.
 
 ### Breaking Changes
 
-- **Minimum Home Assistant version raised to 2026.3.0** — Users on HA 2025.12.x–2026.2.x must upgrade Home Assistant before updating this integration.
+- **Minimum Home Assistant version raised to 2026.3.0** — Users on HA 2025.12.x–2026.2.x must upgrade Home Assistant before updating this integration. Removes legacy backwards compatibility for pre-WebAwesome components, and adds Python 3.1.4 optimisations.
 
 ---
 

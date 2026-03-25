@@ -6,7 +6,7 @@ All notable changes to the Aqara Advanced Lighting integration will be documente
 
 ### Breaking Changes
 
-- **Minimum Home Assistant version raised to 2026.3.0** — Removes legacy backwards compatibility for pre-WebAwesome ha-dialog components.
+- **Minimum Home Assistant version raised to 2026.3.0** — Removes legacy backwards compatibility for pre-WebAwesome components, and adds Python 3.1.4 optimisations.
 
 ### What's New
 
