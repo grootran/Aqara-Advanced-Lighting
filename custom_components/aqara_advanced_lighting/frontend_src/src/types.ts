@@ -236,6 +236,21 @@ export interface SegmentColorEntry {
 }
 
 // User preset interfaces
+export interface AudioEffectConfig {
+  audio_entity: string;
+  audio_sensitivity?: number;
+  audio_detection_mode?: 'spectral_flux' | 'bass_energy' | 'complex_domain';
+  audio_silence_behavior?: 'hold' | 'decay_min' | 'decay_mid';
+  audio_speed_mode?: 'on_onset' | 'continuous' | 'intensity_breathing' | 'onset_flash' | null;
+  audio_speed_min?: number;
+  audio_speed_max?: number;
+  audio_speed_curve?: 'linear' | 'logarithmic' | 'exponential';
+  audio_brightness_mode?: 'on_onset' | 'continuous' | 'intensity_breathing' | 'onset_flash' | null;
+  audio_brightness_min?: number;
+  audio_brightness_max?: number;
+  audio_brightness_curve?: 'linear' | 'logarithmic' | 'exponential';
+}
+
 export interface UserEffectPreset {
   id: string;
   name: string;
@@ -246,6 +261,7 @@ export interface UserEffectPreset {
   effect_brightness?: number;
   effect_colors: XYColor[];  // Changed to XYColor for accurate color representation
   effect_segments?: string;
+  audio_config?: AudioEffectConfig;
   created_at: string;
   modified_at: string;
 }
@@ -396,6 +412,11 @@ export interface UserPreferences {
   audio_override_latency_compensation_ms?: number;
   audio_override_color_by_frequency?: boolean;
   audio_override_rolloff_brightness?: boolean;
+  // Effect audio overrides
+  effect_audio_override_entity?: string;
+  effect_audio_override_sensitivity?: number;
+  effect_audio_override_speed_mode?: 'on_onset' | 'continuous' | 'intensity_breathing' | 'onset_flash';
+  effect_audio_override_brightness_mode?: 'on_onset' | 'continuous' | 'intensity_breathing' | 'onset_flash';
   hidden_builtin_presets?: FavoritePresetRef[];
   selected_entities?: string[];
   active_favorite_id?: string | null;
@@ -427,6 +448,7 @@ export interface EffectEditorDraft {
   colors: XYColor[];
   segments: string;
   hasUserInteraction: boolean;
+  audioConfig?: AudioEffectConfig;
 }
 
 export interface PatternEditorDraft {

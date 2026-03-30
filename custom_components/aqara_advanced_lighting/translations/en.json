@@ -133,6 +133,9 @@
     "effect_not_supported": {
       "message": "The effect {effect} is not supported by device {device}. {reason}"
     },
+    "audio_effect_t2_not_supported": {
+      "message": "Audio-reactive effects are not supported on T2 devices ({device}). Only T1M and T1 Strip devices support audio-reactive effect modulation because T2 restarts the effect when speed is changed."
+    },
     "segment_addressing_not_supported": {
       "message": "Device {device} does not support segment addressing. Only T1M ceiling lights and T1 LED strips support this feature."
     },

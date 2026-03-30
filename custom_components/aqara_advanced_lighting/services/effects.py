@@ -252,18 +252,27 @@ async def handle_set_dynamic_effect(hass: HomeAssistant, call: ServiceCall) -> N
         audio_entity = audio_config.audio_entity
     elif audio_entity is not None:
         # Build from service call params (overrides preset if both present)
-        # Default speed to "continuous" if user provides audio_entity but no modes,
+        # Convert empty strings and "off" to None (frontend sends "off" for disabled)
+        raw_speed = call.data.get(ATTR_AUDIO_SPEED_MODE)
+        raw_brightness = call.data.get(ATTR_AUDIO_BRIGHTNESS_MODE)
+        speed_mode = None if not raw_speed or raw_speed == "off" else raw_speed
+        brightness_mode = None if not raw_brightness or raw_brightness == "off" else raw_brightness
+
+        # Default speed to "continuous" only if neither mode was explicitly provided,
         # consistent with dynamic scenes defaulting audio_color_advance to "on_onset"
+        if speed_mode is None and brightness_mode is None:
+            speed_mode = "continuous"
+
         audio_config = AudioEffectConfig(
             audio_entity=audio_entity,
             audio_sensitivity=call.data.get(ATTR_AUDIO_SENSITIVITY, 50),
             audio_detection_mode=call.data.get(ATTR_AUDIO_DETECTION_MODE, "spectral_flux"),
             audio_silence_behavior=call.data.get(ATTR_AUDIO_SILENCE_BEHAVIOR, "decay_min"),
-            audio_speed_mode=call.data.get(ATTR_AUDIO_SPEED_MODE, "continuous"),
+            audio_speed_mode=speed_mode,
             audio_speed_min=call.data.get(ATTR_AUDIO_SPEED_MIN, 1),
             audio_speed_max=call.data.get(ATTR_AUDIO_SPEED_MAX, 100),
             audio_speed_curve=call.data.get(ATTR_AUDIO_SPEED_CURVE, "linear"),
-            audio_brightness_mode=call.data.get(ATTR_AUDIO_BRIGHTNESS_MODE),
+            audio_brightness_mode=brightness_mode,
             audio_brightness_min=call.data.get(ATTR_AUDIO_BRIGHTNESS_MIN, 1),
             audio_brightness_max=call.data.get(ATTR_AUDIO_BRIGHTNESS_MAX, 100),
             audio_brightness_curve=call.data.get(ATTR_AUDIO_BRIGHTNESS_CURVE, "linear"),

@@ -117,7 +117,7 @@ class AudioEngine:
         domain_data[claim_key] = id(self)
 
         # Discover companion sensors
-        self._companions = await discover_companion_sensors(
+        self._companions = discover_companion_sensors(
             self.hass, self.config.audio_entity
         )
 

@@ -1848,6 +1848,28 @@ export class AqaraPanel extends LitElement {
       serviceData.segments = preset.effect_segments;
     }
 
+    // Include audio config if preset has one, with user overrides
+    if (preset.audio_config?.audio_entity) {
+      const ac = preset.audio_config;
+      const overrideEntity = this._prefs.state.effectAudioOverrideEntity;
+      serviceData.audio_entity = overrideEntity || ac.audio_entity;
+      serviceData.audio_sensitivity = ac.audio_sensitivity ?? 50;
+      serviceData.audio_detection_mode = ac.audio_detection_mode ?? 'spectral_flux';
+      serviceData.audio_silence_behavior = ac.audio_silence_behavior ?? 'decay_min';
+      if (ac.audio_speed_mode) {
+        serviceData.audio_speed_mode = ac.audio_speed_mode;
+        serviceData.audio_speed_min = ac.audio_speed_min ?? 1;
+        serviceData.audio_speed_max = ac.audio_speed_max ?? 100;
+        serviceData.audio_speed_curve = ac.audio_speed_curve ?? 'linear';
+      }
+      if (ac.audio_brightness_mode) {
+        serviceData.audio_brightness_mode = ac.audio_brightness_mode;
+        serviceData.audio_brightness_min = ac.audio_brightness_min ?? 1;
+        serviceData.audio_brightness_max = ac.audio_brightness_max ?? 100;
+        serviceData.audio_brightness_curve = ac.audio_brightness_curve ?? 'linear';
+      }
+    }
+
     await this.hass.callService('aqara_advanced_lighting', 'set_dynamic_effect', serviceData);
     await this._loadRunningOperations();
   }
@@ -2753,6 +2775,7 @@ export class AqaraPanel extends LitElement {
           .stripSegmentCount=${this._getT1StripSegmentCount()}
           .deviceContext=${this._getDeviceContextForEditor('effect')}
           .colorHistory=${this._prefs.state.colorHistory}
+          .defaultAudioEntity=${this._prefs.state.audioOverrideEntity}
           @save=${this._handleEffectSave}
           @preview=${this._handleEffectPreview}
           @stop-preview=${this._handleEffectStopPreview}
@@ -4298,8 +4321,12 @@ export class AqaraPanel extends LitElement {
     if (preset.icon) {
       return this._renderPresetIcon(preset.icon, 'mdi:lightbulb-on');
     }
-    return renderEffectThumbnail(preset)
+    const thumb = renderEffectThumbnail(preset)
       ?? html`<ha-icon icon="mdi:lightbulb-on"></ha-icon>`;
+    if (preset.audio_config?.audio_entity) {
+      return html`${thumb}<span class="audio-badge"><ha-icon icon="mdi:waveform"></ha-icon></span>`;
+    }
+    return thumb;
   }
 
   /** Render a user segment pattern preset icon: pie thumbnail or MDI fallback. */

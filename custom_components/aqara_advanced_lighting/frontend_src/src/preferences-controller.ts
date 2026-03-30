@@ -26,6 +26,7 @@ export interface PreferencesState {
   audioOverrideBrightnessResponse: boolean;
   audioOverrideColorByFrequency: boolean;
   audioOverrideRolloffBrightness: boolean;
+  effectAudioOverrideEntity: string;
   hiddenBuiltinPresets: FavoritePresetRef[];
   selectedEntities: string[];
   activeFavoriteId: string | null;
@@ -63,6 +64,7 @@ const DEFAULT_STATE: PreferencesState = {
   audioOverrideBrightnessResponse: true,
   audioOverrideColorByFrequency: false,
   audioOverrideRolloffBrightness: false,
+  effectAudioOverrideEntity: '',
   hiddenBuiltinPresets: [],
   selectedEntities: [],
   activeFavoriteId: null,
@@ -212,6 +214,7 @@ export class PreferencesController implements ReactiveController {
     if (prefs.audio_override_latency_compensation_ms !== undefined) this.state.audioOverrideLatencyCompensationMs = prefs.audio_override_latency_compensation_ms;
     if (prefs.audio_override_color_by_frequency !== undefined) this.state.audioOverrideColorByFrequency = prefs.audio_override_color_by_frequency;
     if (prefs.audio_override_rolloff_brightness !== undefined) this.state.audioOverrideRolloffBrightness = prefs.audio_override_rolloff_brightness;
+    if (prefs.effect_audio_override_entity) this.state.effectAudioOverrideEntity = prefs.effect_audio_override_entity;
     if (prefs.selected_entities && prefs.selected_entities.length > 0) {
       this.state.selectedEntities = prefs.selected_entities;
       this.state.activeFavoriteId = prefs.active_favorite_id ?? null;
@@ -306,6 +309,7 @@ export class PreferencesController implements ReactiveController {
           audio_override_latency_compensation_ms: this.state.audioOverrideLatencyCompensationMs,
           audio_override_color_by_frequency: this.state.audioOverrideColorByFrequency,
           audio_override_rolloff_brightness: this.state.audioOverrideRolloffBrightness,
+          effect_audio_override_entity: this.state.effectAudioOverrideEntity,
           selected_entities: this.state.selectedEntities,
           active_favorite_id: this.state.activeFavoriteId,
         } as unknown as Record<string, unknown>
