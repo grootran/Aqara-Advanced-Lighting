@@ -365,11 +365,11 @@ class AudioEffectConfig:
         object.__setattr__(self, "audio_brightness_min", max(1, min(100, self.audio_brightness_min)))
         object.__setattr__(self, "audio_brightness_max", max(1, min(100, self.audio_brightness_max)))
 
-        # Validate min < max
-        if self.audio_speed_min >= self.audio_speed_max:
+        # Validate min < max (only for enabled channels)
+        if self.audio_speed_mode is not None and self.audio_speed_min >= self.audio_speed_max:
             msg = f"audio_speed_min ({self.audio_speed_min}) must be less than audio_speed_max ({self.audio_speed_max})"
             raise ValueError(msg)
-        if self.audio_brightness_min >= self.audio_brightness_max:
+        if self.audio_brightness_mode is not None and self.audio_brightness_min >= self.audio_brightness_max:
             msg = f"audio_brightness_min ({self.audio_brightness_min}) must be less than audio_brightness_max ({self.audio_brightness_max})"
             raise ValueError(msg)
 
@@ -481,6 +481,9 @@ class DeviceState:
     current_effect: DynamicEffect | None = None
     current_preset: str | None = None  # Preset name for event tracking
     device_identifier: str = ""  # Backend-agnostic device identifier
+    # Runtime-only: not persisted, not included in to_dict()
+    audio_modulator: Any = None  # AudioEffectModulator reference
+    audio_engine: Any = None  # AudioEngine reference
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for storage."""

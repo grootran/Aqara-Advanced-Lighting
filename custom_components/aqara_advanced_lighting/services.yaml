@@ -152,6 +152,160 @@ set_dynamic_effect:
       default: true
       selector:
         boolean:
+    audio_entity:
+      name: Audio entity
+      description: ESPHome audio sensor entity for audio-reactive modulation. Only supported on T1M and T1 Strip devices.
+      required: false
+      selector:
+        entity:
+          domain:
+            - binary_sensor
+            - sensor
+    audio_sensitivity:
+      name: Audio sensitivity
+      description: Beat detection sensitivity on the ESP32 device (1-100).
+      required: false
+      default: 50
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: slider
+    audio_detection_mode:
+      name: Detection mode
+      description: Audio detection algorithm on the ESP32.
+      required: false
+      default: "spectral_flux"
+      selector:
+        select:
+          options:
+            - label: "Spectral Flux"
+              value: "spectral_flux"
+            - label: "Bass Energy"
+              value: "bass_energy"
+            - label: "Complex Domain"
+              value: "complex_domain"
+          mode: dropdown
+    audio_silence_behavior:
+      name: Silence behavior
+      description: What happens to speed/brightness when music stops.
+      required: false
+      default: "decay_min"
+      selector:
+        select:
+          options:
+            - label: "Hold last values"
+              value: "hold"
+            - label: "Decay to minimum"
+              value: "decay_min"
+            - label: "Decay to midpoint"
+              value: "decay_mid"
+          mode: dropdown
+    audio_speed_mode:
+      name: Speed modulation mode
+      description: How audio drives the effect speed. Defaults to Continuous when audio entity is selected.
+      required: false
+      default: "continuous"
+      selector:
+        select:
+          options:
+            - label: "On Onset"
+              value: "on_onset"
+            - label: "Continuous"
+              value: "continuous"
+            - label: "Intensity Breathing"
+              value: "intensity_breathing"
+            - label: "Onset Flash"
+              value: "onset_flash"
+          mode: dropdown
+    audio_speed_min:
+      name: Speed minimum
+      description: Minimum speed in the modulation range (1-100).
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: slider
+    audio_speed_max:
+      name: Speed maximum
+      description: Maximum speed in the modulation range (1-100).
+      required: false
+      default: 100
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: slider
+    audio_speed_curve:
+      name: Speed response curve
+      description: How sensor values map to the speed range.
+      required: false
+      default: "linear"
+      selector:
+        select:
+          options:
+            - label: "Linear"
+              value: "linear"
+            - label: "Logarithmic"
+              value: "logarithmic"
+            - label: "Exponential"
+              value: "exponential"
+          mode: dropdown
+    audio_brightness_mode:
+      name: Brightness modulation mode
+      description: How audio drives the brightness. Omit to disable brightness modulation.
+      required: false
+      selector:
+        select:
+          options:
+            - label: "On Onset"
+              value: "on_onset"
+            - label: "Continuous"
+              value: "continuous"
+            - label: "Intensity Breathing"
+              value: "intensity_breathing"
+            - label: "Onset Flash"
+              value: "onset_flash"
+          mode: dropdown
+    audio_brightness_min:
+      name: Brightness minimum
+      description: Minimum brightness in the modulation range (1-100%).
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 100
+          unit_of_measurement: "%"
+          mode: slider
+    audio_brightness_max:
+      name: Brightness maximum
+      description: Maximum brightness in the modulation range (1-100%).
+      required: false
+      default: 100
+      selector:
+        number:
+          min: 1
+          max: 100
+          unit_of_measurement: "%"
+          mode: slider
+    audio_brightness_curve:
+      name: Brightness response curve
+      description: How sensor values map to the brightness range.
+      required: false
+      default: "linear"
+      selector:
+        select:
+          options:
+            - label: "Linear"
+              value: "linear"
+            - label: "Logarithmic"
+              value: "logarithmic"
+            - label: "Exponential"
+              value: "exponential"
+          mode: dropdown
     z2m_base_topic:
       name: Z2M base topic (deprecated)
       description: "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
