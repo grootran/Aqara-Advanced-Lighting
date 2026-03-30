@@ -281,6 +281,53 @@ T1_STRIP_AUDIO_SENSITIVITY_CUTOFF: Final = 50
 # Runtime data key for active music sync tracking
 DATA_ACTIVE_MUSIC_SYNC: Final = "active_music_sync"
 
+# Audio-reactive effect modulation modes (consistent with dynamic scene color advance names)
+AUDIO_EFFECT_MODE_ON_ONSET: Final = "on_onset"
+AUDIO_EFFECT_MODE_CONTINUOUS: Final = "continuous"
+AUDIO_EFFECT_MODE_INTENSITY_BREATHING: Final = "intensity_breathing"
+AUDIO_EFFECT_MODE_ONSET_FLASH: Final = "onset_flash"
+VALID_AUDIO_EFFECT_MODES: Final = [
+    AUDIO_EFFECT_MODE_ON_ONSET,
+    AUDIO_EFFECT_MODE_CONTINUOUS,
+    AUDIO_EFFECT_MODE_INTENSITY_BREATHING,
+    AUDIO_EFFECT_MODE_ONSET_FLASH,
+]
+
+# Audio-reactive response curves
+AUDIO_RESPONSE_CURVE_LINEAR: Final = "linear"
+AUDIO_RESPONSE_CURVE_LOGARITHMIC: Final = "logarithmic"
+AUDIO_RESPONSE_CURVE_EXPONENTIAL: Final = "exponential"
+VALID_AUDIO_RESPONSE_CURVES: Final = [
+    AUDIO_RESPONSE_CURVE_LINEAR,
+    AUDIO_RESPONSE_CURVE_LOGARITHMIC,
+    AUDIO_RESPONSE_CURVE_EXPONENTIAL,
+]
+DEFAULT_AUDIO_RESPONSE_CURVE: Final = AUDIO_RESPONSE_CURVE_LINEAR
+
+# Audio-reactive silence behaviors
+AUDIO_SILENCE_HOLD: Final = "hold"
+AUDIO_SILENCE_DECAY_MIN: Final = "decay_min"
+AUDIO_SILENCE_DECAY_MID: Final = "decay_mid"
+VALID_AUDIO_SILENCE_BEHAVIORS: Final = [
+    AUDIO_SILENCE_HOLD,
+    AUDIO_SILENCE_DECAY_MIN,
+    AUDIO_SILENCE_DECAY_MID,
+]
+DEFAULT_AUDIO_SILENCE_BEHAVIOR: Final = AUDIO_SILENCE_DECAY_MIN
+
+# Audio effect modulation rate limits (seconds) — per device type
+# T1M: Fixed ~2s hardware transition smooths between steps
+# T1 Strip: 0.5s matches existing transition interval
+AUDIO_EFFECT_RATE_LIMIT_T1M: Final = 2.0
+AUDIO_EFFECT_RATE_LIMIT_T1_STRIP: Final = 0.5
+
+# Deadband thresholds to prevent redundant Zigbee writes
+SPEED_DEADBAND: Final = 2
+BRIGHTNESS_DEADBAND: Final = 5
+
+# Audio effect silence decay duration (seconds)
+AUDIO_EFFECT_SILENCE_DECAY_SECONDS: Final = 3.0
+
 MIN_DURATION: Final = 0.0
 MAX_DURATION: Final = 3600.0  # 1 hour
 

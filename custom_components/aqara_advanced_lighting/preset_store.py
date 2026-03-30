@@ -62,6 +62,7 @@ _ALLOWED_FIELDS: dict[str, set[str]] = {
         "effect_colors",
         "effect_segments",
         "thumbnail",
+        "audio_config",
     },
     PRESET_TYPE_SEGMENT_PATTERN: {
         "name",
@@ -238,6 +239,7 @@ class UserEffectPreset(TypedDict):
     effect_brightness: int | None
     effect_colors: list[dict[str, int]]
     effect_segments: str | None
+    audio_config: NotRequired[dict[str, Any]]
     created_at: str
     modified_at: str
 

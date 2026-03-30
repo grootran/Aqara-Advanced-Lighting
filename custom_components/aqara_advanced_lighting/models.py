@@ -12,7 +12,9 @@ from .const import (
     DEFAULT_AUDIO_DETECTION_MODE,
     DEFAULT_AUDIO_FREQUENCY_ZONE,
     DEFAULT_AUDIO_PREDICTION_AGGRESSIVENESS,
+    DEFAULT_AUDIO_RESPONSE_CURVE,
     DEFAULT_AUDIO_SENSITIVITY,
+    DEFAULT_AUDIO_SILENCE_BEHAVIOR,
     DEFAULT_AUDIO_SILENCE_DEGRADATION,
     DEFAULT_AUDIO_TRANSITION_SPEED,
     DEFAULT_LATENCY_COMPENSATION_MS,
@@ -24,6 +26,9 @@ from .const import (
     MIN_AUDIO_TRANSITION_SPEED,
     VALID_AUDIO_COLOR_ADVANCE,
     VALID_AUDIO_DETECTION_MODES,
+    VALID_AUDIO_EFFECT_MODES,
+    VALID_AUDIO_RESPONSE_CURVES,
+    VALID_AUDIO_SILENCE_BEHAVIORS,
     brightness_percent_to_device,
 )
 from .sun_utils import ScheduleStep, SolarStep
@@ -290,6 +295,120 @@ class SegmentColor:
             raise ValueError(msg)
 
 @dataclass(frozen=True, slots=True)
+class AudioEffectConfig:
+    """Audio-reactive configuration for dynamic effects.
+
+    Encapsulates all audio parameters for effect speed/brightness modulation.
+    Frozen — new instances are created for overrides, not mutated.
+    """
+
+    audio_entity: str
+    audio_sensitivity: int = DEFAULT_AUDIO_SENSITIVITY
+    audio_detection_mode: str = DEFAULT_AUDIO_DETECTION_MODE
+    audio_silence_behavior: str = DEFAULT_AUDIO_SILENCE_BEHAVIOR
+
+    # Speed modulation channel
+    audio_speed_mode: str | None = None
+    audio_speed_min: int = 1
+    audio_speed_max: int = 100
+    audio_speed_curve: str = DEFAULT_AUDIO_RESPONSE_CURVE
+
+    # Brightness modulation channel
+    audio_brightness_mode: str | None = None
+    audio_brightness_min: int = 1
+    audio_brightness_max: int = 100
+    audio_brightness_curve: str = DEFAULT_AUDIO_RESPONSE_CURVE
+
+    def __post_init__(self) -> None:
+        """Validate and clamp audio configuration."""
+        # Clamp sensitivity
+        object.__setattr__(
+            self, "audio_sensitivity",
+            max(MIN_AUDIO_SENSITIVITY, min(MAX_AUDIO_SENSITIVITY, self.audio_sensitivity)),
+        )
+
+        # Validate detection mode
+        if self.audio_detection_mode not in VALID_AUDIO_DETECTION_MODES:
+            object.__setattr__(self, "audio_detection_mode", DEFAULT_AUDIO_DETECTION_MODE)
+
+        # Validate silence behavior
+        if self.audio_silence_behavior not in VALID_AUDIO_SILENCE_BEHAVIORS:
+            msg = f"Invalid audio_silence_behavior: {self.audio_silence_behavior}"
+            raise ValueError(msg)
+
+        # Validate speed mode
+        if self.audio_speed_mode is not None and self.audio_speed_mode not in VALID_AUDIO_EFFECT_MODES:
+            msg = f"Invalid audio_speed_mode: {self.audio_speed_mode}"
+            raise ValueError(msg)
+
+        # Validate brightness mode
+        if self.audio_brightness_mode is not None and self.audio_brightness_mode not in VALID_AUDIO_EFFECT_MODES:
+            msg = f"Invalid audio_brightness_mode: {self.audio_brightness_mode}"
+            raise ValueError(msg)
+
+        # At least one mode must be enabled
+        if self.audio_speed_mode is None and self.audio_brightness_mode is None:
+            msg = "AudioEffectConfig requires at least one audio_speed_mode or audio_brightness_mode"
+            raise ValueError(msg)
+
+        # Validate response curves
+        if self.audio_speed_curve not in VALID_AUDIO_RESPONSE_CURVES:
+            msg = f"Invalid audio_speed_curve: {self.audio_speed_curve}"
+            raise ValueError(msg)
+        if self.audio_brightness_curve not in VALID_AUDIO_RESPONSE_CURVES:
+            msg = f"Invalid audio_brightness_curve: {self.audio_brightness_curve}"
+            raise ValueError(msg)
+
+        # Clamp min/max ranges
+        object.__setattr__(self, "audio_speed_min", max(1, min(100, self.audio_speed_min)))
+        object.__setattr__(self, "audio_speed_max", max(1, min(100, self.audio_speed_max)))
+        object.__setattr__(self, "audio_brightness_min", max(1, min(100, self.audio_brightness_min)))
+        object.__setattr__(self, "audio_brightness_max", max(1, min(100, self.audio_brightness_max)))
+
+        # Validate min < max
+        if self.audio_speed_min >= self.audio_speed_max:
+            msg = f"audio_speed_min ({self.audio_speed_min}) must be less than audio_speed_max ({self.audio_speed_max})"
+            raise ValueError(msg)
+        if self.audio_brightness_min >= self.audio_brightness_max:
+            msg = f"audio_brightness_min ({self.audio_brightness_min}) must be less than audio_brightness_max ({self.audio_brightness_max})"
+            raise ValueError(msg)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to dictionary for preset storage."""
+        return {
+            "audio_entity": self.audio_entity,
+            "audio_sensitivity": self.audio_sensitivity,
+            "audio_detection_mode": self.audio_detection_mode,
+            "audio_silence_behavior": self.audio_silence_behavior,
+            "audio_speed_mode": self.audio_speed_mode,
+            "audio_speed_min": self.audio_speed_min,
+            "audio_speed_max": self.audio_speed_max,
+            "audio_speed_curve": self.audio_speed_curve,
+            "audio_brightness_mode": self.audio_brightness_mode,
+            "audio_brightness_min": self.audio_brightness_min,
+            "audio_brightness_max": self.audio_brightness_max,
+            "audio_brightness_curve": self.audio_brightness_curve,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """Deserialize from dictionary."""
+        return cls(
+            audio_entity=data["audio_entity"],
+            audio_sensitivity=data.get("audio_sensitivity", DEFAULT_AUDIO_SENSITIVITY),
+            audio_detection_mode=data.get("audio_detection_mode", DEFAULT_AUDIO_DETECTION_MODE),
+            audio_silence_behavior=data.get("audio_silence_behavior", DEFAULT_AUDIO_SILENCE_BEHAVIOR),
+            audio_speed_mode=data.get("audio_speed_mode"),
+            audio_speed_min=data.get("audio_speed_min", 1),
+            audio_speed_max=data.get("audio_speed_max", 100),
+            audio_speed_curve=data.get("audio_speed_curve", DEFAULT_AUDIO_RESPONSE_CURVE),
+            audio_brightness_mode=data.get("audio_brightness_mode"),
+            audio_brightness_min=data.get("audio_brightness_min", 1),
+            audio_brightness_max=data.get("audio_brightness_max", 100),
+            audio_brightness_curve=data.get("audio_brightness_curve", DEFAULT_AUDIO_RESPONSE_CURVE),
+        )
+
+@dataclass(frozen=True, slots=True)
 class DynamicEffect:
     """Dynamic effect configuration."""
 
@@ -297,6 +416,7 @@ class DynamicEffect:
     effect_speed: int  # 1-100
     effect_colors: list[RGBColor]
     effect_segments: str | None = None  # T1 Strip only, e.g., "1-10", "odd"
+    audio_config: AudioEffectConfig | None = None  # Audio-reactive modulation config
 
     def to_mqtt_payload(self, device_model: str | None = None) -> dict[str, Any]:
         """Convert to MQTT payload dictionary.
