@@ -490,6 +490,31 @@ class MQTTBackend:
         # Send effect command
         await mqtt.async_publish(self.hass, topic, json.dumps(payload))
 
+    async def async_write_effect_speed(
+        self,
+        entity_id: str,
+        speed: int,
+    ) -> None:
+        """Write effect_speed independently without restarting the effect.
+
+        Publishes only {"effect_speed": <value>} — no effect type or colors.
+        Safe for T1M and T1 Strip (live adjustment, no restart).
+        NOT safe for T2 (restarts effect and wipes colors).
+
+        Args:
+            entity_id: The HA entity ID (resolved to Z2M friendly name internally)
+            speed: Speed value 1-100
+        """
+        speed = max(1, min(100, speed))
+        device = self.get_device_for_entity(entity_id)
+        if not device:
+            _LOGGER.warning("No device for entity %s, cannot write speed", entity_id)
+            return
+        base_topic = self._get_base_topic()
+        topic = f"{base_topic}/{device.name}/set"
+        payload = json.dumps({"effect_speed": speed})
+        await mqtt.async_publish(self.hass, topic, payload)
+
     async def async_publish_segment_pattern(
         self,
         z2m_friendly_name: str,

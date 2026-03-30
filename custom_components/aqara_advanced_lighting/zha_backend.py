@@ -549,6 +549,37 @@ class ZHABackend:
         except Exception:
             _LOGGER.exception("Failed to write effect attributes to %s", ieee_str)
 
+    async def async_write_effect_speed(
+        self,
+        entity_id: str,
+        speed: int,
+    ) -> None:
+        """Write effect_speed independently without restarting the effect.
+
+        Writes only ATTR_EFFECT_SPEED (0x0520) — no type or colors.
+        Safe for T1M and T1 Strip (live adjustment, no restart).
+        NOT safe for T2 (restarts effect and wipes colors).
+
+        Args:
+            entity_id: The HA entity ID
+            speed: Speed value 1-100
+        """
+        speed = max(1, min(100, speed))
+        ieee_str = self._entity_to_ieee.get(entity_id)
+        if not ieee_str:
+            _LOGGER.warning("No IEEE address for entity %s", entity_id)
+            return
+
+        cluster = self._get_aqara_cluster(ieee_str)
+        if not cluster:
+            _LOGGER.error("Aqara cluster not found for speed write: %s", ieee_str)
+            return
+
+        try:
+            await cluster.write_attributes({ATTR_EFFECT_SPEED: speed})
+        except Exception:
+            _LOGGER.exception("Failed to write effect speed to %s", ieee_str)
+
     # --- Effects ---
 
     async def async_send_effect(
