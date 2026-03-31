@@ -175,6 +175,7 @@ async def async_register_panel(hass: HomeAssistant) -> None:
     hass.http.register_view(RunningOperationsView)
     hass.http.register_view(SceneAudioSensitivityView)
     hass.http.register_view(SceneAudioSquelchView)
+    hass.http.register_view(EffectAudioSensitivityView)
 
     # Register image color extraction and thumbnail endpoints
     hass.http.register_view(ColorExtractView)
@@ -1939,15 +1940,26 @@ class RunningOperationsView(HomeAssistantView):
                     entity_id,
                     device_state,
                 ) in state_manager.get_all_active_effects().items():
-                    operations.append(
-                        {
-                            "type": "effect",
-                            "entity_id": entity_id,
-                            "preset_id": device_state.current_preset,
-                            "paused": False,
-                            "externally_paused": False,
-                        }
-                    )
+                    op_data: dict[str, Any] = {
+                        "type": "effect",
+                        "entity_id": entity_id,
+                        "preset_id": device_state.current_preset,
+                        "paused": False,
+                        "externally_paused": False,
+                    }
+                    modulator = device_state.audio_modulator
+                    if modulator is not None:
+                        engine = device_state.audio_engine
+                        op_data["audio_entity"] = (
+                            modulator._audio_config.audio_entity
+                        )
+                        op_data["audio_sensitivity"] = (
+                            engine.config.sensitivity
+                            if engine
+                            else modulator._audio_config.audio_sensitivity
+                        )
+                        op_data["audio_waiting"] = modulator.audio_waiting
+                    operations.append(op_data)
 
             # CCT sequences
             cct_mgr = instance_data.get(DATA_CCT_SEQUENCE_MANAGER)
@@ -2235,6 +2247,74 @@ class SceneAudioSquelchView(HomeAssistantView):
             text="Scene not found",
             content_type="text/plain",
         )
+
+class EffectAudioSensitivityView(HomeAssistantView):
+    """Handle audio sensitivity runtime updates for running effects."""
+
+    url = f"/api/{DOMAIN}/effect_audio_sensitivity"
+    name = f"api:{DOMAIN}:effect_audio_sensitivity"
+    requires_auth = True
+
+    async def post(self, request: web.Request) -> web.Response:
+        """Update beat sensitivity for a running audio-reactive effect."""
+        hass: HomeAssistant = request.app["hass"]
+        try:
+            data = await request.json()
+        except ValueError:
+            return web.Response(
+                status=400, text="Invalid JSON", content_type="text/plain"
+            )
+
+        entity_id = data.get("entity_id")
+        sensitivity = data.get("sensitivity")
+        if not entity_id or sensitivity is None:
+            return web.Response(
+                status=400,
+                text="Missing entity_id or sensitivity",
+                content_type="text/plain",
+            )
+
+        try:
+            sensitivity = int(sensitivity)
+        except (ValueError, TypeError):
+            return web.Response(
+                status=400,
+                text="sensitivity must be an integer",
+                content_type="text/plain",
+            )
+
+        if not (1 <= sensitivity <= 100):
+            return web.Response(
+                status=400,
+                text="sensitivity must be between 1 and 100",
+                content_type="text/plain",
+            )
+
+        for instance_data in hass.data.get(DOMAIN, {}).get("entries", {}).values():
+            if not isinstance(instance_data, dict):
+                continue
+            state_manager = instance_data.get(DATA_STATE_MANAGER)
+            if not state_manager:
+                continue
+            device_state = state_manager.get_device_state(entity_id)
+            if device_state and device_state.audio_engine:
+                success = await device_state.audio_engine.update_sensitivity(
+                    sensitivity
+                )
+                if success:
+                    return self.json({"success": True})
+                return web.Response(
+                    status=404,
+                    text="No sensitivity companion entity found",
+                    content_type="text/plain",
+                )
+
+        return web.Response(
+            status=404,
+            text="Effect not found",
+            content_type="text/plain",
+        )
+
 
 def _get_thumbnail_dir(hass: HomeAssistant) -> Path:
     """Get the thumbnail storage directory, creating it if needed."""

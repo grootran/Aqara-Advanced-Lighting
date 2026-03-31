@@ -179,6 +179,9 @@ class AudioEffectModulator(AudioConsumer):
         self._last_speed_write: float = 0.0
         self._last_brightness_write: float = 0.0
 
+        # Audio sensor availability flag (read by running-operations API)
+        self.audio_waiting: bool = False
+
     def _get_rate_limit(self, entity_id: str) -> float:
         """Get rate limit for entity based on device model."""
         model = self._device_models.get(entity_id, "")
@@ -283,7 +286,12 @@ class AudioEffectModulator(AudioConsumer):
 
     async def on_unavailable_timeout(self) -> None:
         """Audio sensor unavailable too long — stop modulating."""
+        self.audio_waiting = True
         _LOGGER.warning("Audio sensor unavailable, stopping effect modulation")
+
+    async def on_sensor_available(self) -> None:
+        """Audio sensor recovered after unavailability."""
+        self.audio_waiting = False
 
     async def _write_speed_to_all(self, speed: int) -> None:
         """Write effect_speed to all entities via backend."""

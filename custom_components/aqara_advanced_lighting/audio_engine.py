@@ -67,6 +67,10 @@ class AudioConsumer(ABC):
     async def on_unavailable_timeout(self) -> None:
         """Called when audio sensor has been unavailable too long."""
 
+    @abstractmethod
+    async def on_sensor_available(self) -> None:
+        """Called when audio sensor recovers after unavailability."""
+
 
 class AudioEngine:
     """Shared audio infrastructure for sensor subscriptions and event dispatch.
@@ -156,6 +160,26 @@ class AudioEngine:
     def companions(self) -> dict[str, str | None]:
         """Return discovered companion sensors."""
         return self._companions
+
+    async def update_sensitivity(self, sensitivity: int) -> bool:
+        """Update sensitivity at runtime and write to companion entity."""
+        self.config.sensitivity = sensitivity
+        sensitivity_entity = self._companions.get("sensitivity")
+        if not sensitivity_entity:
+            return False
+        try:
+            await self.hass.services.async_call(
+                "number", "set_value",
+                {"entity_id": sensitivity_entity, "value": sensitivity},
+                blocking=False,
+            )
+            return True
+        except Exception:
+            _LOGGER.warning(
+                "Failed to update sensitivity on %s", sensitivity_entity,
+                exc_info=True,
+            )
+            return False
 
     async def _configure_esp32(self) -> None:
         """Configure ESP32 detection mode and sensitivity."""
@@ -382,6 +406,7 @@ class AudioEngine:
                 real_events = {k: v for k, v in events.items() if k != "unavailable"}
                 if real_events and unavailable_since is not None:
                     unavailable_since = None
+                    await self._consumer.on_sensor_available()
 
                 # Silence transitions
                 if "silence" in events:

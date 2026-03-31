@@ -32,6 +32,7 @@ export interface HomeAssistant {
     ) => Promise<() => void>;
   };
   entities?: Record<string, { entity_id: string; device_id?: string; platform?: string }>;
+  devices?: Record<string, { id: string; name?: string; name_by_user?: string | null }>;
 }
 
 export interface HassEntity {

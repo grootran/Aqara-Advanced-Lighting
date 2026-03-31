@@ -8,7 +8,7 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { localize } from './editor-constants';
-import { getEntityFriendlyName } from './entity-utils';
+import { getEntityFriendlyName, getEntityDeviceName } from './entity-utils';
 import type { HomeAssistant, RunningOperation, Translations } from './types';
 
 @customElement('aqara-running-operations')
@@ -21,6 +21,7 @@ export class AqaraRunningOperations extends LitElement {
   // --- Debounce timers ---
   private _sensitivityDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private _squelchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private _effectSensitivityDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   // --- Localise helper ---
   private _localize(key: string, replacements?: Record<string, string>): string {
@@ -29,6 +30,10 @@ export class AqaraRunningOperations extends LitElement {
 
   private _getEntityName(entityId: string): string {
     return getEntityFriendlyName(this.hass, entityId);
+  }
+
+  private _getAudioDeviceName(entityId: string): string {
+    return getEntityDeviceName(this.hass, entityId);
   }
 
   // --- Signal parent ---
@@ -54,7 +59,9 @@ export class AqaraRunningOperations extends LitElement {
         <div class="running-ops-list">
           ${displayItems.map(item =>
             Array.isArray(item)
-              ? this._renderGroupedSequenceOp(item)
+              ? (item[0]?.type === 'effect'
+                ? this._renderGroupedAudioEffectOp(item)
+                : this._renderGroupedSequenceOp(item))
               : this._renderOperationCard(item),
           )}
         </div>
@@ -66,15 +73,18 @@ export class AqaraRunningOperations extends LitElement {
     ops: RunningOperation[],
   ): (RunningOperation | RunningOperation[])[] {
     const result: (RunningOperation | RunningOperation[])[] = [];
-    const seqGroupIndex = new Map<string, number>();
+    const groupIndex = new Map<string, number>();
 
     for (const op of ops) {
-      if (
+      const isGroupableSeq =
         (op.type === 'cct_sequence' || op.type === 'segment_sequence') &&
-        op.preset_id
-      ) {
+        op.preset_id;
+      const isAudioEffect =
+        op.type === 'effect' && op.audio_entity && op.preset_id;
+
+      if (isGroupableSeq || isAudioEffect) {
         const key = `${op.type}:${op.preset_id}`;
-        const idx = seqGroupIndex.get(key);
+        const idx = groupIndex.get(key);
         if (idx !== undefined) {
           const existing = result[idx];
           if (Array.isArray(existing)) {
@@ -83,7 +93,7 @@ export class AqaraRunningOperations extends LitElement {
             result[idx] = [existing as RunningOperation, op];
           }
         } else {
-          seqGroupIndex.set(key, result.length);
+          groupIndex.set(key, result.length);
           result.push(op);
         }
       } else {
@@ -116,27 +126,121 @@ export class AqaraRunningOperations extends LitElement {
     const entityName = this._getEntityName(op.entity_id!);
     const preset = this._resolvePresetInfo(op.preset_id);
     const typeLabel = this._localize('target.effect_button');
-    return html`
-      <div class="running-op-card">
-        <div class="running-op-info">
-          <ha-icon class="running-op-icon" icon="${preset.icon || 'mdi:palette'}"></ha-icon>
-          <div class="running-op-details">
-            <span class="running-op-name">${preset.name || typeLabel}</span>
-            <span class="running-op-entity">
-              ${preset.name ? html`<span class="running-op-type">${typeLabel}</span>` : ''}
-              <span class="running-op-entity-name">${entityName}</span>
-            </span>
+
+    // Non-audio effect: simple flat card
+    if (!op.audio_entity) {
+      return html`
+        <div class="running-op-card">
+          <div class="running-op-info">
+            <ha-icon class="running-op-icon" icon="${preset.icon || 'mdi:palette'}"></ha-icon>
+            <div class="running-op-details">
+              <span class="running-op-name">${preset.name || typeLabel}</span>
+              <span class="running-op-entity">
+                ${preset.name ? html`<span class="running-op-type">${typeLabel}</span>` : ''}
+                <span class="running-op-entity-name">${entityName}</span>
+              </span>
+            </div>
+          </div>
+          <div class="running-op-actions">
+            <ha-icon-button
+              .label=${this._localize('target.stop')}
+              @click=${() => this._stopRunningEffect(op.entity_id!)}
+            >
+              <ha-icon icon="mdi:stop"></ha-icon>
+            </ha-icon-button>
           </div>
         </div>
-        <div class="running-op-actions">
-          <ha-icon-button
-            .label=${this._localize('target.stop')}
-            @click=${() => this._stopRunningEffect(op.entity_id!)}
-          >
-            <ha-icon icon="mdi:stop"></ha-icon>
-          </ha-icon-button>
+      `;
+    }
+
+    // Audio-reactive single-entity effect: expanded card
+    return html`
+      <div class="running-op-card scene-op-card">
+        <div class="running-op-header">
+          <div class="running-op-info">
+            <ha-icon class="running-op-icon" icon="${preset.icon || 'mdi:palette'}"></ha-icon>
+            <div class="running-op-details">
+              <span class="running-op-name">${preset.name || typeLabel}</span>
+              ${preset.name ? html`<span class="running-op-entity"><span class="running-op-type">${typeLabel}</span></span>` : ''}
+              ${this._renderAudioInfoRows(op)}
+            </div>
+          </div>
+          <div class="running-op-actions">
+            <ha-icon-button
+              .label=${this._localize('target.stop')}
+              @click=${() => this._stopRunningEffect(op.entity_id!)}
+            >
+              <ha-icon icon="mdi:stop"></ha-icon>
+            </ha-icon-button>
+          </div>
+        </div>
+        <div class="entity-chip-list">
+          <span class="entity-chip">${entityName}</span>
         </div>
       </div>
+    `;
+  }
+
+  private _renderGroupedAudioEffectOp(ops: RunningOperation[]) {
+    const first = ops[0]!;
+    const preset = this._resolvePresetInfo(first.preset_id);
+    const typeLabel = this._localize('target.effect_button');
+
+    const entityChips = ops.map(op => {
+      const name = this._getEntityName(op.entity_id!);
+      return html`<span class="entity-chip">${name}</span>`;
+    });
+
+    return html`
+      <div class="running-op-card scene-op-card">
+        <div class="running-op-header">
+          <div class="running-op-info">
+            <ha-icon class="running-op-icon" icon="${preset.icon || 'mdi:palette'}"></ha-icon>
+            <div class="running-op-details">
+              <span class="running-op-name">${preset.name || typeLabel}</span>
+              ${preset.name ? html`<span class="running-op-entity"><span class="running-op-type">${typeLabel}</span></span>` : ''}
+              ${this._renderAudioInfoRows(first)}
+            </div>
+          </div>
+          <div class="running-op-actions">
+            <ha-icon-button
+              .label=${this._localize('target.stop')}
+              @click=${() => this._stopGroupedEffect(ops)}
+            >
+              <ha-icon icon="mdi:stop"></ha-icon>
+            </ha-icon-button>
+          </div>
+        </div>
+        <div class="entity-chip-list">
+          ${entityChips}
+        </div>
+      </div>
+    `;
+  }
+
+  private _renderAudioInfoRows(op: RunningOperation) {
+    return html`
+      <span class="running-op-entity">
+        <ha-icon icon="mdi:waveform" style="--mdc-icon-size: 14px; vertical-align: middle;"></ha-icon>
+        <span class="running-op-type">${this._localize('target.audio_reactive_label') || 'Audio reactive'}</span>
+        ${op.audio_entity ? html`<span class="running-op-status">${this._getAudioDeviceName(op.audio_entity)}</span>` : ''}
+      </span>
+      ${op.audio_sensitivity != null ? html`
+        <div class="audio-sensitivity-row" style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+          <ha-icon icon="mdi:sine-wave" style="--mdc-icon-size: 14px; flex-shrink: 0;"></ha-icon>
+          <span style="font-size: 12px; white-space: nowrap;">${this._localize('target.sensitivity') || 'Sensitivity'}</span>
+          <input type="range" min="1" max="100" .value=${String(op.audio_sensitivity)}
+            style="flex: 1; min-width: 80px; accent-color: var(--primary-color);"
+            @input=${(e: Event) => this._debounceEffectAudioSensitivity(op.entity_id!, parseInt((e.target as HTMLInputElement).value))}
+          />
+          <span style="font-size: 12px; min-width: 24px; text-align: right;">${op.audio_sensitivity}</span>
+        </div>
+      ` : ''}
+      ${op.audio_waiting ? html`
+        <span class="running-op-pause-row">
+          <span class="running-op-status paused-text">${this._localize('target.audio_sensor_unavailable') || 'Audio sensor unavailable'}</span>
+        </span>
+      ` : ''}
     `;
   }
 
@@ -344,13 +448,7 @@ export class AqaraRunningOperations extends LitElement {
                 <span class="running-op-entity">
                   <ha-icon icon="mdi:waveform" style="--mdc-icon-size: 14px; vertical-align: middle;"></ha-icon>
                   <span class="running-op-type">${audioTierLabel}</span>
-                  ${op.audio_entity ? html`<span class="running-op-status">${this._getEntityName(op.audio_entity)}</span>` : ''}
-                  ${op.audio_bpm ? html`
-                    <span class="running-op-bpm">
-                      <ha-icon icon="mdi:metronome" style="--mdc-icon-size: 12px; vertical-align: middle;"></ha-icon>
-                      ${Math.round(op.audio_bpm)} BPM
-                    </span>
-                  ` : ''}
+                  ${op.audio_entity ? html`<span class="running-op-status">${this._getAudioDeviceName(op.audio_entity)}</span>` : ''}
                 </span>
               ` : ''}
               ${op.audio_sensitivity != null ? html`
@@ -565,7 +663,41 @@ export class AqaraRunningOperations extends LitElement {
     }
   }
 
+  // ===================== effect audio sensitivity =====================
+
+  private _debounceEffectAudioSensitivity(entityId: string, value: number): void {
+    if (this._effectSensitivityDebounceTimer) {
+      clearTimeout(this._effectSensitivityDebounceTimer);
+    }
+    this._effectSensitivityDebounceTimer = setTimeout(() => {
+      this._updateEffectAudioSensitivity(entityId, value);
+    }, 300);
+  }
+
+  private async _updateEffectAudioSensitivity(entityId: string, sensitivity: number): Promise<void> {
+    try {
+      await fetch(`/api/aqara_advanced_lighting/effect_audio_sensitivity`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.hass.auth.data.access_token}`,
+        },
+        body: JSON.stringify({ entity_id: entityId, sensitivity }),
+      });
+    } catch (e) {
+      console.error('Failed to update effect audio sensitivity:', e);
+    }
+  }
+
   // ===================== action handlers =====================
+
+  private async _stopGroupedEffect(ops: RunningOperation[]): Promise<void> {
+    await this.hass.callService('aqara_advanced_lighting', 'stop_effect', {
+      entity_id: ops.map(op => op.entity_id!),
+      restore_state: true,
+    });
+    this._fireChanged();
+  }
 
   private async _stopRunningEffect(entityId: string): Promise<void> {
     await this.hass.callService('aqara_advanced_lighting', 'stop_effect', {
