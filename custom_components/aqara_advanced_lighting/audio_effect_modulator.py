@@ -22,6 +22,8 @@ from .const import (
     AUDIO_EFFECT_RATE_LIMIT_T1_STRIP,
     AUDIO_EFFECT_SILENCE_DECAY_SECONDS,
     BRIGHTNESS_DEADBAND,
+    DATA_ENTITY_CONTROLLER,
+    DOMAIN,
     SPEED_DEADBAND,
     T1M_MODELS,
     brightness_percent_to_device,
@@ -301,14 +303,23 @@ class AudioEffectModulator(AudioConsumer):
             except Exception:
                 _LOGGER.warning("Failed to write speed to %s", entity_id, exc_info=True)
 
+    def _create_context(self):
+        """Create an integration-tagged context to avoid external change detection."""
+        ec = self.hass.data.get(DOMAIN, {}).get(DATA_ENTITY_CONTROLLER)
+        if ec:
+            return ec.create_context()
+        return None
+
     async def _write_brightness_to_all(self, brightness_pct: int) -> None:
         """Write brightness to all entities via HA light service."""
         brightness_device = brightness_percent_to_device(brightness_pct)
+        context = self._create_context()
         tasks = [
             self.hass.services.async_call(
                 "light", "turn_on",
                 {"entity_id": eid, "brightness": brightness_device},
                 blocking=False,
+                context=context,
             )
             for eid in self._entity_ids
         ]
