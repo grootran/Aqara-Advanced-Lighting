@@ -8,7 +8,7 @@
 
 ![Aqara Advanced Lighting](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/main/images/aqara-advanced-lighting.png "Aqara Advanced Lighting")
 
-**Aqara Advanced Lighting** is a [Home Assistant](https://www.home-assistant.io/) integration that unlocks the full potential of **Aqara T1M Ceiling Light**, **Aqara T1 LED Strip**, and **Aqara T2 RGB & CCT bulbs** -- dynamic RGB effects, per-segment colors and gradients, animated sequences, multi-step color temperature transitions, dynamic scenes with music sync, circadian adaptive lighting, and more. All the features of the Aqara Home app and more, without an Aqara Hub.
+**Aqara Advanced Lighting** is a [Home Assistant](https://www.home-assistant.io/) integration that unlocks the full potential of **Aqara Ceiling Light T1M**, **Aqara LED Strip T1**, and **Aqara RGB & CCT bulbs T2** -- dynamic RGB effects, per-segment colors and gradients, animated sequences, multi-step color temperature transitions, dynamic scenes with music sync, circadian adaptive lighting, and more. All the features of the Aqara Home app and more, without an Aqara Hub.
 
 Works with both **Zigbee2MQTT** and **ZHA** (Zigbee Home Automation).
 
@@ -42,7 +42,7 @@ _If you want to show your support please_
 
 **Dashboard card** -- A custom Lovelace card that puts your favorite presets on any dashboard. Configure one or more light entities, and the card displays compatible favorited presets as tappable buttons with thumbnails. Supports compact mode, configurable grid columns, preset name labels, user-preset highlighting, and real-time activation status. Add it from any dashboard via "Add Card" > search "Aqara Advanced Lighting Presets".
 
-**Music sync mode** -- Dynamic lighting scenes can respond to music via an ESP32 microphone running on-device FFT analysis and beat detection. Colors advance on beats or flow continuously with amplitude. Adjustable sensitivity, transition speed, and brightness response. Runtime sensitivity slider for tuning while a scene is running. Works alongside T1 Strip on-device audio sync. See the [audio-reactive setup guide](docs/audio-reactive-setup.md).
+**Music sync mode** -- Dynamic lighting scenes and effects can respond to music via an ESP32 microphone running on-device FFT analysis and beat detection. Scene colors advance on beats or flow continuously with amplitude, effect speed and brightness are synced to music. Adjustable sensitivity, transition speed, and brightness response. Runtime sensitivity slider for tuning while a scene is running. Can work alongside T1 Strip on-device audio sync. See the [audio-reactive setup guide](docs/audio-reactive-setup.md).
 
 **Automations** -- 21 service actions, 22 device triggers, 8 device conditions, REST API trigger endpoint, light group support with automatic entity expansion, and multi-instance routing.
 
