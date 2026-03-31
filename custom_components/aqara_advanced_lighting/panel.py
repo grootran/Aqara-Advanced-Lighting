@@ -905,6 +905,11 @@ class UserPreferencesView(HomeAssistantView):
         audio_override_latency_compensation_ms = _UNSET
         audio_override_color_by_frequency = _UNSET
         audio_override_rolloff_brightness = _UNSET
+        use_effect_audio_reactive = _UNSET
+        effect_audio_override_sensitivity = _UNSET
+        effect_audio_override_detection_mode = _UNSET
+        effect_audio_override_speed_enabled = _UNSET
+        effect_audio_override_brightness_enabled = _UNSET
         selected_entities = None
         active_favorite_id = _UNSET
 
@@ -1076,6 +1081,42 @@ class UserPreferencesView(HomeAssistantView):
                 )
             audio_override_rolloff_brightness = data["audio_override_rolloff_brightness"]
 
+        if "use_effect_audio_reactive" in data:
+            if not isinstance(data["use_effect_audio_reactive"], bool):
+                return web.Response(
+                    status=400, text="use_effect_audio_reactive must be a boolean"
+                )
+            use_effect_audio_reactive = data["use_effect_audio_reactive"]
+
+        if "effect_audio_override_sensitivity" in data:
+            value = data["effect_audio_override_sensitivity"]
+            if not isinstance(value, (int, float)) or value < 1 or value > 100:
+                return web.Response(
+                    status=400, text="effect_audio_override_sensitivity must be a number between 1 and 100"
+                )
+            effect_audio_override_sensitivity = int(value)
+
+        if "effect_audio_override_detection_mode" in data:
+            if not isinstance(data["effect_audio_override_detection_mode"], str):
+                return web.Response(
+                    status=400, text="effect_audio_override_detection_mode must be a string"
+                )
+            effect_audio_override_detection_mode = data["effect_audio_override_detection_mode"]
+
+        if "effect_audio_override_speed_enabled" in data:
+            if not isinstance(data["effect_audio_override_speed_enabled"], bool):
+                return web.Response(
+                    status=400, text="effect_audio_override_speed_enabled must be a boolean"
+                )
+            effect_audio_override_speed_enabled = data["effect_audio_override_speed_enabled"]
+
+        if "effect_audio_override_brightness_enabled" in data:
+            if not isinstance(data["effect_audio_override_brightness_enabled"], bool):
+                return web.Response(
+                    status=400, text="effect_audio_override_brightness_enabled must be a boolean"
+                )
+            effect_audio_override_brightness_enabled = data["effect_audio_override_brightness_enabled"]
+
         if "selected_entities" in data:
             value = data["selected_entities"]
             if not isinstance(value, list) or not all(
@@ -1119,6 +1160,11 @@ class UserPreferencesView(HomeAssistantView):
             and audio_override_latency_compensation_ms is _UNSET
             and audio_override_color_by_frequency is _UNSET
             and audio_override_rolloff_brightness is _UNSET
+            and use_effect_audio_reactive is _UNSET
+            and effect_audio_override_sensitivity is _UNSET
+            and effect_audio_override_detection_mode is _UNSET
+            and effect_audio_override_speed_enabled is _UNSET
+            and effect_audio_override_brightness_enabled is _UNSET
             and selected_entities is None
             and active_favorite_id is _UNSET
         ):
@@ -1150,6 +1196,11 @@ class UserPreferencesView(HomeAssistantView):
             audio_override_latency_compensation_ms=audio_override_latency_compensation_ms,
             audio_override_color_by_frequency=audio_override_color_by_frequency,
             audio_override_rolloff_brightness=audio_override_rolloff_brightness,
+            use_effect_audio_reactive=use_effect_audio_reactive,
+            effect_audio_override_sensitivity=effect_audio_override_sensitivity,
+            effect_audio_override_detection_mode=effect_audio_override_detection_mode,
+            effect_audio_override_speed_enabled=effect_audio_override_speed_enabled,
+            effect_audio_override_brightness_enabled=effect_audio_override_brightness_enabled,
             selected_entities=selected_entities,
             active_favorite_id=active_favorite_id,
         )

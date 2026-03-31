@@ -414,10 +414,11 @@ export interface UserPreferences {
   audio_override_color_by_frequency?: boolean;
   audio_override_rolloff_brightness?: boolean;
   // Effect audio overrides
-  effect_audio_override_entity?: string;
+  use_effect_audio_reactive?: boolean;
   effect_audio_override_sensitivity?: number;
-  effect_audio_override_speed_mode?: 'on_onset' | 'continuous' | 'intensity_breathing' | 'onset_flash';
-  effect_audio_override_brightness_mode?: 'on_onset' | 'continuous' | 'intensity_breathing' | 'onset_flash';
+  effect_audio_override_detection_mode?: string;
+  effect_audio_override_speed_enabled?: boolean;
+  effect_audio_override_brightness_enabled?: boolean;
   hidden_builtin_presets?: FavoritePresetRef[];
   selected_entities?: string[];
   active_favorite_id?: string | null;

@@ -42,6 +42,11 @@ class UserPreferences(TypedDict):
     audio_override_latency_compensation_ms: int
     audio_override_color_by_frequency: bool
     audio_override_rolloff_brightness: bool
+    use_effect_audio_reactive: bool
+    effect_audio_override_sensitivity: int
+    effect_audio_override_detection_mode: str
+    effect_audio_override_speed_enabled: bool
+    effect_audio_override_brightness_enabled: bool
     hidden_builtin_presets: list[dict[str, str]]
     selected_entities: list[str]
     active_favorite_id: str | None
@@ -68,6 +73,11 @@ DEFAULT_PREFERENCES: UserPreferences = {
     "audio_override_latency_compensation_ms": 150,
     "audio_override_color_by_frequency": False,
     "audio_override_rolloff_brightness": False,
+    "use_effect_audio_reactive": False,
+    "effect_audio_override_sensitivity": 50,
+    "effect_audio_override_detection_mode": "spectral_flux",
+    "effect_audio_override_speed_enabled": True,
+    "effect_audio_override_brightness_enabled": True,
     "hidden_builtin_presets": [],
     "selected_entities": [],
     "active_favorite_id": None,
@@ -160,6 +170,11 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
                 "audio_override_latency_compensation_ms": prefs.get("audio_override_latency_compensation_ms", 150),
                 "audio_override_color_by_frequency": prefs.get("audio_override_color_by_frequency", False),
                 "audio_override_rolloff_brightness": prefs.get("audio_override_rolloff_brightness", False),
+                "use_effect_audio_reactive": prefs.get("use_effect_audio_reactive", False),
+                "effect_audio_override_sensitivity": prefs.get("effect_audio_override_sensitivity", 50),
+                "effect_audio_override_detection_mode": prefs.get("effect_audio_override_detection_mode", "spectral_flux"),
+                "effect_audio_override_speed_enabled": prefs.get("effect_audio_override_speed_enabled", True),
+                "effect_audio_override_brightness_enabled": prefs.get("effect_audio_override_brightness_enabled", True),
                 "hidden_builtin_presets": prefs.get("hidden_builtin_presets", []),
                 "selected_entities": prefs.get("selected_entities", []),
                 "active_favorite_id": prefs.get("active_favorite_id"),
@@ -240,6 +255,11 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
         audio_override_latency_compensation_ms: int | None | _Unset = _UNSET,
         audio_override_color_by_frequency: bool | None | _Unset = _UNSET,
         audio_override_rolloff_brightness: bool | None | _Unset = _UNSET,
+        use_effect_audio_reactive: bool | None | _Unset = _UNSET,
+        effect_audio_override_sensitivity: int | None | _Unset = _UNSET,
+        effect_audio_override_detection_mode: str | None | _Unset = _UNSET,
+        effect_audio_override_speed_enabled: bool | None | _Unset = _UNSET,
+        effect_audio_override_brightness_enabled: bool | None | _Unset = _UNSET,
         hidden_builtin_presets: list[dict[str, str]] | None = None,
         selected_entities: list[str] | None = None,
         active_favorite_id: str | None | _Unset = _UNSET,
@@ -271,6 +291,11 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
             audio_override_latency_compensation_ms: Latency compensation in ms, or _UNSET to leave unchanged.
             audio_override_color_by_frequency: Whether color-by-frequency is enabled, or _UNSET to leave unchanged.
             audio_override_rolloff_brightness: Whether rolloff brightness is enabled, or _UNSET to leave unchanged.
+            use_effect_audio_reactive: Whether effect audio-reactive is enabled, or _UNSET to leave unchanged.
+            effect_audio_override_sensitivity: Effect audio sensitivity (1-100), or _UNSET to leave unchanged.
+            effect_audio_override_detection_mode: Effect detection mode string, or _UNSET to leave unchanged.
+            effect_audio_override_speed_enabled: Whether speed responds to audio in effects, or _UNSET to leave unchanged.
+            effect_audio_override_brightness_enabled: Whether brightness responds to audio in effects, or _UNSET to leave unchanged.
             hidden_builtin_presets: Hidden builtin preset references, or None to leave unchanged.
             selected_entities: Selected entity IDs, or None to leave unchanged.
             active_favorite_id: Active favorite ID, None to clear, or _UNSET to leave unchanged.
@@ -345,6 +370,21 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
 
         if not isinstance(audio_override_rolloff_brightness, _Unset):
             self._data[user_id]["audio_override_rolloff_brightness"] = audio_override_rolloff_brightness
+
+        if not isinstance(use_effect_audio_reactive, _Unset):
+            self._data[user_id]["use_effect_audio_reactive"] = use_effect_audio_reactive
+
+        if not isinstance(effect_audio_override_sensitivity, _Unset):
+            self._data[user_id]["effect_audio_override_sensitivity"] = effect_audio_override_sensitivity
+
+        if not isinstance(effect_audio_override_detection_mode, _Unset):
+            self._data[user_id]["effect_audio_override_detection_mode"] = effect_audio_override_detection_mode
+
+        if not isinstance(effect_audio_override_speed_enabled, _Unset):
+            self._data[user_id]["effect_audio_override_speed_enabled"] = effect_audio_override_speed_enabled
+
+        if not isinstance(effect_audio_override_brightness_enabled, _Unset):
+            self._data[user_id]["effect_audio_override_brightness_enabled"] = effect_audio_override_brightness_enabled
 
         if hidden_builtin_presets is not None:
             self._data[user_id]["hidden_builtin_presets"] = hidden_builtin_presets

@@ -1519,6 +1519,12 @@ export class AqaraPanel extends LitElement {
     }
   }
 
+  private _handleEffectAudioReactiveToggle(e: Event): void {
+    this._prefs.update({
+      useEffectAudioReactive: (e.target as HTMLInputElement).checked,
+    }, this.hass);
+  }
+
   private _handleAudioOverrideEntityChange(e: CustomEvent): void {
     this._prefs.update({ audioOverrideEntity: e.detail.value || '' }, this.hass);
   }
@@ -1651,6 +1657,19 @@ export class AqaraPanel extends LitElement {
     // Only include brightness if custom brightness is enabled
     if (this._prefs.state.useCustomBrightness) {
       serviceData.brightness = this._prefs.state.brightness;
+    }
+
+    // Effect audio override
+    if (this._prefs.state.useEffectAudioReactive) {
+      if (this._prefs.state.audioOverrideEntity) {
+        serviceData.audio_entity = this._prefs.state.audioOverrideEntity;
+        serviceData.audio_sensitivity = this._prefs.state.effectAudioOverrideSensitivity;
+        serviceData.audio_detection_mode = this._prefs.state.effectAudioOverrideDetectionMode;
+        serviceData.audio_speed_mode = this._prefs.state.effectAudioOverrideSpeedEnabled ? 'continuous' : 'off';
+        serviceData.audio_brightness_mode = this._prefs.state.effectAudioOverrideBrightnessEnabled ? 'continuous' : 'off';
+      } else {
+        console.warn('Effect audio reactive override is enabled but no audio sensor entity is configured');
+      }
     }
 
     await this.hass.callService('aqara_advanced_lighting', 'set_dynamic_effect', serviceData);
@@ -1848,25 +1867,38 @@ export class AqaraPanel extends LitElement {
       serviceData.segments = preset.effect_segments;
     }
 
-    // Include audio config if preset has one, with user overrides
-    if (preset.audio_config?.audio_entity) {
-      const ac = preset.audio_config;
-      const overrideEntity = this._prefs.state.effectAudioOverrideEntity;
-      serviceData.audio_entity = overrideEntity || ac.audio_entity;
-      serviceData.audio_sensitivity = ac.audio_sensitivity ?? 50;
-      serviceData.audio_detection_mode = ac.audio_detection_mode ?? 'spectral_flux';
-      serviceData.audio_silence_behavior = ac.audio_silence_behavior ?? 'decay_min';
-      if (ac.audio_speed_mode) {
-        serviceData.audio_speed_mode = ac.audio_speed_mode;
-        serviceData.audio_speed_min = ac.audio_speed_min ?? 1;
-        serviceData.audio_speed_max = ac.audio_speed_max ?? 100;
-        serviceData.audio_speed_curve = ac.audio_speed_curve ?? 'linear';
+    // Effect audio override takes precedence
+    if (this._prefs.state.useEffectAudioReactive) {
+      if (this._prefs.state.audioOverrideEntity) {
+        serviceData.audio_entity = this._prefs.state.audioOverrideEntity;
+        serviceData.audio_sensitivity = this._prefs.state.effectAudioOverrideSensitivity;
+        serviceData.audio_detection_mode = this._prefs.state.effectAudioOverrideDetectionMode;
+        serviceData.audio_speed_mode = this._prefs.state.effectAudioOverrideSpeedEnabled ? 'continuous' : 'off';
+        serviceData.audio_brightness_mode = this._prefs.state.effectAudioOverrideBrightnessEnabled ? 'continuous' : 'off';
+      } else {
+        console.warn('Effect audio reactive override is enabled but no audio sensor entity is configured');
       }
-      if (ac.audio_brightness_mode) {
-        serviceData.audio_brightness_mode = ac.audio_brightness_mode;
-        serviceData.audio_brightness_min = ac.audio_brightness_min ?? 1;
-        serviceData.audio_brightness_max = ac.audio_brightness_max ?? 100;
-        serviceData.audio_brightness_curve = ac.audio_brightness_curve ?? 'linear';
+    } else if (preset.audio_config?.audio_entity) {
+      // Fall back to preset's saved audio config (only when override is OFF)
+      const ac = preset.audio_config;
+      const fallbackEntity = ac.audio_entity || this._prefs.state.audioOverrideEntity;
+      if (fallbackEntity) {
+        serviceData.audio_entity = fallbackEntity;
+        serviceData.audio_sensitivity = ac.audio_sensitivity ?? 50;
+        serviceData.audio_detection_mode = ac.audio_detection_mode ?? 'spectral_flux';
+        serviceData.audio_silence_behavior = ac.audio_silence_behavior ?? 'decay_min';
+        if (ac.audio_speed_mode) {
+          serviceData.audio_speed_mode = ac.audio_speed_mode;
+          serviceData.audio_speed_min = ac.audio_speed_min ?? 1;
+          serviceData.audio_speed_max = ac.audio_speed_max ?? 100;
+          serviceData.audio_speed_curve = ac.audio_speed_curve ?? 'linear';
+        }
+        if (ac.audio_brightness_mode) {
+          serviceData.audio_brightness_mode = ac.audio_brightness_mode;
+          serviceData.audio_brightness_min = ac.audio_brightness_min ?? 1;
+          serviceData.audio_brightness_max = ac.audio_brightness_max ?? 100;
+          serviceData.audio_brightness_curve = ac.audio_brightness_curve ?? 'linear';
+        }
       }
     }
 
@@ -2579,9 +2611,73 @@ export class AqaraPanel extends LitElement {
                     `
                   : ''}
 
+                  <div class="override-item">
+                    <span class="form-label">${this._localize('target.effect_audio_reactive_label') || 'Effect audio reactive'}</span>
+                    <ha-switch
+                      .checked=${this._prefs.state.useEffectAudioReactive}
+                      @change=${this._handleEffectAudioReactiveToggle}
+                    ></ha-switch>
+                  </div>
+
+                ${this._prefs.state.useEffectAudioReactive
+                  ? html`
+                      <div class="audio-override-row" style="padding-top: 8px;">
+                        <div>
+                          <span class="form-label">${this._localize('target.audio_entity_label') || 'Audio sensor entity'}</span>
+                          <ha-selector
+                            .hass=${this.hass}
+                            .selector=${{ entity: { domain: 'binary_sensor' } }}
+                            .value=${this._prefs.state.audioOverrideEntity}
+                            @value-changed=${this._handleAudioOverrideEntityChange}
+                          ></ha-selector>
+                        </div>
+                        <div>
+                          <span class="form-label">${this._localize('target.effect_sensitivity_label') || 'Sensitivity'}</span>
+                          <ha-selector
+                            .hass=${this.hass}
+                            .selector=${{ number: { min: 1, max: 100, mode: 'slider', unit_of_measurement: '%' } }}
+                            .value=${this._prefs.state.effectAudioOverrideSensitivity}
+                            @value-changed=${(e: CustomEvent) => { this._prefs.update({ effectAudioOverrideSensitivity: e.detail.value ?? 50 }, this.hass); }}
+                          ></ha-selector>
+                        </div>
+                      </div>
+                      <div class="audio-override-row">
+                        <div>
+                          <span class="form-label">${this._localize('target.effect_detection_mode_label') || 'Detection mode'}</span>
+                          <ha-selector
+                            .hass=${this.hass}
+                            .selector=${{ select: { options: [
+                              { value: 'spectral_flux', label: this._localize('dynamic_scene.audio_detection_spectral_flux') || 'Spectral flux (all genres)' },
+                              { value: 'bass_energy', label: this._localize('dynamic_scene.audio_detection_bass_energy') || 'Bass energy (rhythmic music)' },
+                              { value: 'complex_domain', label: this._localize('dynamic_scene.audio_detection_complex_domain') || 'Complex domain (phase+magnitude)' },
+                            ], mode: 'dropdown' } }}
+                            .value=${this._prefs.state.effectAudioOverrideDetectionMode}
+                            @value-changed=${(e: CustomEvent) => { this._prefs.update({ effectAudioOverrideDetectionMode: e.detail.value || 'spectral_flux' }, this.hass); }}
+                          ></ha-selector>
+                        </div>
+                      </div>
+                      <div class="audio-toggles-grid">
+                        <div class="override-item">
+                          <span class="form-label">${this._localize('target.effect_speed_modulation_label') || 'Speed modulation'}</span>
+                          <ha-switch
+                            .checked=${this._prefs.state.effectAudioOverrideSpeedEnabled}
+                            @change=${(e: Event) => { this._prefs.update({ effectAudioOverrideSpeedEnabled: (e.target as HTMLInputElement).checked }, this.hass); }}
+                          ></ha-switch>
+                        </div>
+                        <div class="override-item">
+                          <span class="form-label">${this._localize('target.effect_brightness_modulation_label') || 'Brightness modulation'}</span>
+                          <ha-switch
+                            .checked=${this._prefs.state.effectAudioOverrideBrightnessEnabled}
+                            @change=${(e: Event) => { this._prefs.update({ effectAudioOverrideBrightnessEnabled: (e.target as HTMLInputElement).checked }, this.hass); }}
+                          ></ha-switch>
+                        </div>
+                      </div>
+                    `
+                  : ''}
+
                 ${this._prefs.state.useDistributionModeOverride
                   ? html`
-                      <div class="brightness-slider">
+                      <div class="brightness-slider" style="padding-top: 8px;">
                         <span class="form-label">${this._localize('target.distribution_mode_override_label') || 'Color assignment'}</span>
                         <ha-selector
                           .hass=${this.hass}
@@ -2600,7 +2696,7 @@ export class AqaraPanel extends LitElement {
 
                 ${this._prefs.state.useCustomBrightness
                   ? html`
-                      <div class="brightness-slider">
+                      <div class="brightness-slider" style="padding-top: 8px;">
                         <span class="form-label">${this._localize('target.brightness_override_label') || 'Brightness'}</span>
                         <ha-selector
                           .hass=${this.hass}

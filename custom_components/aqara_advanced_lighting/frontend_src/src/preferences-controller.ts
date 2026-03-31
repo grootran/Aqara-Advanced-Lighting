@@ -26,7 +26,11 @@ export interface PreferencesState {
   audioOverrideBrightnessResponse: boolean;
   audioOverrideColorByFrequency: boolean;
   audioOverrideRolloffBrightness: boolean;
-  effectAudioOverrideEntity: string;
+  useEffectAudioReactive: boolean;
+  effectAudioOverrideSensitivity: number;
+  effectAudioOverrideDetectionMode: string;
+  effectAudioOverrideSpeedEnabled: boolean;
+  effectAudioOverrideBrightnessEnabled: boolean;
   hiddenBuiltinPresets: FavoritePresetRef[];
   selectedEntities: string[];
   activeFavoriteId: string | null;
@@ -64,7 +68,11 @@ const DEFAULT_STATE: PreferencesState = {
   audioOverrideBrightnessResponse: true,
   audioOverrideColorByFrequency: false,
   audioOverrideRolloffBrightness: false,
-  effectAudioOverrideEntity: '',
+  useEffectAudioReactive: false,
+  effectAudioOverrideSensitivity: 50,
+  effectAudioOverrideDetectionMode: 'spectral_flux',
+  effectAudioOverrideSpeedEnabled: true,
+  effectAudioOverrideBrightnessEnabled: true,
   hiddenBuiltinPresets: [],
   selectedEntities: [],
   activeFavoriteId: null,
@@ -214,7 +222,11 @@ export class PreferencesController implements ReactiveController {
     if (prefs.audio_override_latency_compensation_ms !== undefined) this.state.audioOverrideLatencyCompensationMs = prefs.audio_override_latency_compensation_ms;
     if (prefs.audio_override_color_by_frequency !== undefined) this.state.audioOverrideColorByFrequency = prefs.audio_override_color_by_frequency;
     if (prefs.audio_override_rolloff_brightness !== undefined) this.state.audioOverrideRolloffBrightness = prefs.audio_override_rolloff_brightness;
-    if (prefs.effect_audio_override_entity) this.state.effectAudioOverrideEntity = prefs.effect_audio_override_entity;
+    if (prefs.use_effect_audio_reactive !== undefined) this.state.useEffectAudioReactive = prefs.use_effect_audio_reactive;
+    if (prefs.effect_audio_override_sensitivity !== undefined) this.state.effectAudioOverrideSensitivity = prefs.effect_audio_override_sensitivity;
+    if (prefs.effect_audio_override_detection_mode !== undefined) this.state.effectAudioOverrideDetectionMode = prefs.effect_audio_override_detection_mode;
+    if (prefs.effect_audio_override_speed_enabled !== undefined) this.state.effectAudioOverrideSpeedEnabled = prefs.effect_audio_override_speed_enabled;
+    if (prefs.effect_audio_override_brightness_enabled !== undefined) this.state.effectAudioOverrideBrightnessEnabled = prefs.effect_audio_override_brightness_enabled;
     if (prefs.selected_entities && prefs.selected_entities.length > 0) {
       this.state.selectedEntities = prefs.selected_entities;
       this.state.activeFavoriteId = prefs.active_favorite_id ?? null;
@@ -309,7 +321,11 @@ export class PreferencesController implements ReactiveController {
           audio_override_latency_compensation_ms: this.state.audioOverrideLatencyCompensationMs,
           audio_override_color_by_frequency: this.state.audioOverrideColorByFrequency,
           audio_override_rolloff_brightness: this.state.audioOverrideRolloffBrightness,
-          effect_audio_override_entity: this.state.effectAudioOverrideEntity,
+          use_effect_audio_reactive: this.state.useEffectAudioReactive,
+          effect_audio_override_sensitivity: this.state.effectAudioOverrideSensitivity,
+          effect_audio_override_detection_mode: this.state.effectAudioOverrideDetectionMode,
+          effect_audio_override_speed_enabled: this.state.effectAudioOverrideSpeedEnabled,
+          effect_audio_override_brightness_enabled: this.state.effectAudioOverrideBrightnessEnabled,
           selected_entities: this.state.selectedEntities,
           active_favorite_id: this.state.activeFavoriteId,
         } as unknown as Record<string, unknown>
