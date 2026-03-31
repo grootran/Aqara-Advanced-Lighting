@@ -2548,14 +2548,13 @@
         ${e.audio_entity?H`<span class="running-op-status">${this._getAudioDeviceName(e.audio_entity)}</span>`:""}
       </span>
       ${null!=e.audio_sensitivity?H`
-        <div class="audio-sensitivity-row" style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+        <div class="audio-sensitivity-row">
           <ha-icon icon="mdi:sine-wave" style="--mdc-icon-size: 14px; flex-shrink: 0;"></ha-icon>
-          <span style="font-size: 12px; white-space: nowrap;">${this._localize("target.sensitivity")||"Sensitivity"}</span>
+          <span class="sensitivity-label">${this._localize("target.sensitivity")||"Sensitivity"}</span>
           <input type="range" min="1" max="100" .value=${String(e.audio_sensitivity)}
-            style="flex: 1; min-width: 80px; accent-color: var(--primary-color);"
             @input=${t=>this._debounceEffectAudioSensitivity(e.entity_id,parseInt(t.target.value))}
           />
-          <span style="font-size: 12px; min-width: 24px; text-align: right;">${e.audio_sensitivity}</span>
+          <span class="sensitivity-value">${e.audio_sensitivity}</span>
         </div>
       `:""}
       ${e.audio_waiting?H`
@@ -2662,25 +2661,23 @@
                 </span>
               `:""}
               ${null!=e.audio_sensitivity?H`
-                <div class="audio-sensitivity-row" style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+                <div class="audio-sensitivity-row">
                   <ha-icon icon="mdi:sine-wave" style="--mdc-icon-size: 14px; flex-shrink: 0;"></ha-icon>
-                  <span style="font-size: 12px; white-space: nowrap;">${this._localize("target.sensitivity")||"Sensitivity"}</span>
+                  <span class="sensitivity-label">${this._localize("target.sensitivity")||"Sensitivity"}</span>
                   <input type="range" min="1" max="100" .value=${String(e.audio_sensitivity)}
-                    style="flex: 1; min-width: 80px; accent-color: var(--primary-color);"
                     @input=${t=>this._debounceAudioSensitivity(e.scene_id,parseInt(t.target.value))}
                   />
-                  <span style="font-size: 12px; min-width: 24px; text-align: right;">${e.audio_sensitivity}</span>
+                  <span class="sensitivity-value">${e.audio_sensitivity}</span>
                 </div>
               `:""}
               ${null!=e.audio_squelch?H`
-                <div class="audio-sensitivity-row" style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+                <div class="audio-sensitivity-row">
                   <ha-icon icon="mdi:volume-off" style="--mdc-icon-size: 14px; flex-shrink: 0;"></ha-icon>
-                  <span style="font-size: 12px; white-space: nowrap;">${this._localize("target.audio_squelch_label")||"Noise gate"}</span>
+                  <span class="sensitivity-label">${this._localize("target.audio_squelch_label")||"Noise gate"}</span>
                   <input type="range" min="0" max="100" .value=${String(e.audio_squelch)}
-                    style="flex: 1; min-width: 80px; accent-color: var(--primary-color);"
                     @input=${t=>this._debounceAudioSquelch(e.scene_id,parseInt(t.target.value))}
                   />
-                  <span style="font-size: 12px; min-width: 24px; text-align: right;">${e.audio_squelch}</span>
+                  <span class="sensitivity-value">${e.audio_squelch}</span>
                 </div>
               `:""}
               ${e.audio_waiting?H`
@@ -2810,6 +2807,8 @@
       align-items: center;
       justify-content: space-between;
       gap: 8px;
+      min-width: 0;
+      overflow: hidden;
     }
 
     .running-op-card.op-paused {
@@ -2855,6 +2854,33 @@
       flex-direction: column;
       min-width: 0;
       overflow: hidden;
+    }
+
+    .audio-sensitivity-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+      min-width: 0;
+    }
+
+    .audio-sensitivity-row input[type="range"] {
+      flex: 1;
+      min-width: 0;
+      accent-color: var(--primary-color);
+    }
+
+    .audio-sensitivity-row .sensitivity-label {
+      font-size: 12px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .audio-sensitivity-row .sensitivity-value {
+      font-size: 12px;
+      min-width: 24px;
+      text-align: right;
+      flex-shrink: 0;
     }
 
     .running-op-name {
