@@ -404,6 +404,15 @@ async def handle_set_dynamic_effect(hass: HomeAssistant, call: ServiceCall) -> N
                 _LOGGER.exception("Failed to stop music sync on %s", entity_id)
             active_music_sync.pop(entity_id, None)
 
+        # Stop any existing audio engine/modulator before capture_state
+        # replaces the DeviceState (which would orphan the old references)
+        existing_state = entity_state_manager.get_device_state(entity_id)
+        if existing_state and getattr(existing_state, "audio_engine", None):
+            await existing_state.audio_engine.stop()
+            await existing_state.audio_modulator.stop()
+            existing_state.audio_engine = None
+            existing_state.audio_modulator = None
+
         # Capture current state before applying effect
         entity_state_manager.capture_state(entity_id, aqara_device.name)
 

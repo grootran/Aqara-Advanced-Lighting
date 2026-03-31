@@ -442,9 +442,15 @@ class EntityController:
             timer.cancel()
 
         for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():
-            # Clear effect/pattern active flag in state manager
+            # Stop audio engine/modulator and clear effect active flag
             state_mgr = instance_data.get(DATA_STATE_MANAGER)
             if state_mgr and state_mgr.is_effect_active(entity_id):
+                device_state = state_mgr.get_device_state(entity_id)
+                if device_state and getattr(device_state, "audio_engine", None):
+                    await device_state.audio_engine.stop()
+                    await device_state.audio_modulator.stop()
+                    device_state.audio_engine = None
+                    device_state.audio_modulator = None
                 state_mgr.mark_effect_inactive(entity_id)
 
             # Detach from dynamic scene (scene continues for other entities)
