@@ -1,6 +1,9 @@
 """Integration tests for audio-reactive dynamic scenes."""
 from __future__ import annotations
 
+import asyncio
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 
 from custom_components.aqara_advanced_lighting.models import (
@@ -61,4 +64,77 @@ def test_dynamic_scene_invalid_audio_color_advance():
         )
 
 
+def test_build_scene_engine_config_matches_scene_audio_fields():
+    """Engine config should reflect scene's audio settings."""
+    from custom_components.aqara_advanced_lighting.audio_scene_consumer import (
+        build_scene_engine_config,
+    )
+    scene = DynamicScene(
+        colors=[DynamicSceneColor(x=0.3, y=0.3, brightness_pct=100)],
+        transition_time=1.0,
+        hold_time=1.0,
+        distribution_mode="shuffle_rotate",
+        offset_delay=0.0,
+        random_order=False,
+        loop_mode="continuous",
+        audio_entity="binary_sensor.beat",
+        audio_sensitivity=75,
+        audio_detection_mode="bass_energy",
+        audio_color_advance="continuous",
+        audio_brightness_response=True,
+    )
+    config = build_scene_engine_config(scene)
+    assert config.consumer_type == "scene"
+    assert config.sensitivity == 75
+    assert config.detection_mode == "bass_energy"
+    assert config.subscribe_energy is True
+    assert config.subscribe_onset is False  # continuous mode, not onset
+    assert config.subscribe_silence is True
+
+
+def test_scene_consumer_unavailable_timeout_signals_stop():
+    """Consumer should set stop_event when audio sensor times out."""
+    from custom_components.aqara_advanced_lighting.audio_scene_consumer import (
+        DynamicSceneAudioConsumer,
+    )
+
+    scene = DynamicScene(
+        colors=[DynamicSceneColor(x=0.3, y=0.3, brightness_pct=100)],
+        transition_time=1.0,
+        hold_time=1.0,
+        distribution_mode="shuffle_rotate",
+        offset_delay=0.0,
+        random_order=False,
+        loop_mode="continuous",
+        audio_entity="binary_sensor.beat",
+    )
+
+    class FakeState:
+        def __init__(self):
+            self.scene = scene
+            self.audio_waiting = False
+
+    state = FakeState()
+    stop = asyncio.Event()
+    handler = MagicMock()
+
+    consumer = DynamicSceneAudioConsumer(
+        scene_state=state,
+        handler=handler,
+        stop_event=stop,
+        apply_colors_fn=AsyncMock(),
+        transition_seconds=0.5,
+        is_onset_mode=True,
+        is_energy_mode=False,
+    )
+
+    # Simulate unavailable timeout
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(consumer.on_unavailable_timeout())
+    finally:
+        loop.close()
+
+    assert stop.is_set()
+    assert state.audio_waiting is True
 

@@ -18,6 +18,7 @@ class MockConsumer(AudioConsumer):
         self.events_received: list[dict] = []
         self.silence_entered = False
         self.silence_exited = False
+        self.sensor_available = False
 
     async def on_audio_events(self, events: dict) -> None:
         self.events_received.append(events)
@@ -30,6 +31,9 @@ class MockConsumer(AudioConsumer):
 
     async def on_unavailable_timeout(self) -> None:
         pass
+
+    async def on_sensor_available(self) -> None:
+        self.sensor_available = True
 
 
 class TestAudioEngineConfig:
