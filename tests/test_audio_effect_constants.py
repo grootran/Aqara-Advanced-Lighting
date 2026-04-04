@@ -12,6 +12,7 @@ from custom_components.aqara_advanced_lighting.const import (
     AUDIO_SILENCE_HOLD,
     AUDIO_SILENCE_DECAY_MIN,
     AUDIO_SILENCE_DECAY_MID,
+    AUDIO_SILENCE_SLOW_CYCLE,
     VALID_AUDIO_SILENCE_BEHAVIORS,
     AUDIO_EFFECT_RATE_LIMIT_T1M,
     AUDIO_EFFECT_RATE_LIMIT_T1_STRIP,
@@ -44,7 +45,8 @@ def test_silence_behaviors():
     assert AUDIO_SILENCE_HOLD == "hold"
     assert AUDIO_SILENCE_DECAY_MIN == "decay_min"
     assert AUDIO_SILENCE_DECAY_MID == "decay_mid"
-    assert len(VALID_AUDIO_SILENCE_BEHAVIORS) == 3
+    assert AUDIO_SILENCE_SLOW_CYCLE == "slow_cycle"
+    assert len(VALID_AUDIO_SILENCE_BEHAVIORS) == 4
 
 
 def test_rate_limits():

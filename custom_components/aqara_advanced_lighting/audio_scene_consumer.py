@@ -50,7 +50,7 @@ def build_scene_engine_config(scene: DynamicScene) -> AudioEngineConfig:
         sensitivity=scene.audio_sensitivity,
         detection_mode=scene.audio_detection_mode,
         subscribe_onset=is_onset,
-        subscribe_energy=is_energy or scene.audio_brightness_response,
+        subscribe_energy=is_energy or scene.audio_brightness_curve is not None,
         subscribe_bpm=mode == AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
         subscribe_beat_confidence=mode == AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
         subscribe_beat_phase=mode == AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
@@ -130,7 +130,7 @@ class DynamicSceneAudioConsumer(AudioConsumer):
         # Energy events
         if "energy" in events:
             self._handler.handle_energy(self._scene_state, events["energy"])
-            if self._is_energy_mode or scene.audio_brightness_response:
+            if self._is_energy_mode or scene.audio_brightness_curve is not None:
                 needs_apply = True
 
         # Frequency zone band events
@@ -150,7 +150,7 @@ class DynamicSceneAudioConsumer(AudioConsumer):
         if needs_apply:
             rate_limit = self._is_energy_mode or (
                 "energy" in events
-                and scene.audio_brightness_response
+                and scene.audio_brightness_curve is not None
                 and "onset" not in events
             )
             if rate_limit:

@@ -1556,15 +1556,15 @@ export class AqaraPanel extends LitElement {
   // Audio presets (UI-only, same definitions as scene editor)
   private static readonly AUDIO_PRESETS: Record<string, {
     color_advance: string; detection_mode: string; sensitivity: number;
-    transition_speed: number; brightness_response: boolean; frequency_zone: boolean;
-    color_by_frequency: boolean; rolloff_brightness: boolean; silence_degradation: boolean;
+    transition_speed: number; brightness_curve: string | null; brightness_min: number; brightness_max: number; frequency_zone: boolean;
+    color_by_frequency: boolean; rolloff_brightness: boolean; silence_behavior: string;
     prediction_aggressiveness: number; latency_compensation_ms: number;
   }> = {
-    beat: { color_advance: 'on_onset', detection_mode: 'spectral_flux', sensitivity: 60, transition_speed: 80, brightness_response: true, frequency_zone: false, color_by_frequency: false, rolloff_brightness: false, silence_degradation: true, prediction_aggressiveness: 50, latency_compensation_ms: 150 },
-    ambient: { color_advance: 'intensity_breathing', detection_mode: 'spectral_flux', sensitivity: 50, transition_speed: 20, brightness_response: true, frequency_zone: false, color_by_frequency: false, rolloff_brightness: true, silence_degradation: true, prediction_aggressiveness: 50, latency_compensation_ms: 150 },
-    concert: { color_advance: 'beat_predictive', detection_mode: 'complex_domain', sensitivity: 50, transition_speed: 50, brightness_response: true, frequency_zone: true, color_by_frequency: true, rolloff_brightness: false, silence_degradation: true, prediction_aggressiveness: 70, latency_compensation_ms: 150 },
-    chill: { color_advance: 'continuous', detection_mode: 'spectral_flux', sensitivity: 40, transition_speed: 30, brightness_response: true, frequency_zone: false, color_by_frequency: false, rolloff_brightness: false, silence_degradation: true, prediction_aggressiveness: 50, latency_compensation_ms: 150 },
-    club: { color_advance: 'onset_flash', detection_mode: 'bass_energy', sensitivity: 70, transition_speed: 95, brightness_response: true, frequency_zone: false, color_by_frequency: false, rolloff_brightness: false, silence_degradation: false, prediction_aggressiveness: 50, latency_compensation_ms: 150 },
+    beat: { color_advance: 'on_onset', detection_mode: 'spectral_flux', sensitivity: 60, transition_speed: 80, brightness_curve: 'linear', brightness_min: 30, brightness_max: 100, frequency_zone: false, color_by_frequency: false, rolloff_brightness: false, silence_behavior: 'slow_cycle', prediction_aggressiveness: 50, latency_compensation_ms: 150 },
+    ambient: { color_advance: 'intensity_breathing', detection_mode: 'spectral_flux', sensitivity: 50, transition_speed: 20, brightness_curve: 'logarithmic', brightness_min: 20, brightness_max: 80, frequency_zone: false, color_by_frequency: false, rolloff_brightness: true, silence_behavior: 'slow_cycle', prediction_aggressiveness: 50, latency_compensation_ms: 150 },
+    concert: { color_advance: 'beat_predictive', detection_mode: 'complex_domain', sensitivity: 50, transition_speed: 50, brightness_curve: 'linear', brightness_min: 30, brightness_max: 100, frequency_zone: true, color_by_frequency: true, rolloff_brightness: false, silence_behavior: 'slow_cycle', prediction_aggressiveness: 70, latency_compensation_ms: 150 },
+    chill: { color_advance: 'continuous', detection_mode: 'spectral_flux', sensitivity: 40, transition_speed: 30, brightness_curve: 'logarithmic', brightness_min: 20, brightness_max: 80, frequency_zone: false, color_by_frequency: false, rolloff_brightness: false, silence_behavior: 'slow_cycle', prediction_aggressiveness: 50, latency_compensation_ms: 150 },
+    club: { color_advance: 'onset_flash', detection_mode: 'bass_energy', sensitivity: 70, transition_speed: 95, brightness_curve: 'exponential', brightness_min: 10, brightness_max: 100, frequency_zone: false, color_by_frequency: false, rolloff_brightness: false, silence_behavior: 'hold', prediction_aggressiveness: 50, latency_compensation_ms: 150 },
   };
 
   private get _currentAudioOverridePreset(): string {
@@ -1573,11 +1573,13 @@ export class AqaraPanel extends LitElement {
           this._prefs.state.audioOverrideDetectionMode === p.detection_mode &&
           this._prefs.state.audioOverrideSensitivity === p.sensitivity &&
           this._prefs.state.audioOverrideTransitionSpeed === p.transition_speed &&
-          this._prefs.state.audioOverrideBrightnessResponse === p.brightness_response &&
+          this._prefs.state.audioOverrideBrightnessCurve === p.brightness_curve &&
+          this._prefs.state.audioOverrideBrightnessMin === p.brightness_min &&
+          this._prefs.state.audioOverrideBrightnessMax === p.brightness_max &&
           this._prefs.state.audioOverrideFrequencyZone === p.frequency_zone &&
           this._prefs.state.audioOverrideColorByFrequency === p.color_by_frequency &&
           this._prefs.state.audioOverrideRolloffBrightness === p.rolloff_brightness &&
-          this._prefs.state.audioOverrideSilenceDegradation === p.silence_degradation &&
+          this._prefs.state.audioOverrideSilenceBehavior === p.silence_behavior &&
           this._prefs.state.audioOverridePredictionAggressiveness === p.prediction_aggressiveness &&
           this._prefs.state.audioOverrideLatencyCompensationMs === p.latency_compensation_ms) {
         return name;
@@ -1607,11 +1609,13 @@ export class AqaraPanel extends LitElement {
       audioOverrideDetectionMode: p.detection_mode,
       audioOverrideSensitivity: p.sensitivity,
       audioOverrideTransitionSpeed: p.transition_speed,
-      audioOverrideBrightnessResponse: p.brightness_response,
+      audioOverrideBrightnessCurve: p.brightness_curve,
+      audioOverrideBrightnessMin: p.brightness_min,
+      audioOverrideBrightnessMax: p.brightness_max,
       audioOverrideFrequencyZone: p.frequency_zone,
       audioOverrideColorByFrequency: p.color_by_frequency,
       audioOverrideRolloffBrightness: p.rolloff_brightness,
-      audioOverrideSilenceDegradation: p.silence_degradation,
+      audioOverrideSilenceBehavior: p.silence_behavior,
       audioOverridePredictionAggressiveness: p.prediction_aggressiveness,
       audioOverrideLatencyCompensationMs: p.latency_compensation_ms,
     }, this.hass);
@@ -1778,11 +1782,13 @@ export class AqaraPanel extends LitElement {
     serviceData.audio_entity = audioEntity;
     serviceData.audio_color_advance = preset.audio_color_advance;
     if (preset.audio_sensitivity != null) serviceData.audio_sensitivity = preset.audio_sensitivity;
-    if (preset.audio_brightness_response != null) serviceData.audio_brightness_response = preset.audio_brightness_response;
+    if (preset.audio_brightness_curve !== undefined) serviceData.audio_brightness_curve = preset.audio_brightness_curve;
+    if (preset.audio_brightness_min != null) serviceData.audio_brightness_min = preset.audio_brightness_min;
+    if (preset.audio_brightness_max != null) serviceData.audio_brightness_max = preset.audio_brightness_max;
     if (preset.audio_transition_speed != null) serviceData.audio_transition_speed = preset.audio_transition_speed;
     if (preset.audio_detection_mode != null) serviceData.audio_detection_mode = preset.audio_detection_mode;
     if (preset.audio_frequency_zone != null) serviceData.audio_frequency_zone = preset.audio_frequency_zone;
-    if (preset.audio_silence_degradation != null) serviceData.audio_silence_degradation = preset.audio_silence_degradation;
+    if (preset.audio_silence_behavior != null) serviceData.audio_silence_behavior = preset.audio_silence_behavior;
     if (preset.audio_prediction_aggressiveness != null) serviceData.audio_prediction_aggressiveness = preset.audio_prediction_aggressiveness;
     if (preset.audio_latency_compensation_ms != null) serviceData.audio_latency_compensation_ms = preset.audio_latency_compensation_ms;
   }
@@ -1793,10 +1799,12 @@ export class AqaraPanel extends LitElement {
       serviceData.audio_sensitivity = this._prefs.state.audioOverrideSensitivity;
       serviceData.audio_color_advance = this._prefs.state.audioOverrideColorAdvance;
       serviceData.audio_transition_speed = this._prefs.state.audioOverrideTransitionSpeed;
-      serviceData.audio_brightness_response = this._prefs.state.audioOverrideBrightnessResponse;
+      serviceData.audio_brightness_curve = this._prefs.state.audioOverrideBrightnessCurve;
+      serviceData.audio_brightness_min = this._prefs.state.audioOverrideBrightnessMin;
+      serviceData.audio_brightness_max = this._prefs.state.audioOverrideBrightnessMax;
       serviceData.audio_detection_mode = this._prefs.state.audioOverrideDetectionMode;
       serviceData.audio_frequency_zone = this._prefs.state.audioOverrideFrequencyZone;
-      serviceData.audio_silence_degradation = this._prefs.state.audioOverrideSilenceDegradation;
+      serviceData.audio_silence_behavior = this._prefs.state.audioOverrideSilenceBehavior;
       serviceData.audio_prediction_aggressiveness = this._prefs.state.audioOverridePredictionAggressiveness;
       serviceData.audio_latency_compensation_ms = this._prefs.state.audioOverrideLatencyCompensationMs;
     }
@@ -2569,28 +2577,74 @@ export class AqaraPanel extends LitElement {
                           ></ha-selector>
                         </div>
                       </div>
+                      <!-- Dropdowns: brightness curve and silence behavior -->
+                      <div class="audio-dropdowns-grid">
+                        <div class="override-item">
+                          <span class="form-label">${this._localize('dynamic_scene.audio_brightness_curve_label') || 'Brightness curve'}</span>
+                          <ha-selector
+                            .hass=${this.hass}
+                            .disabled=${!(this._prefs.state.audioOverrideColorAdvance === 'on_onset' || this._prefs.state.audioOverrideColorAdvance === 'continuous' || this._prefs.state.audioOverrideColorAdvance === 'beat_predictive')}
+                            .selector=${{ select: { options: [
+                              { value: 'disabled', label: this._localize('dynamic_scene.audio_brightness_curve_disabled') || 'Disabled' },
+                              { value: 'linear', label: this._localize('dynamic_scene.audio_brightness_curve_linear') || 'Linear' },
+                              { value: 'logarithmic', label: this._localize('dynamic_scene.audio_brightness_curve_logarithmic') || 'Logarithmic' },
+                              { value: 'exponential', label: this._localize('dynamic_scene.audio_brightness_curve_exponential') || 'Exponential' },
+                            ], mode: 'dropdown' } }}
+                            .value=${this._prefs.state.audioOverrideBrightnessCurve ?? 'disabled'}
+                            @value-changed=${(e: CustomEvent) => {
+                              const val = e.detail.value;
+                              this._prefs.update({
+                                audioOverrideBrightnessCurve: val === 'disabled' ? null : (val || 'linear'),
+                              }, this.hass);
+                            }}
+                          ></ha-selector>
+                        </div>
+                        <div class="override-item">
+                          <span class="form-label">${this._localize('dynamic_scene.audio_silence_behavior_label') || 'Silence behavior'}</span>
+                          <ha-selector
+                            .hass=${this.hass}
+                            .selector=${{ select: { options: [
+                              { value: 'hold', label: this._localize('dynamic_scene.audio_silence_hold') || 'Hold last color' },
+                              { value: 'slow_cycle', label: this._localize('dynamic_scene.audio_silence_slow_cycle') || 'Slow cycle' },
+                              { value: 'decay_min', label: this._localize('dynamic_scene.audio_silence_decay_min') || 'Decay to min' },
+                              { value: 'decay_mid', label: this._localize('dynamic_scene.audio_silence_decay_mid') || 'Decay to mid' },
+                            ], mode: 'dropdown' } }}
+                            .value=${this._prefs.state.audioOverrideSilenceBehavior}
+                            @value-changed=${(e: CustomEvent) => { this._prefs.update({ audioOverrideSilenceBehavior: e.detail.value || 'slow_cycle' }, this.hass); }}
+                          ></ha-selector>
+                        </div>
+                      </div>
+
+                      ${this._prefs.state.audioOverrideBrightnessCurve ? html`
+                      <div class="audio-sliders-row">
+                        <div class="override-item">
+                          <span class="form-label">${this._localize('dynamic_scene.audio_brightness_min_label') || 'Brightness min'}</span>
+                          <ha-selector
+                            .hass=${this.hass}
+                            .selector=${{ number: { min: 0, max: 100, mode: 'slider', unit_of_measurement: '%' } }}
+                            .value=${this._prefs.state.audioOverrideBrightnessMin}
+                            @value-changed=${(e: CustomEvent) => { this._prefs.update({ audioOverrideBrightnessMin: e.detail.value ?? 30 }, this.hass); }}
+                          ></ha-selector>
+                        </div>
+                        <div class="override-item">
+                          <span class="form-label">${this._localize('dynamic_scene.audio_brightness_max_label') || 'Brightness max'}</span>
+                          <ha-selector
+                            .hass=${this.hass}
+                            .selector=${{ number: { min: 0, max: 100, mode: 'slider', unit_of_measurement: '%' } }}
+                            .value=${this._prefs.state.audioOverrideBrightnessMax}
+                            @value-changed=${(e: CustomEvent) => { this._prefs.update({ audioOverrideBrightnessMax: e.detail.value ?? 100 }, this.hass); }}
+                          ></ha-selector>
+                        </div>
+                      </div>
+                      ` : ''}
+
                       <!-- Toggles: 4-per-row desktop, 2-per-row mobile -->
                       <div class="audio-toggles-grid">
-                        <div class="override-item">
-                          <span class="form-label">${this._localize('dynamic_scene.audio_brightness_response_label') || 'Brightness response'}</span>
-                          <ha-switch
-                            .checked=${this._prefs.state.audioOverrideBrightnessResponse}
-                            .disabled=${!(this._prefs.state.audioOverrideColorAdvance === 'on_onset' || this._prefs.state.audioOverrideColorAdvance === 'continuous' || this._prefs.state.audioOverrideColorAdvance === 'beat_predictive')}
-                            @change=${(e: Event) => { this._prefs.update({ audioOverrideBrightnessResponse: (e.target as HTMLInputElement).checked }, this.hass); }}
-                          ></ha-switch>
-                        </div>
                         <div class="override-item">
                           <span class="form-label">${this._localize('dynamic_scene.audio_frequency_zone_label') || 'Frequency zone'}</span>
                           <ha-switch
                             .checked=${this._prefs.state.audioOverrideFrequencyZone}
                             @change=${(e: Event) => { this._prefs.update({ audioOverrideFrequencyZone: (e.target as HTMLInputElement).checked }, this.hass); }}
-                          ></ha-switch>
-                        </div>
-                        <div class="override-item">
-                          <span class="form-label">${this._localize('dynamic_scene.audio_silence_degradation_label') || 'Silence degradation'}</span>
-                          <ha-switch
-                            .checked=${this._prefs.state.audioOverrideSilenceDegradation}
-                            @change=${(e: Event) => { this._prefs.update({ audioOverrideSilenceDegradation: (e.target as HTMLInputElement).checked }, this.hass); }}
                           ></ha-switch>
                         </div>
                         <div class="override-item">

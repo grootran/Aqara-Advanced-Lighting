@@ -451,12 +451,14 @@ def _build_presets_data() -> dict[str, Any]:
             scene_entry.update({
                 "audio_entity": preset_data.get("audio_entity"),
                 "audio_sensitivity": preset_data.get("audio_sensitivity"),
-                "audio_brightness_response": preset_data.get("audio_brightness_response"),
+                "audio_brightness_curve": preset_data.get("audio_brightness_curve"),
+                "audio_brightness_min": preset_data.get("audio_brightness_min"),
+                "audio_brightness_max": preset_data.get("audio_brightness_max"),
                 "audio_color_advance": preset_data.get("audio_color_advance"),
                 "audio_transition_speed": preset_data.get("audio_transition_speed"),
                 "audio_detection_mode": preset_data.get("audio_detection_mode"),
                 "audio_frequency_zone": preset_data.get("audio_frequency_zone"),
-                "audio_silence_degradation": preset_data.get("audio_silence_degradation"),
+                "audio_silence_behavior": preset_data.get("audio_silence_behavior"),
                 "audio_prediction_aggressiveness": preset_data.get("audio_prediction_aggressiveness"),
                 "audio_latency_compensation_ms": preset_data.get("audio_latency_compensation_ms"),
                 "audio_color_by_frequency": preset_data.get("audio_color_by_frequency"),
@@ -897,10 +899,12 @@ class UserPreferencesView(HomeAssistantView):
         audio_override_sensitivity = _UNSET
         audio_override_color_advance = _UNSET
         audio_override_transition_speed = _UNSET
-        audio_override_brightness_response = _UNSET
+        audio_override_brightness_curve = _UNSET
+        audio_override_brightness_min = _UNSET
+        audio_override_brightness_max = _UNSET
         audio_override_detection_mode = _UNSET
         audio_override_frequency_zone = _UNSET
-        audio_override_silence_degradation = _UNSET
+        audio_override_silence_behavior = _UNSET
         audio_override_prediction_aggressiveness = _UNSET
         audio_override_latency_compensation_ms = _UNSET
         audio_override_color_by_frequency = _UNSET
@@ -1022,12 +1026,29 @@ class UserPreferencesView(HomeAssistantView):
                 )
             audio_override_transition_speed = int(value)
 
-        if "audio_override_brightness_response" in data:
-            if not isinstance(data["audio_override_brightness_response"], bool):
+        if "audio_override_brightness_curve" in data:
+            val = data["audio_override_brightness_curve"]
+            if val is not None and not isinstance(val, str):
                 return web.Response(
-                    status=400, text="audio_override_brightness_response must be a boolean"
+                    status=400, text="audio_override_brightness_curve must be a string or null"
                 )
-            audio_override_brightness_response = data["audio_override_brightness_response"]
+            audio_override_brightness_curve = val
+
+        if "audio_override_brightness_min" in data:
+            val = data["audio_override_brightness_min"]
+            if not isinstance(val, (int, float)) or val < 1 or val > 100:
+                return web.Response(
+                    status=400, text="audio_override_brightness_min must be 1-100"
+                )
+            audio_override_brightness_min = int(val)
+
+        if "audio_override_brightness_max" in data:
+            val = data["audio_override_brightness_max"]
+            if not isinstance(val, (int, float)) or val < 1 or val > 100:
+                return web.Response(
+                    status=400, text="audio_override_brightness_max must be 1-100"
+                )
+            audio_override_brightness_max = int(val)
 
         if "audio_override_detection_mode" in data:
             if not isinstance(data["audio_override_detection_mode"], str):
@@ -1043,12 +1064,12 @@ class UserPreferencesView(HomeAssistantView):
                 )
             audio_override_frequency_zone = data["audio_override_frequency_zone"]
 
-        if "audio_override_silence_degradation" in data:
-            if not isinstance(data["audio_override_silence_degradation"], bool):
+        if "audio_override_silence_behavior" in data:
+            if not isinstance(data["audio_override_silence_behavior"], str):
                 return web.Response(
-                    status=400, text="audio_override_silence_degradation must be a boolean"
+                    status=400, text="audio_override_silence_behavior must be a string"
                 )
-            audio_override_silence_degradation = data["audio_override_silence_degradation"]
+            audio_override_silence_behavior = data["audio_override_silence_behavior"]
 
         if "audio_override_prediction_aggressiveness" in data:
             value = data["audio_override_prediction_aggressiveness"]
@@ -1152,10 +1173,12 @@ class UserPreferencesView(HomeAssistantView):
             and audio_override_sensitivity is _UNSET
             and audio_override_color_advance is _UNSET
             and audio_override_transition_speed is _UNSET
-            and audio_override_brightness_response is _UNSET
+            and audio_override_brightness_curve is _UNSET
+            and audio_override_brightness_min is _UNSET
+            and audio_override_brightness_max is _UNSET
             and audio_override_detection_mode is _UNSET
             and audio_override_frequency_zone is _UNSET
-            and audio_override_silence_degradation is _UNSET
+            and audio_override_silence_behavior is _UNSET
             and audio_override_prediction_aggressiveness is _UNSET
             and audio_override_latency_compensation_ms is _UNSET
             and audio_override_color_by_frequency is _UNSET
@@ -1188,10 +1211,12 @@ class UserPreferencesView(HomeAssistantView):
             audio_override_sensitivity=audio_override_sensitivity,
             audio_override_color_advance=audio_override_color_advance,
             audio_override_transition_speed=audio_override_transition_speed,
-            audio_override_brightness_response=audio_override_brightness_response,
+            audio_override_brightness_curve=audio_override_brightness_curve,
+            audio_override_brightness_min=audio_override_brightness_min,
+            audio_override_brightness_max=audio_override_brightness_max,
             audio_override_detection_mode=audio_override_detection_mode,
             audio_override_frequency_zone=audio_override_frequency_zone,
-            audio_override_silence_degradation=audio_override_silence_degradation,
+            audio_override_silence_behavior=audio_override_silence_behavior,
             audio_override_prediction_aggressiveness=audio_override_prediction_aggressiveness,
             audio_override_latency_compensation_ms=audio_override_latency_compensation_ms,
             audio_override_color_by_frequency=audio_override_color_by_frequency,

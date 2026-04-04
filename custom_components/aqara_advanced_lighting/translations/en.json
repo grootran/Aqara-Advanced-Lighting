@@ -756,9 +756,17 @@
           "name": "Audio transition speed",
           "description": "Speed of color transitions when driven by audio (1-100%)."
         },
-        "audio_brightness_response": {
-          "name": "Brightness response",
-          "description": "Modulate light brightness based on audio intensity."
+        "audio_brightness_curve": {
+          "name": "Brightness response curve",
+          "description": "How energy maps to brightness (linear/logarithmic/exponential, or null to disable)."
+        },
+        "audio_brightness_min": {
+          "name": "Brightness minimum",
+          "description": "Minimum brightness percent when audio is quiet (1-100)."
+        },
+        "audio_brightness_max": {
+          "name": "Brightness maximum",
+          "description": "Maximum brightness percent when audio is loud (1-100)."
         },
         "audio_detection_mode": {
           "name": "Detection mode",
@@ -768,9 +776,9 @@
           "name": "Frequency zone distribution",
           "description": "Assign different frequency bands to different lights. Requires 3 or more lights."
         },
-        "audio_silence_degradation": {
-          "name": "Silence degradation",
-          "description": "Gradually dim lights during periods of silence."
+        "audio_silence_behavior": {
+          "name": "Silence behavior",
+          "description": "Behavior when silence is detected: slow_cycle (gradual palette cycling), hold (freeze), decay_min (fade to minimum), decay_mid (fade to midpoint)."
         },
         "audio_prediction_aggressiveness": {
           "name": "Prediction aggressiveness",

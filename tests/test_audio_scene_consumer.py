@@ -61,13 +61,13 @@ class TestBuildSceneEngineConfig:
         assert config.subscribe_beat_phase is True
         assert config.subscribe_onset is True
 
-    def test_brightness_response_subscribes_energy(self):
+    def test_brightness_curve_subscribes_energy(self):
         from custom_components.aqara_advanced_lighting.audio_scene_consumer import (
             build_scene_engine_config,
         )
         scene = _make_scene(
             audio_color_advance="on_onset",
-            audio_brightness_response=True,
+            audio_brightness_curve="linear",
         )
         config = build_scene_engine_config(scene)
         assert config.subscribe_energy is True

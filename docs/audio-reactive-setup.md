@@ -355,9 +355,11 @@ data:
   audio_color_advance: on_onset
   audio_detection_mode: spectral_flux
   audio_transition_speed: 70
-  audio_brightness_response: true
+  audio_brightness_curve: linear
+  audio_brightness_min: 30
+  audio_brightness_max: 100
   audio_frequency_zone: false
-  audio_silence_degradation: true
+  audio_silence_behavior: slow_cycle
   audio_color_by_frequency: false
   audio_rolloff_brightness: false
 ```
@@ -373,9 +375,11 @@ When `audio_entity` is set, the `transition_time` and `hold_time` values are ign
 | `audio_color_advance` | string | `on_onset` | How colors advance through the palette (see color advance modes below). |
 | `audio_detection_mode` | string | `spectral_flux` | Detection algorithm: `spectral_flux` (all genres), `bass_energy` (rhythmic music), or `complex_domain` (phase+magnitude, soft onsets). |
 | `audio_transition_speed` | 1-100 | 50 | How fast colors fade between changes. Higher = faster. |
-| `audio_brightness_response` | boolean | true | When enabled, brightness pulses with the music's volume. |
+| `audio_brightness_curve` | string/null | `linear` | Response curve for brightness modulation: `linear`, `logarithmic`, `exponential`, or `null` to disable. |
+| `audio_brightness_min` | 1-100 | 30 | Minimum brightness percent when audio is quiet. |
+| `audio_brightness_max` | 1-100 | 100 | Maximum brightness percent when audio is loud. |
 | `audio_frequency_zone` | boolean | false | Auto-distribute lights across bass/mid/high frequency bands. Requires 3+ lights. |
-| `audio_silence_degradation` | boolean | true | Gradually transition to slow palette cycling during silence. |
+| `audio_silence_behavior` | string | `slow_cycle` | Behavior during silence: `slow_cycle` (gradual palette cycling), `hold` (freeze), `decay_min` (fade to minimum), `decay_mid` (fade to midpoint). |
 | `audio_prediction_aggressiveness` | 1-100 | 50 | How aggressively to predict beats (beat_predictive mode only). |
 | `audio_latency_compensation_ms` | 0-500 | 150 | Milliseconds to send commands early to compensate for Zigbee latency (beat_predictive mode only). |
 | `audio_color_by_frequency` | boolean | false | Map spectral centroid to palette position. Low frequencies select warm colors, high frequencies select cool. |
@@ -520,7 +524,7 @@ The Aqara T1 Strip (`lumi.light.acn132`) has a built-in microphone and firmware-
 
 - The T1 Strip uses its own built-in microphone, while software-driven lights react to the external ESPHome sensor. They may not be perfectly in sync.
 - The T1 Strip's built-in effects (random, blink, rainbow, wave) do not use your scene's color palette. The palette only applies to software-driven lights.
-- The `audio_brightness_response` and `audio_transition_speed` parameters are not supported by the T1 Strip hardware and are ignored for on-device entities.
+- The `audio_brightness_curve` and `audio_transition_speed` parameters are not supported by the T1 Strip hardware and are ignored for on-device entities.
 
 ---
 

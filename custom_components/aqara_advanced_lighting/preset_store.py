@@ -109,7 +109,9 @@ _ALLOWED_FIELDS: dict[str, set[str]] = {
         "thumbnail",
         "audio_entity",
         "audio_sensitivity",
-        "audio_brightness_response",
+        "audio_brightness_curve",
+        "audio_brightness_min",
+        "audio_brightness_max",
         "audio_color_advance",
         "audio_transition_speed",
     },
@@ -227,6 +229,59 @@ def _migrate_loop_mode(preset: dict[str, Any]) -> dict[str, Any]:
 
     return preset
 
+
+SILENCE_MIGRATION_FLAG = "_migrated_silence_v1"
+
+
+def _migrate_silence_degradation_to_behavior(preset: dict[str, Any]) -> dict[str, Any]:
+    """Migrate audio_silence_degradation (bool) to audio_silence_behavior (str).
+
+    Rewrites the stored preset in-place, removing the old key.
+    Skips presets that already have the new key or the migration flag.
+    """
+    if preset.get(SILENCE_MIGRATION_FLAG):
+        return preset
+
+    if "audio_silence_degradation" not in preset:
+        return preset
+
+    old_val = preset.pop("audio_silence_degradation")
+    preset["audio_silence_behavior"] = "slow_cycle" if old_val else "hold"
+    preset[SILENCE_MIGRATION_FLAG] = True
+    _LOGGER.debug(
+        "Migrated preset '%s' audio_silence_degradation=%s to audio_silence_behavior='%s'",
+        preset.get("name", "unknown"),
+        old_val,
+        preset["audio_silence_behavior"],
+    )
+    return preset
+
+
+BRIGHTNESS_RESPONSE_MIGRATION_FLAG = "_migrated_brightness_response_v1"
+
+
+def _migrate_brightness_response_to_curve(preset: dict[str, Any]) -> dict[str, Any]:
+    """Migrate audio_brightness_response (bool) to curve + min/max."""
+    if preset.get(BRIGHTNESS_RESPONSE_MIGRATION_FLAG):
+        return preset
+    if "audio_brightness_response" not in preset:
+        return preset
+
+    old_val = preset.pop("audio_brightness_response")
+    if old_val:
+        preset["audio_brightness_curve"] = "linear"
+        preset["audio_brightness_min"] = 30
+        preset["audio_brightness_max"] = 100
+    else:
+        preset["audio_brightness_curve"] = None
+    preset[BRIGHTNESS_RESPONSE_MIGRATION_FLAG] = True
+    _LOGGER.debug(
+        "Migrated preset '%s' audio_brightness_response=%s to curve params",
+        preset.get("name", "unknown"), old_val,
+    )
+    return preset
+
+
 class UserEffectPreset(TypedDict):
     """User-defined effect preset."""
 
@@ -301,7 +356,10 @@ class UserDynamicScenePreset(TypedDict):
     modified_at: str
     audio_entity: NotRequired[str | None]
     audio_sensitivity: NotRequired[int]
-    audio_brightness_response: NotRequired[bool]
+    audio_brightness_curve: NotRequired[str | None]
+    audio_brightness_min: NotRequired[int]
+    audio_brightness_max: NotRequired[int]
+    audio_silence_behavior: NotRequired[str]
     audio_color_advance: NotRequired[str]
     audio_transition_speed: NotRequired[int]
 
@@ -404,6 +462,22 @@ class PresetStore(BaseStore[PresetsData]):
                         if migrated.get(LOOP_MODE_MIGRATION_FLAG):
                             self._data[key][i] = migrated
                             needs_save = True
+
+            # Migrate audio_silence_degradation -> audio_silence_behavior
+            if self._data["dynamic_scene_presets"]:
+                for i, preset in enumerate(self._data["dynamic_scene_presets"]):
+                    migrated = _migrate_silence_degradation_to_behavior(preset)
+                    if migrated.get(SILENCE_MIGRATION_FLAG):
+                        self._data["dynamic_scene_presets"][i] = migrated
+                        needs_save = True
+
+            # Migrate audio_brightness_response -> audio_brightness_curve/min/max
+            if self._data["dynamic_scene_presets"]:
+                for i, preset in enumerate(self._data["dynamic_scene_presets"]):
+                    migrated = _migrate_brightness_response_to_curve(preset)
+                    if migrated.get(BRIGHTNESS_RESPONSE_MIGRATION_FLAG):
+                        self._data["dynamic_scene_presets"][i] = migrated
+                        needs_save = True
 
             # Save migrated presets
             if needs_save:
@@ -1190,7 +1264,10 @@ class PresetStore(BaseStore[PresetsData]):
                         "end_behavior": preset["end_behavior"],
                         "audio_entity": preset.get("audio_entity"),
                         "audio_sensitivity": preset.get("audio_sensitivity"),
-                        "audio_brightness_response": preset.get("audio_brightness_response"),
+                        "audio_brightness_curve": preset.get("audio_brightness_curve"),
+                        "audio_brightness_min": preset.get("audio_brightness_min"),
+                        "audio_brightness_max": preset.get("audio_brightness_max"),
+                        "audio_silence_behavior": preset.get("audio_silence_behavior"),
                         "audio_color_advance": preset.get("audio_color_advance"),
                         "audio_transition_speed": preset.get("audio_transition_speed"),
                     }

@@ -33,7 +33,7 @@ def _make_rich_scene(**kwargs) -> DynamicScene:
         audio_sensitivity=50,
         audio_color_advance="on_onset",
         audio_transition_speed=50,
-        audio_brightness_response=True,
+        audio_brightness_curve="linear",
     )
     defaults.update(kwargs)
     return DynamicScene(**defaults)

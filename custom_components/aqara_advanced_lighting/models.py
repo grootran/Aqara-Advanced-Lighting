@@ -15,7 +15,7 @@ from .const import (
     DEFAULT_AUDIO_RESPONSE_CURVE,
     DEFAULT_AUDIO_SENSITIVITY,
     DEFAULT_AUDIO_SILENCE_BEHAVIOR,
-    DEFAULT_AUDIO_SILENCE_DEGRADATION,
+    AUDIO_SILENCE_SLOW_CYCLE,
     DEFAULT_AUDIO_TRANSITION_SPEED,
     DEFAULT_LATENCY_COMPENSATION_MS,
     MAX_AUDIO_PREDICTION_AGGRESSIVENESS,
@@ -680,12 +680,14 @@ class DynamicScene:
     end_behavior: str = "maintain"  # "maintain", "turn_off", or "restore"
     audio_entity: str | None = None
     audio_sensitivity: int = DEFAULT_AUDIO_SENSITIVITY
-    audio_brightness_response: bool = True
+    audio_brightness_curve: str | None = DEFAULT_AUDIO_RESPONSE_CURVE  # None = disabled
+    audio_brightness_min: int = 30  # Percent (matches old 0.3 floor)
+    audio_brightness_max: int = 100  # Percent (matches old 1.0 ceiling)
     audio_color_advance: str = AUDIO_COLOR_ADVANCE_ON_ONSET
     audio_transition_speed: int = DEFAULT_AUDIO_TRANSITION_SPEED
     audio_detection_mode: str = DEFAULT_AUDIO_DETECTION_MODE
     audio_frequency_zone: bool = DEFAULT_AUDIO_FREQUENCY_ZONE
-    audio_silence_degradation: bool = DEFAULT_AUDIO_SILENCE_DEGRADATION
+    audio_silence_behavior: str = AUDIO_SILENCE_SLOW_CYCLE
     audio_prediction_aggressiveness: int = DEFAULT_AUDIO_PREDICTION_AGGRESSIVENESS
     audio_latency_compensation_ms: int = DEFAULT_LATENCY_COMPENSATION_MS
     audio_color_by_frequency: bool = False
@@ -748,6 +750,32 @@ class DynamicScene:
 
         if self.audio_detection_mode not in VALID_AUDIO_DETECTION_MODES:
             self.audio_detection_mode = DEFAULT_AUDIO_DETECTION_MODE
+
+        # Brightness curve validation
+        if self.audio_brightness_curve is not None:
+            if self.audio_brightness_curve not in VALID_AUDIO_RESPONSE_CURVES:
+                msg = (
+                    f"Invalid audio_brightness_curve: {self.audio_brightness_curve}. "
+                    f"Must be one of {VALID_AUDIO_RESPONSE_CURVES} or None"
+                )
+                raise ValueError(msg)
+        self.audio_brightness_min = max(1, min(100, self.audio_brightness_min))
+        self.audio_brightness_max = max(1, min(100, self.audio_brightness_max))
+        if (self.audio_brightness_curve is not None
+                and self.audio_brightness_min >= self.audio_brightness_max):
+            msg = (
+                f"audio_brightness_min ({self.audio_brightness_min}) must be less than "
+                f"audio_brightness_max ({self.audio_brightness_max})"
+            )
+            raise ValueError(msg)
+
+        # Silence behavior validation
+        if self.audio_silence_behavior not in VALID_AUDIO_SILENCE_BEHAVIORS:
+            msg = (
+                f"Invalid audio_silence_behavior: {self.audio_silence_behavior}. "
+                f"Must be one of {VALID_AUDIO_SILENCE_BEHAVIORS}"
+            )
+            raise ValueError(msg)
 
         self.audio_prediction_aggressiveness = max(
             MIN_AUDIO_PREDICTION_AGGRESSIVENESS,

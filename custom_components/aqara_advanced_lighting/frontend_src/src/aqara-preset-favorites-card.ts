@@ -763,12 +763,14 @@ export class AqaraPresetFavoritesCard extends LitElement {
     if (preset.audio_entity) {
       serviceData.audio_entity = preset.audio_entity;
       serviceData.audio_sensitivity = preset.audio_sensitivity;
-      serviceData.audio_brightness_response = preset.audio_brightness_response;
+      serviceData.audio_brightness_curve = preset.audio_brightness_curve;
+      serviceData.audio_brightness_min = preset.audio_brightness_min;
+      serviceData.audio_brightness_max = preset.audio_brightness_max;
       serviceData.audio_color_advance = preset.audio_color_advance;
       serviceData.audio_transition_speed = preset.audio_transition_speed;
       serviceData.audio_detection_mode = preset.audio_detection_mode;
       serviceData.audio_frequency_zone = preset.audio_frequency_zone;
-      serviceData.audio_silence_degradation = preset.audio_silence_degradation;
+      serviceData.audio_silence_behavior = preset.audio_silence_behavior;
       serviceData.audio_prediction_aggressiveness = preset.audio_prediction_aggressiveness;
       serviceData.audio_latency_compensation_ms = preset.audio_latency_compensation_ms;
     }
