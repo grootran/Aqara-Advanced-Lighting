@@ -49,6 +49,7 @@ class UserPreferences(TypedDict):
     effect_audio_override_detection_mode: str
     effect_audio_override_speed_enabled: bool
     effect_audio_override_brightness_enabled: bool
+    effect_audio_override_silence_behavior: str
     hidden_builtin_presets: list[dict[str, str]]
     selected_entities: list[str]
     active_favorite_id: str | None
@@ -82,6 +83,7 @@ DEFAULT_PREFERENCES: UserPreferences = {
     "effect_audio_override_detection_mode": "spectral_flux",
     "effect_audio_override_speed_enabled": True,
     "effect_audio_override_brightness_enabled": True,
+    "effect_audio_override_silence_behavior": "hold",
     "hidden_builtin_presets": [],
     "selected_entities": [],
     "active_favorite_id": None,
@@ -209,6 +211,7 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
                 "effect_audio_override_detection_mode": prefs.get("effect_audio_override_detection_mode", "spectral_flux"),
                 "effect_audio_override_speed_enabled": prefs.get("effect_audio_override_speed_enabled", True),
                 "effect_audio_override_brightness_enabled": prefs.get("effect_audio_override_brightness_enabled", True),
+                "effect_audio_override_silence_behavior": prefs.get("effect_audio_override_silence_behavior", "hold"),
                 "hidden_builtin_presets": prefs.get("hidden_builtin_presets", []),
                 "selected_entities": prefs.get("selected_entities", []),
                 "active_favorite_id": prefs.get("active_favorite_id"),
@@ -296,6 +299,7 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
         effect_audio_override_detection_mode: str | None | _Unset = _UNSET,
         effect_audio_override_speed_enabled: bool | None | _Unset = _UNSET,
         effect_audio_override_brightness_enabled: bool | None | _Unset = _UNSET,
+        effect_audio_override_silence_behavior: str | None | _Unset = _UNSET,
         hidden_builtin_presets: list[dict[str, str]] | None = None,
         selected_entities: list[str] | None = None,
         active_favorite_id: str | None | _Unset = _UNSET,
@@ -334,6 +338,7 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
             effect_audio_override_detection_mode: Effect detection mode string, or _UNSET to leave unchanged.
             effect_audio_override_speed_enabled: Whether speed responds to audio in effects, or _UNSET to leave unchanged.
             effect_audio_override_brightness_enabled: Whether brightness responds to audio in effects, or _UNSET to leave unchanged.
+            effect_audio_override_silence_behavior: Effect silence behavior enum string, or _UNSET to leave unchanged.
             hidden_builtin_presets: Hidden builtin preset references, or None to leave unchanged.
             selected_entities: Selected entity IDs, or None to leave unchanged.
             active_favorite_id: Active favorite ID, None to clear, or _UNSET to leave unchanged.
@@ -429,6 +434,9 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
 
         if not isinstance(effect_audio_override_brightness_enabled, _Unset):
             self._data[user_id]["effect_audio_override_brightness_enabled"] = effect_audio_override_brightness_enabled
+
+        if not isinstance(effect_audio_override_silence_behavior, _Unset):
+            self._data[user_id]["effect_audio_override_silence_behavior"] = effect_audio_override_silence_behavior
 
         if hidden_builtin_presets is not None:
             self._data[user_id]["hidden_builtin_presets"] = hidden_builtin_presets

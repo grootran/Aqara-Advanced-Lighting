@@ -80,6 +80,7 @@
     "effect_detection_mode_label": "Detection mode",
     "effect_speed_modulation_label": "Speed modulation",
     "effect_brightness_modulation_label": "Brightness modulation",
+    "effect_silence_behavior_label": "Silence behavior",
     "audio_entity_label": "Audio sensor entity",
     "audio_tier_rich": "Beat sync",
     "audio_sensor_unavailable": "Audio sensor unavailable",
@@ -225,7 +226,9 @@
     "audio_on_service_label": "Activate service (e.g., light.turn_on)",
     "audio_on_service_data_label": "Activate service data (JSON)",
     "audio_off_service_label": "Deactivate service",
-    "audio_off_service_data_label": "Deactivate service data (JSON)"
+    "audio_off_service_data_label": "Deactivate service data (JSON)",
+    "default_audio_sensor_title": "Default audio sensor",
+    "default_audio_sensor_subtitle": "Auto-populates audio sensor when creating presets"
   },
   "instances": {
     "section_title": "Zigbee integrations",

@@ -914,6 +914,7 @@ class UserPreferencesView(HomeAssistantView):
         effect_audio_override_detection_mode = _UNSET
         effect_audio_override_speed_enabled = _UNSET
         effect_audio_override_brightness_enabled = _UNSET
+        effect_audio_override_silence_behavior = _UNSET
         selected_entities = None
         active_favorite_id = _UNSET
 
@@ -1138,6 +1139,13 @@ class UserPreferencesView(HomeAssistantView):
                 )
             effect_audio_override_brightness_enabled = data["effect_audio_override_brightness_enabled"]
 
+        if "effect_audio_override_silence_behavior" in data:
+            if not isinstance(data["effect_audio_override_silence_behavior"], str):
+                return web.Response(
+                    status=400, text="effect_audio_override_silence_behavior must be a string"
+                )
+            effect_audio_override_silence_behavior = data["effect_audio_override_silence_behavior"]
+
         if "selected_entities" in data:
             value = data["selected_entities"]
             if not isinstance(value, list) or not all(
@@ -1188,6 +1196,7 @@ class UserPreferencesView(HomeAssistantView):
             and effect_audio_override_detection_mode is _UNSET
             and effect_audio_override_speed_enabled is _UNSET
             and effect_audio_override_brightness_enabled is _UNSET
+            and effect_audio_override_silence_behavior is _UNSET
             and selected_entities is None
             and active_favorite_id is _UNSET
         ):
@@ -1226,6 +1235,7 @@ class UserPreferencesView(HomeAssistantView):
             effect_audio_override_detection_mode=effect_audio_override_detection_mode,
             effect_audio_override_speed_enabled=effect_audio_override_speed_enabled,
             effect_audio_override_brightness_enabled=effect_audio_override_brightness_enabled,
+            effect_audio_override_silence_behavior=effect_audio_override_silence_behavior,
             selected_entities=selected_entities,
             active_favorite_id=active_favorite_id,
         )

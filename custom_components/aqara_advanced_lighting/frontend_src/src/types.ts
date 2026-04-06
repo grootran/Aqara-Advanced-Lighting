@@ -425,6 +425,7 @@ export interface UserPreferences {
   effect_audio_override_detection_mode?: string;
   effect_audio_override_speed_enabled?: boolean;
   effect_audio_override_brightness_enabled?: boolean;
+  effect_audio_override_silence_behavior?: string;
   hidden_builtin_presets?: FavoritePresetRef[];
   selected_entities?: string[];
   active_favorite_id?: string | null;

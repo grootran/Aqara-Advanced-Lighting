@@ -33,6 +33,7 @@ export interface PreferencesState {
   effectAudioOverrideDetectionMode: string;
   effectAudioOverrideSpeedEnabled: boolean;
   effectAudioOverrideBrightnessEnabled: boolean;
+  effectAudioOverrideSilenceBehavior: string;
   hiddenBuiltinPresets: FavoritePresetRef[];
   selectedEntities: string[];
   activeFavoriteId: string | null;
@@ -77,6 +78,7 @@ const DEFAULT_STATE: PreferencesState = {
   effectAudioOverrideDetectionMode: 'spectral_flux',
   effectAudioOverrideSpeedEnabled: true,
   effectAudioOverrideBrightnessEnabled: true,
+  effectAudioOverrideSilenceBehavior: 'hold',
   hiddenBuiltinPresets: [],
   selectedEntities: [],
   activeFavoriteId: null,
@@ -233,6 +235,7 @@ export class PreferencesController implements ReactiveController {
     if (prefs.effect_audio_override_detection_mode !== undefined) this.state.effectAudioOverrideDetectionMode = prefs.effect_audio_override_detection_mode;
     if (prefs.effect_audio_override_speed_enabled !== undefined) this.state.effectAudioOverrideSpeedEnabled = prefs.effect_audio_override_speed_enabled;
     if (prefs.effect_audio_override_brightness_enabled !== undefined) this.state.effectAudioOverrideBrightnessEnabled = prefs.effect_audio_override_brightness_enabled;
+    if (prefs.effect_audio_override_silence_behavior !== undefined) this.state.effectAudioOverrideSilenceBehavior = prefs.effect_audio_override_silence_behavior;
     if (prefs.selected_entities && prefs.selected_entities.length > 0) {
       this.state.selectedEntities = prefs.selected_entities;
       this.state.activeFavoriteId = prefs.active_favorite_id ?? null;
@@ -334,6 +337,7 @@ export class PreferencesController implements ReactiveController {
           effect_audio_override_detection_mode: this.state.effectAudioOverrideDetectionMode,
           effect_audio_override_speed_enabled: this.state.effectAudioOverrideSpeedEnabled,
           effect_audio_override_brightness_enabled: this.state.effectAudioOverrideBrightnessEnabled,
+          effect_audio_override_silence_behavior: this.state.effectAudioOverrideSilenceBehavior,
           selected_entities: this.state.selectedEntities,
           active_favorite_id: this.state.activeFavoriteId,
         } as unknown as Record<string, unknown>

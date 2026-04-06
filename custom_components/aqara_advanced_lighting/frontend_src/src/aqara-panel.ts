@@ -1520,9 +1520,15 @@ export class AqaraPanel extends LitElement {
   }
 
   private _handleEffectAudioReactiveToggle(e: Event): void {
-    this._prefs.update({
-      useEffectAudioReactive: (e.target as HTMLInputElement).checked,
-    }, this.hass);
+    const checked = (e.target as HTMLInputElement).checked;
+    if (checked) {
+      this._prefs.update({
+        useEffectAudioReactive: true,
+        useCustomBrightness: false,
+      }, this.hass);
+    } else {
+      this._prefs.update({ useEffectAudioReactive: false }, this.hass);
+    }
   }
 
   private _handleAudioOverrideEntityChange(e: CustomEvent): void {
@@ -2223,7 +2229,9 @@ export class AqaraPanel extends LitElement {
             .z2mInstances=${this._z2mInstances}
             .softwareTransitionEntities=${this._prefs.state.softwareTransitionEntities}
             .entityAudioConfig=${this._prefs.state.entityAudioConfig}
+            .audioOverrideEntity=${this._prefs.state.audioOverrideEntity}
             @collapsed-changed=${(e: CustomEvent) => this._prefs.setCollapsed(e.detail.sectionId, e.detail.collapsed, this.hass)}
+            @audio-override-entity-changed=${(e: CustomEvent) => this._handleAudioOverrideEntityChange(e)}
             @global-preferences-changed=${(e: CustomEvent) => this._applyGlobalPreferencesFromConfigTab(e.detail)}
             @toast=${(e: CustomEvent) => this._showToast(e.detail.message)}
           ></aqara-config-tab>
@@ -2441,12 +2449,13 @@ export class AqaraPanel extends LitElement {
                 </div>
               </div>
               <div class="section-content controls-content">
+                <!-- All toggles at the top -->
                 <div class="overrides-grid">
-                  <div class="override-item" style="opacity: ${this._prefs.state.useAudioReactive ? '0.5' : '1'}">
+                  <div class="override-item" style="opacity: ${this._prefs.state.useAudioReactive || this._prefs.state.useEffectAudioReactive ? '0.5' : '1'}">
                     <span class="form-label">${this._localize('target.custom_brightness_label')}</span>
                     <ha-switch
                       .checked=${this._prefs.state.useCustomBrightness}
-                      .disabled=${this._prefs.state.useAudioReactive}
+                      .disabled=${this._prefs.state.useAudioReactive || this._prefs.state.useEffectAudioReactive}
                       @change=${this._handleCustomBrightnessToggle}
                     ></ha-switch>
                   </div>
@@ -2476,7 +2485,56 @@ export class AqaraPanel extends LitElement {
                       @change=${this._handleAudioReactiveToggle}
                     ></ha-switch>
                   </div>
+
+                  <div class="override-item">
+                    <span class="form-label">${this._localize('target.effect_audio_reactive_label') || 'Effect audio reactive'}</span>
+                    <ha-switch
+                      .checked=${this._prefs.state.useEffectAudioReactive}
+                      @change=${this._handleEffectAudioReactiveToggle}
+                    ></ha-switch>
+                  </div>
                 </div>
+
+                <!-- Parameters below all toggles -->
+                ${this._prefs.state.useCustomBrightness
+                  ? html`
+                      <div class="brightness-slider" style="padding-top: 8px;">
+                        <span class="form-label">${this._localize('target.brightness_override_label') || 'Brightness'}</span>
+                        <ha-selector
+                          .hass=${this.hass}
+                          .selector=${{
+                            number: {
+                              min: 1,
+                              max: 100,
+                              mode: 'slider',
+                              unit_of_measurement: '%',
+                            },
+                          }}
+                          .value=${this._prefs.state.brightness}
+                          @value-changed=${this._handleBrightnessChange}
+                        ></ha-selector>
+                      </div>
+                    `
+                  : ''}
+
+                ${this._prefs.state.useDistributionModeOverride
+                  ? html`
+                      <div class="brightness-slider" style="padding-top: 8px;">
+                        <span class="form-label">${this._localize('target.distribution_mode_override_label') || 'Color assignment'}</span>
+                        <ha-selector
+                          .hass=${this.hass}
+                          .selector=${{
+                            select: {
+                              options: this._distributionModeOverrideOptions,
+                              mode: 'dropdown',
+                            },
+                          }}
+                          .value=${this._prefs.state.distributionModeOverride}
+                          @value-changed=${this._handleDistributionModeOverrideChange}
+                        ></ha-selector>
+                      </div>
+                    `
+                  : ''}
 
                 ${this._prefs.state.useAudioReactive
                   ? html`
@@ -2665,14 +2723,6 @@ export class AqaraPanel extends LitElement {
                     `
                   : ''}
 
-                  <div class="override-item">
-                    <span class="form-label">${this._localize('target.effect_audio_reactive_label') || 'Effect audio reactive'}</span>
-                    <ha-switch
-                      .checked=${this._prefs.state.useEffectAudioReactive}
-                      @change=${this._handleEffectAudioReactiveToggle}
-                    ></ha-switch>
-                  </div>
-
                 ${this._prefs.state.useEffectAudioReactive
                   ? html`
                       <div class="audio-override-row" style="padding-top: 8px;">
@@ -2709,6 +2759,20 @@ export class AqaraPanel extends LitElement {
                             @value-changed=${(e: CustomEvent) => { this._prefs.update({ effectAudioOverrideDetectionMode: e.detail.value || 'spectral_flux' }, this.hass); }}
                           ></ha-selector>
                         </div>
+                        <div>
+                          <span class="form-label">${this._localize('target.effect_silence_behavior_label') || 'Silence behavior'}</span>
+                          <ha-selector
+                            .hass=${this.hass}
+                            .selector=${{ select: { options: [
+                              { value: 'hold', label: this._localize('dynamic_scene.audio_silence_hold') || 'Hold last state' },
+                              { value: 'slow_cycle', label: this._localize('dynamic_scene.audio_silence_slow_cycle') || 'Slow cycle' },
+                              { value: 'decay_min', label: this._localize('dynamic_scene.audio_silence_decay_min') || 'Decay to min' },
+                              { value: 'decay_mid', label: this._localize('dynamic_scene.audio_silence_decay_mid') || 'Decay to mid' },
+                            ], mode: 'dropdown' } }}
+                            .value=${this._prefs.state.effectAudioOverrideSilenceBehavior}
+                            @value-changed=${(e: CustomEvent) => { this._prefs.update({ effectAudioOverrideSilenceBehavior: e.detail.value || 'hold' }, this.hass); }}
+                          ></ha-selector>
+                        </div>
                       </div>
                       <div class="audio-toggles-grid">
                         <div class="override-item">
@@ -2725,46 +2789,6 @@ export class AqaraPanel extends LitElement {
                             @change=${(e: Event) => { this._prefs.update({ effectAudioOverrideBrightnessEnabled: (e.target as HTMLInputElement).checked }, this.hass); }}
                           ></ha-switch>
                         </div>
-                      </div>
-                    `
-                  : ''}
-
-                ${this._prefs.state.useDistributionModeOverride
-                  ? html`
-                      <div class="brightness-slider" style="padding-top: 8px;">
-                        <span class="form-label">${this._localize('target.distribution_mode_override_label') || 'Color assignment'}</span>
-                        <ha-selector
-                          .hass=${this.hass}
-                          .selector=${{
-                            select: {
-                              options: this._distributionModeOverrideOptions,
-                              mode: 'dropdown',
-                            },
-                          }}
-                          .value=${this._prefs.state.distributionModeOverride}
-                          @value-changed=${this._handleDistributionModeOverrideChange}
-                        ></ha-selector>
-                      </div>
-                    `
-                  : ''}
-
-                ${this._prefs.state.useCustomBrightness
-                  ? html`
-                      <div class="brightness-slider" style="padding-top: 8px;">
-                        <span class="form-label">${this._localize('target.brightness_override_label') || 'Brightness'}</span>
-                        <ha-selector
-                          .hass=${this.hass}
-                          .selector=${{
-                            number: {
-                              min: 1,
-                              max: 100,
-                              mode: 'slider',
-                              unit_of_measurement: '%',
-                            },
-                          }}
-                          .value=${this._prefs.state.brightness}
-                          @value-changed=${this._handleBrightnessChange}
-                        ></ha-selector>
                       </div>
                     `
                   : ''}
@@ -3751,18 +3775,6 @@ export class AqaraPanel extends LitElement {
                 </ha-button>
               </div>
             `}
-          <div class="audio-default-selector" style="padding: 8px 16px; border-top: 1px solid var(--divider-color);">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-              <ha-icon icon="mdi:microphone" style="color: var(--secondary-text-color);"></ha-icon>
-              <span style="font-size: 0.9em; font-weight: 500;">${this._localize('presets.default_audio_sensor')}</span>
-            </div>
-            <ha-selector
-              .hass=${this.hass}
-              .selector=${{ entity: { domain: 'binary_sensor' } }}
-              .value=${this._prefs.state.audioOverrideEntity}
-              @value-changed=${this._handleAudioOverrideEntityChange}
-            ></ha-selector>
-          </div>
         </div>
       </ha-expansion-panel>
 
