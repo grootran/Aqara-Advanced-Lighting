@@ -179,12 +179,15 @@ class DynamicSceneManager:
         # Generate unique scene ID
         scene_id = str(uuid.uuid4())
 
-        # Capture state for all entities if end_behavior is restore
+        # Capture state for all entities if end_behavior is restore.
+        # Skip entities that already have a stored state — their original
+        # pre-effect baseline is preserved from the first scene that captured
+        # it and should be the state restored when all scenes stop.
         if scene.end_behavior == "restore":
             for entity_id in entity_ids:
-                # Get Z2M friendly name (simplified - may need lookup)
-                z2m_name = entity_id.split(".")[-1]
-                self.state_manager.capture_state(entity_id, z2m_name)
+                if not self.state_manager.has_stored_state(entity_id):
+                    z2m_name = entity_id.split(".")[-1]
+                    self.state_manager.capture_state(entity_id, z2m_name)
 
         # Determine light order (affects ripple offset and shuffle_rotate assignment)
         light_order = list(entity_ids)
@@ -838,7 +841,7 @@ class DynamicSceneManager:
                 scenes_to_stop.add(scene_id)
 
         for scene_id in scenes_to_stop:
-            await self._stop_single_scene(scene_id, reason="conflict")
+            await self._stop_single_scene(scene_id, reason="conflict", restore_override=False)
 
     def _cleanup_scene(self, scene_id: str) -> None:
         """Clean up resources for a stopped scene."""
