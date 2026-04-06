@@ -31,9 +31,11 @@ tests/
 ├── test_device_merging.py             # HA device registry merging with Z2M/ZHA
 ├── test_device_trigger.py             # Device automation triggers
 ├── test_entity_controller.py          # Entity override detection, drift, pause/resume
-├── test_init.py                       # Integration setup, unload, and device migration
+├── test_init.py                       # Integration setup, unload, device migration, and ZHA repair issues
+├── test_mqtt_backend.py               # MQTTBackend stale device removal and Z2M repair timer
 ├── test_schedule_cct.py               # Schedule mode CCT sequences (clock/sunrise/sunset)
 ├── test_segment_utils.py              # Segment parsing and color generation
+├── test_zha_backend.py                # ZHABackend stale device removal
 ├── test_solar_cct.py                  # Solar mode CCT sequences (elevation-based)
 ├── test_sun_utils.py                  # Solar elevation interpolation
 └── README.md                          # This file
@@ -233,14 +235,16 @@ Config flow setup and reconfiguration.
 - Single and multiple instance enforcement
 - Reconfigure flow: update topic, preserve defaults, MQTT validation, empty topic fallback, duplicate topic prevention
 
-### test_init.py (8 tests)
+### test_init.py (11 tests)
 
-Integration initialization, setup, unload, and device migration.
+Integration initialization, setup, unload, device migration, and ZHA repair issues.
 
 - Successful setup with MQTT, backend, state manager, and sequence managers
 - Setup failure when MQTT unavailable (with retry)
 - Config entry unload and reload
 - v1.3 device migration: removes sole-config-entry devices, removes partial-merge devices, preserves truly merged devices, full clean re-merge
+- ZHA repair issue created on `ImportError` (ZHA not installed), cleared on successful setup
+- ValueError (ZHA gateway not ready) raises `ConfigEntryNotReady` without creating a repair issue
 
 ### test_segment_utils.py (18 tests)
 
@@ -357,6 +361,21 @@ Device automation triggers for sequences and effects.
 - **TRIGGER_SCHEMA** (2): accepts known types, rejects unknown
 - **Trigger event map** (5): completeness, CCT/segment sequence type filters, effect no-filter, 22 total trigger types
 - **Merged devices** (2): triggers and entity resolution work on merged devices
+
+### test_mqtt_backend.py (7 tests)
+
+`MQTTBackend` stale device removal and Z2M bridge repair timer.
+
+- **Stale device removal** (3): stale device removed from registry and runtime data when missing from bridge/devices message; merged device releases only this integration's claim; devices present in both messages are unchanged
+- **Repair timer** (4): repair issue created after 120s with no bridge response; no issue created when bridge responds before timer fires; issue clears when bridge finally responds; timer cancelled on integration unload
+
+### test_zha_backend.py (3 tests)
+
+`ZHABackend` stale device removal at startup.
+
+- Stale device fully removed from registry and runtime data when absent from ZHA scan
+- Merged device releases only this integration's claim when absent from ZHA scan
+- Device present in ZHA scan remains registered and in runtime data
 
 ## Test requirements
 

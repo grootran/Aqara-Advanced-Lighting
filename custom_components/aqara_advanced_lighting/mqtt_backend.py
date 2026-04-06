@@ -4,12 +4,13 @@ import asyncio
 import json
 import logging
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from homeassistant.components import mqtt
 from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er, issue_registry as ir
+from homeassistant.helpers.event import async_call_later
 
 from .const import (
     DOMAIN,
@@ -78,6 +79,7 @@ class MQTTBackend:
         self.entry = entry
         self._entity_controller = entity_controller
         self._subscriptions: list[mqtt.SubscriptionState] = []
+        self._bridge_check_cancel: Callable[[], None] | None = None
 
     async def async_setup(self) -> None:
         """Set up MQTT subscriptions."""
@@ -95,8 +97,17 @@ class MQTTBackend:
         # Request current devices list from Z2M
         await self.async_request_devices()
 
+        # Schedule a repair issue if the bridge doesn't respond within 120s
+        self._bridge_check_cancel = async_call_later(
+            self.hass, 120, self._check_bridge_responsive
+        )
+
     async def async_teardown(self) -> None:
         """Tear down MQTT subscriptions."""
+        if self._bridge_check_cancel:
+            self._bridge_check_cancel()
+            self._bridge_check_cancel = None
+        ir.async_delete_issue(self.hass, DOMAIN, "z2m_bridge_not_responding")
         for subscription in self._subscriptions:
             subscription()
         self._subscriptions.clear()
@@ -115,11 +126,33 @@ class MQTTBackend:
         await mqtt.async_publish(self.hass, request_topic, "")
 
     @callback
+    def _check_bridge_responsive(self, _now: Any) -> None:
+        """Fire a repair issue if the bridge has not responded after 120s."""
+        if not self.entry.runtime_data.devices:
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                "z2m_bridge_not_responding",
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key="z2m_bridge_not_responding",
+                translation_placeholders={"base_topic": self.entry.runtime_data.z2m_base_topic},
+            )
+        self._bridge_check_cancel = None
+
+    @callback
     def _handle_bridge_devices(self, msg: ReceiveMessage) -> None:
         """Handle bridge devices message from Z2M."""
+        if self._bridge_check_cancel:
+            self._bridge_check_cancel()
+            self._bridge_check_cancel = None
+        ir.async_delete_issue(self.hass, DOMAIN, "z2m_bridge_not_responding")
         try:
             devices = json.loads(msg.payload)
             _LOGGER.debug("Received Z2M devices: %s", len(devices))
+
+            # Track seen IEEE addresses for stale device removal
+            seen_ieee: set[str] = set()
 
             # Update device registry in runtime data
             for device_data in devices:
@@ -131,6 +164,11 @@ class MQTTBackend:
 
                 if not all([ieee_address, friendly_name, model_id]):
                     continue
+
+                # Track every device Z2M reports (before filters) so that
+                # devices with unsafe names or unsupported models are not
+                # phantom-removed from the registry.
+                seen_ieee.add(ieee_address)
 
                 # Reject friendly names with MQTT-unsafe characters
                 if _UNSAFE_TOPIC_NAME.search(friendly_name):
@@ -226,11 +264,35 @@ class MQTTBackend:
                         device.id,
                     )
 
+            # Remove devices that are no longer in the Z2M device list
+            self._remove_stale_devices(seen_ieee)
+
             # Update entity to Z2M mapping
             self._update_entity_mapping()
 
         except (json.JSONDecodeError, KeyError) as ex:
             _LOGGER.error("Failed to parse bridge devices message: %s", ex)
+
+    def _remove_stale_devices(self, seen_ieee: set[str]) -> None:
+        """Remove devices that are no longer in the Z2M device list."""
+        device_reg = dr.async_get(self.hass)
+        for device in list(dr.async_entries_for_config_entry(device_reg, self.entry.entry_id)):
+            for identifier_domain, identifier_value in device.identifiers:
+                if identifier_domain == DOMAIN:
+                    if identifier_value not in seen_ieee:
+                        if len(device.config_entries) > 1:
+                            device_reg.async_update_device(
+                                device.id,
+                                remove_config_entry_id=self.entry.entry_id,
+                            )
+                        else:
+                            device_reg.async_remove_device(device.id)
+                        # Clean up runtime data
+                        device_info = self.entry.runtime_data.devices.pop(identifier_value, None)
+                        if device_info:
+                            self.entry.runtime_data.devices_by_name.pop(device_info.friendly_name, None)
+                        self.entry.runtime_data.aqara_devices.pop(identifier_value, None)
+                    break
 
     def _update_entity_mapping(self) -> None:
         """Update mapping between HA entity IDs and Z2M friendly names.

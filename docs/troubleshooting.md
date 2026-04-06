@@ -2,6 +2,24 @@
 
 [Back to README](../README.md) | [Getting started](getting-started.md)
 
+## How data is updated
+
+**Zigbee2MQTT backend:**
+
+Device data is event-driven. On setup the integration subscribes to `{base_topic}/bridge/devices` and sends an initial get request. Z2M pushes a full device list in response and again whenever a device joins or leaves the Zigbee network, or the bridge restarts. No polling occurs after setup.
+
+**ZHA backend:**
+
+Device data is loaded once when the config entry starts, with a 30-second retry window (6 attempts × 5s) to allow ZHA's entity platform to finish creating light entities. No ongoing refresh — ZHA's own integration handles live device changes.
+
+**Runtime state:**
+
+Scene state, effect state, and active sequences are held in memory only. They are cleared on HA restart or integration reload.
+
+**Manual refresh:**
+
+To trigger a fresh device scan, reload the integration entry: **Settings** > **Devices & Services** > **Aqara Advanced Lighting** > **⋮** > **Reload**.
+
 ## Integration won't load
 
 **Zigbee2MQTT backend:**
