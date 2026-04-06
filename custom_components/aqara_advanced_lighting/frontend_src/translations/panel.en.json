@@ -228,7 +228,7 @@
     "audio_off_service_label": "Deactivate service",
     "audio_off_service_data_label": "Deactivate service data (JSON)",
     "default_audio_sensor_title": "Default audio sensor",
-    "default_audio_sensor_subtitle": "Auto-populates audio sensor when creating presets or activating bult-in presets"
+    "default_audio_sensor_subtitle": "Auto-populates audio sensor when creating presets or activating built-in presets"
   },
   "instances": {
     "section_title": "Zigbee integrations",
