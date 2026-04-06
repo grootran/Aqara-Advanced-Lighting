@@ -233,6 +233,16 @@
       "message": "Preset `{preset}` is not a valid solar preset."
     }
   },
+  "issues": {
+    "z2m_bridge_not_responding": {
+      "title": "Zigbee2MQTT bridge not responding",
+      "description": "The Zigbee2MQTT bridge has not responded after 2 minutes. Check that Zigbee2MQTT is running and that the configured base topic (`{base_topic}`) matches your Z2M setup. You can update the base topic by selecting Reconfigure in Settings > Devices & Services > Aqara Advanced Lighting."
+    },
+    "zha_not_installed": {
+      "title": "ZHA integration not available",
+      "description": "Aqara Advanced Lighting is configured to use the ZHA backend, but the ZHA integration could not be found. Install the ZHA integration or reconfigure this integration to use the Zigbee2MQTT backend via Settings > Devices & Services > Aqara Advanced Lighting > Reconfigure."
+    }
+  },
   "services": {
     "set_dynamic_effect": {
       "name": "Set dynamic effect",

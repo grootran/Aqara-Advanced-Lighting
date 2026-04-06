@@ -41,6 +41,8 @@ Scenes and effects now share the same richer audio parameter model:
 
 ### Improvements
 
+  - Stale devices automatically removed from the HA device registry when Z2M drops them from its device list or ZHA no longer reports them at startup
+  - Repair issues raised in Settings → System → Repairs when the configured backend is unreachable (Z2M: bridge not responding after 2 minutes; ZHA: integration not installed); auto-clear when resolved
   - Auto-populate audio sensor in both scene editor and effect editor when the default sensor preference is set
   - Activation overrides panel reordered: all toggles at top, parameters below
   - Brightness override disabled automatically when effect audio-reactive is enabled

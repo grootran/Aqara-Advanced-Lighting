@@ -144,8 +144,8 @@ rules:
     comment: Device discovery handled by Zigbee2MQTT, not native HA discovery
 
   docs-data-update:
-    status: todo
-    comment: Data refresh mechanisms need documentation
+    status: done
+    comment: Data update mechanisms documented in docs/troubleshooting.md — Z2M event-driven via bridge/devices subscription, ZHA startup-only with retry window, runtime state in-memory
 
   docs-examples:
     status: done
@@ -204,12 +204,17 @@ rules:
     comment: Reconfiguration flow implemented in config_flow.py (async_step_reconfigure)
 
   repair-issues:
-    status: todo
-    comment: Repair flow integration not yet implemented
+    status: done
+    comment: >
+      Two repair issues implemented. Z2M: z2m_bridge_not_responding raised after
+      120s with no bridge/devices message; clears on first valid message.
+      ZHA: zha_not_installed raised on ImportError (ZHA not installed →
+      ConfigEntryError); clears on successful setup. Both translated in
+      translations/en.json under the "issues" key.
 
   stale-devices:
-    status: todo
-    comment: Automatic stale device removal not yet implemented
+    status: done
+    comment: Stale device removal implemented in both Z2M (MQTTBackend._remove_stale_devices) and ZHA (ZHABackend._remove_stale_devices) backends. Sole-owner devices are fully removed; shared (merged) devices release only our config entry claim.
 
   # ============================================================================
   # PLATINUM TIER RULES

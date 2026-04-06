@@ -7,8 +7,8 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.start import async_at_started
-from homeassistant.exceptions import ConfigEntryNotReady
-from homeassistant.helpers import config_validation as cv, device_registry as dr
+from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
+from homeassistant.helpers import config_validation as cv, device_registry as dr, issue_registry as ir
 
 from .cct_sequence_manager import CCTSequenceManager
 from .circadian_manager import CircadianManager
@@ -297,11 +297,23 @@ async def async_setup_entry(
             from homeassistant.components.zha.helpers import get_zha_gateway
 
             get_zha_gateway(hass)
-        except (ImportError, ValueError) as ex:
+        except ImportError as ex:
+            ir.async_create_issue(
+                hass,
+                DOMAIN,
+                "zha_not_installed",
+                is_fixable=False,
+                severity=ir.IssueSeverity.ERROR,
+                translation_key="zha_not_installed",
+            )
+            raise ConfigEntryError("ZHA not installed") from ex
+        except ValueError as ex:
             _LOGGER.warning(
                 "ZHA gateway not ready yet, will retry: %s", ex
             )
             raise ConfigEntryNotReady("ZHA gateway not ready") from ex
+
+        ir.async_delete_issue(hass, DOMAIN, "zha_not_installed")
 
     # Get Z2M base topic from config entry (only used for Z2M backend)
     z2m_base_topic = (
