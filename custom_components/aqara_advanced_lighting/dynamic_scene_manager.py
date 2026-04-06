@@ -560,12 +560,15 @@ class DynamicSceneManager:
         scene_state = self._scene_states.get(scene_id)
         return scene_state.paused if scene_state else False
 
-    def detach_entity(self, entity_id: str) -> None:
+    async def detach_entity(self, entity_id: str) -> None:
         """Detach an entity from its running scene permanently.
 
         Used for cross-type conflict resolution. The entity is removed from
         the scene's control but the scene continues for other entities.
         If no entities remain, the scene is stopped.
+
+        Also deactivates on-device audio modes (T1 Strip music sync,
+        generic on-device audio) so they don't remain orphaned.
         """
         scene_id = self._entity_to_scene.pop(entity_id, None)
         if not scene_id:
@@ -574,6 +577,20 @@ class DynamicSceneManager:
         scene_state = self._scene_states.get(scene_id)
         if not scene_state:
             return
+
+        # Deactivate on-device audio if this entity was using it
+        model_id = get_entity_model_id(self.hass, entity_id)
+        if model_id == MODEL_T1_STRIP:
+            await self._deactivate_music_sync(entity_id)
+        else:
+            entity_audio_config = self._get_entity_audio_config()
+            if entity_id in entity_audio_config and entity_audio_config[entity_id].get(
+                CONF_AUDIO_OFF_SERVICE
+            ):
+                await self._call_entity_audio_service(
+                    entity_id, entity_audio_config[entity_id],
+                    CONF_AUDIO_OFF_SERVICE, CONF_AUDIO_OFF_SERVICE_DATA,
+                )
 
         # Mark entity as paused so the loop skips it
         scene_state.externally_paused_entities.add(entity_id)

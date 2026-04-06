@@ -36,6 +36,7 @@ Audio-reactive mode makes your lights respond to music and sound in real time. C
 - [How audio detection works](#how-audio-detection-works)
 - [T1 Strip on-device audio sync](#t1-strip-on-device-audio-sync)
 - [On-device audio for other lights](#on-device-audio-for-other-lights)
+- [Sharing a sensor between scenes and effects](#sharing-a-sensor-between-scenes-and-effects)
 - [Sensor placement tips](#sensor-placement-tips)
 - [Troubleshooting](#troubleshooting)
 
@@ -607,6 +608,16 @@ Lights with native audio-reactive modes (beyond the T1 Strip) can be configured 
 2. Under **On-device audio mode**, select the light entity
 3. Enter the service call to activate and deactivate the device's native audio mode
 4. When the light is part of an audio-reactive scene, the integration activates native mode instead of driving it via software
+
+---
+
+## Sharing a sensor between scenes and effects
+
+You can run an audio-reactive dynamic scene and an audio-reactive effect simultaneously using the same ESP32 sensor. The scene drives color transitions on software-controlled lights while the effect modulator adjusts speed and brightness on Aqara hardware effects — they control different aspects of your lights and work independently.
+
+**ESP32 configuration:** Each feature can specify its own detection mode and sensitivity. However, the ESP32 device has a single DSP pipeline, so it can only run one detection mode and one sensitivity at a time. When both are active, the **most recently activated** feature's settings take effect on the device. The other feature continues to operate but receives audio data processed with the newer settings.
+
+For the most predictable experience, use the same detection mode and sensitivity for both your scene presets and effect audio overrides when you plan to run them simultaneously.
 
 ---
 

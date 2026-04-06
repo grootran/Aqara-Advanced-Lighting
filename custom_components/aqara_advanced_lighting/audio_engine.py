@@ -130,7 +130,30 @@ class AudioEngine:
             self.hass, self.config.audio_entity
         )
 
-        # Configure ESP32 device
+        # Configure ESP32 device — log if overriding another engine's settings
+        if self._registry:
+            other_type = "scene" if self.config.consumer_type == "effect" else "effect"
+            others = self._registry.get_engines_for_sensor(
+                self.config.audio_entity, other_type
+            )
+            if others:
+                other_cfg = others[0].config
+                changes: list[str] = []
+                if other_cfg.detection_mode != self.config.detection_mode:
+                    changes.append(
+                        f"detection_mode: {other_cfg.detection_mode} → {self.config.detection_mode}"
+                    )
+                if other_cfg.sensitivity != self.config.sensitivity:
+                    changes.append(
+                        f"sensitivity: {other_cfg.sensitivity} → {self.config.sensitivity}"
+                    )
+                if changes:
+                    _LOGGER.info(
+                        "Overriding ESP32 config on %s (active %s engine): %s",
+                        self.config.audio_entity,
+                        other_type,
+                        ", ".join(changes),
+                    )
         await self._configure_esp32()
 
         # Start the main loop

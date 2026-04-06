@@ -463,7 +463,7 @@ class EntityController:
                 DATA_DYNAMIC_SCENE_MANAGER
             )
             if dsm and dsm.is_scene_running(entity_id):
-                dsm.detach_entity(entity_id)
+                await dsm.detach_entity(entity_id)
 
             # Stop or pause CCT sequence
             cct: CCTSequenceManager | None = instance_data.get(
@@ -935,7 +935,7 @@ class EntityController:
                 DATA_DYNAMIC_SCENE_MANAGER
             )
             if dsm and dsm.is_scene_running(entity_id):
-                dsm.detach_entity(entity_id)
+                await dsm.detach_entity(entity_id)
 
             cct: CCTSequenceManager | None = instance_data.get(
                 DATA_CCT_SEQUENCE_MANAGER
