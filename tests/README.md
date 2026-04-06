@@ -4,28 +4,39 @@
 
 ```
 tests/
-├── __init__.py                    # Test package initialization
-├── conftest.py                    # Shared fixtures and configuration
-├── test_audio_discovery.py        # Audio tier detection and companion sensor discovery
-├── test_audio_mode_handlers.py    # Audio-reactive v2 model fields and mode handlers
-├── test_audio_on_device.py        # Generic on-device audio opt-in
-├── test_audio_rich_tier.py        # Rich tier audio-reactive scenes end-to-end
-├── test_audio_preset_fallback.py   # Default audio entity fallback for audio-reactive presets
-├── test_audio_reactive_presets.py  # Audio-reactive preset definitions validation
-├── test_audio_scene.py            # Audio-reactive dynamic scene model validation
-├── test_capability_adaptation.py  # Dynamic scene capability adaptation
-├── test_capability_profile.py     # Light capability detection and color temp conversion
-├── test_circadian_manager.py      # Circadian overlay manager
-├── test_config_flow.py            # Config flow setup and reconfiguration
-├── test_device_merging.py         # HA device registry merging with Z2M/ZHA
-├── test_device_trigger.py         # Device automation triggers
-├── test_entity_controller.py      # Entity override detection, drift, pause/resume
-├── test_init.py                   # Integration setup, unload, and device migration
-├── test_schedule_cct.py           # Schedule mode CCT sequences (clock/sunrise/sunset)
-├── test_segment_utils.py          # Segment parsing and color generation
-├── test_solar_cct.py              # Solar mode CCT sequences (elevation-based)
-├── test_sun_utils.py              # Solar elevation interpolation
-└── README.md                      # This file
+├── __init__.py                        # Test package initialization
+├── conftest.py                        # Shared fixtures and configuration
+├── test_audio_activation_patterns.py  # Engine activation lifecycle and orphan prevention
+├── test_audio_curves.py               # Response curve functions and EMA filter
+├── test_audio_discovery.py            # Audio tier detection and companion sensor discovery
+├── test_audio_effect_config.py        # AudioEffectConfig dataclass validation and serialization
+├── test_audio_effect_constants.py     # Audio effect constant values and defaults
+├── test_audio_effect_modulator.py     # ModulationChannel per-mode processing and silence behavior
+├── test_audio_effect_presets.py       # Audio config storage in effect presets
+├── test_audio_effect_service.py       # Audio parameter wiring in set_dynamic_effect service
+├── test_audio_engine.py               # Shared AudioEngine class (config, claims, warnings)
+├── test_audio_engine_registry.py      # AudioEngineRegistry lifecycle and conflict resolution
+├── test_audio_mode_handlers.py        # Audio-reactive v2 model fields and mode handlers
+├── test_audio_on_device.py            # Generic on-device audio opt-in
+├── test_audio_preset_fallback.py      # Default audio entity fallback for audio-reactive presets
+├── test_audio_reactive_presets.py     # Audio-reactive preset definitions validation
+├── test_audio_rich_tier.py            # Rich tier audio-reactive scenes end-to-end
+├── test_audio_scene.py                # Audio-reactive dynamic scene model validation
+├── test_audio_scene_consumer.py       # DynamicSceneAudioConsumer and engine config mapping
+├── test_backend_speed_write.py        # Backend speed-only write without effect restart
+├── test_capability_adaptation.py      # Dynamic scene capability adaptation
+├── test_capability_profile.py         # Light capability detection and color temp conversion
+├── test_circadian_manager.py          # Circadian overlay manager
+├── test_config_flow.py                # Config flow setup and reconfiguration
+├── test_device_merging.py             # HA device registry merging with Z2M/ZHA
+├── test_device_trigger.py             # Device automation triggers
+├── test_entity_controller.py          # Entity override detection, drift, pause/resume
+├── test_init.py                       # Integration setup, unload, and device migration
+├── test_schedule_cct.py               # Schedule mode CCT sequences (clock/sunrise/sunset)
+├── test_segment_utils.py              # Segment parsing and color generation
+├── test_solar_cct.py                  # Solar mode CCT sequences (elevation-based)
+├── test_sun_utils.py                  # Solar elevation interpolation
+└── README.md                          # This file
 ```
 
 ## Running tests
@@ -62,6 +73,90 @@ pytest --cov=custom_components.aqara_advanced_lighting --cov-report=term-missing
 | `mock_z2m_validation` | Mocks Z2M base topic validation to always succeed |
 
 ## Test coverage by file
+
+### test_audio_activation_patterns.py (11 tests)
+
+Audio engine activation lifecycle and orphan prevention via `AudioEngineRegistry`.
+
+- **Effect activation** (6): same entity/same sensor replaces running engine; different entity on same sensor stops first engine; different sensors coexist; effect and scene on same sensor coexist (cross-type); stop removes engine from registry; rapid start/stop leaves registry empty
+- **Scene activation** (2): second scene on same sensor stops first; scenes on different sensors coexist
+- **Edge cases** (3): graceful handling of `engine.stop()` exceptions; `stop_all()` cleans up on integration unload; double-registering the same engine does not duplicate it
+
+### test_audio_curves.py (17 tests)
+
+Response curve functions and EMA filter used by the audio-reactive subsystem.
+
+- **`apply_response_curve`** (9): linear passthrough; logarithmic and exponential boundary values; mid-point compression/suppression; formula correctness; input clamping; unknown curve falls back to linear
+- **`map_to_range`** (4): full and partial range scaling; int rounding; output clamping
+- **`EMAFilter`** (4): initial value; convergence on constant input; smoothing factor; reset
+
+### test_audio_effect_config.py (22 tests)
+
+`AudioEffectConfig` dataclass validation, defaults, and dict serialization.
+
+- **Defaults** (3): minimal creation; speed defaults; brightness defaults
+- **Validation** (9): invalid speed/brightness mode rejected; invalid response curve rejected; invalid silence behavior rejected; sensitivity clamped high and low; speed/brightness min/max clamped; min > max raises; at-least-one-mode required when `audio_entity` set
+- **Immutability** (1): frozen dataclass raises on mutation
+- **Serialization** (3): `to_dict` round-trip; `from_dict` round-trip; `from_dict` with defaults
+- **`DynamicEffect` integration** (5): no audio config by default; with audio config; backwards compatible creation; `to_mqtt_payload` unaffected
+
+### test_audio_effect_constants.py (7 tests)
+
+Validates audio-reactive effect constant definitions in `const.py`.
+
+- Audio effect mode values (`on_onset`, `continuous`, `intensity_breathing`, `onset_flash`)
+- Response curve values (`linear`, `logarithmic`, `exponential`)
+- Silence behavior values (`hold`, `slow_cycle`, `decay_min`, `decay_mid`)
+- Rate limits, deadbands, defaults, and silence decay duration
+
+### test_audio_effect_modulator.py (14 tests)
+
+`ModulationChannel` per-mode processing, deadband filtering, curves, and silence decay.
+
+- **Mode behavior** (6): continuous energy mapping; deadband filters continuous; on-onset spike; on-onset bypasses deadband; intensity-breathing smoothing; onset-flash combines envelope and spike
+- **Response curves** (2): logarithmic and exponential curve application
+- **Disabled channel** (1): returns `None` when mode is `None`
+- **Onset decay** (2): decay tick reduces on-onset value; decay only applies to `on_onset` mode
+- **Silence decay** (3): `hold` returns last value; `decay_min` returns range min; `decay_mid` returns midpoint
+
+### test_audio_effect_presets.py (4 tests)
+
+Audio config storage and backwards compatibility in effect preset serialization.
+
+- `audio_config` present in allowed preset fields
+- `audio_config` serializes to dict in preset store
+- `audio_config` round-trips through preset store
+- Preset dict without `audio_config` produces `None` (backwards compatible)
+
+### test_audio_effect_service.py (3 tests)
+
+Audio parameter wiring in the `set_dynamic_effect` service.
+
+- T2 model is in the exclusion set (rejected for audio-reactive effects)
+- `AudioEffectConfig` correctly constructed from service data
+- Preset `audio_config` can be overridden at activation time
+
+### test_audio_engine.py (8 tests)
+
+Shared `AudioEngine` class: configuration, claim logic, and missing-sensor warnings.
+
+- **Config** (2): requires `audio_entity`; subscription flags passed through
+- **Claim logic** (3): claim key includes consumer type; same-type engines conflict (two scenes, same sensor); cross-type coexists (scene + effect, same sensor)
+- **Warnings** (3): warns on missing spectral sensors; warns on missing beat-tracking sensors; no warning when requested sensors are present
+
+### test_audio_engine_registry.py (12 tests)
+
+`AudioEngineRegistry` central tracking, conflict resolution, and cleanup.
+
+- Register and lookup by engine id
+- Unregister removes engine
+- Multiple engines on same sensor tracked separately
+- Different sensors and cross-types isolated from each other
+- `stop_engines_for_sensor`: stops conflicting engines before new one starts; excludes the new engine itself
+- Unregister is idempotent
+- `all_active_engines` listing
+- `stop_all` cleans up on shutdown
+- Double-register does not duplicate; exception during `stop()` handled gracefully
 
 ### test_audio_discovery.py (12 tests)
 
@@ -168,6 +263,22 @@ Light capability detection and color temperature conversion.
 - Singularity guard for edge-case XY values
 - Clamping applied during CCT step transitions
 - Missing color modes default behavior
+
+### test_audio_scene_consumer.py (22 tests)
+
+`DynamicSceneAudioConsumer` event routing and `build_scene_engine_config` subscription flag mapping.
+
+- **`build_scene_engine_config`** (8): onset mode subscribes onset; continuous mode subscribes energy; beat_predictive subscribes BPM; brightness curve subscribes energy; frequency zone subscribes bands; sensitivity and detection_mode passed through; silence always subscribed; centroid and rolloff always subscribed
+- **Consumer event routing** (12): onset, energy, centroid, rolloff, and BPM events dispatched to handler; onset triggers `apply`; energy rate-limited; silence enter/exit delegated; unavailability sets stop event; sensor recovery clears waiting flag; frequency zone updates light indices
+- **Cross-module consistency** (2): EMA alpha identical between modulator and mode handlers; flash decay identical between modulator and mode handlers
+
+### test_backend_speed_write.py (3 tests)
+
+`async_write_effect_speed` in MQTT and ZHA backends for live speed adjustment without restarting the effect.
+
+- MQTT: payload contains only `effect_speed` (no other effect keys)
+- MQTT: speed value clamped to 1–100
+- ZHA: correct attribute ID used for speed write
 
 ### test_capability_adaptation.py (3 tests)
 

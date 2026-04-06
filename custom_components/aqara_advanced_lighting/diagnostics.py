@@ -9,7 +9,9 @@ from homeassistant.helpers import device_registry as dr
 
 from .const import (
     DATA_ACTIVE_MUSIC_SYNC,
+    DATA_AUDIO_ENGINE_REGISTRY,
     DATA_CCT_SEQUENCE_MANAGER,
+    DATA_CIRCADIAN_MANAGER,
     DATA_DYNAMIC_SCENE_MANAGER,
     DATA_ENTITY_CONTROLLER,
     DATA_FAVORITES_STORE,
@@ -43,9 +45,10 @@ async def async_get_config_entry_diagnostics(
     Sensitive data is automatically redacted.
     """
     runtime_data = entry.runtime_data
+    domain_data = hass.data.get(DOMAIN, {})
 
     # Get instance data for this entry
-    entry_data = hass.data.get(DOMAIN, {}).get("entries", {}).get(entry.entry_id, {})
+    entry_data = domain_data.get("entries", {}).get(entry.entry_id, {})
     backend = entry_data.get("backend")
 
     # Build discovered devices list using backend protocol
@@ -62,7 +65,7 @@ async def async_get_config_entry_diagnostics(
 
     # Build entity mappings from entity routing
     entity_mappings = []
-    entity_routing = hass.data.get(DOMAIN, {}).get("entity_routing", {})
+    entity_routing = domain_data.get("entity_routing", {})
     entry_entity_ids = [
         eid for eid, e_entry_id in entity_routing.items()
         if e_entry_id == entry.entry_id
@@ -138,9 +141,25 @@ async def async_get_config_entry_diagnostics(
         for eid, sync_data in active_music_sync.items()
     ]
 
+    # Circadian manager state (integration-level singleton)
+    active_circadian: list[dict[str, Any]] = []
+    circadian_manager = domain_data.get(DATA_CIRCADIAN_MANAGER)
+    if circadian_manager:
+        active_circadian = circadian_manager.get_active_info()
+
+    # Audio engine registry (integration-level singleton)
+    audio_engine_info: list[dict[str, Any]] = []
+    audio_engine_registry = domain_data.get(DATA_AUDIO_ENGINE_REGISTRY)
+    if audio_engine_registry:
+        for engine in audio_engine_registry.all_active():
+            audio_engine_info.append({
+                "consumer_type": engine.config.consumer_type,
+                "audio_entity": engine.config.audio_entity,
+            })
+
     # Entity controller state (integration-level singleton)
     entity_controller_info: dict[str, Any] = {}
-    entity_controller = hass.data.get(DOMAIN, {}).get(DATA_ENTITY_CONTROLLER)
+    entity_controller = domain_data.get(DATA_ENTITY_CONTROLLER)
     if entity_controller:
         entity_controller_info = {
             "externally_paused_entities": sorted(
@@ -156,7 +175,6 @@ async def async_get_config_entry_diagnostics(
 
     # Store statistics (integration-level singletons)
     store_stats: dict[str, Any] = {}
-    domain_data = hass.data.get(DOMAIN, {})
 
     preset_store = domain_data.get(DATA_PRESET_STORE)
     if preset_store:
@@ -250,6 +268,8 @@ async def async_get_config_entry_diagnostics(
         "active_segment_sequences": active_segment_sequences,
         "active_dynamic_scenes": active_dynamic_scenes,
         "active_music_sync": music_sync_entities,
+        "active_circadian": active_circadian,
+        "active_audio_engines": audio_engine_info,
         "entity_controller": entity_controller_info,
         "stores": store_stats,
         "device_triggers": device_trigger_info,
