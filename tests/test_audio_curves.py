@@ -71,3 +71,30 @@ class TestMapToRange:
     def test_clamps_output(self):
         assert map_to_range(1.5, 1, 100) == 100
         assert map_to_range(-0.5, 1, 100) == 1
+
+
+from custom_components.aqara_advanced_lighting.audio_curves import EMAFilter
+
+
+class TestEMAFilter:
+    def test_initial_value(self):
+        f = EMAFilter(alpha=0.1, initial=0.5)
+        assert f.value == 0.5
+
+    def test_tracks_constant_input(self):
+        f = EMAFilter(alpha=0.1, initial=0.0)
+        for _ in range(200):
+            f.update(1.0)
+        assert abs(f.value - 1.0) < 0.01
+
+    def test_smoothing(self):
+        f = EMAFilter(alpha=0.05, initial=0.5)
+        result = f.update(1.0)
+        # 0.05 * 1.0 + 0.95 * 0.5 = 0.525
+        assert abs(result - 0.525) < 0.001
+
+    def test_reset(self):
+        f = EMAFilter(alpha=0.1, initial=0.5)
+        f.update(1.0)
+        f.reset(0.0)
+        assert f.value == 0.0

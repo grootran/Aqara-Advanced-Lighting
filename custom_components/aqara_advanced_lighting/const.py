@@ -260,6 +260,10 @@ DEFAULT_LATENCY_COMPENSATION_MS: Final = 150
 
 DEFAULT_AUDIO_FREQUENCY_ZONE: Final = False
 
+# Shared audio signal processing parameters
+AUDIO_EMA_ALPHA: Final = 0.05  # EMA smoothing factor (~2-4s window at 20Hz)
+AUDIO_FLASH_BRIGHTNESS_DECAY: Final = 0.02  # Per-tick flash brightness decay
+
 SILENCE_DEGRADATION_BLEND_SECONDS: Final = 5.0
 SILENCE_DEGRADATION_STEP_SECONDS: Final = 12.0
 

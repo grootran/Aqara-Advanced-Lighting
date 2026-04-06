@@ -57,8 +57,7 @@ class TestBuildSceneEngineConfig:
         scene = _make_scene(audio_color_advance="beat_predictive")
         config = build_scene_engine_config(scene)
         assert config.subscribe_bpm is True
-        assert config.subscribe_beat_confidence is True
-        assert config.subscribe_beat_phase is True
+        assert config.subscribe_beat_tracking is True
         assert config.subscribe_onset is True
 
     def test_brightness_curve_subscribes_energy(self):
@@ -107,8 +106,7 @@ class TestBuildSceneEngineConfig:
         )
         scene = _make_scene()
         config = build_scene_engine_config(scene)
-        assert config.subscribe_centroid is True
-        assert config.subscribe_rolloff is True
+        assert config.subscribe_spectral is True
 
 
 class _FakeSceneState:
@@ -303,3 +301,23 @@ class TestDynamicSceneAudioConsumer:
         await consumer.on_audio_events({"band_bass_energy": 0.9})
         # light.a should have its color index updated
         assert ss.light_color_indices["light.a"] == 2  # 0.9 * 3 = 2.7 → clamped to 2
+
+
+# --- Constant consistency tests ---
+
+def test_ema_alpha_consistent_across_modules():
+    """EMA smoothing factor must be identical in modulator and mode handlers."""
+    from custom_components.aqara_advanced_lighting.const import AUDIO_EMA_ALPHA
+    from custom_components.aqara_advanced_lighting.audio_effect_modulator import _EMA_ALPHA
+    from custom_components.aqara_advanced_lighting.audio_mode_handlers import ENERGY_EMA_ALPHA
+    assert _EMA_ALPHA == AUDIO_EMA_ALPHA
+    assert ENERGY_EMA_ALPHA == AUDIO_EMA_ALPHA
+
+
+def test_flash_decay_consistent_across_modules():
+    """Flash brightness decay must be identical in modulator and mode handlers."""
+    from custom_components.aqara_advanced_lighting.const import AUDIO_FLASH_BRIGHTNESS_DECAY
+    from custom_components.aqara_advanced_lighting.audio_effect_modulator import _FLASH_DECAY
+    from custom_components.aqara_advanced_lighting.audio_mode_handlers import FLASH_BRIGHTNESS_DECAY
+    assert _FLASH_DECAY == AUDIO_FLASH_BRIGHTNESS_DECAY
+    assert FLASH_BRIGHTNESS_DECAY == AUDIO_FLASH_BRIGHTNESS_DECAY

@@ -52,10 +52,8 @@ def build_scene_engine_config(scene: DynamicScene) -> AudioEngineConfig:
         subscribe_onset=is_onset,
         subscribe_energy=is_energy or scene.audio_brightness_curve is not None,
         subscribe_bpm=mode == AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
-        subscribe_beat_confidence=mode == AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
-        subscribe_beat_phase=mode == AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
-        subscribe_centroid=True,
-        subscribe_rolloff=True,
+        subscribe_beat_tracking=mode == AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
+        subscribe_spectral=True,
         subscribe_silence=True,
         subscribe_frequency_bands=scene.audio_frequency_zone,
     )

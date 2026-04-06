@@ -20,10 +20,7 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-# EMA smoothing factor for energy envelope (~2-4s window at 20Hz sensor updates)
-ENERGY_EMA_ALPHA = 0.05
-# Per-tick brightness decay for onset flash mode
-FLASH_BRIGHTNESS_DECAY = 0.02
+from .const import AUDIO_EMA_ALPHA as ENERGY_EMA_ALPHA, AUDIO_FLASH_BRIGHTNESS_DECAY as FLASH_BRIGHTNESS_DECAY
 
 class AudioModeHandler(ABC):
     """Abstract base class for audio-reactive mode handlers."""
@@ -140,35 +137,35 @@ class IntensityBreathingHandler(AudioModeHandler):
 
     def __init__(self, manager: Any) -> None:
         super().__init__(manager)
-        self._envelope = 0.5
-        self._alpha = ENERGY_EMA_ALPHA
+        from .audio_curves import EMAFilter
+        self._envelope = EMAFilter(alpha=ENERGY_EMA_ALPHA, initial=0.5)
 
     @override
     def handle_energy(self, scene_state: Any, energy: float) -> None:
-        self._envelope = self._alpha * energy + (1 - self._alpha) * self._envelope
+        self._envelope.update(energy)
         # Breathing mode inherently modulates brightness — always apply curve.
         # If curve is None (disabled), fall back to linear with legacy 30-100 range.
         scene = scene_state.scene
         if scene.audio_brightness_curve is not None:
-            scene_state.brightness_modifier = self._apply_brightness_curve(scene, self._envelope)
+            scene_state.brightness_modifier = self._apply_brightness_curve(scene, self._envelope.value)
         else:
-            scene_state.brightness_modifier = max(0.3, min(1.0, self._envelope))
+            scene_state.brightness_modifier = max(0.3, min(1.0, self._envelope.value))
 
 class OnsetFlashHandler(AudioModeHandler):
     """Slow palette drift + brightness spike on onsets."""
 
     def __init__(self, manager: Any) -> None:
         super().__init__(manager)
-        self._envelope = 0.5
+        from .audio_curves import EMAFilter
+        self._envelope = EMAFilter(alpha=ENERGY_EMA_ALPHA, initial=0.5)
         self._flash_brightness = 0.0
-        self._alpha = ENERGY_EMA_ALPHA
 
     @override
     def handle_energy(self, scene_state: Any, energy: float) -> None:
-        self._envelope = self._alpha * energy + (1 - self._alpha) * self._envelope
+        self._envelope.update(energy)
         # Decay flash
         self._flash_brightness = max(0.0, self._flash_brightness - FLASH_BRIGHTNESS_DECAY)
-        brightness = max(self._envelope, self._flash_brightness)
+        brightness = max(self._envelope.value, self._flash_brightness)
         # Flash mode inherently modulates brightness — always apply curve.
         scene = scene_state.scene
         if scene.audio_brightness_curve is not None:

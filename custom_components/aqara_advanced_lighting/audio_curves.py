@@ -42,3 +42,22 @@ def map_to_range(curved_value: float, range_min: int, range_max: int) -> int:
     curved_value = max(0.0, min(1.0, curved_value))
     raw = range_min + curved_value * (range_max - range_min)
     return max(range_min, min(range_max, round(raw)))
+
+
+class EMAFilter:
+    """Exponential moving average filter for signal smoothing."""
+
+    __slots__ = ("alpha", "value")
+
+    def __init__(self, alpha: float = 0.05, initial: float = 0.5) -> None:
+        self.alpha = alpha
+        self.value = initial
+
+    def update(self, input_val: float) -> float:
+        """Process one sample and return the smoothed value."""
+        self.value = self.alpha * input_val + (1 - self.alpha) * self.value
+        return self.value
+
+    def reset(self, value: float = 0.5) -> None:
+        """Reset the filter state."""
+        self.value = value
