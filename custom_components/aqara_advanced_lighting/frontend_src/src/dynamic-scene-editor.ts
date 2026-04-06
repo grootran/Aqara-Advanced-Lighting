@@ -30,6 +30,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   @property({ type: Array }) public selectedEntities: string[] = [];
   @property({ type: Boolean }) public previewActive = false;
   @property({ type: Array }) public colorHistory: XYColor[] = [];
+  @property({ type: String }) public defaultAudioEntity = '';
   @property({ type: Object }) public draft?: DynamicSceneEditorDraft;
 
   @state() private _name = '';
@@ -607,6 +608,9 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
 
   private _handleAudioEnabledChange(e: CustomEvent): void {
     this._audioEnabled = e.detail.value ?? false;
+    if (this._audioEnabled && !this._audioEntity && this.defaultAudioEntity) {
+      this._audioEntity = this.defaultAudioEntity;
+    }
     this._hasUserInteraction = true;
   }
 

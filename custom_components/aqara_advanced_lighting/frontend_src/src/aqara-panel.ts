@@ -3416,6 +3416,7 @@ export class AqaraPanel extends LitElement {
           .selectedEntities=${this._prefs.state.selectedEntities}
           .previewActive=${this._scenePreviewActive}
           .colorHistory=${this._prefs.state.colorHistory}
+          .defaultAudioEntity=${this._prefs.state.audioOverrideEntity}
           @save=${this._handleSceneSave}
           @preview=${this._handleScenePreview}
           @stop-preview=${this._handleSceneStopPreview}
