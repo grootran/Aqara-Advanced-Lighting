@@ -34,10 +34,12 @@ class UserPreferences(TypedDict):
     audio_override_sensitivity: int
     audio_override_color_advance: str
     audio_override_transition_speed: int
-    audio_override_brightness_response: bool
+    audio_override_brightness_curve: str | None
+    audio_override_brightness_min: int
+    audio_override_brightness_max: int
     audio_override_detection_mode: str
     audio_override_frequency_zone: bool
-    audio_override_silence_degradation: bool
+    audio_override_silence_behavior: str
     audio_override_prediction_aggressiveness: int
     audio_override_latency_compensation_ms: int
     audio_override_color_by_frequency: bool
@@ -47,6 +49,7 @@ class UserPreferences(TypedDict):
     effect_audio_override_detection_mode: str
     effect_audio_override_speed_enabled: bool
     effect_audio_override_brightness_enabled: bool
+    effect_audio_override_silence_behavior: str
     hidden_builtin_presets: list[dict[str, str]]
     selected_entities: list[str]
     active_favorite_id: str | None
@@ -65,10 +68,12 @@ DEFAULT_PREFERENCES: UserPreferences = {
     "audio_override_sensitivity": 50,
     "audio_override_color_advance": "on_onset",
     "audio_override_transition_speed": 50,
-    "audio_override_brightness_response": True,
+    "audio_override_brightness_curve": "linear",
+    "audio_override_brightness_min": 30,
+    "audio_override_brightness_max": 100,
     "audio_override_detection_mode": "spectral_flux",
     "audio_override_frequency_zone": False,
-    "audio_override_silence_degradation": True,
+    "audio_override_silence_behavior": "slow_cycle",
     "audio_override_prediction_aggressiveness": 50,
     "audio_override_latency_compensation_ms": 150,
     "audio_override_color_by_frequency": False,
@@ -78,6 +83,7 @@ DEFAULT_PREFERENCES: UserPreferences = {
     "effect_audio_override_detection_mode": "spectral_flux",
     "effect_audio_override_speed_enabled": True,
     "effect_audio_override_brightness_enabled": True,
+    "effect_audio_override_silence_behavior": "hold",
     "hidden_builtin_presets": [],
     "selected_entities": [],
     "active_favorite_id": None,
@@ -128,6 +134,34 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
         else:
             self._data = {}
             self._global_data = {**DEFAULT_GLOBAL_PREFERENCES}
+        # Migrate legacy audio preference fields
+        prefs_needs_save = False
+        for user_id, prefs in self._data.items():
+            if user_id == GLOBAL_PREFERENCES_KEY:
+                continue
+            if not isinstance(prefs, dict):
+                continue
+            # Migrate audio_override_silence_degradation -> audio_override_silence_behavior
+            if "audio_override_silence_degradation" in prefs:
+                old_val = prefs.pop("audio_override_silence_degradation")
+                prefs["audio_override_silence_behavior"] = "slow_cycle" if old_val else "hold"
+                prefs_needs_save = True
+            # Migrate audio_override_brightness_response -> audio_override_brightness_curve/min/max
+            if "audio_override_brightness_response" in prefs:
+                old_val = prefs.pop("audio_override_brightness_response")
+                if old_val:
+                    prefs["audio_override_brightness_curve"] = "linear"
+                    prefs["audio_override_brightness_min"] = 30
+                    prefs["audio_override_brightness_max"] = 100
+                else:
+                    prefs["audio_override_brightness_curve"] = None
+                    prefs["audio_override_brightness_min"] = 30
+                    prefs["audio_override_brightness_max"] = 100
+                prefs_needs_save = True
+        if prefs_needs_save:
+            _LOGGER.info("Migrated user preferences: silence_degradation + brightness_response")
+            await self.async_save()
+
         _LOGGER.debug("Loaded preferences for %d users", len(self._data))
 
     async def async_save(self) -> None:
@@ -162,10 +196,12 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
                 "audio_override_sensitivity": prefs.get("audio_override_sensitivity", 50),
                 "audio_override_color_advance": prefs.get("audio_override_color_advance", "on_onset"),
                 "audio_override_transition_speed": prefs.get("audio_override_transition_speed", 50),
-                "audio_override_brightness_response": prefs.get("audio_override_brightness_response", True),
+                "audio_override_brightness_curve": prefs.get("audio_override_brightness_curve", "linear"),
+                "audio_override_brightness_min": prefs.get("audio_override_brightness_min", 30),
+                "audio_override_brightness_max": prefs.get("audio_override_brightness_max", 100),
                 "audio_override_detection_mode": prefs.get("audio_override_detection_mode", "spectral_flux"),
                 "audio_override_frequency_zone": prefs.get("audio_override_frequency_zone", False),
-                "audio_override_silence_degradation": prefs.get("audio_override_silence_degradation", True),
+                "audio_override_silence_behavior": prefs.get("audio_override_silence_behavior", "slow_cycle"),
                 "audio_override_prediction_aggressiveness": prefs.get("audio_override_prediction_aggressiveness", 50),
                 "audio_override_latency_compensation_ms": prefs.get("audio_override_latency_compensation_ms", 150),
                 "audio_override_color_by_frequency": prefs.get("audio_override_color_by_frequency", False),
@@ -175,6 +211,7 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
                 "effect_audio_override_detection_mode": prefs.get("effect_audio_override_detection_mode", "spectral_flux"),
                 "effect_audio_override_speed_enabled": prefs.get("effect_audio_override_speed_enabled", True),
                 "effect_audio_override_brightness_enabled": prefs.get("effect_audio_override_brightness_enabled", True),
+                "effect_audio_override_silence_behavior": prefs.get("effect_audio_override_silence_behavior", "hold"),
                 "hidden_builtin_presets": prefs.get("hidden_builtin_presets", []),
                 "selected_entities": prefs.get("selected_entities", []),
                 "active_favorite_id": prefs.get("active_favorite_id"),
@@ -247,10 +284,12 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
         audio_override_sensitivity: int | None | _Unset = _UNSET,
         audio_override_color_advance: str | None | _Unset = _UNSET,
         audio_override_transition_speed: int | None | _Unset = _UNSET,
-        audio_override_brightness_response: bool | None | _Unset = _UNSET,
+        audio_override_brightness_curve: str | None | _Unset = _UNSET,
+        audio_override_brightness_min: int | None | _Unset = _UNSET,
+        audio_override_brightness_max: int | None | _Unset = _UNSET,
         audio_override_detection_mode: str | None | _Unset = _UNSET,
         audio_override_frequency_zone: bool | None | _Unset = _UNSET,
-        audio_override_silence_degradation: bool | None | _Unset = _UNSET,
+        audio_override_silence_behavior: str | None | _Unset = _UNSET,
         audio_override_prediction_aggressiveness: int | None | _Unset = _UNSET,
         audio_override_latency_compensation_ms: int | None | _Unset = _UNSET,
         audio_override_color_by_frequency: bool | None | _Unset = _UNSET,
@@ -260,6 +299,7 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
         effect_audio_override_detection_mode: str | None | _Unset = _UNSET,
         effect_audio_override_speed_enabled: bool | None | _Unset = _UNSET,
         effect_audio_override_brightness_enabled: bool | None | _Unset = _UNSET,
+        effect_audio_override_silence_behavior: str | None | _Unset = _UNSET,
         hidden_builtin_presets: list[dict[str, str]] | None = None,
         selected_entities: list[str] | None = None,
         active_favorite_id: str | None | _Unset = _UNSET,
@@ -283,10 +323,12 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
             audio_override_sensitivity: Audio sensitivity (1-100), or _UNSET to leave unchanged.
             audio_override_color_advance: Color advance mode string, or _UNSET to leave unchanged.
             audio_override_transition_speed: Transition speed (1-100), or _UNSET to leave unchanged.
-            audio_override_brightness_response: Whether brightness responds to audio, or _UNSET to leave unchanged.
+            audio_override_brightness_curve: Brightness response curve, None to disable, or _UNSET to leave unchanged.
+            audio_override_brightness_min: Minimum brightness percent (1-100), or _UNSET to leave unchanged.
+            audio_override_brightness_max: Maximum brightness percent (1-100), or _UNSET to leave unchanged.
             audio_override_detection_mode: Detection mode string, or _UNSET to leave unchanged.
             audio_override_frequency_zone: Whether frequency zone distribution is enabled, or _UNSET to leave unchanged.
-            audio_override_silence_degradation: Whether silence degradation is enabled, or _UNSET to leave unchanged.
+            audio_override_silence_behavior: Silence behavior enum string, or _UNSET to leave unchanged.
             audio_override_prediction_aggressiveness: Prediction aggressiveness (1-100), or _UNSET to leave unchanged.
             audio_override_latency_compensation_ms: Latency compensation in ms, or _UNSET to leave unchanged.
             audio_override_color_by_frequency: Whether color-by-frequency is enabled, or _UNSET to leave unchanged.
@@ -296,6 +338,7 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
             effect_audio_override_detection_mode: Effect detection mode string, or _UNSET to leave unchanged.
             effect_audio_override_speed_enabled: Whether speed responds to audio in effects, or _UNSET to leave unchanged.
             effect_audio_override_brightness_enabled: Whether brightness responds to audio in effects, or _UNSET to leave unchanged.
+            effect_audio_override_silence_behavior: Effect silence behavior enum string, or _UNSET to leave unchanged.
             hidden_builtin_presets: Hidden builtin preset references, or None to leave unchanged.
             selected_entities: Selected entity IDs, or None to leave unchanged.
             active_favorite_id: Active favorite ID, None to clear, or _UNSET to leave unchanged.
@@ -347,8 +390,14 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
         if not isinstance(audio_override_transition_speed, _Unset):
             self._data[user_id]["audio_override_transition_speed"] = audio_override_transition_speed
 
-        if not isinstance(audio_override_brightness_response, _Unset):
-            self._data[user_id]["audio_override_brightness_response"] = audio_override_brightness_response
+        if not isinstance(audio_override_brightness_curve, _Unset):
+            self._data[user_id]["audio_override_brightness_curve"] = audio_override_brightness_curve
+
+        if not isinstance(audio_override_brightness_min, _Unset):
+            self._data[user_id]["audio_override_brightness_min"] = audio_override_brightness_min
+
+        if not isinstance(audio_override_brightness_max, _Unset):
+            self._data[user_id]["audio_override_brightness_max"] = audio_override_brightness_max
 
         if not isinstance(audio_override_detection_mode, _Unset):
             self._data[user_id]["audio_override_detection_mode"] = audio_override_detection_mode
@@ -356,8 +405,8 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
         if not isinstance(audio_override_frequency_zone, _Unset):
             self._data[user_id]["audio_override_frequency_zone"] = audio_override_frequency_zone
 
-        if not isinstance(audio_override_silence_degradation, _Unset):
-            self._data[user_id]["audio_override_silence_degradation"] = audio_override_silence_degradation
+        if not isinstance(audio_override_silence_behavior, _Unset):
+            self._data[user_id]["audio_override_silence_behavior"] = audio_override_silence_behavior
 
         if not isinstance(audio_override_prediction_aggressiveness, _Unset):
             self._data[user_id]["audio_override_prediction_aggressiveness"] = audio_override_prediction_aggressiveness
@@ -385,6 +434,9 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
 
         if not isinstance(effect_audio_override_brightness_enabled, _Unset):
             self._data[user_id]["effect_audio_override_brightness_enabled"] = effect_audio_override_brightness_enabled
+
+        if not isinstance(effect_audio_override_silence_behavior, _Unset):
+            self._data[user_id]["effect_audio_override_silence_behavior"] = effect_audio_override_silence_behavior
 
         if hidden_builtin_presets is not None:
             self._data[user_id]["hidden_builtin_presets"] = hidden_builtin_presets

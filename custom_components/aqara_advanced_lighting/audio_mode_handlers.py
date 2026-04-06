@@ -20,10 +20,7 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-# EMA smoothing factor for energy envelope (~2-4s window at 20Hz sensor updates)
-ENERGY_EMA_ALPHA = 0.05
-# Per-tick brightness decay for onset flash mode
-FLASH_BRIGHTNESS_DECAY = 0.02
+from .const import AUDIO_EMA_ALPHA as ENERGY_EMA_ALPHA, AUDIO_FLASH_BRIGHTNESS_DECAY as FLASH_BRIGHTNESS_DECAY
 
 class AudioModeHandler(ABC):
     """Abstract base class for audio-reactive mode handlers."""
@@ -49,13 +46,18 @@ class AudioModeHandler(ABC):
         """Update BPM and confidence. Override in BeatPredictiveHandler."""
 
     async def enter_silence(self, scene_state: Any, stop_event: asyncio.Event) -> None:
-        """Transition to silence degradation (slow palette cycling)."""
+        """Handle silence transition based on scene's silence behavior."""
         self._in_silence = True
         self._cancel_mode_timers()
-        if scene_state.scene.audio_silence_degradation:
+        behavior = scene_state.scene.audio_silence_behavior
+        if behavior == "slow_cycle":
             self._silence_task = asyncio.ensure_future(
                 self._silence_cycle(scene_state, stop_event)
             )
+        # "hold", "decay_min", "decay_mid" do not start cycling.
+        # For scenes, hold means freeze in place. decay_min/decay_mid are
+        # handled by the consumer if the scene supports brightness decay
+        # (future enhancement — for now they behave like hold for scenes).
 
     async def exit_silence(self, scene_state: Any) -> None:
         """Return from silence to active audio mode."""
@@ -88,6 +90,22 @@ class AudioModeHandler(ABC):
             except asyncio.TimeoutError:
                 pass
 
+    @staticmethod
+    def _apply_brightness_curve(scene: Any, raw_value: float) -> float:
+        """Map a 0.0-1.0 energy/envelope value through the scene's brightness curve.
+
+        Returns a 0.0-1.0 brightness modifier, or 1.0 if brightness response is disabled.
+        """
+        if scene.audio_brightness_curve is None:
+            return 1.0  # Disabled — no modification
+
+        from .audio_curves import apply_response_curve
+
+        curved = apply_response_curve(raw_value, scene.audio_brightness_curve)
+        # Map to min/max percent, then convert to 0.0-1.0 modifier
+        pct = scene.audio_brightness_min + curved * (scene.audio_brightness_max - scene.audio_brightness_min)
+        return max(0.01, min(1.0, pct / 100.0))
+
 class OnsetHandler(AudioModeHandler):
     """Colors advance on each detected onset/beat."""
 
@@ -97,8 +115,8 @@ class OnsetHandler(AudioModeHandler):
 
     @override
     def handle_energy(self, scene_state: Any, energy: float) -> None:
-        if scene_state.scene.audio_brightness_response:
-            scene_state.brightness_modifier = max(0.3, min(1.0, energy))
+        if scene_state.scene.audio_brightness_curve is not None:
+            scene_state.brightness_modifier = self._apply_brightness_curve(scene_state.scene, energy)
 
 class ContinuousHandler(AudioModeHandler):
     """Energy maps to palette color position."""
@@ -111,38 +129,49 @@ class ContinuousHandler(AudioModeHandler):
         pos = max(0, min(int(energy * num_colors), num_colors - 1))
         for i in range(len(scene_state.light_color_indices)):
             scene_state.light_color_indices[i] = pos
-        if scene_state.scene.audio_brightness_response:
-            scene_state.brightness_modifier = max(0.3, min(1.0, energy))
+        if scene_state.scene.audio_brightness_curve is not None:
+            scene_state.brightness_modifier = self._apply_brightness_curve(scene_state.scene, energy)
 
 class IntensityBreathingHandler(AudioModeHandler):
     """Slow brightness envelope tracks overall loudness."""
 
     def __init__(self, manager: Any) -> None:
         super().__init__(manager)
-        self._envelope = 0.5
-        self._alpha = ENERGY_EMA_ALPHA
+        from .audio_curves import EMAFilter
+        self._envelope = EMAFilter(alpha=ENERGY_EMA_ALPHA, initial=0.5)
 
     @override
     def handle_energy(self, scene_state: Any, energy: float) -> None:
-        self._envelope = self._alpha * energy + (1 - self._alpha) * self._envelope
-        scene_state.brightness_modifier = max(0.3, min(1.0, self._envelope))
+        self._envelope.update(energy)
+        # Breathing mode inherently modulates brightness — always apply curve.
+        # If curve is None (disabled), fall back to linear with legacy 30-100 range.
+        scene = scene_state.scene
+        if scene.audio_brightness_curve is not None:
+            scene_state.brightness_modifier = self._apply_brightness_curve(scene, self._envelope.value)
+        else:
+            scene_state.brightness_modifier = max(0.3, min(1.0, self._envelope.value))
 
 class OnsetFlashHandler(AudioModeHandler):
     """Slow palette drift + brightness spike on onsets."""
 
     def __init__(self, manager: Any) -> None:
         super().__init__(manager)
-        self._envelope = 0.5
+        from .audio_curves import EMAFilter
+        self._envelope = EMAFilter(alpha=ENERGY_EMA_ALPHA, initial=0.5)
         self._flash_brightness = 0.0
-        self._alpha = ENERGY_EMA_ALPHA
 
     @override
     def handle_energy(self, scene_state: Any, energy: float) -> None:
-        self._envelope = self._alpha * energy + (1 - self._alpha) * self._envelope
+        self._envelope.update(energy)
         # Decay flash
         self._flash_brightness = max(0.0, self._flash_brightness - FLASH_BRIGHTNESS_DECAY)
-        brightness = max(self._envelope, self._flash_brightness)
-        scene_state.brightness_modifier = max(0.3, min(1.0, brightness))
+        brightness = max(self._envelope.value, self._flash_brightness)
+        # Flash mode inherently modulates brightness — always apply curve.
+        scene = scene_state.scene
+        if scene.audio_brightness_curve is not None:
+            scene_state.brightness_modifier = self._apply_brightness_curve(scene, brightness)
+        else:
+            scene_state.brightness_modifier = max(0.3, min(1.0, brightness))
 
     @override
     def handle_onset(self, scene_state: Any, attrs: dict[str, Any]) -> None:
@@ -195,8 +224,10 @@ class BeatPredictiveHandler(AudioModeHandler):
         if self._state != self.PREDICTIVE:
             # Reactive/tracking mode: advance colors immediately
             strength = attrs.get("strength", 1.0)
-            if scene_state.scene.audio_brightness_response:
-                scene_state.brightness_modifier = max(0.1, min(1.0, strength))
+            if scene_state.scene.audio_brightness_curve is not None:
+                scene_state.brightness_modifier = self._apply_brightness_curve(
+                    scene_state.scene, strength
+                )
             self._manager._advance_colors(scene_state)
 
     def _update_state(self) -> None:

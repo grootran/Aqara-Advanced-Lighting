@@ -10,11 +10,12 @@ import uuid
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.const import ATTR_ENTITY_ID, EVENT_STATE_CHANGED
-from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, callback
+from homeassistant.const import ATTR_ENTITY_ID
+from homeassistant.core import Event, HomeAssistant, callback
 
 from .const import (
     ATTR_AUDIO_EFFECT,
+    DATA_AUDIO_ENGINE_REGISTRY,
     ATTR_ENABLED,
     ATTR_SENSITIVITY,
     AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
@@ -22,7 +23,6 @@ from .const import (
     AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING,
     AUDIO_COLOR_ADVANCE_ON_ONSET,
     AUDIO_COLOR_ADVANCE_ONSET_FLASH,
-    AUDIO_SENSOR_UNAVAILABLE_TIMEOUT,
     CONF_AUDIO_OFF_SERVICE,
     CONF_AUDIO_OFF_SERVICE_DATA,
     CONF_AUDIO_ON_SERVICE,
@@ -53,6 +53,8 @@ from .const import (
     SOFTWARE_TRANSITION_MODELS,
     brightness_percent_to_device,
 )
+from .audio_engine import AudioEngine
+from .audio_scene_consumer import DynamicSceneAudioConsumer, build_scene_engine_config
 from .audio_mode_handlers import (
     AudioModeHandler,
     BeatPredictiveHandler,
@@ -128,7 +130,7 @@ class SceneState:
     # Audio reactive fields
     brightness_modifier: float = 1.0
     audio_tier: str | None = None
-    audio_unsub: CALLBACK_TYPE | None = None
+    audio_engine: Any = None  # AudioEngine instance (runtime only, avoids circular import)
     audio_companion_sensors: dict[str, str | None] = field(default_factory=dict)
     audio_waiting: bool = False
 
@@ -177,12 +179,15 @@ class DynamicSceneManager:
         # Generate unique scene ID
         scene_id = str(uuid.uuid4())
 
-        # Capture state for all entities if end_behavior is restore
+        # Capture state for all entities if end_behavior is restore.
+        # Skip entities that already have a stored state — their original
+        # pre-effect baseline is preserved from the first scene that captured
+        # it and should be the state restored when all scenes stop.
         if scene.end_behavior == "restore":
             for entity_id in entity_ids:
-                # Get Z2M friendly name (simplified - may need lookup)
-                z2m_name = entity_id.split(".")[-1]
-                self.state_manager.capture_state(entity_id, z2m_name)
+                if not self.state_manager.has_stored_state(entity_id):
+                    z2m_name = entity_id.split(".")[-1]
+                    self.state_manager.capture_state(entity_id, z2m_name)
 
         # Determine light order (affects ripple offset and shuffle_rotate assignment)
         light_order = list(entity_ids)
@@ -483,10 +488,9 @@ class DynamicSceneManager:
                 scenes_paused.add(scene_id)
                 paused_any = True
 
-                # Unsubscribe audio listener if present (audio loop re-subscribes on resume)
-                if self._scene_states[scene_id].audio_unsub:
-                    self._scene_states[scene_id].audio_unsub()
-                    self._scene_states[scene_id].audio_unsub = None
+                # Pause audio engine if present (engine unsubscribes internally)
+                if self._scene_states[scene_id].audio_engine:
+                    self._scene_states[scene_id].audio_engine.pause()
 
                 # Fire paused event
                 scene_state = self._scene_states[scene_id]
@@ -524,6 +528,10 @@ class DynamicSceneManager:
             if scene_id in self._pause_flags and scene_id in self._scene_states:
                 self._pause_flags[scene_id].clear()
                 self._scene_states[scene_id].paused = False
+                # Resume audio engine if present
+                if self._scene_states[scene_id].audio_engine:
+                    self._scene_states[scene_id].audio_engine.resume()
+                    self._scene_states[scene_id].audio_waiting = False
                 scenes_resumed.add(scene_id)
                 resumed_any = True
 
@@ -555,12 +563,15 @@ class DynamicSceneManager:
         scene_state = self._scene_states.get(scene_id)
         return scene_state.paused if scene_state else False
 
-    def detach_entity(self, entity_id: str) -> None:
+    async def detach_entity(self, entity_id: str) -> None:
         """Detach an entity from its running scene permanently.
 
         Used for cross-type conflict resolution. The entity is removed from
         the scene's control but the scene continues for other entities.
         If no entities remain, the scene is stopped.
+
+        Also deactivates on-device audio modes (T1 Strip music sync,
+        generic on-device audio) so they don't remain orphaned.
         """
         scene_id = self._entity_to_scene.pop(entity_id, None)
         if not scene_id:
@@ -569,6 +580,20 @@ class DynamicSceneManager:
         scene_state = self._scene_states.get(scene_id)
         if not scene_state:
             return
+
+        # Deactivate on-device audio if this entity was using it
+        model_id = get_entity_model_id(self.hass, entity_id)
+        if model_id == MODEL_T1_STRIP:
+            await self._deactivate_music_sync(entity_id)
+        else:
+            entity_audio_config = self._get_entity_audio_config()
+            if entity_id in entity_audio_config and entity_audio_config[entity_id].get(
+                CONF_AUDIO_OFF_SERVICE
+            ):
+                await self._call_entity_audio_service(
+                    entity_id, entity_audio_config[entity_id],
+                    CONF_AUDIO_OFF_SERVICE, CONF_AUDIO_OFF_SERVICE_DATA,
+                )
 
         # Mark entity as paused so the loop skips it
         scene_state.externally_paused_entities.add(entity_id)
@@ -738,18 +763,21 @@ class DynamicSceneManager:
 
             # Look up current BPM from companion sensor
             audio_bpm = None
-            if state.audio_companion_sensors:
+            bpm_eid = None
+            if state.audio_engine:
+                bpm_eid = state.audio_engine.companions.get("bpm")
+            elif state.audio_companion_sensors:
                 bpm_eid = state.audio_companion_sensors.get("bpm")
-                if bpm_eid:
-                    bpm_state = self.hass.states.get(bpm_eid)
-                    if bpm_state and bpm_state.state not in (
-                        "unavailable",
-                        "unknown",
-                    ):
-                        try:
-                            audio_bpm = float(bpm_state.state)
-                        except (ValueError, TypeError):
-                            pass
+            if bpm_eid:
+                bpm_state = self.hass.states.get(bpm_eid)
+                if bpm_state and bpm_state.state not in (
+                    "unavailable",
+                    "unknown",
+                ):
+                    try:
+                        audio_bpm = float(bpm_state.state)
+                    except (ValueError, TypeError):
+                        pass
 
             result[scene_id] = ActiveSceneInfo(
                 scene_id=scene_id,
@@ -772,8 +800,8 @@ class DynamicSceneManager:
     ) -> bool:
         """Update beat sensitivity on a running audio scene.
 
-        Sends the new value to the ESPHome device via the companion
-        sensitivity number entity.
+        Delegates to AudioEngine which writes the new value to the
+        ESPHome device via the companion sensitivity number entity.
         """
         state = self._scene_states.get(scene_id)
         if state is None or state.scene.audio_entity is None:
@@ -782,22 +810,10 @@ class DynamicSceneManager:
         clamped = max(MIN_AUDIO_SENSITIVITY, min(MAX_AUDIO_SENSITIVITY, sensitivity))
         state.scene.audio_sensitivity = clamped
 
-        sensitivity_eid = state.audio_companion_sensors.get("sensitivity")
-        if sensitivity_eid:
-            try:
-                await self.hass.services.async_call(
-                    "number", "set_value",
-                    {"entity_id": sensitivity_eid, "value": clamped},
-                    blocking=False,
-                )
-            except Exception:
-                _LOGGER.warning(
-                    "Failed to update sensitivity on %s",
-                    sensitivity_eid,
-                    exc_info=True,
-                )
-                return False
-        return True
+        if state.audio_engine:
+            return await state.audio_engine.update_sensitivity(clamped)
+
+        return False
 
     def cleanup(self) -> None:
         """Cleanup all resources."""
@@ -825,16 +841,15 @@ class DynamicSceneManager:
                 scenes_to_stop.add(scene_id)
 
         for scene_id in scenes_to_stop:
-            await self._stop_single_scene(scene_id, reason="conflict")
+            await self._stop_single_scene(scene_id, reason="conflict", restore_override=False)
 
     def _cleanup_scene(self, scene_id: str) -> None:
         """Clean up resources for a stopped scene."""
         scene_state = self._scene_states.get(scene_id)
         if scene_state:
-            # Unsubscribe audio listener if still active
-            if scene_state.audio_unsub:
-                scene_state.audio_unsub()
-                scene_state.audio_unsub = None
+            # Engine is already stopped by _execute_audio_scene's finally block.
+            # Just clear the reference.
+            scene_state.audio_engine = None
 
             for entity_id in scene_state.entity_ids:
                 if self._entity_to_scene.get(entity_id) == scene_id:
@@ -1674,30 +1689,18 @@ class DynamicSceneManager:
         self,
         scene_id: str,
         stop_event: asyncio.Event,
-        pause_event: asyncio.Event,
+        pause_event: asyncio.Event,  # noqa: ARG002 — engine handles pausing via pause()/resume()
     ) -> None:
         """Execute a dynamic scene driven by audio sensor data."""
         scene_state = self._scene_states[scene_id]
         scene = scene_state.scene
 
-        # -- Concurrent audio scene constraint --
-        # Only one audio scene may use a given audio entity at a time.
-        audio_entity_id = scene.audio_entity
-        active_audio_key = f"audio_active_{audio_entity_id}"
-        domain_data = self.hass.data.setdefault(DOMAIN, {})
-        if active_audio_key in domain_data:
-            existing_scene_id = domain_data[active_audio_key]
-            _LOGGER.warning(
-                "Stopping existing audio scene %s — audio entity %s claimed by %s",
-                existing_scene_id,
-                audio_entity_id,
-                scene_id,
-            )
-            await self.stop_scene(existing_scene_id)
-        domain_data[active_audio_key] = scene_id
+        # -- Stop any existing scene using the same audio entity --
+        for sid, ss in list(self._scene_states.items()):
+            if sid != scene_id and ss.scene.audio_entity == scene.audio_entity:
+                await self._stop_single_scene(sid, reason="audio_conflict")
 
-        # Partition entities into on-device (T1 Strip), generic on-device, and
-        # software-driven lists
+        # -- Partition entities: on-device vs software-driven --
         on_device_entities: list[str] = []
         generic_on_device_entities: list[str] = []
         software_entities: list[str] = []
@@ -1715,12 +1718,10 @@ class DynamicSceneManager:
             else:
                 software_entities.append(eid)
 
-        # Exclude on-device entities from software color commands by marking
-        # them as externally paused — _apply_colors_with_offset skips these.
         on_device_all = set(on_device_entities) | set(generic_on_device_entities)
         scene_state.externally_paused_entities |= on_device_all
 
-        # Activate T1 Strip native music sync for on-device entities
+        # Activate T1 Strip native music sync
         if on_device_entities:
             t1_params = map_t1_strip_params(scene)
             for eid in on_device_entities:
@@ -1733,74 +1734,26 @@ class DynamicSceneManager:
                 CONF_AUDIO_ON_SERVICE, CONF_AUDIO_ON_SERVICE_DATA,
             )
 
-        # Map transition speed 1-100 to seconds 2.0-0.1
+        # Transition speed: 1-100 maps to 2.0s-0.1s
         transition_seconds = 2.0 - (scene.audio_transition_speed / 100.0) * 1.9
 
         # Apply initial colors to software-driven entities
         if software_entities:
             await self._apply_colors_with_offset(scene_state, stop_event)
 
-        # Discover companion sensors and configure the ESP32 device
-        companions = scene_state.audio_companion_sensors
-
-        # Set detection mode on device
-        detection_mode_entity = companions.get("detection_mode")
-        if detection_mode_entity:
-            await self.hass.services.async_call(
-                "select", "select_option",
-                {"entity_id": detection_mode_entity, "option": scene.audio_detection_mode},
-                blocking=False,
-            )
-
-        # Set sensitivity on device
-        sensitivity_entity = companions.get("sensitivity")
-        if sensitivity_entity:
-            try:
-                await self.hass.services.async_call(
-                    "number", "set_value",
-                    {"entity_id": sensitivity_entity, "value": scene.audio_sensitivity},
-                    blocking=False,
-                )
-            except Exception:
-                _LOGGER.warning(
-                    "Failed to set sensitivity on %s", sensitivity_entity,
-                    exc_info=True,
-                )
-        else:
-            _LOGGER.debug(
-                "Sensitivity entity not found for %s; using device default",
-                scene.audio_entity,
-            )
-
-        # Create mode handler
+        # -- Create mode handler --
         handler = self._create_audio_handler(scene)
 
         # -- Frequency zone setup --
+        companions = scene_state.audio_companion_sensors
         freq_zone_mode = (
             scene.audio_frequency_zone
             and companions.get("bass_energy")
             and companions.get("mid_energy")
             and companions.get("high_energy")
         )
-        bass_lights: list[str] = []
-        mid_lights: list[str] = []
-        high_lights: list[str] = []
-        if freq_zone_mode:
-            bass_lights, mid_lights, high_lights = self._split_frequency_zones(
-                software_entities
-            )
 
-        # -- Audio subscription setup --
-        # Tagged queue: (event_type, data)
-        queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue(maxsize=50)
-        unavailable_since: float | None = None
-
-        # Determine which entities to subscribe to based on mode
-        # Build set of entity_ids we care about
-        subscribe_entities: set[str] = set()
-
-        # Onset entity for beat-based modes
-        onset_entity = companions.get("onset_detected") or scene.audio_entity
+        # Determine mode flags
         is_onset_mode = scene.audio_color_advance in (
             AUDIO_COLOR_ADVANCE_ON_ONSET,
             AUDIO_COLOR_ADVANCE_ONSET_FLASH,
@@ -1812,307 +1765,47 @@ class DynamicSceneManager:
             AUDIO_COLOR_ADVANCE_ONSET_FLASH,
         )
 
-        if is_onset_mode:
-            subscribe_entities.add(onset_entity)
+        # -- Build engine config and consumer --
+        engine_config = build_scene_engine_config(scene)
 
-        # Energy entity for continuous/breathing/flash modes
-        energy_entity = (
-            companions.get("amplitude")
-            or companions.get("bass_energy")
-        )
-        if energy_entity and (is_energy_mode or scene.audio_brightness_response):
-            subscribe_entities.add(energy_entity)
-
-        # BPM entity for predictive mode
-        bpm_entity = companions.get("bpm")
-        if scene.audio_color_advance == AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE and bpm_entity:
-            subscribe_entities.add(bpm_entity)
-
-        # Beat confidence + phase for predictive mode
-        beat_confidence_entity = companions.get("beat_confidence")
-        beat_phase_entity = companions.get("beat_phase")
-        if scene.audio_color_advance == AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE:
-            if beat_confidence_entity:
-                subscribe_entities.add(beat_confidence_entity)
-            if beat_phase_entity:
-                subscribe_entities.add(beat_phase_entity)
-
-        # Onset strength for intensity-scaled modes
-        onset_strength_entity = companions.get("onset_strength")
-        if is_onset_mode and onset_strength_entity:
-            subscribe_entities.add(onset_strength_entity)
-
-        # Spectral centroid + rolloff for color mapping
-        centroid_entity = companions.get("centroid")
-        rolloff_entity = companions.get("rolloff")
-        if centroid_entity:
-            subscribe_entities.add(centroid_entity)
-        if rolloff_entity:
-            subscribe_entities.add(rolloff_entity)
-
-        # Silence entity for all modes if available
-        silence_entity = companions.get("silence")
-        if silence_entity:
-            subscribe_entities.add(silence_entity)
-
-        # Frequency zone band entities
-        if freq_zone_mode:
-            for band_key in ("bass_energy", "mid_energy", "high_energy"):
-                band_eid = companions.get(band_key)
-                if band_eid:
-                    subscribe_entities.add(band_eid)
-
-        # Fall back if no subscribe entities found (shouldn't happen, but be safe)
-        if not subscribe_entities:
-            _LOGGER.warning(
-                "No audio entities to subscribe to for '%s'; "
-                "falling back to audio_entity",
-                scene.audio_entity,
+        async def _apply(transition: float) -> None:
+            await self._apply_colors_with_offset(
+                scene_state, stop_event, transition=transition,
             )
-            subscribe_entities.add(scene.audio_entity)
 
-        @callback
-        def _audio_state_changed(event: Event) -> None:
-            """Handle audio sensor state changes."""
-            entity_id_val = event.data.get("entity_id")
-            if entity_id_val not in subscribe_entities:
-                return
-            new_state = event.data.get("new_state")
-            if new_state is None:
-                return
-            state_val = new_state.state
-            if state_val in ("unavailable", "unknown"):
-                try:
-                    queue.put_nowait(("unavailable", True))
-                except asyncio.QueueFull:
-                    pass
-                return
-            try:
-                if entity_id_val == onset_entity and is_onset_mode:
-                    if state_val == "on":
-                        queue.put_nowait(("onset", {"strength": 1.0}))
-                elif entity_id_val == onset_strength_entity:
-                    queue.put_nowait(("onset_strength", float(state_val)))
-                elif entity_id_val == silence_entity:
-                    queue.put_nowait(("silence", state_val == "on"))
-                elif entity_id_val == bpm_entity:
-                    bpm_val = float(state_val)
-                    queue.put_nowait(("bpm", bpm_val))
-                elif entity_id_val == beat_confidence_entity:
-                    queue.put_nowait(("beat_confidence", float(state_val)))
-                elif entity_id_val == beat_phase_entity:
-                    queue.put_nowait(("beat_phase", float(state_val)))
-                elif entity_id_val == centroid_entity:
-                    queue.put_nowait(("centroid", float(state_val)))
-                elif entity_id_val == rolloff_entity:
-                    queue.put_nowait(("rolloff", float(state_val)))
-                elif freq_zone_mode and entity_id_val in (
-                    companions.get("bass_energy"),
-                    companions.get("mid_energy"),
-                    companions.get("high_energy"),
-                ):
-                    # Tag with band name for frequency zone routing
-                    for band_key in ("bass_energy", "mid_energy", "high_energy"):
-                        if entity_id_val == companions.get(band_key):
-                            queue.put_nowait((f"band_{band_key}", float(state_val)))
-                            break
-                elif entity_id_val == energy_entity:
-                    queue.put_nowait(("energy", float(state_val)))
-            except (asyncio.QueueFull, ValueError, TypeError):
-                pass
-
-        scene_state.audio_unsub = self.hass.bus.async_listen(
-            EVENT_STATE_CHANGED, _audio_state_changed
+        consumer = DynamicSceneAudioConsumer(
+            scene_state=scene_state,
+            handler=handler,
+            stop_event=stop_event,
+            apply_colors_fn=_apply,
+            transition_seconds=transition_seconds,
+            is_onset_mode=is_onset_mode,
+            is_energy_mode=is_energy_mode,
         )
 
-        def drain_queue() -> dict[str, Any]:
-            """Drain queue, keeping only the most recent event of each type."""
-            events: dict[str, Any] = {}
-            while not queue.empty():
-                try:
-                    event_type, data = queue.get_nowait()
-                    events[event_type] = data
-                except asyncio.QueueEmpty:
-                    break
-            return events
+        if freq_zone_mode:
+            bass_lights, mid_lights, high_lights = self._split_frequency_zones(
+                software_entities
+            )
+            consumer.set_freq_zone_config(bass_lights, mid_lights, high_lights)
 
-        # Rate limiting for energy-based modes
-        last_apply_time = 0.0
-        min_apply_interval = max(transition_seconds, 0.1)
+        # -- Create and start engine --
+        registry = self.hass.data.get(DOMAIN, {}).get(DATA_AUDIO_ENGINE_REGISTRY)
+        engine = AudioEngine(self.hass, engine_config, consumer, registry=registry)
+        scene_state.audio_engine = engine
 
-        # Track silence state
-        in_silence = False
-
-        # -- Main audio loop --
-        # Audio scenes always run continuously (loop_mode is ignored) because
-        # they react to live audio input until explicitly stopped.
         try:
-            while not stop_event.is_set():
-                # Check pause state
-                if pause_event.is_set():
-                    # Unsub while paused; the pause_scene() caller may have
-                    # already done this, but guard here too
-                    if scene_state.audio_unsub:
-                        scene_state.audio_unsub()
-                        scene_state.audio_unsub = None
-                    while pause_event.is_set() and not stop_event.is_set():
-                        await asyncio.sleep(0.1)
-                    if stop_event.is_set():
-                        break
-                    # Re-subscribe on resume
-                    scene_state.audio_unsub = self.hass.bus.async_listen(
-                        EVENT_STATE_CHANGED, _audio_state_changed
-                    )
-                    unavailable_since = None
-                    scene_state.audio_waiting = False
-                    in_silence = False
+            await engine.start()
 
-                # Wait for at least one event, then drain
-                try:
-                    first_event = await asyncio.wait_for(
-                        queue.get(), timeout=1.0
-                    )
-                except asyncio.TimeoutError:
-                    if unavailable_since is not None:
-                        elapsed = time.monotonic() - unavailable_since
-                        if elapsed > AUDIO_SENSOR_UNAVAILABLE_TIMEOUT:
-                            _LOGGER.warning(
-                                "Audio sensor '%s' unavailable for %ds, stopping scene",
-                                scene.audio_entity,
-                                int(elapsed),
-                            )
-                            break
-                    continue
-
-                # Drain remaining events, keeping most recent of each type
-                events = drain_queue()
-                # Include the first event (drain may have overwritten it)
-                first_type, first_data = first_event
-                if first_type not in events:
-                    events[first_type] = first_data
-
-                # Handle unavailability
-                if "unavailable" in events:
-                    if unavailable_since is None:
-                        unavailable_since = time.monotonic()
-                        scene_state.audio_waiting = True
-                        _LOGGER.warning(
-                            "Audio sensor '%s' unavailable", scene.audio_entity
-                        )
-                    # If only unavailable events, continue waiting
-                    if len(events) == 1:
-                        continue
-
-                # Sensor recovered from unavailability (got a real event)
-                real_events = {k: v for k, v in events.items() if k != "unavailable"}
-                if real_events and unavailable_since is not None:
-                    unavailable_since = None
-                    scene_state.audio_waiting = False
-
-                # -- Process silence transitions --
-                if "silence" in events:
-                    silence_val = events["silence"]
-                    if silence_val and not in_silence:
-                        in_silence = True
-                        await handler.enter_silence(scene_state, stop_event)
-                    elif not silence_val and in_silence:
-                        in_silence = False
-                        await handler.exit_silence(scene_state)
-
-                # Skip further processing while in silence (handler manages
-                # its own silence cycling via the task spawned in enter_silence)
-                if in_silence:
-                    continue
-
-                # -- Process BPM updates --
-                if "bpm" in events:
-                    bpm_val = events["bpm"]
-                    confidence_val = events.get("beat_confidence", 0.0)
-                    if isinstance(handler, BeatPredictiveHandler):
-                        handler.update_bpm(bpm_val, confidence_val)
-
-                # -- Process onset events --
-                needs_apply = False
-                if "onset" in events:
-                    onset_data = events["onset"]
-                    # Merge onset_strength from standalone sensor if available
-                    if "onset_strength" in events:
-                        onset_data["strength"] = events["onset_strength"]
-                    handler.handle_onset(scene_state, onset_data)
-                    if is_onset_mode:
-                        needs_apply = True
-
-                # -- Process spectral descriptors --
-                if "centroid" in events:
-                    handler.handle_centroid(scene_state, events["centroid"])
-                if "rolloff" in events:
-                    handler.handle_rolloff(scene_state, events["rolloff"])
-
-                # -- Process energy events --
-                if "energy" in events:
-                    handler.handle_energy(scene_state, events["energy"])
-                    if is_energy_mode or scene.audio_brightness_response:
-                        needs_apply = True
-
-                # -- Process frequency zone band events --
-                if freq_zone_mode:
-                    for band_key, light_group in [
-                        ("bass_energy", bass_lights),
-                        ("mid_energy", mid_lights),
-                        ("high_energy", high_lights),
-                    ]:
-                        event_key = f"band_{band_key}"
-                        if event_key in events and light_group:
-                            band_energy = events[event_key]
-                            num_colors = len(scene.colors)
-                            if num_colors > 0:
-                                pos = max(
-                                    0,
-                                    min(
-                                        int(band_energy * num_colors),
-                                        num_colors - 1,
-                                    ),
-                                )
-                                for eid in light_group:
-                                    scene_state.light_color_indices[eid] = pos
-                            needs_apply = True
-
-                # -- Apply colors with rate limiting --
-                if needs_apply:
-                    now_mono = time.monotonic()
-                    # Rate-limit continuous updates (energy modes, or
-                    # brightness-response updates in onset modes)
-                    rate_limit = is_energy_mode or (
-                        "energy" in events and scene.audio_brightness_response
-                        and "onset" not in events
-                    )
-                    if rate_limit:
-                        if (now_mono - last_apply_time) >= min_apply_interval:
-                            await self._apply_colors_with_offset(
-                                scene_state,
-                                stop_event,
-                                transition=transition_seconds,
-                            )
-                            last_apply_time = now_mono
-                    else:
-                        # Onset-based modes apply immediately
-                        await self._apply_colors_with_offset(
-                            scene_state,
-                            stop_event,
-                            transition=transition_seconds,
-                        )
-                        last_apply_time = now_mono
-
+            # Engine runs its event loop in a background task.
+            # This task waits for the stop signal (from external stop_scene()
+            # or from consumer.on_unavailable_timeout setting stop_event).
+            await stop_event.wait()
         finally:
-            # Clean up handler
             handler.cleanup()
-            # Release audio entity claim
-            self.hass.data.get(DOMAIN, {}).pop(active_audio_key, None)
-            # Always unsubscribe the audio state listener
-            if scene_state.audio_unsub:
-                scene_state.audio_unsub()
-                scene_state.audio_unsub = None
-            # Deactivate T1 Strip music sync for on-device entities
+            await engine.stop()
+            scene_state.audio_engine = None
+            # Deactivate T1 Strip music sync
             for eid in on_device_entities:
                 await self._deactivate_music_sync(eid)
             # Deactivate generic on-device audio mode
@@ -2121,10 +1814,10 @@ class DynamicSceneManager:
                     eid, entity_audio_config[eid],
                     CONF_AUDIO_OFF_SERVICE, CONF_AUDIO_OFF_SERVICE_DATA,
                 )
-            # Restore on-device entities so they're no longer marked as paused
+            # Restore on-device entities
             scene_state.externally_paused_entities -= on_device_all
 
-        # Handle scene end behavior (skip if externally stopped via stop_scene)
+        # Handle scene end behavior (skip if externally stopped)
         if stop_event.is_set():
             return
         scene_state_final = self._scene_states.get(scene_id)

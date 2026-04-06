@@ -80,6 +80,7 @@
     "effect_detection_mode_label": "Detection mode",
     "effect_speed_modulation_label": "Speed modulation",
     "effect_brightness_modulation_label": "Brightness modulation",
+    "effect_silence_behavior_label": "Silence behavior",
     "audio_entity_label": "Audio sensor entity",
     "audio_tier_rich": "Beat sync",
     "audio_sensor_unavailable": "Audio sensor unavailable",
@@ -225,7 +226,9 @@
     "audio_on_service_label": "Activate service (e.g., light.turn_on)",
     "audio_on_service_data_label": "Activate service data (JSON)",
     "audio_off_service_label": "Deactivate service",
-    "audio_off_service_data_label": "Deactivate service data (JSON)"
+    "audio_off_service_data_label": "Deactivate service data (JSON)",
+    "default_audio_sensor_title": "Default audio sensor",
+    "default_audio_sensor_subtitle": "Auto-populates audio sensor when creating presets or activating bult-in presets"
   },
   "instances": {
     "section_title": "Zigbee integrations",
@@ -421,7 +424,13 @@
     "audio_color_advance_label": "Color advance",
     "audio_color_advance_on_onset": "Color cycle",
     "audio_color_advance_continuous": "Continuous",
-    "audio_brightness_response_label": "Brightness response",
+    "audio_brightness_curve_label": "Brightness curve",
+    "audio_brightness_curve_disabled": "Disabled",
+    "audio_brightness_curve_linear": "Linear",
+    "audio_brightness_curve_logarithmic": "Logarithmic",
+    "audio_brightness_curve_exponential": "Exponential",
+    "audio_brightness_min_label": "Brightness min",
+    "audio_brightness_max_label": "Brightness max",
     "audio_overrides_timing_note": "When audio reactive is enabled, transition time and hold time are controlled by the audio signal.",
     "audio_mode_on_onset": "Color cycle",
     "audio_mode_continuous": "Continuous",
@@ -433,7 +442,11 @@
     "audio_detection_bass_energy": "Bass energy (rhythmic music)",
     "audio_frequency_zone_label": "Frequency zone distribution",
     "audio_frequency_zone_helper": "Requires 3+ lights",
-    "audio_silence_degradation_label": "Silence degradation",
+    "audio_silence_behavior_label": "Silence behavior",
+    "audio_silence_hold": "Hold last color",
+    "audio_silence_slow_cycle": "Slow cycle",
+    "audio_silence_decay_min": "Decay to min",
+    "audio_silence_decay_mid": "Decay to mid",
     "audio_prediction_aggressiveness_label": "Prediction aggressiveness",
     "audio_latency_compensation_label": "Latency compensation",
     "audio_detection_complex_domain": "Complex domain (phase + magnitude)",
@@ -503,6 +516,7 @@
     "curve_logarithmic": "Logarithmic",
     "curve_exponential": "Exponential",
     "range_min_label": "Range min",
-    "range_max_label": "Range max"
+    "range_max_label": "Range max",
+    "audio_modulation_required": "At least one modulation mode (speed or brightness) must be enabled when audio-reactive is on."
   }
 }

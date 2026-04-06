@@ -60,7 +60,8 @@ from ..const import (
     DEFAULT_AUDIO_FREQUENCY_ZONE,
     DEFAULT_AUDIO_PREDICTION_AGGRESSIVENESS,
     DEFAULT_AUDIO_SENSITIVITY,
-    DEFAULT_AUDIO_SILENCE_DEGRADATION,
+    AUDIO_SILENCE_SLOW_CYCLE,
+    DEFAULT_AUDIO_RESPONSE_CURVE,
     DEFAULT_AUDIO_TRANSITION_SPEED,
     DEFAULT_DYNAMIC_SCENE_HOLD_TIME,
     DEFAULT_DYNAMIC_SCENE_TRANSITION_TIME,
@@ -102,6 +103,8 @@ from ..const import (
     SEGMENT_MODE_GRADIENT,
     VALID_AUDIO_COLOR_ADVANCE,
     VALID_AUDIO_DETECTION_MODES,
+    VALID_AUDIO_RESPONSE_CURVES,
+    VALID_AUDIO_SILENCE_BEHAVIORS,
     VALID_CCT_MODES,
     VALID_DISTRIBUTION_MODES,
     VALID_MUSIC_SYNC_EFFECTS,
@@ -550,7 +553,15 @@ SERVICE_START_DYNAMIC_SCENE_SCHEMA = vol.Schema(
         vol.Optional("audio_sensitivity", default=DEFAULT_AUDIO_SENSITIVITY): vol.All(
             vol.Coerce(int), vol.Range(min=MIN_AUDIO_SENSITIVITY, max=MAX_AUDIO_SENSITIVITY)
         ),
-        vol.Optional("audio_brightness_response", default=True): cv.boolean,
+        vol.Optional("audio_brightness_curve", default=DEFAULT_AUDIO_RESPONSE_CURVE): vol.Any(
+            vol.In(VALID_AUDIO_RESPONSE_CURVES), None,
+        ),
+        vol.Optional("audio_brightness_min", default=30): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=100),
+        ),
+        vol.Optional("audio_brightness_max", default=100): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=100),
+        ),
         vol.Optional("audio_color_advance", default=AUDIO_COLOR_ADVANCE_ON_ONSET): vol.In(
             VALID_AUDIO_COLOR_ADVANCE
         ),
@@ -562,7 +573,9 @@ SERVICE_START_DYNAMIC_SCENE_SCHEMA = vol.Schema(
             VALID_AUDIO_DETECTION_MODES
         ),
         vol.Optional("audio_frequency_zone", default=DEFAULT_AUDIO_FREQUENCY_ZONE): cv.boolean,
-        vol.Optional("audio_silence_degradation", default=DEFAULT_AUDIO_SILENCE_DEGRADATION): cv.boolean,
+        vol.Optional("audio_silence_behavior", default=AUDIO_SILENCE_SLOW_CYCLE): vol.In(
+            VALID_AUDIO_SILENCE_BEHAVIORS
+        ),
         vol.Optional("audio_color_by_frequency", default=False): cv.boolean,
         vol.Optional("audio_rolloff_brightness", default=False): cv.boolean,
         vol.Optional("audio_prediction_aggressiveness", default=DEFAULT_AUDIO_PREDICTION_AGGRESSIVENESS): vol.All(

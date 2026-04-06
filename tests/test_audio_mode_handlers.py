@@ -37,9 +37,9 @@ class TestDynamicSceneAudioFields:
         scene = _make_scene()
         assert scene.audio_frequency_zone is False
 
-    def test_default_silence_degradation(self):
+    def test_default_silence_behavior(self):
         scene = _make_scene()
-        assert scene.audio_silence_degradation is True
+        assert scene.audio_silence_behavior == "slow_cycle"
 
     def test_default_prediction_aggressiveness(self):
         scene = _make_scene()
@@ -89,40 +89,49 @@ from custom_components.aqara_advanced_lighting.audio_mode_handlers import (
 )
 
 
+def _mock_scene_state(brightness_curve="linear", brightness_min=30, brightness_max=100, **extra):
+    """Create a mock scene_state with brightness curve config."""
+    scene_state = MagicMock()
+    scene_state.scene.audio_brightness_curve = brightness_curve
+    scene_state.scene.audio_brightness_min = brightness_min
+    scene_state.scene.audio_brightness_max = brightness_max
+    for k, v in extra.items():
+        setattr(scene_state.scene, k, v)
+    return scene_state
+
+
 class TestOnsetHandler:
     def test_handle_onset_advances_colors(self):
         manager = MagicMock()
         handler = OnsetHandler(manager)
-        scene_state = MagicMock()
-        scene_state.scene.audio_brightness_response = False
+        scene_state = _mock_scene_state(brightness_curve=None)
         attrs = {"strength": 0.8, "dominant_band": "bass", "type": "beat"}
         handler.handle_onset(scene_state, attrs)
         manager._advance_colors.assert_called_once_with(scene_state)
 
-    def test_handle_energy_with_brightness_response(self):
+    def test_handle_energy_with_brightness_curve(self):
         manager = MagicMock()
         handler = OnsetHandler(manager)
-        scene_state = MagicMock()
-        scene_state.scene.audio_brightness_response = True
+        scene_state = _mock_scene_state(brightness_curve="linear", brightness_min=30, brightness_max=100)
         handler.handle_energy(scene_state, 0.6)
-        assert scene_state.brightness_modifier == 0.6
+        # linear curve: 0.6 maps to 30 + 0.6*(100-30) = 72% → 0.72
+        assert abs(scene_state.brightness_modifier - 0.72) < 0.01
 
     def test_handle_energy_brightness_floor(self):
         manager = MagicMock()
         handler = OnsetHandler(manager)
-        scene_state = MagicMock()
-        scene_state.scene.audio_brightness_response = True
-        handler.handle_energy(scene_state, 0.1)
-        assert scene_state.brightness_modifier == 0.3
+        scene_state = _mock_scene_state(brightness_curve="linear", brightness_min=30, brightness_max=100)
+        handler.handle_energy(scene_state, 0.0)
+        # 0.0 → 30% → 0.3
+        assert abs(scene_state.brightness_modifier - 0.3) < 0.01
 
-    def test_handle_energy_no_brightness_response(self):
+    def test_handle_energy_no_brightness_curve(self):
         manager = MagicMock()
         handler = OnsetHandler(manager)
-        scene_state = MagicMock()
-        scene_state.scene.audio_brightness_response = False
+        scene_state = _mock_scene_state(brightness_curve=None)
         scene_state.brightness_modifier = 1.0
         handler.handle_energy(scene_state, 0.8)
-        # brightness_modifier should remain unchanged when response is disabled
+        # brightness_modifier should remain unchanged when curve is None
         assert scene_state.brightness_modifier == 1.0
 
 
@@ -130,27 +139,26 @@ class TestContinuousHandler:
     def test_handle_energy_maps_palette(self):
         manager = MagicMock()
         handler = ContinuousHandler(manager)
-        scene_state = MagicMock()
+        scene_state = _mock_scene_state(brightness_curve=None)
         scene_state.scene.colors = [MagicMock()] * 5
-        scene_state.scene.audio_brightness_response = False
         scene_state.light_color_indices = [0, 0, 0]
         handler.handle_energy(scene_state, 0.5)
         assert all(i == 2 for i in scene_state.light_color_indices)
 
-    def test_handle_energy_with_brightness(self):
+    def test_handle_energy_with_brightness_curve(self):
         manager = MagicMock()
         handler = ContinuousHandler(manager)
-        scene_state = MagicMock()
+        scene_state = _mock_scene_state(brightness_curve="linear", brightness_min=30, brightness_max=100)
         scene_state.scene.colors = [MagicMock()] * 5
-        scene_state.scene.audio_brightness_response = True
         scene_state.light_color_indices = [0]
         handler.handle_energy(scene_state, 0.8)
-        assert scene_state.brightness_modifier == 0.8
+        # linear: 30 + 0.8*70 = 86% → 0.86
+        assert abs(scene_state.brightness_modifier - 0.86) < 0.01
 
     def test_handle_energy_empty_colors(self):
         manager = MagicMock()
         handler = ContinuousHandler(manager)
-        scene_state = MagicMock()
+        scene_state = _mock_scene_state(brightness_curve=None)
         scene_state.scene.colors = []
         handler.handle_energy(scene_state, 0.5)
         # Should not crash
@@ -160,17 +168,17 @@ class TestIntensityBreathingHandler:
     def test_envelope_tracks_energy(self):
         manager = MagicMock()
         handler = IntensityBreathingHandler(manager)
-        scene_state = MagicMock()
+        scene_state = _mock_scene_state(brightness_curve="linear", brightness_min=30, brightness_max=100)
         # Feed high energy repeatedly
         for _ in range(50):
             handler.handle_energy(scene_state, 1.0)
-        # Envelope should approach 1.0
+        # Envelope should approach 1.0 → brightness modifier near 1.0
         assert scene_state.brightness_modifier > 0.8
 
     def test_envelope_decays(self):
         manager = MagicMock()
         handler = IntensityBreathingHandler(manager)
-        scene_state = MagicMock()
+        scene_state = _mock_scene_state(brightness_curve="linear", brightness_min=30, brightness_max=100)
         # Pump up
         for _ in range(50):
             handler.handle_energy(scene_state, 1.0)
@@ -179,24 +187,44 @@ class TestIntensityBreathingHandler:
             handler.handle_energy(scene_state, 0.0)
         assert scene_state.brightness_modifier < 0.5
 
+    def test_breathing_without_curve_uses_legacy_bounds(self):
+        """Breathing mode should still modulate even when curve is None."""
+        manager = MagicMock()
+        handler = IntensityBreathingHandler(manager)
+        scene_state = _mock_scene_state(brightness_curve=None)
+        for _ in range(50):
+            handler.handle_energy(scene_state, 1.0)
+        # Should use legacy max(0.3, min(1.0, envelope))
+        assert scene_state.brightness_modifier > 0.8
+
 
 class TestOnsetFlashHandler:
     def test_onset_sets_flash(self):
         manager = MagicMock()
         handler = OnsetFlashHandler(manager)
-        scene_state = MagicMock()
+        scene_state = _mock_scene_state(brightness_curve="linear", brightness_min=30, brightness_max=100)
         handler.handle_onset(scene_state, {"strength": 0.9})
         assert scene_state.brightness_modifier == 1.0
 
     def test_flash_decays_on_energy(self):
         manager = MagicMock()
         handler = OnsetFlashHandler(manager)
-        scene_state = MagicMock()
+        scene_state = _mock_scene_state(brightness_curve="linear", brightness_min=30, brightness_max=100)
         handler.handle_onset(scene_state, {"strength": 0.9})
         # Several energy updates should decay the flash
         for _ in range(20):
             handler.handle_energy(scene_state, 0.3)
         # Flash should have decayed significantly
+        assert scene_state.brightness_modifier < 1.0
+
+    def test_flash_without_curve_uses_legacy_bounds(self):
+        """Flash mode should still modulate even when curve is None."""
+        manager = MagicMock()
+        handler = OnsetFlashHandler(manager)
+        scene_state = _mock_scene_state(brightness_curve=None)
+        handler.handle_onset(scene_state, {"strength": 0.9})
+        for _ in range(5):
+            handler.handle_energy(scene_state, 0.5)
         assert scene_state.brightness_modifier < 1.0
 
 
@@ -231,8 +259,7 @@ class TestBeatPredictiveHandler:
         handler = BeatPredictiveHandler(MagicMock())
         handler._confidence_threshold = 60
         handler.update_bpm(120.0, 70)  # → TRACKING
-        scene_state = MagicMock()
-        scene_state.scene.audio_brightness_response = False
+        scene_state = _mock_scene_state(brightness_curve=None)
         # Simulate 4 onset matches while tracking
         for _ in range(4):
             handler.handle_onset(scene_state, {"strength": 0.8})
@@ -242,8 +269,7 @@ class TestBeatPredictiveHandler:
     def test_reactive_mode_advances_colors(self):
         manager = MagicMock()
         handler = BeatPredictiveHandler(manager)
-        scene_state = MagicMock()
-        scene_state.scene.audio_brightness_response = False
+        scene_state = _mock_scene_state(brightness_curve=None)
         handler.handle_onset(scene_state, {"strength": 0.8})
         manager._advance_colors.assert_called_once()
 
@@ -251,8 +277,7 @@ class TestBeatPredictiveHandler:
         manager = MagicMock()
         handler = BeatPredictiveHandler(manager)
         handler._state = BeatPredictiveHandler.PREDICTIVE
-        scene_state = MagicMock()
-        scene_state.scene.audio_brightness_response = False
+        scene_state = _mock_scene_state(brightness_curve=None)
         handler.handle_onset(scene_state, {"strength": 0.8})
         manager._advance_colors.assert_not_called()
 
@@ -263,3 +288,85 @@ class TestBeatPredictiveHandler:
         handler.cleanup()
         mock_handle.cancel.assert_called_once()
         assert len(handler._pending_handles) == 0
+
+
+class TestSilenceBehavior:
+    """Test silence behavior enum in enter_silence."""
+
+    def test_silence_behavior_hold_does_not_start_cycle(self):
+        manager = MagicMock()
+        handler = OnsetHandler(manager)
+        scene_state = _mock_scene_state(audio_silence_behavior="hold")
+        import asyncio
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(handler.enter_silence(scene_state, asyncio.Event()))
+        finally:
+            loop.close()
+        assert handler._silence_task is None
+
+    def test_silence_behavior_slow_cycle_starts_cycle(self):
+        import asyncio
+        manager = MagicMock()
+        manager._advance_colors = MagicMock()
+
+        async def _fake_apply(*args, **kwargs):
+            pass
+
+        manager._apply_colors_with_offset = _fake_apply
+        handler = OnsetHandler(manager)
+        scene_state = _mock_scene_state(audio_silence_behavior="slow_cycle")
+        loop = asyncio.new_event_loop()
+        stop = asyncio.Event()
+        try:
+            loop.run_until_complete(handler.enter_silence(scene_state, stop))
+            # Give the task a moment to start
+            assert handler._silence_task is not None
+        finally:
+            if handler._silence_task and not handler._silence_task.done():
+                handler._silence_task.cancel()
+            loop.close()
+
+
+class TestBrightnessCurve:
+    """Test _apply_brightness_curve static method."""
+
+    def test_linear_curve_maps_correctly(self):
+        scene = MagicMock()
+        scene.audio_brightness_curve = "linear"
+        scene.audio_brightness_min = 30
+        scene.audio_brightness_max = 100
+        # 0.5 → 30 + 0.5*70 = 65% → 0.65
+        result = AudioModeHandler._apply_brightness_curve(scene, 0.5)
+        assert abs(result - 0.65) < 0.01
+
+    def test_disabled_returns_one(self):
+        scene = MagicMock()
+        scene.audio_brightness_curve = None
+        result = AudioModeHandler._apply_brightness_curve(scene, 0.8)
+        assert result == 1.0
+
+    def test_full_energy_maps_to_max(self):
+        scene = MagicMock()
+        scene.audio_brightness_curve = "linear"
+        scene.audio_brightness_min = 30
+        scene.audio_brightness_max = 100
+        result = AudioModeHandler._apply_brightness_curve(scene, 1.0)
+        assert abs(result - 1.0) < 0.01
+
+    def test_zero_energy_maps_to_min(self):
+        scene = MagicMock()
+        scene.audio_brightness_curve = "linear"
+        scene.audio_brightness_min = 30
+        scene.audio_brightness_max = 100
+        result = AudioModeHandler._apply_brightness_curve(scene, 0.0)
+        assert abs(result - 0.3) < 0.01
+
+    def test_exponential_curve(self):
+        scene = MagicMock()
+        scene.audio_brightness_curve = "exponential"
+        scene.audio_brightness_min = 10
+        scene.audio_brightness_max = 100
+        # 0.5 → exponential: 0.25 → 10 + 0.25*90 = 32.5% → 0.325
+        result = AudioModeHandler._apply_brightness_curve(scene, 0.5)
+        assert abs(result - 0.325) < 0.01

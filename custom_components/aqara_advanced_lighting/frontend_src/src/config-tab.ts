@@ -10,7 +10,7 @@
  *   - 'global-preferences-changed'  partial prefs object
  *   - 'toast'                       { message }
  */
-import { LitElement, html, PropertyValues } from 'lit';
+import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { baseStyles, sectionStyles, configStyles, sharedFormStyles } from './styles/index';
 import { localize } from './editor-constants';
@@ -42,6 +42,7 @@ export class AqaraConfigTab extends LitElement {
   @property({ attribute: false }) z2mInstances: Z2MInstance[] = [];
   @property({ attribute: false }) softwareTransitionEntities: string[] = [];
   @property({ attribute: false }) entityAudioConfig: Record<string, EntityAudioConfig> = {};
+  @property({ type: String }) audioOverrideEntity = '';
 
   // --- Internal state (owned by this component) ---
   @state() private _localCurvature = 1.0;
@@ -55,6 +56,7 @@ export class AqaraConfigTab extends LitElement {
 
   static styles = [
     baseStyles, sectionStyles, configStyles, sharedFormStyles,
+    css`:host { overflow-y: visible; scrollbar-gutter: auto; }`,
   ];
 
   // --- Localize helper ---
@@ -90,6 +92,14 @@ export class AqaraConfigTab extends LitElement {
   private _fireGlobalPreferencesChanged(prefs: Record<string, unknown>): void {
     this.dispatchEvent(new CustomEvent('global-preferences-changed', {
       detail: prefs,
+      bubbles: true,
+      composed: true,
+    }));
+  }
+
+  private _handleAudioOverrideEntityChange(e: CustomEvent): void {
+    this.dispatchEvent(new CustomEvent('audio-override-entity-changed', {
+      detail: e.detail,
       bubbles: true,
       composed: true,
     }));
@@ -899,6 +909,28 @@ export class AqaraConfigTab extends LitElement {
               </div>
             ` : ''}
           </div>
+        </div>
+      </ha-expansion-panel>
+
+      <!-- Default Audio Sensor Section -->
+      <ha-expansion-panel
+        outlined
+        .expanded=${this.collapsed['default_audio_sensor'] === undefined ? false : !this.collapsed['default_audio_sensor']}
+        @expanded-changed=${(e: CustomEvent) => this._handleExpansionChange('default_audio_sensor', e)}
+      >
+        <div slot="header" class="section-header">
+          <div>
+            <div class="section-title">${this._localize('config.default_audio_sensor_title') || 'Default Audio Sensor'}</div>
+            <div class="section-subtitle">${this._localize('config.default_audio_sensor_subtitle') || 'Auto-populates audio sensor when creating presets'}</div>
+          </div>
+        </div>
+        <div class="section-content" style="display: block; padding: 16px;">
+          <ha-selector
+            .hass=${this.hass}
+            .selector=${{ entity: { domain: 'binary_sensor' } }}
+            .value=${this.audioOverrideEntity}
+            @value-changed=${this._handleAudioOverrideEntityChange}
+          ></ha-selector>
         </div>
       </ha-expansion-panel>
 

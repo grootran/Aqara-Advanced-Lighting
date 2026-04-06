@@ -18,6 +18,7 @@ class MockConsumer(AudioConsumer):
         self.events_received: list[dict] = []
         self.silence_entered = False
         self.silence_exited = False
+        self.sensor_available = False
 
     async def on_audio_events(self, events: dict) -> None:
         self.events_received.append(events)
@@ -30,6 +31,9 @@ class MockConsumer(AudioConsumer):
 
     async def on_unavailable_timeout(self) -> None:
         pass
+
+    async def on_sensor_available(self) -> None:
+        self.sensor_available = True
 
 
 class TestAudioEngineConfig:
@@ -80,3 +84,63 @@ class TestAudioEngineClaim:
         key_scene = AudioEngine._make_claim_key("binary_sensor.beat", "scene")
         key_effect = AudioEngine._make_claim_key("binary_sensor.beat", "effect")
         assert key_scene != key_effect
+
+
+import logging
+
+
+class TestSubscriptionValidation:
+    """Test that missing sensors produce warnings."""
+
+    def test_warns_on_missing_requested_spectral(self, caplog):
+        """Engine should warn when spectral sensors aren't found."""
+        config = AudioEngineConfig(
+            audio_entity="binary_sensor.beat",
+            consumer_type="scene",
+            subscribe_spectral=True,
+        )
+        engine = AudioEngine.__new__(AudioEngine)
+        engine.config = config
+        engine._companions = {}
+
+        with caplog.at_level(logging.WARNING):
+            subscribe, role_map = engine._build_subscriptions()
+
+        assert "centroid" in caplog.text
+        assert "rolloff" in caplog.text
+
+    def test_warns_on_missing_beat_tracking(self, caplog):
+        """Engine should warn when beat_confidence sensor isn't found."""
+        config = AudioEngineConfig(
+            audio_entity="binary_sensor.beat",
+            consumer_type="scene",
+            subscribe_beat_tracking=True,
+        )
+        engine = AudioEngine.__new__(AudioEngine)
+        engine.config = config
+        engine._companions = {}
+
+        with caplog.at_level(logging.WARNING):
+            engine._build_subscriptions()
+
+        assert "beat_confidence" in caplog.text
+
+    def test_no_warning_when_sensors_present(self, caplog):
+        """No warning when requested sensors exist."""
+        config = AudioEngineConfig(
+            audio_entity="binary_sensor.beat",
+            consumer_type="scene",
+            subscribe_spectral=True,
+        )
+        engine = AudioEngine.__new__(AudioEngine)
+        engine.config = config
+        engine._companions = {
+            "centroid": "sensor.centroid",
+            "rolloff": "sensor.rolloff",
+        }
+
+        with caplog.at_level(logging.WARNING):
+            engine._build_subscriptions()
+
+        assert "centroid" not in caplog.text
+        assert "rolloff" not in caplog.text

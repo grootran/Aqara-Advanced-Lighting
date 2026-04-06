@@ -8,7 +8,8 @@ import { css } from 'lit';
  * Covers: .form-row, .form-row-pair, .form-row-triple, .form-section,
  * .form-label, .form-input, .form-actions, .form-actions-left,
  * .unsaved-indicator, .preview-warning, .form-hint, .field-description,
- * .icon-field-row, .overrides-grid, .audio-toggles-grid, .audio-override-row,
+ * .icon-field-row, .overrides-grid, .audio-toggles-grid, .audio-dropdowns-grid,
+ * .audio-sliders-row, .audio-override-row,
  * .brightness-slider, and responsive breakpoints.
  */
 export const sharedFormStyles = css`
@@ -190,6 +191,20 @@ export const sharedFormStyles = css`
     padding: 0 16px 8px;
   }
 
+  .audio-dropdowns-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 0 16px 8px;
+  }
+
+  .audio-sliders-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 0 16px 8px;
+  }
+
   .audio-toggles-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -215,6 +230,14 @@ export const sharedFormStyles = css`
     }
 
     .audio-override-row {
+      grid-template-columns: 1fr;
+    }
+
+    .audio-dropdowns-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .audio-sliders-row {
       grid-template-columns: 1fr;
     }
 

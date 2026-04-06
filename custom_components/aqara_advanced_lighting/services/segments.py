@@ -364,7 +364,7 @@ async def handle_create_gradient(hass: HomeAssistant, call: ServiceCall) -> None
                 "Detaching %s from dynamic scene before applying gradient",
                 entity_id,
             )
-            dsm.detach_entity(entity_id)
+            await dsm.detach_entity(entity_id)
 
         # Ensure light is on if requested
         await _ensure_light_on(hass, entity_id, turn_on)
@@ -553,7 +553,7 @@ async def handle_create_blocks(hass: HomeAssistant, call: ServiceCall) -> None:
             _LOGGER.debug(
                 "Detaching %s from dynamic scene before applying blocks", entity_id
             )
-            dsm.detach_entity(entity_id)
+            await dsm.detach_entity(entity_id)
 
         # Ensure light is on if requested
         await _ensure_light_on(hass, entity_id, turn_on)

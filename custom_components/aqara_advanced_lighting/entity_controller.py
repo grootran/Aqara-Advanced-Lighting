@@ -447,10 +447,15 @@ class EntityController:
             if state_mgr and state_mgr.is_effect_active(entity_id):
                 device_state = state_mgr.get_device_state(entity_id)
                 if device_state and getattr(device_state, "audio_engine", None):
-                    await device_state.audio_engine.stop()
-                    await device_state.audio_modulator.stop()
-                    device_state.audio_engine = None
-                    device_state.audio_modulator = None
+                    stopped_engine = device_state.audio_engine
+                    stopped_modulator = device_state.audio_modulator
+                    await stopped_engine.stop()
+                    await stopped_modulator.stop()
+                    # Clear from ALL entities sharing this engine
+                    for eid, state in state_mgr.iter_device_states():
+                        if state.audio_engine is stopped_engine:
+                            state.audio_engine = None
+                            state.audio_modulator = None
                 state_mgr.mark_effect_inactive(entity_id)
 
             # Detach from dynamic scene (scene continues for other entities)
@@ -458,7 +463,7 @@ class EntityController:
                 DATA_DYNAMIC_SCENE_MANAGER
             )
             if dsm and dsm.is_scene_running(entity_id):
-                dsm.detach_entity(entity_id)
+                await dsm.detach_entity(entity_id)
 
             # Stop or pause CCT sequence
             cct: CCTSequenceManager | None = instance_data.get(
@@ -930,7 +935,7 @@ class EntityController:
                 DATA_DYNAMIC_SCENE_MANAGER
             )
             if dsm and dsm.is_scene_running(entity_id):
-                dsm.detach_entity(entity_id)
+                await dsm.detach_entity(entity_id)
 
             cct: CCTSequenceManager | None = instance_data.get(
                 DATA_CCT_SEQUENCE_MANAGER

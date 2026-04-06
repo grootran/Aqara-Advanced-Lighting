@@ -30,6 +30,7 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   @property({ type: Array }) public selectedEntities: string[] = [];
   @property({ type: Boolean }) public previewActive = false;
   @property({ type: Array }) public colorHistory: XYColor[] = [];
+  @property({ type: String }) public defaultAudioEntity = '';
   @property({ type: Object }) public draft?: DynamicSceneEditorDraft;
 
   @state() private _name = '';
@@ -55,12 +56,14 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   @state() private _audioEnabled = false;
   @state() private _audioEntity = '';
   @state() private _audioSensitivity = 50;
-  @state() private _audioBrightnessResponse = true;
+  @state() private _audioBrightnessCurve: 'linear' | 'logarithmic' | 'exponential' | null = 'linear';
+  @state() private _audioBrightnessMin = 30;
+  @state() private _audioBrightnessMax = 100;
   @state() private _audioColorAdvance: 'on_onset' | 'continuous' | 'beat_predictive' | 'intensity_breathing' | 'onset_flash' = 'on_onset';
   @state() private _audioTransitionSpeed = 50;
   @state() private _audioDetectionMode: 'spectral_flux' | 'bass_energy' | 'complex_domain' = 'spectral_flux';
   @state() private _audioFrequencyZone = false;
-  @state() private _audioSilenceDegradation = true;
+  @state() private _audioSilenceBehavior: 'hold' | 'slow_cycle' | 'decay_min' | 'decay_mid' = 'slow_cycle';
   @state() private _audioPredictionAggressiveness = 50;
   @state() private _audioLatencyCompensationMs = 150;
   @state() private _audioColorByFrequency = false;
@@ -69,38 +72,38 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   // Audio preset definitions (UI-only, not stored in model)
   private static readonly AUDIO_PRESETS: Record<string, {
     color_advance: string; detection_mode: string; sensitivity: number;
-    transition_speed: number; brightness_response: boolean; frequency_zone: boolean;
-    color_by_frequency: boolean; rolloff_brightness: boolean; silence_degradation: boolean;
+    transition_speed: number; brightness_curve: string | null; brightness_min: number; brightness_max: number; frequency_zone: boolean;
+    color_by_frequency: boolean; rolloff_brightness: boolean; silence_behavior: string;
     prediction_aggressiveness: number; latency_compensation_ms: number;
   }> = {
     beat: {
       color_advance: 'on_onset', detection_mode: 'spectral_flux', sensitivity: 60,
-      transition_speed: 80, brightness_response: true, frequency_zone: false,
-      color_by_frequency: false, rolloff_brightness: false, silence_degradation: true,
+      transition_speed: 80, brightness_curve: 'linear', brightness_min: 30, brightness_max: 100, frequency_zone: false,
+      color_by_frequency: false, rolloff_brightness: false, silence_behavior: 'slow_cycle',
       prediction_aggressiveness: 50, latency_compensation_ms: 150,
     },
     ambient: {
       color_advance: 'intensity_breathing', detection_mode: 'spectral_flux', sensitivity: 50,
-      transition_speed: 20, brightness_response: true, frequency_zone: false,
-      color_by_frequency: false, rolloff_brightness: true, silence_degradation: true,
+      transition_speed: 20, brightness_curve: 'logarithmic', brightness_min: 20, brightness_max: 80, frequency_zone: false,
+      color_by_frequency: false, rolloff_brightness: true, silence_behavior: 'slow_cycle',
       prediction_aggressiveness: 50, latency_compensation_ms: 150,
     },
     concert: {
       color_advance: 'beat_predictive', detection_mode: 'complex_domain', sensitivity: 50,
-      transition_speed: 50, brightness_response: true, frequency_zone: true,
-      color_by_frequency: true, rolloff_brightness: false, silence_degradation: true,
+      transition_speed: 50, brightness_curve: 'linear', brightness_min: 30, brightness_max: 100, frequency_zone: true,
+      color_by_frequency: true, rolloff_brightness: false, silence_behavior: 'slow_cycle',
       prediction_aggressiveness: 70, latency_compensation_ms: 150,
     },
     chill: {
       color_advance: 'continuous', detection_mode: 'spectral_flux', sensitivity: 40,
-      transition_speed: 30, brightness_response: true, frequency_zone: false,
-      color_by_frequency: false, rolloff_brightness: false, silence_degradation: true,
+      transition_speed: 30, brightness_curve: 'logarithmic', brightness_min: 20, brightness_max: 80, frequency_zone: false,
+      color_by_frequency: false, rolloff_brightness: false, silence_behavior: 'slow_cycle',
       prediction_aggressiveness: 50, latency_compensation_ms: 150,
     },
     club: {
       color_advance: 'onset_flash', detection_mode: 'bass_energy', sensitivity: 70,
-      transition_speed: 95, brightness_response: true, frequency_zone: false,
-      color_by_frequency: false, rolloff_brightness: false, silence_degradation: false,
+      transition_speed: 95, brightness_curve: 'exponential', brightness_min: 10, brightness_max: 100, frequency_zone: false,
+      color_by_frequency: false, rolloff_brightness: false, silence_behavior: 'hold',
       prediction_aggressiveness: 50, latency_compensation_ms: 150,
     },
   };
@@ -111,11 +114,13 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
           this._audioDetectionMode === p.detection_mode &&
           this._audioSensitivity === p.sensitivity &&
           this._audioTransitionSpeed === p.transition_speed &&
-          this._audioBrightnessResponse === p.brightness_response &&
+          this._audioBrightnessCurve === p.brightness_curve &&
+          this._audioBrightnessMin === p.brightness_min &&
+          this._audioBrightnessMax === p.brightness_max &&
           this._audioFrequencyZone === p.frequency_zone &&
           this._audioColorByFrequency === p.color_by_frequency &&
           this._audioRolloffBrightness === p.rolloff_brightness &&
-          this._audioSilenceDegradation === p.silence_degradation &&
+          this._audioSilenceBehavior === p.silence_behavior &&
           this._audioPredictionAggressiveness === p.prediction_aggressiveness &&
           this._audioLatencyCompensationMs === p.latency_compensation_ms) {
         return name;
@@ -417,12 +422,14 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._audioEnabled = !!(preset.audio_entity || preset.audio_color_advance);
     this._audioEntity = preset.audio_entity || '';
     this._audioSensitivity = preset.audio_sensitivity ?? 50;
-    this._audioBrightnessResponse = preset.audio_brightness_response ?? true;
+    this._audioBrightnessCurve = (preset.audio_brightness_curve !== undefined ? preset.audio_brightness_curve : 'linear') as typeof this._audioBrightnessCurve;
+    this._audioBrightnessMin = preset.audio_brightness_min ?? 30;
+    this._audioBrightnessMax = preset.audio_brightness_max ?? 100;
     this._audioColorAdvance = preset.audio_color_advance ?? 'on_onset';
     this._audioTransitionSpeed = preset.audio_transition_speed ?? 50;
     this._audioDetectionMode = preset.audio_detection_mode ?? 'spectral_flux';
     this._audioFrequencyZone = preset.audio_frequency_zone ?? false;
-    this._audioSilenceDegradation = preset.audio_silence_degradation ?? true;
+    this._audioSilenceBehavior = (preset.audio_silence_behavior ?? 'slow_cycle') as typeof this._audioSilenceBehavior;
     this._audioPredictionAggressiveness = preset.audio_prediction_aggressiveness ?? 50;
     this._audioLatencyCompensationMs = preset.audio_latency_compensation_ms ?? 150;
     this._audioColorByFrequency = preset.audio_color_by_frequency ?? false;
@@ -455,12 +462,14 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
       audioEnabled: this._audioEnabled,
       audioEntity: this._audioEntity,
       audioSensitivity: this._audioSensitivity,
-      audioBrightnessResponse: this._audioBrightnessResponse,
+      audioBrightnessCurve: this._audioBrightnessCurve,
+      audioBrightnessMin: this._audioBrightnessMin,
+      audioBrightnessMax: this._audioBrightnessMax,
       audioColorAdvance: this._audioColorAdvance,
       audioTransitionSpeed: this._audioTransitionSpeed,
       audioDetectionMode: this._audioDetectionMode,
       audioFrequencyZone: this._audioFrequencyZone,
-      audioSilenceDegradation: this._audioSilenceDegradation,
+      audioSilenceBehavior: this._audioSilenceBehavior,
       audioPredictionAggressiveness: this._audioPredictionAggressiveness,
       audioLatencyCompensationMs: this._audioLatencyCompensationMs,
       audioColorByFrequency: this._audioColorByFrequency,
@@ -484,12 +493,14 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._audioEnabled = false;
     this._audioEntity = '';
     this._audioSensitivity = 50;
-    this._audioBrightnessResponse = true;
+    this._audioBrightnessCurve = 'linear';
+    this._audioBrightnessMin = 30;
+    this._audioBrightnessMax = 100;
     this._audioColorAdvance = 'on_onset';
     this._audioTransitionSpeed = 50;
     this._audioDetectionMode = 'spectral_flux';
     this._audioFrequencyZone = false;
-    this._audioSilenceDegradation = true;
+    this._audioSilenceBehavior = 'slow_cycle';
     this._audioPredictionAggressiveness = 50;
     this._audioLatencyCompensationMs = 150;
     this._audioColorByFrequency = false;
@@ -513,12 +524,14 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._audioEnabled = draft.audioEnabled ?? false;
     this._audioEntity = draft.audioEntity ?? '';
     this._audioSensitivity = draft.audioSensitivity ?? 50;
-    this._audioBrightnessResponse = draft.audioBrightnessResponse ?? true;
+    this._audioBrightnessCurve = (draft.audioBrightnessCurve !== undefined ? draft.audioBrightnessCurve : 'linear') as typeof this._audioBrightnessCurve;
+    this._audioBrightnessMin = draft.audioBrightnessMin ?? 30;
+    this._audioBrightnessMax = draft.audioBrightnessMax ?? 100;
     this._audioColorAdvance = draft.audioColorAdvance ?? 'on_onset';
     this._audioTransitionSpeed = draft.audioTransitionSpeed ?? 50;
     this._audioDetectionMode = draft.audioDetectionMode ?? 'spectral_flux';
     this._audioFrequencyZone = draft.audioFrequencyZone ?? false;
-    this._audioSilenceDegradation = draft.audioSilenceDegradation ?? true;
+    this._audioSilenceBehavior = (draft.audioSilenceBehavior ?? 'slow_cycle') as typeof this._audioSilenceBehavior;
     this._audioPredictionAggressiveness = draft.audioPredictionAggressiveness ?? 50;
     this._audioLatencyCompensationMs = draft.audioLatencyCompensationMs ?? 150;
     this._audioColorByFrequency = draft.audioColorByFrequency ?? false;
@@ -595,6 +608,9 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
 
   private _handleAudioEnabledChange(e: CustomEvent): void {
     this._audioEnabled = e.detail.value ?? false;
+    if (this._audioEnabled && !this._audioEntity && this.defaultAudioEntity) {
+      this._audioEntity = this.defaultAudioEntity;
+    }
     this._hasUserInteraction = true;
   }
 
@@ -608,8 +624,19 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._hasUserInteraction = true;
   }
 
-  private _handleAudioBrightnessResponseChange(e: CustomEvent): void {
-    this._audioBrightnessResponse = e.detail.value ?? true;
+  private _handleAudioBrightnessCurveChange(e: CustomEvent): void {
+    const val = e.detail.value;
+    this._audioBrightnessCurve = val === 'disabled' ? null : ((val || 'linear') as 'linear' | 'logarithmic' | 'exponential');
+    this._hasUserInteraction = true;
+  }
+
+  private _handleAudioBrightnessMinChange(e: CustomEvent): void {
+    this._audioBrightnessMin = e.detail.value ?? 30;
+    this._hasUserInteraction = true;
+  }
+
+  private _handleAudioBrightnessMaxChange(e: CustomEvent): void {
+    this._audioBrightnessMax = e.detail.value ?? 100;
     this._hasUserInteraction = true;
   }
 
@@ -627,11 +654,13 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._audioDetectionMode = p.detection_mode as any;
     this._audioSensitivity = p.sensitivity;
     this._audioTransitionSpeed = p.transition_speed;
-    this._audioBrightnessResponse = p.brightness_response;
+    this._audioBrightnessCurve = p.brightness_curve as typeof this._audioBrightnessCurve;
+    this._audioBrightnessMin = p.brightness_min;
+    this._audioBrightnessMax = p.brightness_max;
     this._audioFrequencyZone = p.frequency_zone;
     this._audioColorByFrequency = p.color_by_frequency;
     this._audioRolloffBrightness = p.rolloff_brightness;
-    this._audioSilenceDegradation = p.silence_degradation;
+    this._audioSilenceBehavior = p.silence_behavior as typeof this._audioSilenceBehavior;
     this._audioPredictionAggressiveness = p.prediction_aggressiveness;
     this._audioLatencyCompensationMs = p.latency_compensation_ms;
     this._hasUserInteraction = true;
@@ -647,8 +676,8 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     this._hasUserInteraction = true;
   }
 
-  private _handleAudioSilenceDegradationChange(e: CustomEvent): void {
-    this._audioSilenceDegradation = e.detail.value ?? true;
+  private _handleAudioSilenceBehaviorChange(e: CustomEvent): void {
+    this._audioSilenceBehavior = e.detail.value || 'slow_cycle';
     this._hasUserInteraction = true;
   }
 
@@ -803,12 +832,14 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     if (this._audioEnabled && this._audioEntity) {
       data.audio_entity = this._audioEntity;
       data.audio_sensitivity = this._audioSensitivity;
-      data.audio_brightness_response = this._audioBrightnessResponse;
+      data.audio_brightness_curve = this._audioBrightnessCurve;
+      data.audio_brightness_min = this._audioBrightnessMin;
+      data.audio_brightness_max = this._audioBrightnessMax;
       data.audio_color_advance = this._audioColorAdvance;
       data.audio_transition_speed = this._audioTransitionSpeed;
       data.audio_detection_mode = this._audioDetectionMode;
       data.audio_frequency_zone = this._audioFrequencyZone;
-      data.audio_silence_degradation = this._audioSilenceDegradation;
+      data.audio_silence_behavior = this._audioSilenceBehavior;
       data.audio_prediction_aggressiveness = this._audioPredictionAggressiveness;
       data.audio_latency_compensation_ms = this._audioLatencyCompensationMs;
       data.audio_color_by_frequency = this._audioColorByFrequency;
@@ -1380,18 +1411,64 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
               </div>
             </div>
 
-            <!-- Toggles: 3-per-row desktop, 2-per-row mobile -->
-            <div class="audio-toggles-grid">
-              <div class="form-section boolean-left">
-                <span class="form-label">${this._localize('dynamic_scene.audio_brightness_response_label') || 'Brightness response'}</span>
+            <!-- Dropdowns: brightness curve and silence behavior -->
+            <div class="audio-dropdowns-grid">
+              <div class="form-section">
+                <span class="form-label">${this._localize('dynamic_scene.audio_brightness_curve_label') || 'Brightness curve'}</span>
                 <ha-selector
                   .hass=${this.hass}
                   .disabled=${!(this._audioColorAdvance === 'on_onset' || this._audioColorAdvance === 'continuous' || this._audioColorAdvance === 'beat_predictive')}
-                  .selector=${{ boolean: {} }}
-                  .value=${this._audioBrightnessResponse}
-                  @value-changed=${this._handleAudioBrightnessResponseChange}
+                  .selector=${{ select: { options: [
+                    { value: 'disabled', label: this._localize('dynamic_scene.audio_brightness_curve_disabled') || 'Disabled' },
+                    { value: 'linear', label: this._localize('dynamic_scene.audio_brightness_curve_linear') || 'Linear' },
+                    { value: 'logarithmic', label: this._localize('dynamic_scene.audio_brightness_curve_logarithmic') || 'Logarithmic' },
+                    { value: 'exponential', label: this._localize('dynamic_scene.audio_brightness_curve_exponential') || 'Exponential' },
+                  ], mode: 'dropdown' } }}
+                  .value=${this._audioBrightnessCurve ?? 'disabled'}
+                  @value-changed=${this._handleAudioBrightnessCurveChange}
                 ></ha-selector>
               </div>
+              <div class="form-section">
+                <span class="form-label">${this._localize('dynamic_scene.audio_silence_behavior_label') || 'Silence behavior'}</span>
+                <ha-selector
+                  .hass=${this.hass}
+                  .selector=${{ select: { options: [
+                    { value: 'hold', label: this._localize('dynamic_scene.audio_silence_hold') || 'Hold last color' },
+                    { value: 'slow_cycle', label: this._localize('dynamic_scene.audio_silence_slow_cycle') || 'Slow cycle' },
+                    { value: 'decay_min', label: this._localize('dynamic_scene.audio_silence_decay_min') || 'Decay to min' },
+                    { value: 'decay_mid', label: this._localize('dynamic_scene.audio_silence_decay_mid') || 'Decay to mid' },
+                  ], mode: 'dropdown' } }}
+                  .value=${this._audioSilenceBehavior}
+                  @value-changed=${this._handleAudioSilenceBehaviorChange}
+                ></ha-selector>
+              </div>
+            </div>
+
+            ${this._audioBrightnessCurve ? html`
+            <div class="audio-sliders-row">
+              <div class="form-section">
+                <span class="form-label">${this._localize('dynamic_scene.audio_brightness_min_label') || 'Brightness min'}</span>
+                <ha-selector
+                  .hass=${this.hass}
+                  .selector=${{ number: { min: 0, max: 100, mode: 'slider', unit_of_measurement: '%' } }}
+                  .value=${this._audioBrightnessMin}
+                  @value-changed=${this._handleAudioBrightnessMinChange}
+                ></ha-selector>
+              </div>
+              <div class="form-section">
+                <span class="form-label">${this._localize('dynamic_scene.audio_brightness_max_label') || 'Brightness max'}</span>
+                <ha-selector
+                  .hass=${this.hass}
+                  .selector=${{ number: { min: 0, max: 100, mode: 'slider', unit_of_measurement: '%' } }}
+                  .value=${this._audioBrightnessMax}
+                  @value-changed=${this._handleAudioBrightnessMaxChange}
+                ></ha-selector>
+              </div>
+            </div>
+            ` : ''}
+
+            <!-- Toggles: 3-per-row desktop, 2-per-row mobile -->
+            <div class="audio-toggles-grid">
               <div class="form-section boolean-left">
                 <span class="form-label">${this._localize('dynamic_scene.audio_frequency_zone_label') || 'Frequency zone'}</span>
                 <ha-selector
@@ -1399,15 +1476,6 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
                   .selector=${{ boolean: {} }}
                   .value=${this._audioFrequencyZone}
                   @value-changed=${this._handleAudioFrequencyZoneChange}
-                ></ha-selector>
-              </div>
-              <div class="form-section boolean-left">
-                <span class="form-label">${this._localize('dynamic_scene.audio_silence_degradation_label') || 'Silence degradation'}</span>
-                <ha-selector
-                  .hass=${this.hass}
-                  .selector=${{ boolean: {} }}
-                  .value=${this._audioSilenceDegradation}
-                  @value-changed=${this._handleAudioSilenceDegradationChange}
                 ></ha-selector>
               </div>
               <div class="form-section boolean-left">

@@ -28,9 +28,15 @@ Audio-reactive mode makes your lights respond to music and sound in real time. C
   - [Beat prediction](#beat-prediction)
   - [Color by frequency](#color-by-frequency)
   - [Rolloff brightness](#rolloff-brightness)
+- [Audio-reactive effects](#audio-reactive-effects)
+  - [Effect audio parameters](#effect-audio-parameters)
+  - [Speed modulation modes](#speed-modulation-modes)
+  - [Brightness modulation modes](#brightness-modulation-modes)
+  - [Effect audio from a service call](#effect-audio-from-a-service-call)
 - [How audio detection works](#how-audio-detection-works)
 - [T1 Strip on-device audio sync](#t1-strip-on-device-audio-sync)
 - [On-device audio for other lights](#on-device-audio-for-other-lights)
+- [Sharing a sensor between scenes and effects](#sharing-a-sensor-between-scenes-and-effects)
 - [Sensor placement tips](#sensor-placement-tips)
 - [Troubleshooting](#troubleshooting)
 
@@ -355,9 +361,11 @@ data:
   audio_color_advance: on_onset
   audio_detection_mode: spectral_flux
   audio_transition_speed: 70
-  audio_brightness_response: true
+  audio_brightness_curve: linear
+  audio_brightness_min: 30
+  audio_brightness_max: 100
   audio_frequency_zone: false
-  audio_silence_degradation: true
+  audio_silence_behavior: slow_cycle
   audio_color_by_frequency: false
   audio_rolloff_brightness: false
 ```
@@ -373,9 +381,11 @@ When `audio_entity` is set, the `transition_time` and `hold_time` values are ign
 | `audio_color_advance` | string | `on_onset` | How colors advance through the palette (see color advance modes below). |
 | `audio_detection_mode` | string | `spectral_flux` | Detection algorithm: `spectral_flux` (all genres), `bass_energy` (rhythmic music), or `complex_domain` (phase+magnitude, soft onsets). |
 | `audio_transition_speed` | 1-100 | 50 | How fast colors fade between changes. Higher = faster. |
-| `audio_brightness_response` | boolean | true | When enabled, brightness pulses with the music's volume. |
+| `audio_brightness_curve` | string/null | `linear` | Response curve for brightness modulation: `linear`, `logarithmic`, `exponential`, or `null` to disable. |
+| `audio_brightness_min` | 1-100 | 30 | Minimum brightness percent when audio is quiet. |
+| `audio_brightness_max` | 1-100 | 100 | Maximum brightness percent when audio is loud. |
 | `audio_frequency_zone` | boolean | false | Auto-distribute lights across bass/mid/high frequency bands. Requires 3+ lights. |
-| `audio_silence_degradation` | boolean | true | Gradually transition to slow palette cycling during silence. |
+| `audio_silence_behavior` | string | `slow_cycle` | Behavior during silence: `slow_cycle` (gradual palette cycling), `hold` (freeze), `decay_min` (fade to minimum), `decay_mid` (fade to midpoint). |
 | `audio_prediction_aggressiveness` | 1-100 | 50 | How aggressively to predict beats (beat_predictive mode only). |
 | `audio_latency_compensation_ms` | 0-500 | 150 | Milliseconds to send commands early to compensate for Zigbee latency (beat_predictive mode only). |
 | `audio_color_by_frequency` | boolean | false | Map spectral centroid to palette position. Low frequencies select warm colors, high frequencies select cool. |
@@ -460,6 +470,72 @@ The rolloff maps to a 0.5-1.0 brightness multiplier, so lights never go below 50
 
 ---
 
+## Audio-reactive effects
+
+In addition to dynamic scenes, hardware RGB effects on T1M and T1 Strip devices can be modulated by audio data. Audio-reactive effects modulate the effect's **speed** and **brightness** independently based on live audio analysis, rather than replacing the scene's color timing like audio-reactive scenes do.
+
+### Effect audio parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `audio_entity` | entity_id | none | ESPHome audio sensor entity (`binary_sensor` or `sensor`). Setting this enables audio modulation. Only supported on T1M and T1 Strip devices. |
+| `audio_sensitivity` | 1-100 | 50 | Beat detection sensitivity on the ESP32 device. |
+| `audio_detection_mode` | string | `spectral_flux` | Detection algorithm: `spectral_flux`, `bass_energy`, or `complex_domain`. |
+| `audio_silence_behavior` | string | `decay_min` | What happens when music stops: `hold` (keep last values), `decay_min` (fade to minimum), `decay_mid` (fade to midpoint). |
+| `audio_speed_mode` | string | `continuous` | How audio drives effect speed (see speed modulation modes below). Set to `null` to disable. |
+| `audio_speed_min` | 1-100 | 1 | Minimum speed in the modulation range. |
+| `audio_speed_max` | 1-100 | 100 | Maximum speed in the modulation range. |
+| `audio_speed_curve` | string | `linear` | How sensor values map to the speed range: `linear`, `logarithmic`, or `exponential`. |
+| `audio_brightness_mode` | string | none | How audio drives brightness (see brightness modulation modes below). Omit or set to `null` to disable. |
+| `audio_brightness_min` | 1-100% | 1 | Minimum brightness in the modulation range. |
+| `audio_brightness_max` | 1-100% | 100 | Maximum brightness in the modulation range. |
+| `audio_brightness_curve` | string | `linear` | How sensor values map to the brightness range: `linear`, `logarithmic`, or `exponential`. |
+
+### Speed modulation modes
+
+| Mode | Description |
+|---|---|
+| **On onset** (`on_onset`) | Speed jumps on each detected musical event. |
+| **Continuous** (`continuous`) | Speed maps continuously to audio energy. Default when audio is enabled. |
+| **Intensity breathing** (`intensity_breathing`) | Speed follows a slow intensity envelope. |
+| **Onset flash** (`onset_flash`) | Speed spikes briefly on each onset then decays. |
+| **Off** (`null`) | Speed is not modulated by audio. |
+
+### Brightness modulation modes
+
+Brightness modulation uses the same mode options as speed modulation (On onset, Continuous, Intensity breathing, Onset flash, Off). Brightness modulation is **off by default** — enable it by setting `audio_brightness_mode` to one of the modes above.
+
+### Effect audio from a service call
+
+Call `aqara_advanced_lighting.set_dynamic_effect` with the `audio_entity` parameter to enable audio modulation:
+
+```yaml
+service: aqara_advanced_lighting.set_dynamic_effect
+target:
+  entity_id: light.aqara_ceiling_light
+data:
+  effect: "breathing"
+  speed: 50
+  color_1: [255, 0, 0]
+  color_2: [0, 0, 255]
+  audio_entity: binary_sensor.audio_reactive_audio_sensor
+  audio_sensitivity: 60
+  audio_detection_mode: spectral_flux
+  audio_silence_behavior: decay_min
+  audio_speed_mode: continuous
+  audio_speed_min: 10
+  audio_speed_max: 100
+  audio_speed_curve: linear
+  audio_brightness_mode: continuous
+  audio_brightness_min: 20
+  audio_brightness_max: 100
+  audio_brightness_curve: logarithmic
+```
+
+**Note:** Audio-reactive effects are not available for T2 bulbs. T2 devices do not support the required MQTT attributes for audio modulation.
+
+---
+
 ## How audio detection works
 
 The `esphome-audio-reactive` component performs on-device audio analysis using a dedicated FreeRTOS processing task:
@@ -520,7 +596,7 @@ The Aqara T1 Strip (`lumi.light.acn132`) has a built-in microphone and firmware-
 
 - The T1 Strip uses its own built-in microphone, while software-driven lights react to the external ESPHome sensor. They may not be perfectly in sync.
 - The T1 Strip's built-in effects (random, blink, rainbow, wave) do not use your scene's color palette. The palette only applies to software-driven lights.
-- The `audio_brightness_response` and `audio_transition_speed` parameters are not supported by the T1 Strip hardware and are ignored for on-device entities.
+- The `audio_brightness_curve` and `audio_transition_speed` parameters are not supported by the T1 Strip hardware and are ignored for on-device entities.
 
 ---
 
@@ -532,6 +608,16 @@ Lights with native audio-reactive modes (beyond the T1 Strip) can be configured 
 2. Under **On-device audio mode**, select the light entity
 3. Enter the service call to activate and deactivate the device's native audio mode
 4. When the light is part of an audio-reactive scene, the integration activates native mode instead of driving it via software
+
+---
+
+## Sharing a sensor between scenes and effects
+
+You can run an audio-reactive dynamic scene and an audio-reactive effect simultaneously using the same ESP32 sensor. The scene drives color transitions on software-controlled lights while the effect modulator adjusts speed and brightness on Aqara hardware effects — they control different aspects of your lights and work independently.
+
+**ESP32 configuration:** Each feature can specify its own detection mode and sensitivity. However, the ESP32 device has a single DSP pipeline, so it can only run one detection mode and one sensitivity at a time. When both are active, the **most recently activated** feature's settings take effect on the device. The other feature continues to operate but receives audio data processed with the newer settings.
+
+For the most predictable experience, use the same detection mode and sensitivity for both your scene presets and effect audio overrides when you plan to run them simultaneously.
 
 ---
 

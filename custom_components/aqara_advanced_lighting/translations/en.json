@@ -233,6 +233,16 @@
       "message": "Preset `{preset}` is not a valid solar preset."
     }
   },
+  "issues": {
+    "z2m_bridge_not_responding": {
+      "title": "Zigbee2MQTT bridge not responding",
+      "description": "The Zigbee2MQTT bridge has not responded after 2 minutes. Check that Zigbee2MQTT is running and that the configured base topic (`{base_topic}`) matches your Z2M setup. You can update the base topic by selecting Reconfigure in Settings > Devices & Services > Aqara Advanced Lighting."
+    },
+    "zha_not_installed": {
+      "title": "ZHA integration not available",
+      "description": "Aqara Advanced Lighting is configured to use the ZHA backend, but the ZHA integration could not be found. Install the ZHA integration or reconfigure this integration to use the Zigbee2MQTT backend via Settings > Devices & Services > Aqara Advanced Lighting > Reconfigure."
+    }
+  },
   "services": {
     "set_dynamic_effect": {
       "name": "Set dynamic effect",
@@ -756,9 +766,17 @@
           "name": "Audio transition speed",
           "description": "Speed of color transitions when driven by audio (1-100%)."
         },
-        "audio_brightness_response": {
-          "name": "Brightness response",
-          "description": "Modulate light brightness based on audio intensity."
+        "audio_brightness_curve": {
+          "name": "Brightness response curve",
+          "description": "How energy maps to brightness (linear/logarithmic/exponential, or null to disable)."
+        },
+        "audio_brightness_min": {
+          "name": "Brightness minimum",
+          "description": "Minimum brightness percent when audio is quiet (1-100)."
+        },
+        "audio_brightness_max": {
+          "name": "Brightness maximum",
+          "description": "Maximum brightness percent when audio is loud (1-100)."
         },
         "audio_detection_mode": {
           "name": "Detection mode",
@@ -768,9 +786,9 @@
           "name": "Frequency zone distribution",
           "description": "Assign different frequency bands to different lights. Requires 3 or more lights."
         },
-        "audio_silence_degradation": {
-          "name": "Silence degradation",
-          "description": "Gradually dim lights during periods of silence."
+        "audio_silence_behavior": {
+          "name": "Silence behavior",
+          "description": "Behavior when silence is detected: slow_cycle (gradual palette cycling), hold (freeze), decay_min (fade to minimum), decay_mid (fade to midpoint)."
         },
         "audio_prediction_aggressiveness": {
           "name": "Prediction aggressiveness",

@@ -2,6 +2,72 @@
 
 All notable changes to the Aqara Advanced Lighting integration will be documented in this file.
 
+## [1.3.0] - 2026-04-06
+
+### What's New
+
+Version 1.3.0 introduces audio-reactive effects for Aqara devices, allowing native device effects on T1M and T1 Strip lights to modulate their speed and brightness in sync with music. It also unifies the audio parameter model across scenes and effects, and introduces a central engine registry that prevents orphaned audio engines.
+
+### **Audio-Reactive Effects**
+
+**Native device effects that pulse, breathe, and react to music**
+
+T1M and T1 Strip lights can now run their built-in color effects (rainbow, flow, breathing, and more) with speed and brightness driven live by an ESPHome audio sensor.
+
+  - Speed and brightness modulation channels, each independently configurable
+  - 4 modulation modes per channel: continuous (tracks audio level), on-onset (triggers on beat), intensity-breathing (smooth pulsing), and onset-flash (sharp beat flash)
+  - Response curves — linear, logarithmic, and exponential — for natural-feeling modulation
+  - Configurable min/max ranges for speed and brightness modulation
+  - Silence behavior: hold last state, slow-cycle through the effect, or decay toward minimum
+  - Deadband filtering and rate limiting prevent flicker during quiet passages
+  - Waveform badge on preset icons when audio-reactive is enabled
+  - Live sensitivity slider in running-operation cards
+  - Effect audio reactive override panel with per-entity sensor and sensitivity controls
+
+### **Unified Audio Parameters**
+
+Scenes and effects now share the same richer audio parameter model:
+
+  - `audio_silence_behavior` enum replaces the old boolean toggle: `hold`, `slow_cycle`, `decay_min`, `decay_mid`
+  - `audio_brightness_curve` (linear/logarithmic/exponential) with configurable min/max replaces the boolean brightness-response toggle
+  - Existing presets are automatically migrated to the new format
+  - Default audio sensor selector moved to Device Config tab for easier discovery
+
+### **Audio Engine Reliability**
+
+  - Central `AudioEngineRegistry` tracks all active engines and resolves conflicts before starting new ones, eliminating the orphaned-engine bug where two effects on different lights sharing the same sensor would silently strand the first engine
+  - `AudioEngine` shared class now powers both scenes and effects, replacing ~430 lines of inline subscription/queue/silence code in the scene manager
+  - Sensor unavailability warning in running-operation cards when the audio entity goes offline
+
+### Improvements
+
+  - Stale devices automatically removed from the HA device registry when Z2M drops them from its device list or ZHA no longer reports them at startup
+  - Repair issues raised in Settings → System → Repairs when the configured backend is unreachable (Z2M: bridge not responding after 2 minutes; ZHA: integration not installed); auto-clear when resolved
+  - Auto-populate audio sensor in both scene editor and effect editor when the default sensor preference is set
+  - Activation overrides panel reordered: all toggles at top, parameters below
+  - Brightness override disabled automatically when effect audio-reactive is enabled
+  - Panel section descriptions updated throughout
+  - EMA filter extracted to shared `EMAFilter` class; alpha and decay constants centralised in `const.py`
+
+### Fixes
+
+  - Preserve original light state when switching between dynamic scene presets
+  - On-device audio (T1 Strip music sync, generic on-device mode) now cleaned up on scene detach
+  - Stop orphaned audio engine and modulator when an effect replaces another running audio-reactive effect
+  - Audio modulator brightness writes tagged with integration context, eliminating false pause-detection log spam
+  - Sensitivity slider no longer overflows running-operation cards on narrow layouts
+
+### Code Quality
+
+  - Shared `AudioEngine` class used by both `DynamicSceneManager` and `AudioEffectModulator`
+  - `AudioEngineRegistry` singleton initialized in `async_setup()`
+  - `AudioEffectConfig` dataclass with full preset storage support
+  - `audio_curves.py`: response curve functions and `EMAFilter` class
+  - `async_write_effect_speed()` in both MQTT and ZHA backends for live speed adjustment without effect restart
+  - 45 new tests covering engine activation, conflict resolution, consumer routing, and config mapping
+
+---
+
 ## [1.2.0] - 2026-03-24
 
 ### Breaking Changes

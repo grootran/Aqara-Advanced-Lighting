@@ -6,9 +6,11 @@ import pytest
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import device_registry as dr, issue_registry as ir
 
 from custom_components.aqara_advanced_lighting.const import (
+    BACKEND_ZHA,
+    CONF_BACKEND_TYPE,
     CONF_Z2M_BASE_TOPIC,
     DOMAIN,
 )
@@ -388,3 +390,98 @@ async def test_v1_3_migration_removes_all_devices(
     assert device_reg.async_get(standalone.id) is None
     assert device_reg.async_get(fake_merged.id) is None
     assert device_reg.async_get(mac_device.id) is None
+
+
+# === ZHA Repair Issue Tests ===
+
+
+@pytest.fixture
+def mock_config_entry_zha() -> MockConfigEntry:
+    """Create a mock config entry configured for ZHA backend."""
+    return MockConfigEntry(
+        domain=DOMAIN,
+        title="Aqara Lighting (ZHA)",
+        data={CONF_BACKEND_TYPE: BACKEND_ZHA},
+        unique_id="zha",
+        version=1,
+        minor_version=3,
+    )
+
+
+async def test_zha_repair_issue_created_on_import_error(
+    hass: HomeAssistant,
+    mock_config_entry_zha,
+):
+    """ImportError (ZHA not installed) creates a repair issue and raises ConfigEntryError."""
+    mock_config_entry_zha.add_to_hass(hass)
+
+    with patch(
+        "homeassistant.components.zha.helpers.get_zha_gateway",
+        side_effect=ImportError("ZHA not installed"),
+    ):
+        result = await hass.config_entries.async_setup(mock_config_entry_zha.entry_id)
+
+    assert result is False  # ConfigEntryError → setup fails
+    issue_reg = ir.async_get(hass)
+    issue = issue_reg.async_get_issue(DOMAIN, "zha_not_installed")
+    assert issue is not None, "repair issue should be created on ImportError"
+    assert issue.severity == ir.IssueSeverity.ERROR
+
+
+async def test_zha_no_repair_issue_on_value_error(
+    hass: HomeAssistant,
+    mock_config_entry_zha,
+):
+    """ValueError (ZHA gateway not ready) raises ConfigEntryNotReady without a repair issue."""
+    mock_config_entry_zha.add_to_hass(hass)
+
+    with patch(
+        "homeassistant.components.zha.helpers.get_zha_gateway",
+        side_effect=ValueError("gateway not ready"),
+    ):
+        result = await hass.config_entries.async_setup(mock_config_entry_zha.entry_id)
+
+    assert result is False  # ConfigEntryNotReady → setup fails (will retry later)
+    issue_reg = ir.async_get(hass)
+    issue = issue_reg.async_get_issue(DOMAIN, "zha_not_installed")
+    assert issue is None, "no repair issue should be created for ValueError (transient)"
+
+
+async def test_zha_repair_issue_clears_on_successful_setup(
+    hass: HomeAssistant,
+    mock_config_entry_zha,
+    mock_state_manager,
+    mock_cct_sequence_manager,
+    mock_segment_sequence_manager,
+):
+    """Repair issue is deleted when ZHA setup succeeds after a previous ImportError."""
+    mock_config_entry_zha.add_to_hass(hass)
+
+    # First: create the issue via ImportError
+    with patch(
+        "homeassistant.components.zha.helpers.get_zha_gateway",
+        side_effect=ImportError("ZHA not installed"),
+    ):
+        await hass.config_entries.async_setup(mock_config_entry_zha.entry_id)
+
+    issue_reg = ir.async_get(hass)
+    assert issue_reg.async_get_issue(DOMAIN, "zha_not_installed") is not None
+
+    # Then: reload with ZHA now available — issue should clear
+    # Use the same mock pattern as existing ZHA setup tests
+    with patch(
+        "custom_components.aqara_advanced_lighting.zha_backend.ZHABackend"
+    ) as mock_zha_backend_cls:
+        mock_backend = MagicMock()
+        mock_backend.async_setup = AsyncMock()
+        mock_backend.async_shutdown = AsyncMock()
+        mock_zha_backend_cls.return_value = mock_backend
+        with patch(
+            "homeassistant.components.zha.helpers.get_zha_gateway",
+            return_value=MagicMock(),
+        ):
+            await hass.config_entries.async_reload(mock_config_entry_zha.entry_id)
+            await hass.async_block_till_done()
+
+    assert issue_reg.async_get_issue(DOMAIN, "zha_not_installed") is None, \
+        "repair issue should be cleared after successful ZHA setup"

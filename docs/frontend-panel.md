@@ -125,6 +125,23 @@ When audio reactive mode is enabled, the following controls appear:
 
 All audio-reactive settings are persisted as user preferences and restored across sessions.
 
+### Effect audio-reactive controls
+
+A separate **Effect audio reactive** toggle enables audio modulation for hardware RGB effects (T1M and T1 Strip only). Unlike scene audio-reactive mode which controls color timing, effect audio modulates the effect's speed and brightness independently.
+
+When effect audio reactive mode is enabled, the following controls appear:
+
+- **Audio sensor entity**: Select the `binary_sensor` entity from your ESPHome audio-reactive device (shared with scene audio if both are configured)
+- **Sensitivity** (1–100%): Beat detection sensitivity on the ESP32 device
+- **Detection mode**: Algorithm for detecting musical events
+  - Spectral flux (all genres)
+  - Bass energy (rhythmic music)
+  - Complex domain (phase + magnitude)
+- **Speed modulation** toggle: When enabled, audio drives the effect's animation speed
+- **Brightness modulation** toggle: When enabled, audio drives the effect's brightness
+
+The effect audio override applies to any effect preset activated from the panel. When enabled, the audio entity and sensitivity are sent alongside the effect's normal parameters, and the selected modulation modes (speed, brightness, or both) are activated with their default ranges (1–100) and a linear response curve. For finer control over modulation modes, response curves, and ranges, configure them in the [effect editor](visual-editors.md#audio-reactive-options-1) or via the [service call](services.md#1-set-dynamic-effect).
+
 These overrides apply when activating presets from the panel and provide quick ways to adjust preset behavior without editing the preset itself.
 
 ## Change detection

@@ -15,6 +15,7 @@ from homeassistant.const import EVENT_STATE_CHANGED
 from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, callback
 
 from .audio_discovery import discover_companion_sensors
+from .audio_engine_registry import AudioEngineRegistry
 from .const import (
     AUDIO_SENSOR_UNAVAILABLE_TIMEOUT,
     DOMAIN,
@@ -36,10 +37,8 @@ class AudioEngineConfig:
     subscribe_onset: bool = False
     subscribe_energy: bool = False
     subscribe_bpm: bool = False
-    subscribe_beat_confidence: bool = False
-    subscribe_beat_phase: bool = False
-    subscribe_centroid: bool = False
-    subscribe_rolloff: bool = False
+    subscribe_beat_tracking: bool = False  # beat_confidence + beat_phase (always paired)
+    subscribe_spectral: bool = False  # centroid + rolloff (always paired)
     subscribe_silence: bool = True  # Almost always wanted
     subscribe_frequency_bands: bool = False
 
@@ -85,10 +84,12 @@ class AudioEngine:
         hass: HomeAssistant,
         config: AudioEngineConfig,
         consumer: AudioConsumer,
+        registry: AudioEngineRegistry | None = None,
     ) -> None:
         self.hass = hass
         self.config = config
         self._consumer = consumer
+        self._registry = registry
         self._stop_event = asyncio.Event()
         self._pause_event = asyncio.Event()
         self._audio_unsub: CALLBACK_TYPE | None = None
@@ -120,12 +121,39 @@ class AudioEngine:
 
         domain_data[claim_key] = id(self)
 
+        # Register with engine registry for conflict resolution
+        if self._registry:
+            self._registry.register(self)
+
         # Discover companion sensors
         self._companions = discover_companion_sensors(
             self.hass, self.config.audio_entity
         )
 
-        # Configure ESP32 device
+        # Configure ESP32 device — log if overriding another engine's settings
+        if self._registry:
+            other_type = "scene" if self.config.consumer_type == "effect" else "effect"
+            others = self._registry.get_engines_for_sensor(
+                self.config.audio_entity, other_type
+            )
+            if others:
+                other_cfg = others[0].config
+                changes: list[str] = []
+                if other_cfg.detection_mode != self.config.detection_mode:
+                    changes.append(
+                        f"detection_mode: {other_cfg.detection_mode} → {self.config.detection_mode}"
+                    )
+                if other_cfg.sensitivity != self.config.sensitivity:
+                    changes.append(
+                        f"sensitivity: {other_cfg.sensitivity} → {self.config.sensitivity}"
+                    )
+                if changes:
+                    _LOGGER.info(
+                        "Overriding ESP32 config on %s (active %s engine): %s",
+                        self.config.audio_entity,
+                        other_type,
+                        ", ".join(changes),
+                    )
         await self._configure_esp32()
 
         # Start the main loop
@@ -143,6 +171,9 @@ class AudioEngine:
                 await self._task
             except asyncio.CancelledError:
                 pass
+        # Unregister from engine registry
+        if self._registry:
+            self._registry.unregister(self)
         # Release claim
         domain_data = self.hass.data.get(DOMAIN, {})
         claim_key = self._make_claim_key(self.config.audio_entity, self.config.consumer_type)
@@ -240,29 +271,23 @@ class AudioEngine:
                 subscribe.add(bpm_entity)
                 role_map[bpm_entity] = "bpm"
 
-        # Beat confidence
-        if cfg.subscribe_beat_confidence:
+        # Beat tracking (confidence + phase)
+        if cfg.subscribe_beat_tracking:
             entity = companions.get("beat_confidence")
             if entity:
                 subscribe.add(entity)
                 role_map[entity] = "beat_confidence"
-
-        # Beat phase
-        if cfg.subscribe_beat_phase:
             entity = companions.get("beat_phase")
             if entity:
                 subscribe.add(entity)
                 role_map[entity] = "beat_phase"
 
-        # Centroid
-        if cfg.subscribe_centroid:
+        # Spectral analysis (centroid + rolloff)
+        if cfg.subscribe_spectral:
             entity = companions.get("centroid")
             if entity:
                 subscribe.add(entity)
                 role_map[entity] = "centroid"
-
-        # Rolloff
-        if cfg.subscribe_rolloff:
             entity = companions.get("rolloff")
             if entity:
                 subscribe.add(entity)
@@ -282,6 +307,32 @@ class AudioEngine:
                 if entity:
                     subscribe.add(entity)
                     role_map[entity] = f"band_{band_key}"
+
+        # Warn about requested-but-missing sensors
+        if cfg.subscribe_spectral:
+            if not companions.get("centroid"):
+                _LOGGER.warning(
+                    "Audio sensor '%s': spectral subscribed but centroid sensor not found",
+                    cfg.audio_entity,
+                )
+            if not companions.get("rolloff"):
+                _LOGGER.warning(
+                    "Audio sensor '%s': spectral subscribed but rolloff sensor not found",
+                    cfg.audio_entity,
+                )
+        if cfg.subscribe_beat_tracking:
+            if not companions.get("beat_confidence"):
+                _LOGGER.warning(
+                    "Audio sensor '%s': beat_tracking subscribed but beat_confidence sensor not found",
+                    cfg.audio_entity,
+                )
+        if cfg.subscribe_frequency_bands:
+            for band in ("bass_energy", "mid_energy", "high_energy"):
+                if not companions.get(band):
+                    _LOGGER.warning(
+                        "Audio sensor '%s': frequency_bands subscribed but %s sensor not found",
+                        cfg.audio_entity, band,
+                    )
 
         # Fallback
         if not subscribe:
@@ -437,6 +488,8 @@ class AudioEngine:
             if self._audio_unsub:
                 self._audio_unsub()
                 self._audio_unsub = None
+            if self._registry:
+                self._registry.unregister(self)
             domain_data = self.hass.data.get(DOMAIN, {})
             claim_key = self._make_claim_key(self.config.audio_entity, self.config.consumer_type)
             domain_data.pop(claim_key, None)

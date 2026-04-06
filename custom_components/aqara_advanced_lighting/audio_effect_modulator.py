@@ -32,10 +32,7 @@ from .models import AudioEffectConfig
 
 _LOGGER = logging.getLogger(__name__)
 
-# EMA smoothing factor (matches audio_mode_handlers.py ENERGY_EMA_ALPHA)
-_EMA_ALPHA = 0.05
-# Per-tick flash brightness decay (matches FLASH_BRIGHTNESS_DECAY)
-_FLASH_DECAY = 0.02
+from .const import AUDIO_EMA_ALPHA as _EMA_ALPHA, AUDIO_FLASH_BRIGHTNESS_DECAY as _FLASH_DECAY
 # Per-tick onset decay rate for on_onset mode (decays toward min between beats)
 _ONSET_DECAY_RATE = 0.03
 
@@ -57,7 +54,8 @@ class ModulationChannel:
         self.curve = curve
         self.deadband = deadband
         self._last_written: int | None = None
-        self._envelope: float = 0.5
+        from .audio_curves import EMAFilter
+        self._envelope = EMAFilter(alpha=_EMA_ALPHA, initial=0.5)
         self._flash_brightness: float = 0.0
         self._onset_level: float = 0.0
 
@@ -67,12 +65,12 @@ class ModulationChannel:
             return None
 
         if self.mode == AUDIO_EFFECT_MODE_INTENSITY_BREATHING:
-            self._envelope = _EMA_ALPHA * energy + (1 - _EMA_ALPHA) * self._envelope
-            sensor_val = self._envelope
+            self._envelope.update(energy)
+            sensor_val = self._envelope.value
         elif self.mode == AUDIO_EFFECT_MODE_ONSET_FLASH:
-            self._envelope = _EMA_ALPHA * energy + (1 - _EMA_ALPHA) * self._envelope
+            self._envelope.update(energy)
             self._flash_brightness = max(0.0, self._flash_brightness - _FLASH_DECAY)
-            sensor_val = max(self._envelope, self._flash_brightness)
+            sensor_val = max(self._envelope.value, self._flash_brightness)
         elif self.mode == AUDIO_EFFECT_MODE_CONTINUOUS:
             sensor_val = energy
         else:
@@ -109,7 +107,7 @@ class ModulationChannel:
 
         if self.mode == AUDIO_EFFECT_MODE_ONSET_FLASH:
             self._flash_brightness = min(1.0, strength)
-            sensor_val = max(self._envelope, self._flash_brightness)
+            sensor_val = max(self._envelope.value, self._flash_brightness)
         elif self.mode == AUDIO_EFFECT_MODE_ON_ONSET:
             self._onset_level = min(1.0, strength)
             sensor_val = self._onset_level

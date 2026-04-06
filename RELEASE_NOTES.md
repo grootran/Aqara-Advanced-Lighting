@@ -1,77 +1,70 @@
-# Aqara Advanced Lighting v1.2.0
+# Aqara Advanced Lighting v1.3.0
 
 ## Upgrade Instructions
 
-**Upgrading from v1.1.0:**
+**Upgrading from v1.2.0:**
 
-1. Update via HACS to v1.2.0
+1. Update via HACS to v1.3.0
 2. Restart Home Assistant
 3. Clear browser cache (Ctrl+Shift+R or Cmd+Shift+R), clear HA app cache
 
-Your existing configuration, presets, and favorites are automatically preserved.
-
----
-
-### Breaking Changes
-
-- **Minimum Home Assistant version raised to 2026.3.0** — Users on HA 2025.12.x–2026.2.x must upgrade Home Assistant before updating this integration. Removes legacy backwards compatibility for pre-WebAwesome components, and adds Python 3.1.4 optimisations.
+Your existing configuration, presets, and favorites are automatically preserved. Audio-reactive presets using the old boolean silence and brightness parameters are migrated automatically.
 
 ---
 
 ### What's New
 
-Version 1.2.0 introduces audio-reactive lighting for dynamic scenes, a Lovelace preset favorites card, the ability to hide build-in presets, and a major codebase refactor for maintainability. It also adds CCT slider support in the color picker, allows CCT-only lights in dynamic scenes, and selected Favorite lights now presist across reloads and devices.
+Version 1.3.0 introduces audio-reactive effects for Aqara devices, allowing T1M and T1 Strip lights to run their native device effects with speed and brightness modulated live by music. It also unifies the audio parameter model across scenes and effects for a consistent editing experience, and introduces a central engine registry that eliminates orphaned audio engines.
 
-### **Audio-Reactive Lighting**
+### **Audio-Reactive Effects**
 
-**Dynamic scene changes can now be synced to music through an ESPHome audio sensor**
+**Native device effects that pulse, breathe, and react to music**
 
-This new feature works in tandem with an ESPHome device flashed with [custom firmware](https://github.com/absent42/esphome-audio-reactive) that analyses environmental sound and outputs a variety of sensors such as beat detection and amplitude to Home Assistant, which this new feature then translates into music reactive dynamic scenes. It can work with any pre-existing dynamic scene preset by overriding the transition and hold time settings.
+T1M and T1 Strip lights can now run their built-in color effects (rainbow, flow, breathing, and more) with speed and brightness driven live by an ESPHome audio sensor.
 
-Initial firmware builds for 4 cheap off-the-shelf ESP32 devices are included, the M5Stack Atom Echo ($13/£13), M5Stack Atom Echo S3R ($15/£15), Waveshare ESP32-S3 Audio Board ($18/£18), and M5StickC Plus2 ($20/£20). These can be flashed with the custom firmware using a simple [web installer](https://absent42.github.io/esphome-audio-reactive/), no specialist ESP32 knowledge is needed. The firmware can also be adapted to any ESP32 device with a microphone.
+  - Speed and brightness modulation channels, each independently configurable
+  - 4 modulation modes per channel: continuous (tracks audio level), on-onset (triggers on beat), intensity-breathing (smooth pulsing), and onset-flash (sharp beat flash)
+  - Response curves — linear, logarithmic, and exponential — for natural-feeling modulation
+  - Configurable min/max ranges for speed and brightness modulation
+  - Silence behavior: hold last state, slow-cycle through the effect, or decay toward minimum
+  - Deadband filtering and rate limiting prevent flicker during quiet passages
+  - Waveform badge on preset icons when audio-reactive is enabled
+  - Live sensitivity slider in running-operation cards
+  - Effect audio reactive override panel with per-entity sensor and sensitivity controls
 
-For more detailed information on how this feature works please see the dedicated [documentation page](https://github.com/absent42/Aqara-Advanced-Lighting/blob/main/docs/audio-reactive-setup.md).
+### **Unified Audio Parameters**
 
-  - Audio-reactive lighting mode with ESP32-based on-device audio analysis
-  - New ESPHome sensor integration
-  - Responsive audio overrides
-  - On-device audio mode opt-in for T1 Strip non-Aqara devices with built-in music sync functions
-  - 12 new audio-reative presets
+Scenes and effects now share the same richer audio controls:
 
-### **Preset Favorites Lovelace Card**
+  - **Silence behavior** — replaces the old on/off toggle with four options: `Hold`, `Slow cycle`, `Decay to min`, `Decay to mid`
+  - **Brightness response curve** — linear, logarithmic, or exponential, with configurable min/max bounds; replaces the old boolean brightness-response toggle
+  - All existing audio-reactive presets are migrated automatically — no manual changes needed
+  - Default audio sensor selector moved to the Device Config tab for easier access
 
-**A new dashboard card for quick access to your favorite presets**
+### **Audio Engine Reliability**
 
-  - Aqara Preset Favorites card for Lovelace dashboards
-  - Active preset highlighting with toggle behavior
-
-### **Hide and restore built-in presets**
-
-  - Hide/restore built-in presets you don't use
-
-### **Dynamic Scenes & Color Picker**
-
-  - CCT-only lights now supported in dynamic scenes via XY-to-CCT conversion
-  - CCT slider added to the color picker panel
+  - A new central `AudioEngineRegistry` tracks all active engines and stops conflicting engines before starting new ones — fixing the bug where two audio-reactive effects on different lights sharing the same sensor would silently orphan the first engine
+  - The shared `AudioEngine` class now handles both scenes and effects, bringing consistent pause/resume, silence detection, and sensor reconnection across both features
+  - Running-operation cards show a warning when the audio sensor goes unavailable
 
 ### Improvements
 
-  - Favorite light and entity selection added to user persistent storage
-  - Replace externally paused text with color-coded entity chips
-  - More ZHA attributes exposed for native HA controls
-  - Pause solar/schedule sequences on new preset activation instead of stopping
-  - Unify auto-generated icons to circular style
+  - Devices removed from Zigbee2MQTT or ZHA are now automatically cleaned up from the HA device registry — no more ghost devices after removing a light from your Zigbee network
+  - Setup problems with your configured backend now surface in **Settings → System → Repairs** with clear guidance on how to fix them
+  - Default audio sensor auto-populated in both the scene editor and effect editor
+  - Activation overrides panel reordered: all toggles grouped at the top, parameters below
+  - Brightness override automatically disabled when effect audio-reactive is enabled (they conflict)
 
 ### Fixes
-- Eliminate forced reflow during drag in transition curve graph
-- RGB input fields snap back
-- Off-state restoration for stopping presets on lights with segments
-- Align solar/schedule CCT timeline labels with bar markers
-- Solar/schedule sequence restarts for lights in on-state during HA reboot
+
+  - Preserve original light state when switching between dynamic scene presets — preset B no longer restores to preset A's captured state baseline
+  - On-device audio modes (T1 Strip music sync, generic on-device) now correctly cleaned up when a scene is detached, not left running
+  - Stop orphaned audio engine and modulator when a new effect replaces a running audio-reactive effect
+  - Audio modulator brightness writes now tagged with integration context, eliminating false pause-detection log spam
 
 ## Full Changelog
 
-[View full changelog](https://github.com/absent42/Aqara-Advanced-Lighting/blob/main/CHANGELOG.md#120---2026-03-24)
+[View full changelog](https://github.com/absent42/Aqara-Advanced-Lighting/blob/main/CHANGELOG.md#130---2026-04-06)
 
 ## Support
 

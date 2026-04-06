@@ -26,7 +26,10 @@ This creates two bundles in `../frontend/`:
 
 Other scripts:
 
-- `npm run watch` - Watch mode for development (rebuilds on file changes)
+- `npm run build:panel` - Build the panel bundle only
+- `npm run build:card` - Build the card bundle only
+- `npm run watch` - Watch mode for panel (rebuilds on file changes)
+- `npm run watch:card` - Watch mode for card
 - `npm run clean` - Remove the built bundles
 
 ## Project structure
@@ -140,7 +143,7 @@ aqara-panel.ts (main shell, ~4500 lines)
 ### Key patterns
 
 - **Web components** - Lit 3.x with TypeScript decorators (`@customElement`, `@property`, `@state`)
-- **Reactive controller** - `PreferencesController` owns 35 preference fields with debounced API persistence, decoupling preference state from the panel component
+- **Reactive controller** - `PreferencesController` owns 40 preference fields with debounced API persistence, decoupling preference state from the panel component
 - **Self-contained subcomponents** - `<aqara-running-operations>` and `<aqara-config-tab>` manage their own rendering, internal state, and service calls, communicating back to the parent via custom events (`operations-changed`, `collapsed-changed`, `global-preferences-changed`, `toast`)
 - **Color model** - All colors stored and transmitted in XY (CIE 1931); converted to RGB/Hex/HS for the UI via `color-utils.ts` with proper gamma correction
 - **Modular editors** - Each preset type (effects, patterns, CCT sequences, segment sequences, dynamic scenes) has a dedicated editor component
@@ -164,16 +167,17 @@ Preset availability and editor capabilities adapt based on device type. The pane
 2. User edits create draft state managed by Lit `@state()` decorators
 3. Save operations call backend API endpoints to persist presets
 4. Activation calls `hass.callService` to trigger sequences, effects, or scenes
-5. User preferences (color history, favorites, sort order, collapsed state) are managed by `PreferencesController` with debounced persistence via `/api/aqara_advanced_lighting/user_preferences`
+5. User preferences (color history, favorites, sort order, collapsed state, audio-reactive overrides) are managed by `PreferencesController` with debounced persistence via `/api/aqara_advanced_lighting/user_preferences`. Audio-reactive preferences include scene override fields (`useAudioReactive`, `audioOverrideEntity`, `audioOverrideSensitivity`, `audioOverrideSilenceBehavior`, `audioOverrideBrightnessCurve`, and related range/curve fields) and effect override fields (`useEffectAudioReactive`, `effectAudioOverrideSpeedEnabled`, `effectAudioOverrideBrightnessEnabled`, `effectAudioOverrideSilenceBehavior`, and related fields)
 6. Subcomponents communicate state changes to the parent via custom events
 
 ### HA 2026.3 compatibility
 
-The frontend supports both pre-2026.3 (MDC-based) and 2026.3+ (WebAwesome-based) Home Assistant dialog and theming APIs:
+The frontend targets 2026.3+ (WebAwesome-based) Home Assistant APIs:
 
-- **Detection**: `hasNewHaDialog()` in `editor-constants.ts` checks for the new `headerTitle` property and caches the result
-- **Dialogs**: Legacy uses `.heading` property with `slot="primaryAction"`/`slot="secondaryAction"`; new uses `.headerTitle` string with `slot="footer"` and header icon slots
+- **Dialogs**: Uses `.headerTitle` string and `slot="footer"` for action buttons. The `dialogActions()` helper in `editor-constants.ts` renders cancel/confirm buttons into the footer slot
 - **CSS variables**: Both `--mdc-dialog-*` and `--ha-dialog-*` families are set for width/height
+- **Icon buttons**: Uses `--ha-icon-button-size` (the `--mdc-icon-button-size` variable is dead in 2026.3+)
+- **Selects**: Uses `ha-selector` with `{ select: { options, mode: 'dropdown' } }` rather than `ha-select`/`mwc-list-item`
 
 ### Performance optimizations
 
