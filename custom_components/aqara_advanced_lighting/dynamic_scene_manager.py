@@ -15,6 +15,7 @@ from homeassistant.core import Event, HomeAssistant, callback
 
 from .const import (
     ATTR_AUDIO_EFFECT,
+    DATA_AUDIO_ENGINE_REGISTRY,
     ATTR_ENABLED,
     ATTR_SENSITIVITY,
     AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
@@ -1769,7 +1770,8 @@ class DynamicSceneManager:
             consumer.set_freq_zone_config(bass_lights, mid_lights, high_lights)
 
         # -- Create and start engine --
-        engine = AudioEngine(self.hass, engine_config, consumer)
+        registry = self.hass.data.get(DOMAIN, {}).get(DATA_AUDIO_ENGINE_REGISTRY)
+        engine = AudioEngine(self.hass, engine_config, consumer, registry=registry)
         scene_state.audio_engine = engine
 
         try:

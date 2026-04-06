@@ -351,6 +351,7 @@ MIN_DURATION: Final = 0.0
 MAX_DURATION: Final = 3600.0  # 1 hour
 
 # Runtime data storage keys
+DATA_AUDIO_ENGINE_REGISTRY: Final = "audio_engine_registry"
 DATA_STATE_MANAGER: Final = "state_manager"
 DATA_CCT_SEQUENCE_MANAGER: Final = "cct_sequence_manager"
 DATA_SEGMENT_SEQUENCE_MANAGER: Final = "segment_sequence_manager"

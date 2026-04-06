@@ -15,6 +15,7 @@ from homeassistant.const import EVENT_STATE_CHANGED
 from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, callback
 
 from .audio_discovery import discover_companion_sensors
+from .audio_engine_registry import AudioEngineRegistry
 from .const import (
     AUDIO_SENSOR_UNAVAILABLE_TIMEOUT,
     DOMAIN,
@@ -83,10 +84,12 @@ class AudioEngine:
         hass: HomeAssistant,
         config: AudioEngineConfig,
         consumer: AudioConsumer,
+        registry: AudioEngineRegistry | None = None,
     ) -> None:
         self.hass = hass
         self.config = config
         self._consumer = consumer
+        self._registry = registry
         self._stop_event = asyncio.Event()
         self._pause_event = asyncio.Event()
         self._audio_unsub: CALLBACK_TYPE | None = None
@@ -118,6 +121,10 @@ class AudioEngine:
 
         domain_data[claim_key] = id(self)
 
+        # Register with engine registry for conflict resolution
+        if self._registry:
+            self._registry.register(self)
+
         # Discover companion sensors
         self._companions = discover_companion_sensors(
             self.hass, self.config.audio_entity
@@ -141,6 +148,9 @@ class AudioEngine:
                 await self._task
             except asyncio.CancelledError:
                 pass
+        # Unregister from engine registry
+        if self._registry:
+            self._registry.unregister(self)
         # Release claim
         domain_data = self.hass.data.get(DOMAIN, {})
         claim_key = self._make_claim_key(self.config.audio_entity, self.config.consumer_type)
@@ -455,6 +465,8 @@ class AudioEngine:
             if self._audio_unsub:
                 self._audio_unsub()
                 self._audio_unsub = None
+            if self._registry:
+                self._registry.unregister(self)
             domain_data = self.hass.data.get(DOMAIN, {})
             claim_key = self._make_claim_key(self.config.audio_entity, self.config.consumer_type)
             domain_data.pop(claim_key, None)

@@ -298,6 +298,10 @@ class StateManager:
         """Get stored device state."""
         return self._states.get(entity_id)
 
+    def iter_device_states(self):
+        """Iterate all stored device states as (entity_id, state) pairs."""
+        yield from self._states.items()
+
     def has_stored_state(self, entity_id: str) -> bool:
         """Check if there is a stored state for an entity."""
         return entity_id in self._states

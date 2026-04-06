@@ -404,12 +404,10 @@ async def handle_set_dynamic_effect(hass: HomeAssistant, call: ServiceCall) -> N
                 _LOGGER.exception("Failed to stop music sync on %s", entity_id)
             active_music_sync.pop(entity_id, None)
 
-        # Stop any existing audio engine/modulator before capture_state
-        # replaces the DeviceState (which would orphan the old references)
+        # Clear local DeviceState audio references before capture_state replaces it.
+        # Cross-entity conflicts are handled by the registry (see audio engine creation below).
         existing_state = entity_state_manager.get_device_state(entity_id)
         if existing_state and getattr(existing_state, "audio_engine", None):
-            await existing_state.audio_engine.stop()
-            await existing_state.audio_modulator.stop()
             existing_state.audio_engine = None
             existing_state.audio_modulator = None
 
@@ -556,7 +554,16 @@ async def handle_set_dynamic_effect(hass: HomeAssistant, call: ServiceCall) -> N
             device_models=device_models,
         )
 
-        engine = AudioEngine(hass, engine_config, modulator)
+        # Stop any existing audio engines using the same sensor
+        # (prevents orphaned engines when different lights share a sensor)
+        from ..const import DATA_AUDIO_ENGINE_REGISTRY
+        registry = hass.data.get(DOMAIN, {}).get(DATA_AUDIO_ENGINE_REGISTRY)
+        if registry:
+            await registry.stop_engines_for_sensor(
+                audio_config.audio_entity, "effect"
+            )
+
+        engine = AudioEngine(hass, engine_config, modulator, registry=registry)
         await modulator.start(engine)
         await engine.start()
 
@@ -600,10 +607,15 @@ async def handle_stop_effect(hass: HomeAssistant, call: ServiceCall) -> None:
         # Stop audio modulator if active
         device_state = entity_state_manager.get_device_state(entity_id)
         if device_state and hasattr(device_state, "audio_engine") and device_state.audio_engine:
-            await device_state.audio_engine.stop()
-            await device_state.audio_modulator.stop()
-            device_state.audio_engine = None
-            device_state.audio_modulator = None
+            stopped_engine = device_state.audio_engine
+            stopped_modulator = device_state.audio_modulator
+            await stopped_engine.stop()
+            await stopped_modulator.stop()
+            # Clear reference from ALL entities sharing this engine
+            for eid, state in entity_state_manager.iter_device_states():
+                if state.audio_engine is stopped_engine:
+                    state.audio_engine = None
+                    state.audio_modulator = None
 
         # Stop the effect by restoring previous state using HA light service
         try:

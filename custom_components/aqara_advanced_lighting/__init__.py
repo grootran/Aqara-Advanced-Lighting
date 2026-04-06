@@ -17,6 +17,7 @@ from .const import (
     BACKEND_ZHA,
     CONF_BACKEND_TYPE,
     CONF_Z2M_BASE_TOPIC,
+    DATA_AUDIO_ENGINE_REGISTRY,
     DATA_CCT_SEQUENCE_MANAGER,
     DATA_CIRCADIAN_MANAGER,
     DATA_DYNAMIC_SCENE_MANAGER,
@@ -221,6 +222,12 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         await zone_store.async_load()
         hass.data[DOMAIN][DATA_SEGMENT_ZONE_STORE] = zone_store
         _LOGGER.debug("Segment zone store initialized")
+
+    # Initialize audio engine registry for orphan prevention
+    if DATA_AUDIO_ENGINE_REGISTRY not in hass.data[DOMAIN]:
+        from .audio_engine_registry import AudioEngineRegistry
+        hass.data[DOMAIN][DATA_AUDIO_ENGINE_REGISTRY] = AudioEngineRegistry()
+        _LOGGER.debug("Audio engine registry initialized")
 
     # Initialize entity controller for cross-type conflict resolution
     # and external change detection (integration-level singleton)
