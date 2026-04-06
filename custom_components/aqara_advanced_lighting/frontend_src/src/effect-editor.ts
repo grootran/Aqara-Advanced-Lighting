@@ -515,8 +515,17 @@ export class EffectEditor extends LitElement {
     );
   }
 
+  private _hasAudioBothModesOff(): boolean {
+    return (
+      this._audioEnabled &&
+      !!this._audioEntity &&
+      this._audioSpeedMode === 'off' &&
+      this._audioBrightnessMode === 'off'
+    );
+  }
+
   private async _save(): Promise<void> {
-    if (!this._name.trim() || !this._effect) {
+    if (!this._name.trim() || !this._effect || this._hasAudioBothModesOff()) {
       return;
     }
 
@@ -999,6 +1008,15 @@ export class EffectEditor extends LitElement {
             `
           : ''}
 
+        ${this._hasAudioBothModesOff()
+          ? html`
+              <div class="preview-warning">
+                <ha-icon icon="mdi:alert-circle"></ha-icon>
+                <span>${this._localize('effect_editor.audio_modulation_required')}</span>
+              </div>
+            `
+          : ''}
+
         <div class="form-actions">
           <div class="form-actions-left">
             <ha-button @click=${this._cancel}>${this._localize('editors.cancel_button')}</ha-button>
@@ -1026,7 +1044,7 @@ export class EffectEditor extends LitElement {
                   <span class="btn-text">${this._localize('editors.preview_button')}</span>
                 </ha-button>
               `}
-          <ha-button @click=${this._save} .disabled=${!this._name.trim() || !this._effect || this._saving}>
+          <ha-button @click=${this._save} .disabled=${!this._name.trim() || !this._effect || this._saving || this._hasAudioBothModesOff()}>
             <ha-icon icon="mdi:content-save"></ha-icon>
             <span class="btn-text">${this.editMode ? this._localize('editors.update_button') : this._localize('editors.save_button')}</span>
           </ha-button>

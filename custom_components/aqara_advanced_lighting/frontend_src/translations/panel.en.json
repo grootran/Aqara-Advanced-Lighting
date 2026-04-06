@@ -516,6 +516,7 @@
     "curve_logarithmic": "Logarithmic",
     "curve_exponential": "Exponential",
     "range_min_label": "Range min",
-    "range_max_label": "Range max"
+    "range_max_label": "Range max",
+    "audio_modulation_required": "At least one modulation mode (speed or brightness) must be enabled when audio-reactive is on."
   }
 }
