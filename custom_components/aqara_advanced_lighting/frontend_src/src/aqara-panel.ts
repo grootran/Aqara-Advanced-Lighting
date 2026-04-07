@@ -1680,6 +1680,13 @@ export class AqaraPanel extends LitElement {
       } else {
         console.warn('Effect audio reactive override is enabled but no audio sensor entity is configured');
       }
+    } else if (preset.audio_detection_mode) {
+      // Built-in audio-reactive preset — inject user's default entity when configured.
+      // Backend also resolves from user prefs, but passing it explicitly keeps both in sync.
+      const fallbackEntity = this._prefs.state.audioOverrideEntity;
+      if (fallbackEntity) {
+        serviceData.audio_entity = fallbackEntity;
+      }
     }
 
     await this.hass.callService('aqara_advanced_lighting', 'set_dynamic_effect', serviceData);
@@ -4248,7 +4255,9 @@ export class AqaraPanel extends LitElement {
                 </div>
                 ${this._renderHideButton('effect', preset.id)}
                 <div class="preset-icon">
-                  ${this._renderPresetIcon(preset.icon, 'mdi:lightbulb-on')}
+                  ${preset.audio_detection_mode
+                    ? html`${this._renderPresetIcon(preset.icon, 'mdi:lightbulb-on')}<span class="audio-badge"><ha-icon icon="mdi:waveform"></ha-icon></span>`
+                    : this._renderPresetIcon(preset.icon, 'mdi:lightbulb-on')}
                 </div>
                 <div class="preset-name">${preset.name}</div>
               </div>

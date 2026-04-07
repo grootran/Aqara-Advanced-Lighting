@@ -5,6 +5,7 @@
 
 import { rgbToXy } from './color-utils';
 import type {
+  AudioEffectConfig,
   CCTSequencePreset,
   DynamicEffectPreset,
   DynamicScenePreset,
@@ -29,7 +30,7 @@ export function scaleSegmentPattern<T>(source: T[], targetCount: number): T[] {
 export function builtinEffectToUser(
   preset: DynamicEffectPreset, deviceType: string, copyLabel: string,
 ): UserEffectPreset {
-  return {
+  const result: UserEffectPreset = {
     id: '',
     name: `${preset.name} ${copyLabel}`,
     effect: preset.effect,
@@ -40,6 +41,24 @@ export function builtinEffectToUser(
     created_at: '',
     modified_at: '',
   };
+  // Copy audio-reactive fields if present
+  if (preset.audio_detection_mode) {
+    result.audio_config = {
+      audio_entity: '',
+      audio_detection_mode: preset.audio_detection_mode as AudioEffectConfig['audio_detection_mode'],
+      audio_sensitivity: preset.audio_sensitivity,
+      audio_silence_behavior: preset.audio_silence_behavior as AudioEffectConfig['audio_silence_behavior'],
+      audio_speed_mode: preset.audio_speed_mode as AudioEffectConfig['audio_speed_mode'],
+      audio_speed_min: preset.audio_speed_min,
+      audio_speed_max: preset.audio_speed_max,
+      audio_speed_curve: preset.audio_speed_curve as AudioEffectConfig['audio_speed_curve'],
+      audio_brightness_mode: preset.audio_brightness_mode as AudioEffectConfig['audio_brightness_mode'],
+      audio_brightness_min: preset.audio_brightness_min,
+      audio_brightness_max: preset.audio_brightness_max,
+      audio_brightness_curve: preset.audio_brightness_curve as AudioEffectConfig['audio_brightness_curve'],
+    };
+  }
+  return result;
 }
 
 export function builtinPatternToUser(

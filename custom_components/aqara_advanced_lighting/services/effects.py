@@ -39,6 +39,11 @@ from ..const import (
     ATTR_TURN_ON,
     DATA_ACTIVE_MUSIC_SYNC,
     DATA_ENTITY_CONTROLLER,
+    DATA_USER_PREFERENCES_STORE,
+    DEFAULT_AUDIO_DETECTION_MODE,
+    DEFAULT_AUDIO_RESPONSE_CURVE,
+    DEFAULT_AUDIO_SENSITIVITY,
+    DEFAULT_AUDIO_SILENCE_BEHAVIOR,
     DOMAIN,
     EVENT_ATTR_EFFECT_TYPE,
     EVENT_ATTR_ENTITY_ID,
@@ -74,6 +79,34 @@ from ._helpers import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _resolve_preset_audio_entity(
+    preset_data: dict[str, Any],
+    call_audio_entity: str | None,
+    hass_data: dict[str, Any],
+    user_id: str,
+) -> str | None:
+    """Resolve the audio entity for a built-in audio-reactive effect preset.
+
+    Precedence: call override → user preference default → None.
+    Returns None if the preset has no audio_detection_mode (not audio-reactive).
+    Uses the same entity-resolution approach as dynamic_scene (different signature:
+    takes raw hass_data and user_id to resolve prefs internally).
+    """
+    if "audio_detection_mode" not in preset_data:
+        return None
+
+    if call_audio_entity:
+        return call_audio_entity
+
+    prefs_store = hass_data.get(DATA_USER_PREFERENCES_STORE)
+    if prefs_store:
+        prefs = prefs_store.get_preferences(user_id)
+        return prefs.get("audio_override_entity") or None
+
+    return None
+
 
 async def handle_set_dynamic_effect(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle set_dynamic_effect service call."""
@@ -250,6 +283,32 @@ async def handle_set_dynamic_effect(hass: HomeAssistant, call: ServiceCall) -> N
         # Load from preset
         audio_config = AudioEffectConfig.from_dict(user_preset["audio_config"])
         audio_entity = audio_config.audio_entity
+    elif preset_data and "audio_detection_mode" in preset_data and audio_entity is None:
+        # Built-in audio-reactive preset: resolve entity from call or user prefs
+        # Guard on audio_entity is None so that useEffectAudioReactive overrides
+        # (which pass an explicit audio_entity) fall through to the manual branch below.
+        user_id = call.context.user_id or "default"
+        resolved_entity = _resolve_preset_audio_entity(
+            preset_data,
+            audio_entity,  # from call — may be None
+            hass.data.get(DOMAIN, {}),
+            user_id,
+        )
+        if resolved_entity:
+            audio_config = AudioEffectConfig(
+                audio_entity=resolved_entity,
+                audio_sensitivity=preset_data.get("audio_sensitivity", DEFAULT_AUDIO_SENSITIVITY),
+                audio_detection_mode=preset_data.get("audio_detection_mode", DEFAULT_AUDIO_DETECTION_MODE),
+                audio_silence_behavior=preset_data.get("audio_silence_behavior", DEFAULT_AUDIO_SILENCE_BEHAVIOR),
+                audio_speed_mode=preset_data.get("audio_speed_mode"),
+                audio_speed_min=preset_data.get("audio_speed_min", 1),
+                audio_speed_max=preset_data.get("audio_speed_max", 100),
+                audio_speed_curve=preset_data.get("audio_speed_curve", DEFAULT_AUDIO_RESPONSE_CURVE),
+                audio_brightness_mode=preset_data.get("audio_brightness_mode"),
+                audio_brightness_min=preset_data.get("audio_brightness_min", 1),
+                audio_brightness_max=preset_data.get("audio_brightness_max", 100),
+                audio_brightness_curve=preset_data.get("audio_brightness_curve", DEFAULT_AUDIO_RESPONSE_CURVE),
+            )
     elif audio_entity is not None:
         # Build from service call params (overrides preset if both present)
         # Convert empty strings and "off" to None (frontend sends "off" for disabled)

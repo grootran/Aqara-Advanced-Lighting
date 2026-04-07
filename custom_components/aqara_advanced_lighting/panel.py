@@ -369,6 +369,17 @@ def _build_presets_data() -> dict[str, Any]:
                 "brightness": preset_data.get("brightness"),
                 "colors": preset_data["colors"],
                 "device_types": device_types,
+                "audio_detection_mode": preset_data.get("audio_detection_mode"),
+                "audio_sensitivity": preset_data.get("audio_sensitivity"),
+                "audio_silence_behavior": preset_data.get("audio_silence_behavior"),
+                "audio_speed_mode": preset_data.get("audio_speed_mode"),
+                "audio_speed_min": preset_data.get("audio_speed_min"),
+                "audio_speed_max": preset_data.get("audio_speed_max"),
+                "audio_speed_curve": preset_data.get("audio_speed_curve"),
+                "audio_brightness_mode": preset_data.get("audio_brightness_mode"),
+                "audio_brightness_min": preset_data.get("audio_brightness_min"),
+                "audio_brightness_max": preset_data.get("audio_brightness_max"),
+                "audio_brightness_curve": preset_data.get("audio_brightness_curve"),
             }
         )
 

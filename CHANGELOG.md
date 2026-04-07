@@ -23,6 +23,7 @@ T1M and T1 Strip lights can now run their built-in color effects (rainbow, flow,
   - Waveform badge on preset icons when audio-reactive is enabled
   - Live sensitivity slider in running-operation cards
   - Effect audio reactive override panel with per-entity sensor and sensitivity controls
+  - 8 new audio-reactive effects presets for T1M/T1 Strip
 
 ### **Unified Audio Parameters**
 

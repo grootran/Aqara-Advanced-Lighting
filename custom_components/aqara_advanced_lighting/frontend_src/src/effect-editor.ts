@@ -210,7 +210,7 @@ export class EffectEditor extends LitElement {
       colors: [...this._colors],
       segments: this._segments,
       hasUserInteraction: this._hasUserInteraction,
-      audioConfig: this._audioEnabled && this._audioEntity ? {
+      audioConfig: this._audioEnabled ? {
         audio_entity: this._audioEntity,
         audio_sensitivity: this._audioSensitivity,
         audio_detection_mode: this._audioDetectionMode,

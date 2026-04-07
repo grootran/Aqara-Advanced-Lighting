@@ -62,6 +62,17 @@ export interface DynamicEffectPreset {
   brightness?: number;
   colors: number[][];
   device_types: string[];
+  audio_detection_mode?: string;
+  audio_sensitivity?: number;
+  audio_silence_behavior?: string;
+  audio_speed_mode?: string | null;
+  audio_speed_min?: number;
+  audio_speed_max?: number;
+  audio_speed_curve?: string;
+  audio_brightness_mode?: string | null;
+  audio_brightness_min?: number;
+  audio_brightness_max?: number;
+  audio_brightness_curve?: string;
 }
 
 export interface SegmentPatternPreset {

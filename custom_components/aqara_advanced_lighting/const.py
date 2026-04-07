@@ -663,6 +663,17 @@ PRESET_T1_STRIP_RHYTHMIC: Final = "t1_strip_rhythmic"
 PRESET_T1_STRIP_EXCITING: Final = "t1_strip_exciting"
 PRESET_T1_STRIP_COLORFUL: Final = "t1_strip_colorful"
 
+# Audio-reactive built-in effect presets
+PRESET_T1M_LITTLE_FLUFFY_CLOUDS: Final = "t1m_little_fluffy_clouds"
+PRESET_T1M_WAREHOUSE: Final = "t1m_warehouse"
+PRESET_T1M_TANGERINE_DREAM: Final = "t1m_tangerine_dream"
+PRESET_T1M_RIDE_THE_LIGHTNING: Final = "t1m_ride_the_lightning"
+
+PRESET_T1_STRIP_THUNDERSTRUCK: Final = "t1_strip_thunderstruck"
+PRESET_T1_STRIP_LUCY_IN_THE_SKY: Final = "t1_strip_lucy_in_the_sky"
+PRESET_T1_STRIP_RUNNING_UP_THAT_HILL: Final = "t1_strip_running_up_that_hill"
+PRESET_T1_STRIP_NEON: Final = "t1_strip_neon"
+
 # CCT sequence presets
 PRESET_CCT_GOODNIGHT: Final = "goodnight"
 PRESET_CCT_WAKEUP: Final = "wakeup"

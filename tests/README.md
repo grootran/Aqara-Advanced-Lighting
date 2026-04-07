@@ -9,6 +9,7 @@ tests/
 ├── test_audio_activation_patterns.py  # Engine activation lifecycle and orphan prevention
 ├── test_audio_curves.py               # Response curve functions and EMA filter
 ├── test_audio_discovery.py            # Audio tier detection and companion sensor discovery
+├── test_audio_effect_builtin_presets.py # Built-in audio-reactive effect preset definitions and entity resolution
 ├── test_audio_effect_config.py        # AudioEffectConfig dataclass validation and serialization
 ├── test_audio_effect_constants.py     # Audio effect constant values and defaults
 ├── test_audio_effect_modulator.py     # ModulationChannel per-mode processing and silence behavior
@@ -91,6 +92,15 @@ Response curve functions and EMA filter used by the audio-reactive subsystem.
 - **`apply_response_curve`** (9): linear passthrough; logarithmic and exponential boundary values; mid-point compression/suppression; formula correctness; input clamping; unknown curve falls back to linear
 - **`map_to_range`** (4): full and partial range scaling; int rounding; output clamping
 - **`EMAFilter`** (4): initial value; convergence on constant input; smoothing factor; reset
+
+### test_audio_effect_builtin_presets.py (144 tests)
+
+Built-in audio-reactive effect preset definitions and entity resolution for T1M and T1 Strip lights.
+
+- **Preset constants** (1): 8 preset ID constants follow the `<device>_<name>` naming pattern with correct string values
+- **Structural validation** (42): all 8 presets registered in `EFFECT_PRESETS`; required base fields present (parametrized × 8); valid effect type per device family (× 4 T1M, × 4 T1 Strip); correct `device_types` lists (× 8); colors 1–8 per preset with valid 0–255 RGB range (× 8); speed in 1–100 range (× 8); distinct effect type within each device group
+- **Audio config validation** (96): required audio fields present (× 8); valid `audio_detection_mode` and `audio_silence_behavior` constants (× 8 each); sensitivity in 1–100 (× 8); at least one of `speed_mode`/`brightness_mode` non-None (× 8); valid mode constant if set (× 8 each); valid min–max range when mode set (× 8 each); valid response curve if set (× 8 each); no hardcoded `audio_entity` (× 8)
+- **`_resolve_preset_audio_entity`** (5): non-audio preset returns `None`; user pref entity used when no call entity; call entity overrides user pref; no entity when no prefs store; empty string in prefs treated as not configured
 
 ### test_audio_effect_config.py (22 tests)
 
