@@ -50,7 +50,7 @@ Scenes and effects now share the same richer audio controls:
 
 ### Improvements
 
-  - Devices removed from Zigbee2MQTT or ZHA are now automatically cleaned up from the HA device registry — no more ghost devices after removing a light from your Zigbee network
+  - Devices removed from Zigbee2MQTT or ZHA are now automatically cleaned up from the HA device registry
   - Setup problems with your configured backend now surface in **Settings → System → Repairs** with clear guidance on how to fix them
   - Default audio sensor auto-populated in both the scene editor and effect editor
   - Activation overrides panel reordered: all toggles grouped at the top, parameters below
