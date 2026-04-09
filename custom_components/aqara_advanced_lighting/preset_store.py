@@ -114,6 +114,13 @@ _ALLOWED_FIELDS: dict[str, set[str]] = {
         "audio_brightness_max",
         "audio_color_advance",
         "audio_transition_speed",
+        "audio_detection_mode",
+        "audio_frequency_zone",
+        "audio_silence_behavior",
+        "audio_prediction_aggressiveness",
+        "audio_latency_compensation_ms",
+        "audio_color_by_frequency",
+        "audio_rolloff_brightness",
     },
 }
 
@@ -362,6 +369,12 @@ class UserDynamicScenePreset(TypedDict):
     audio_silence_behavior: NotRequired[str]
     audio_color_advance: NotRequired[str]
     audio_transition_speed: NotRequired[int]
+    audio_detection_mode: NotRequired[str]
+    audio_frequency_zone: NotRequired[bool]
+    audio_prediction_aggressiveness: NotRequired[int]
+    audio_latency_compensation_ms: NotRequired[int]
+    audio_color_by_frequency: NotRequired[bool]
+    audio_rolloff_brightness: NotRequired[bool]
 
 class PresetsData(TypedDict):
     """Storage data structure for all user presets."""
@@ -1270,6 +1283,12 @@ class PresetStore(BaseStore[PresetsData]):
                         "audio_silence_behavior": preset.get("audio_silence_behavior"),
                         "audio_color_advance": preset.get("audio_color_advance"),
                         "audio_transition_speed": preset.get("audio_transition_speed"),
+                        "audio_detection_mode": preset.get("audio_detection_mode"),
+                        "audio_frequency_zone": preset.get("audio_frequency_zone"),
+                        "audio_prediction_aggressiveness": preset.get("audio_prediction_aggressiveness"),
+                        "audio_latency_compensation_ms": preset.get("audio_latency_compensation_ms"),
+                        "audio_color_by_frequency": preset.get("audio_color_by_frequency"),
+                        "audio_rolloff_brightness": preset.get("audio_rolloff_brightness"),
                     }
 
                     await self.add_preset(PRESET_TYPE_DYNAMIC_SCENE, new_preset_data)
