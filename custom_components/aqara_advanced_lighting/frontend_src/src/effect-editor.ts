@@ -5,8 +5,12 @@ import { xyToHex, rgbToXy, getComplementaryColor } from './color-utils';
 import { colorPickerStyles } from './styles/color-picker';
 import { addColorToHistory } from './color-history';
 import { ALL_DEVICE_LABELS, editorFormStyles, localize, dialogActions } from './editor-constants';
+import { ReorderableStepsMixin, reorderableStepStyles, ReorderableStepItem } from './reorderable-steps-mixin';
 import './xy-color-picker';
 import './color-history-swatches';
+
+// Wrapper for XYColor with unique ID required by ReorderableStepsMixin
+interface DraggableColor extends XYColor, ReorderableStepItem {}
 
 // Effect types available for each device
 const EFFECT_TYPES: Record<string, string[]> = {
@@ -17,7 +21,7 @@ const EFFECT_TYPES: Record<string, string[]> = {
 };
 
 @customElement('effect-editor')
-export class EffectEditor extends LitElement {
+export class EffectEditor extends ReorderableStepsMixin(LitElement) {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @property({ type: Object }) public preset?: UserEffectPreset;
   @property({ type: Object }) public translations: Translations = {};
@@ -31,13 +35,34 @@ export class EffectEditor extends LitElement {
   @property({ type: Object }) public draft?: EffectEditorDraft;
   @property({ type: String }) public defaultAudioEntity = '';
 
+  protected override _reorderLayout: 'list' | 'grid' = 'grid';
+  private _colorIdCounter = 0;
+
+  private _generateColorId(): string {
+    return `color-${++this._colorIdCounter}-${Date.now()}`;
+  }
+
+  /** Wrap plain XYColor values as DraggableColor with unique IDs. */
+  private _toColors(colors: XYColor[]): DraggableColor[] {
+    return colors.map(c => ({ x: c.x, y: c.y, id: this._generateColorId() }));
+  }
+
   @state() private _name = '';
   @state() private _icon = '';
   @state() private _deviceType = 't2_bulb';
   @state() private _effect = '';
   @state() private _speed = 50;
   @state() private _brightness = 100;
-  @state() private _colors: XYColor[] = [{ x: 0.6800, y: 0.3100 }];  // Red in XY space
+  // _steps is used by ReorderableStepsMixin; alias as _colors for clarity
+  @state() protected _steps: DraggableColor[] = [{ x: 0.6800, y: 0.3100, id: 'initial-0' }];
+
+  private get _colors(): DraggableColor[] {
+    return this._steps;
+  }
+
+  private set _colors(value: DraggableColor[]) {
+    this._steps = value;
+  }
   @state() private _segments = '';
   @state() private _saving = false;
   @state() private _previewing = false;
@@ -63,6 +88,7 @@ export class EffectEditor extends LitElement {
   static styles = [
     colorPickerStyles,
     editorFormStyles,
+    reorderableStepStyles,
     css`
     /* Effect icon grid selector */
     .effect-grid {
@@ -165,7 +191,7 @@ export class EffectEditor extends LitElement {
     this._speed = preset.effect_speed;
     this._brightness = preset.effect_brightness || 100;
     // Handle both XY (new) and RGB (legacy) color formats
-    this._colors = preset.effect_colors.map((c: XYColor | RGBColor) => {
+    this._colors = this._toColors(preset.effect_colors.map((c: XYColor | RGBColor) => {
       if ('x' in c && 'y' in c) {
         // Already XY format
         return { x: c.x, y: c.y };
@@ -175,7 +201,7 @@ export class EffectEditor extends LitElement {
       }
       // Fallback to red
       return { x: 0.6800, y: 0.3100 };
-    });
+    }));
     this._segments = preset.effect_segments || '';
 
     // Load audio config
@@ -207,7 +233,7 @@ export class EffectEditor extends LitElement {
       effect: this._effect,
       speed: this._speed,
       brightness: this._brightness,
-      colors: [...this._colors],
+      colors: this._colors.map(c => ({ x: c.x, y: c.y })),
       segments: this._segments,
       hasUserInteraction: this._hasUserInteraction,
       audioConfig: this._audioEnabled ? {
@@ -234,7 +260,7 @@ export class EffectEditor extends LitElement {
     this._effect = '';
     this._speed = 50;
     this._brightness = 100;
-    this._colors = [{ x: 0.6800, y: 0.3100 }];
+    this._colors = this._toColors([{ x: 0.6800, y: 0.3100 }]);
     this._segments = '';
     this._hasUserInteraction = false;
     this._audioEnabled = false;
@@ -259,7 +285,7 @@ export class EffectEditor extends LitElement {
     this._effect = draft.effect;
     this._speed = draft.speed;
     this._brightness = draft.brightness;
-    this._colors = [...draft.colors];
+    this._colors = this._toColors(draft.colors);
     this._segments = draft.segments;
     this._hasUserInteraction = draft.hasUserInteraction ?? false;
     if (draft.audioConfig) {
@@ -338,7 +364,7 @@ export class EffectEditor extends LitElement {
         composed: true,
       }));
       this._colors = this._colors.map((c, i) =>
-        i === this._editingColorIndex ? this._editingColor! : c
+        i === this._editingColorIndex ? { ...this._editingColor!, id: c.id } : c
       );
       this._hasUserInteraction = true;
     }
@@ -360,7 +386,7 @@ export class EffectEditor extends LitElement {
       // Get the last color and calculate its complementary color
       const lastColor = this._colors[this._colors.length - 1] || { x: 0.6800, y: 0.3100 }; // Default to red if undefined
       const newColor = getComplementaryColor(lastColor);
-      this._colors = [...this._colors, newColor];
+      this._colors = [...this._colors, { ...newColor, id: this._generateColorId() }];
       this._hasUserInteraction = true;
     }
   }
@@ -372,7 +398,10 @@ export class EffectEditor extends LitElement {
     }
   }
 
-
+  protected override _reorderStep(fromIndex: number, toIndex: number): void {
+    super._reorderStep(fromIndex, toIndex);
+    this._hasUserInteraction = true;
+  }
 
   // Audio reactive handlers
   private _handleAudioEnabledChange(e: CustomEvent): void {
@@ -461,7 +490,7 @@ export class EffectEditor extends LitElement {
       effect: this._effect,
       effect_speed: this._speed,
       effect_brightness: this._brightness,
-      effect_colors: this._colors,
+      effect_colors: this._colors.map(c => ({ x: c.x, y: c.y })),
     };
 
     if (this._deviceType === 't1_strip' && this._segments) {
@@ -692,10 +721,19 @@ export class EffectEditor extends LitElement {
 
         <div class="form-section">
           <span class="form-label">${this._localize('editors.colors_label')}</span>
-          <div class="color-picker-grid">
+          <div class="color-picker-grid step-list" style="position: relative;">
+            ${this._renderGridDropIndicator()}
             ${this._colors.map(
               (color, index) => html`
-                <div class="color-item">
+                <div class="color-item step-item ${this._dragState.draggingIndex === index ? 'dragging' : ''}">
+                  <div
+                    class="color-drag-handle"
+                    role="button"
+                    aria-label="Reorder color ${index + 1}"
+                    @pointerdown=${(e: PointerEvent) => this._onDragHandlePointerDown(e, index)}
+                  >
+                    <ha-icon icon="mdi:drag"></ha-icon>
+                  </div>
                   <div
                     class="color-swatch"
                     role="button"
@@ -721,6 +759,7 @@ export class EffectEditor extends LitElement {
               `
             )}
             <div class="add-color-btn ${this._colors.length >= 8 ? 'disabled' : ''}">
+              <div class="color-drag-handle-spacer"></div>
               <div
                 class="add-color-icon"
                 @click=${this._addColor}

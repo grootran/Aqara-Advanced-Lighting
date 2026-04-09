@@ -16,6 +16,12 @@ interface DragState {
   dropTargetIndex: number | null;
 }
 
+interface GridDropPos {
+  left: number;
+  top: number;
+  height: number;
+}
+
 const INITIAL_DRAG_STATE: DragState = {
   draggingIndex: null,
   dropTargetIndex: null,
@@ -71,6 +77,15 @@ export const reorderableStepStyles = css`
     user-select: none;
     -webkit-user-select: none;
   }
+
+  .grid-drop-indicator {
+    position: absolute;
+    width: 3px;
+    background: var(--primary-color);
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 10;
+  }
 `;
 
 export function ReorderableStepsMixin<T extends Constructor<LitElement>>(
@@ -81,11 +96,15 @@ export function ReorderableStepsMixin<T extends Constructor<LitElement>>(
 
     @state() protected _dragState: DragState = { ...INITIAL_DRAG_STATE };
 
+    protected _reorderLayout: 'list' | 'grid' = 'list';
+    @state() protected _gridDropPos: GridDropPos | null = null;
+
     private _boundMove = this._onPointerMove.bind(this);
     private _boundEnd = this._onPointerEnd.bind(this);
     private _scrollContainer: Element | null = null;
     private _cachedStepList: Element | null = null;
     private _autoScrollRaf = 0;
+    private _lastClientX = 0;
     private _lastClientY = 0;
 
     disconnectedCallback(): void {
@@ -114,6 +133,7 @@ export function ReorderableStepsMixin<T extends Constructor<LitElement>>(
       stepItems[index]?.classList.add('dragging');
       stepList.classList.add('is-dragging');
 
+      this._lastClientX = e.clientX;
       this._lastClientY = e.clientY;
 
       window.addEventListener('pointermove', this._boundMove);
@@ -127,8 +147,9 @@ export function ReorderableStepsMixin<T extends Constructor<LitElement>>(
       if (this._dragState.draggingIndex === null) return;
       e.preventDefault();
 
+      this._lastClientX = e.clientX;
       this._lastClientY = e.clientY;
-      this._updateDropTarget(e.clientY);
+      this._updateDropTarget(e.clientX, e.clientY);
       this._startAutoScroll();
     }
 
@@ -169,15 +190,23 @@ export function ReorderableStepsMixin<T extends Constructor<LitElement>>(
 
       this._cachedStepList = null;
       this._scrollContainer = null;
+      this._gridDropPos = null;
       this._dragState = { ...INITIAL_DRAG_STATE };
       this.requestUpdate();
     }
 
     /** Recalculate drop target from live DOM positions (scroll-safe). */
-    private _updateDropTarget(clientY: number): void {
-      const dropTarget = this._calcDropTarget(clientY);
+    private _updateDropTarget(clientX: number, clientY: number): void {
+      const dropTarget = this._reorderLayout === 'grid'
+        ? this._calcDropTargetGrid(clientX, clientY)
+        : this._calcDropTarget(clientY);
+
       if (dropTarget !== this._dragState.dropTargetIndex) {
         this._dragState = { ...this._dragState, dropTargetIndex: dropTarget };
+
+        if (this._reorderLayout === 'grid') {
+          this._gridDropPos = this._computeGridIndicatorPos(dropTarget);
+        }
       }
     }
 
@@ -197,6 +226,117 @@ export function ReorderableStepsMixin<T extends Constructor<LitElement>>(
       }
 
       return stepItems.length;
+    }
+
+    /** Calculate drop target for grid/wrapping-flex layouts using both X and Y. */
+    private _calcDropTargetGrid(clientX: number, clientY: number): number | null {
+      if (this._dragState.draggingIndex === null) return null;
+
+      const stepList = this._cachedStepList;
+      if (!stepList) return null;
+      const items = Array.from(stepList.querySelectorAll<HTMLElement>('.step-item'));
+      if (items.length === 0) return null;
+
+      // Group items into rows by their vertical position (tolerance for sub-pixel diffs)
+      const rows: { items: HTMLElement[]; indices: number[]; top: number; bottom: number }[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const rect = items[i]!.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        let matched = false;
+        for (const row of rows) {
+          if (Math.abs(midY - (row.top + row.bottom) / 2) < 4) {
+            row.items.push(items[i]!);
+            row.indices.push(i);
+            row.top = Math.min(row.top, rect.top);
+            row.bottom = Math.max(row.bottom, rect.bottom);
+            matched = true;
+            break;
+          }
+        }
+        if (!matched) {
+          rows.push({
+            items: [items[i]!],
+            indices: [i],
+            top: rect.top,
+            bottom: rect.bottom,
+          });
+        }
+      }
+
+      // Sort rows top-to-bottom
+      rows.sort((a, b) => a.top - b.top);
+
+      // Find cursor's row
+      let targetRow = rows[rows.length - 1]!;
+      for (const row of rows) {
+        const rowMidY = (row.top + row.bottom) / 2;
+        if (clientY < rowMidY) {
+          targetRow = row;
+          break;
+        }
+        targetRow = row;
+      }
+
+      // Within the row, find insertion point by X midpoint
+      for (let i = 0; i < targetRow.items.length; i++) {
+        const rect = targetRow.items[i]!.getBoundingClientRect();
+        const xMid = rect.left + rect.width / 2;
+        if (clientX < xMid) {
+          return targetRow.indices[i]!;
+        }
+      }
+
+      // Past all items in the row — insert after last item in this row
+      return targetRow.indices[targetRow.indices.length - 1]! + 1;
+    }
+
+    /** Compute absolute position for the grid drop indicator bar. */
+    private _computeGridIndicatorPos(slotIndex: number | null): GridDropPos | null {
+      if (slotIndex === null) return null;
+
+      const stepList = this._cachedStepList;
+      if (!stepList) return null;
+      const containerRect = stepList.getBoundingClientRect();
+      const items = Array.from(stepList.querySelectorAll<HTMLElement>('.step-item'));
+      if (items.length === 0) return null;
+
+      let left: number;
+      let top: number;
+      let height: number;
+
+      if (slotIndex === 0) {
+        // Before the first item
+        const rect = items[0]!.getBoundingClientRect();
+        left = rect.left - containerRect.left - 2;
+        top = rect.top - containerRect.top;
+        height = rect.height;
+      } else if (slotIndex >= items.length) {
+        // After the last item
+        const rect = items[items.length - 1]!.getBoundingClientRect();
+        left = rect.right - containerRect.left + 2;
+        top = rect.top - containerRect.top;
+        height = rect.height;
+      } else {
+        // Between item[slotIndex-1] and item[slotIndex]
+        const prevRect = items[slotIndex - 1]!.getBoundingClientRect();
+        const nextRect = items[slotIndex]!.getBoundingClientRect();
+
+        // Check if they're on the same row (within 4px tolerance)
+        const sameRow = Math.abs(prevRect.top - nextRect.top) < 4;
+
+        if (sameRow) {
+          left = (prevRect.right + nextRect.left) / 2 - containerRect.left - 1;
+          top = nextRect.top - containerRect.top;
+          height = nextRect.height;
+        } else {
+          // Items wrap to next row — show indicator at start of new row
+          left = nextRect.left - containerRect.left - 2;
+          top = nextRect.top - containerRect.top;
+          height = nextRect.height;
+        }
+      }
+
+      return { left, top, height };
     }
 
     /** Find the nearest scrollable ancestor for auto-scroll. */
@@ -240,13 +380,13 @@ export function ReorderableStepsMixin<T extends Constructor<LitElement>>(
 
           if (y < rect.top + SCROLL_EDGE && container.scrollTop > 0) {
             container.scrollTop -= SCROLL_SPEED;
-            this._updateDropTarget(this._lastClientY);
+            this._updateDropTarget(this._lastClientX, this._lastClientY);
           } else if (
             y > rect.bottom - SCROLL_EDGE &&
             container.scrollTop < container.scrollHeight - container.clientHeight
           ) {
             container.scrollTop += SCROLL_SPEED;
-            this._updateDropTarget(this._lastClientY);
+            this._updateDropTarget(this._lastClientX, this._lastClientY);
           } else {
             // Not near edge, stop auto-scroll loop
             this._autoScrollRaf = 0;
@@ -289,6 +429,17 @@ export function ReorderableStepsMixin<T extends Constructor<LitElement>>(
       if (draggingIndex === null || dropTargetIndex !== beforeIndex) return '';
 
       return html`<div class="drop-indicator"></div>`;
+    }
+
+    protected _renderGridDropIndicator(): TemplateResult | string {
+      const { draggingIndex } = this._dragState;
+      if (draggingIndex === null || !this._gridDropPos) return '';
+
+      const { left, top, height } = this._gridDropPos;
+      return html`<div
+        class="grid-drop-indicator"
+        style="left: ${left}px; top: ${top}px; height: ${height}px;"
+      ></div>`;
     }
   }
 

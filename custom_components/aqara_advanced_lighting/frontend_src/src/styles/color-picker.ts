@@ -142,6 +142,49 @@ export const colorPickerStyles = css`
     pointer-events: none;
   }
 
+  /* Drag handle above color swatch */
+  .color-drag-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 20px;
+    color: var(--secondary-text-color);
+    cursor: grab;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    transition: color 0.2s ease;
+  }
+
+  .color-drag-handle:hover {
+    color: var(--primary-color);
+  }
+
+  .color-drag-handle:active {
+    cursor: grabbing;
+  }
+
+  .color-drag-handle ha-icon {
+    --mdc-icon-size: 18px;
+  }
+
+  /* Invisible spacer matching drag handle height when handle is hidden */
+  .color-drag-handle-spacer {
+    height: 20px;
+  }
+
+  /* Suppress swatch hover effect during drag */
+  .color-picker-grid.is-dragging .color-swatch:hover {
+    transform: none;
+  }
+
+  /* Suppress add button during drag */
+  .color-picker-grid.is-dragging .add-color-btn {
+    pointer-events: none;
+    opacity: 0.4;
+  }
+
   /* =========================================
    * PALETTE VARIANT
    * For pattern-editor Individual mode (selectable fixed colors)
