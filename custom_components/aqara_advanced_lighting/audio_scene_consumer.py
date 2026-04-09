@@ -53,7 +53,7 @@ def build_scene_engine_config(scene: DynamicScene) -> AudioEngineConfig:
         subscribe_energy=is_energy or scene.audio_brightness_curve is not None,
         subscribe_bpm=mode == AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
         subscribe_beat_tracking=mode == AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
-        subscribe_spectral=True,
+        subscribe_spectral=scene.audio_color_by_frequency or scene.audio_rolloff_brightness,
         subscribe_silence=True,
         subscribe_frequency_bands=scene.audio_frequency_zone,
     )
@@ -86,6 +86,8 @@ class DynamicSceneAudioConsumer(AudioConsumer):
         self._is_energy_mode = is_energy_mode
         self._min_apply_interval = max(transition_seconds, 0.1)
         self._last_apply_time: float = 0.0
+        self._rolloff_factor: float = 1.0
+        self._band_energies: dict[str, float] = {}
         # Frequency zone config (set via set_freq_zone_config)
         self._freq_zone_bands: list[tuple[str, list[str]]] | None = None
 
@@ -113,21 +115,50 @@ class DynamicSceneAudioConsumer(AudioConsumer):
             confidence = events.get("beat_confidence", 0.0)
             self._handler.update_bpm(events["bpm"], confidence)
 
+        # Beat phase — must come after BPM for accurate interval calculation
+        if "beat_phase" in events:
+            self._handler.update_phase(self._scene_state, events["beat_phase"])
+
         # Onset events
         if "onset" in events:
             self._handler.handle_onset(self._scene_state, events["onset"])
             if self._is_onset_mode:
                 needs_apply = True
+            # Dominant-band bias: advance the loudest zone's lights by one palette step
+            if self._freq_zone_bands and self._band_energies:
+                dominant = max(self._band_energies, key=lambda k: self._band_energies[k])
+                for band_key, light_group in self._freq_zone_bands:
+                    if band_key == dominant and light_group:
+                        num_colors = len(scene.colors)
+                        if num_colors > 0:
+                            for eid in light_group:
+                                old = self._scene_state.light_color_indices.get(eid, 0)
+                                self._scene_state.light_color_indices[eid] = (old + 1) % num_colors
+                        needs_apply = True
+                        break
 
         # Spectral descriptors
         if "centroid" in events:
             self._handler.handle_centroid(self._scene_state, events["centroid"])
+            if scene.audio_color_by_frequency:
+                num_colors = len(scene.colors)
+                if num_colors > 0:
+                    pos = max(0, min(int(events["centroid"] * num_colors), num_colors - 1))
+                    for eid in list(self._scene_state.light_color_indices.keys()):
+                        self._scene_state.light_color_indices[eid] = pos
+                    needs_apply = True
         if "rolloff" in events:
             self._handler.handle_rolloff(self._scene_state, events["rolloff"])
+            if scene.audio_rolloff_brightness:
+                self._rolloff_factor = 0.5 + events["rolloff"] * 0.5
 
         # Energy events
         if "energy" in events:
             self._handler.handle_energy(self._scene_state, events["energy"])
+            if scene.audio_rolloff_brightness and self._rolloff_factor != 1.0:
+                self._scene_state.brightness_modifier = max(
+                    0.01, min(1.0, self._scene_state.brightness_modifier * self._rolloff_factor)
+                )
             if self._is_energy_mode or scene.audio_brightness_curve is not None:
                 needs_apply = True
 
@@ -139,6 +170,7 @@ class DynamicSceneAudioConsumer(AudioConsumer):
                     event_key = f"band_{band_key}"
                     if event_key in events and light_group:
                         band_energy = events[event_key]
+                        self._band_energies[band_key] = band_energy
                         pos = max(0, min(int(band_energy * num_colors), num_colors - 1))
                         for eid in light_group:
                             self._scene_state.light_color_indices[eid] = pos

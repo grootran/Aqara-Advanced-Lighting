@@ -1,5 +1,6 @@
 """Tests for audio-reactive v2 model fields and mode handlers."""
 import pytest
+from unittest.mock import MagicMock, patch
 from custom_components.aqara_advanced_lighting.models import DynamicScene, DynamicSceneColor
 from custom_components.aqara_advanced_lighting.const import (
     AUDIO_COLOR_ADVANCE_ON_ONSET,
@@ -370,3 +371,118 @@ class TestBrightnessCurve:
         # 0.5 → exponential: 0.25 → 10 + 0.25*90 = 32.5% → 0.325
         result = AudioModeHandler._apply_brightness_curve(scene, 0.5)
         assert abs(result - 0.325) < 0.01
+
+
+class TestBeatPredictivePhase:
+    """Tests for BeatPredictiveHandler.update_phase()."""
+
+    def _make_handler(self, bpm=120.0, latency_ms=0):
+        from custom_components.aqara_advanced_lighting.audio_mode_handlers import (
+            BeatPredictiveHandler,
+        )
+        manager = MagicMock()
+        manager._advance_colors = MagicMock()
+        handler = BeatPredictiveHandler(manager)
+        handler._bpm = bpm
+        handler._confidence = 80
+        handler._latency_ms = latency_ms
+        handler._confidence_threshold = 60
+        return handler, manager
+
+    def test_update_phase_no_op_in_reactive_state(self):
+        """update_phase does nothing when not in PREDICTIVE state."""
+        from custom_components.aqara_advanced_lighting.audio_mode_handlers import (
+            BeatPredictiveHandler,
+        )
+        handler, manager = self._make_handler()
+        assert handler._state == BeatPredictiveHandler.REACTIVE
+        handler.update_phase(MagicMock(), 0.9)
+        manager._advance_colors.assert_not_called()
+        assert len(handler._pending_handles) == 0
+
+    def test_update_phase_no_op_in_tracking_state(self):
+        """update_phase does nothing when in TRACKING state."""
+        from custom_components.aqara_advanced_lighting.audio_mode_handlers import (
+            BeatPredictiveHandler,
+        )
+        handler, manager = self._make_handler()
+        handler._state = BeatPredictiveHandler.TRACKING
+        handler.update_phase(MagicMock(), 0.9)
+        assert len(handler._pending_handles) == 0
+
+    def test_update_phase_schedules_in_predictive_state(self):
+        """update_phase schedules a color advance at correct delay in PREDICTIVE state."""
+        from custom_components.aqara_advanced_lighting.audio_mode_handlers import (
+            BeatPredictiveHandler,
+        )
+        handler, manager = self._make_handler(bpm=120.0, latency_ms=0)
+        handler._state = BeatPredictiveHandler.PREDICTIVE
+        scene_state = MagicMock()
+
+        with patch("asyncio.get_event_loop") as mock_loop:
+            mock_handle = MagicMock()
+            mock_loop.return_value.call_later = MagicMock(return_value=mock_handle)
+            handler.update_phase(scene_state, 0.5)
+            mock_loop.return_value.call_later.assert_called_once()
+            delay = mock_loop.return_value.call_later.call_args[0][0]
+            # BPM=120 → beat_interval=0.5s; phase=0.5 → time_to_beat=0.25s; latency=0
+            assert abs(delay - 0.25) < 0.01
+            assert len(handler._pending_handles) == 1
+
+    def test_update_phase_applies_latency_compensation(self):
+        """Latency compensation reduces the scheduled delay."""
+        from custom_components.aqara_advanced_lighting.audio_mode_handlers import (
+            BeatPredictiveHandler,
+        )
+        handler, manager = self._make_handler(bpm=120.0, latency_ms=100)
+        handler._state = BeatPredictiveHandler.PREDICTIVE
+
+        with patch("asyncio.get_event_loop") as mock_loop:
+            mock_loop.return_value.call_later = MagicMock(return_value=MagicMock())
+            handler.update_phase(MagicMock(), 0.5)
+            delay = mock_loop.return_value.call_later.call_args[0][0]
+            # time_to_beat=0.25s - latency=0.1s = 0.15s
+            assert abs(delay - 0.15) < 0.01
+
+    def test_update_phase_skips_when_advance_too_close(self):
+        """No scheduling when advance_in < 20ms (already past or too close)."""
+        from custom_components.aqara_advanced_lighting.audio_mode_handlers import (
+            BeatPredictiveHandler,
+        )
+        handler, manager = self._make_handler(bpm=120.0, latency_ms=240)
+        handler._state = BeatPredictiveHandler.PREDICTIVE
+
+        with patch("asyncio.get_event_loop") as mock_loop:
+            mock_loop.return_value.call_later = MagicMock(return_value=MagicMock())
+            # phase=0.5 → time_to_beat=0.25s - latency=0.24s = 0.01s < 0.02 → skip
+            handler.update_phase(MagicMock(), 0.5)
+            mock_loop.return_value.call_later.assert_not_called()
+
+    def test_update_phase_cancels_previous_handle(self):
+        """A new phase update cancels the previous pending handle before scheduling."""
+        from custom_components.aqara_advanced_lighting.audio_mode_handlers import (
+            BeatPredictiveHandler,
+        )
+        handler, manager = self._make_handler(bpm=120.0, latency_ms=0)
+        handler._state = BeatPredictiveHandler.PREDICTIVE
+        old_handle = MagicMock()
+        handler._pending_handles.append(old_handle)
+
+        with patch("asyncio.get_event_loop") as mock_loop:
+            mock_loop.return_value.call_later = MagicMock(return_value=MagicMock())
+            handler.update_phase(MagicMock(), 0.5)
+            old_handle.cancel.assert_called_once()
+            assert old_handle not in handler._pending_handles
+            assert len(handler._pending_handles) == 1  # new handle registered
+
+    def test_update_phase_no_op_when_bpm_zero(self):
+        """update_phase does nothing if BPM is 0 (no tempo established)."""
+        from custom_components.aqara_advanced_lighting.audio_mode_handlers import (
+            BeatPredictiveHandler,
+        )
+        handler, manager = self._make_handler(bpm=0.0)
+        handler._state = BeatPredictiveHandler.PREDICTIVE
+        with patch("asyncio.get_event_loop") as mock_loop:
+            mock_loop.return_value.call_later = MagicMock(return_value=MagicMock())
+            handler.update_phase(MagicMock(), 0.5)
+            mock_loop.return_value.call_later.assert_not_called()

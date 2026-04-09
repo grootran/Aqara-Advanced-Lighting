@@ -45,6 +45,9 @@ class AudioModeHandler(ABC):
     def update_bpm(self, bpm: float, confidence: float) -> None:
         """Update BPM and confidence. Override in BeatPredictiveHandler."""
 
+    def update_phase(self, scene_state: Any, phase: float) -> None:
+        """Handle beat phase update. Override in BeatPredictiveHandler."""
+
     async def enter_silence(self, scene_state: Any, stop_event: asyncio.Event) -> None:
         """Handle silence transition based on scene's silence behavior."""
         self._in_silence = True
@@ -212,6 +215,28 @@ class BeatPredictiveHandler(AudioModeHandler):
         self._bpm = bpm
         self._confidence = confidence
         self._update_state()
+
+    @override
+    def update_phase(self, scene_state: Any, phase: float) -> None:
+        """Schedule a color advance based on device-reported beat phase.
+
+        Only fires in PREDICTIVE state. Cancels any pending handle before
+        scheduling a new one, so rapid phase updates don't stack.
+        """
+        if self._state != self.PREDICTIVE or self._bpm <= 0:
+            return
+        beat_interval = 60.0 / self._bpm
+        time_to_beat = (1.0 - phase) * beat_interval
+        advance_in = time_to_beat - (self._latency_ms / 1000.0)
+        if advance_in < 0.02:  # Already past or too close — skip
+            return
+        self._cancel_mode_timers()
+        loop = asyncio.get_event_loop()
+        handle = loop.call_later(
+            advance_in,
+            lambda: self._manager._advance_colors(scene_state),
+        )
+        self._pending_handles.append(handle)
 
     @override
     def handle_onset(self, scene_state: Any, attrs: dict[str, Any]) -> None:

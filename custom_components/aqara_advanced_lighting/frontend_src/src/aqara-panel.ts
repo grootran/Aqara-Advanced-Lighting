@@ -1804,6 +1804,8 @@ export class AqaraPanel extends LitElement {
     if (preset.audio_silence_behavior != null) serviceData.audio_silence_behavior = preset.audio_silence_behavior;
     if (preset.audio_prediction_aggressiveness != null) serviceData.audio_prediction_aggressiveness = preset.audio_prediction_aggressiveness;
     if (preset.audio_latency_compensation_ms != null) serviceData.audio_latency_compensation_ms = preset.audio_latency_compensation_ms;
+    if (preset.audio_color_by_frequency != null) serviceData.audio_color_by_frequency = preset.audio_color_by_frequency;
+    if (preset.audio_rolloff_brightness != null) serviceData.audio_rolloff_brightness = preset.audio_rolloff_brightness;
   }
 
   private _applyAudioOverrides(serviceData: Record<string, unknown>): void {
@@ -3505,6 +3507,24 @@ export class AqaraPanel extends LitElement {
         y: color.y,
         brightness_pct: color.brightness_pct,
       }));
+    }
+
+    // Pass through audio fields from editor (included when audio enabled + entity selected)
+    if (data.audio_entity) {
+      serviceData.audio_entity = data.audio_entity;
+      if (data.audio_color_advance) serviceData.audio_color_advance = data.audio_color_advance;
+      if (data.audio_sensitivity != null) serviceData.audio_sensitivity = data.audio_sensitivity;
+      if (data.audio_brightness_curve !== undefined) serviceData.audio_brightness_curve = data.audio_brightness_curve;
+      if (data.audio_brightness_min != null) serviceData.audio_brightness_min = data.audio_brightness_min;
+      if (data.audio_brightness_max != null) serviceData.audio_brightness_max = data.audio_brightness_max;
+      if (data.audio_transition_speed != null) serviceData.audio_transition_speed = data.audio_transition_speed;
+      if (data.audio_detection_mode != null) serviceData.audio_detection_mode = data.audio_detection_mode;
+      if (data.audio_frequency_zone != null) serviceData.audio_frequency_zone = data.audio_frequency_zone;
+      if (data.audio_silence_behavior != null) serviceData.audio_silence_behavior = data.audio_silence_behavior;
+      if (data.audio_prediction_aggressiveness != null) serviceData.audio_prediction_aggressiveness = data.audio_prediction_aggressiveness;
+      if (data.audio_latency_compensation_ms != null) serviceData.audio_latency_compensation_ms = data.audio_latency_compensation_ms;
+      if (data.audio_color_by_frequency != null) serviceData.audio_color_by_frequency = data.audio_color_by_frequency;
+      if (data.audio_rolloff_brightness != null) serviceData.audio_rolloff_brightness = data.audio_rolloff_brightness;
     }
 
     await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
