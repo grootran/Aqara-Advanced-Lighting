@@ -266,6 +266,7 @@ AUDIO_FLASH_BRIGHTNESS_DECAY: Final = 0.02  # Per-tick flash brightness decay
 
 SILENCE_DEGRADATION_BLEND_SECONDS: Final = 5.0
 SILENCE_DEGRADATION_STEP_SECONDS: Final = 12.0
+AUDIO_SCENE_SILENCE_DECAY_SECONDS: Final = 3.0  # matches effect modulator decay duration
 
 # Audio parameter constraints
 MIN_AUDIO_SENSITIVITY: Final = 1

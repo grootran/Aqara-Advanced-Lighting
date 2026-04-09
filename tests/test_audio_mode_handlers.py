@@ -1,6 +1,6 @@
 """Tests for audio-reactive v2 model fields and mode handlers."""
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from custom_components.aqara_advanced_lighting.models import DynamicScene, DynamicSceneColor
 from custom_components.aqara_advanced_lighting.const import (
     AUDIO_COLOR_ADVANCE_ON_ONSET,
@@ -326,6 +326,140 @@ class TestSilenceBehavior:
         finally:
             if handler._silence_task and not handler._silence_task.done():
                 handler._silence_task.cancel()
+            loop.close()
+
+    def test_silence_behavior_decay_min_starts_decay(self):
+        import asyncio
+        manager = MagicMock()
+
+        async def _fake_apply(*args, **kwargs):
+            pass
+
+        manager._apply_colors_with_offset = _fake_apply
+        handler = OnsetHandler(manager)
+        scene_state = _mock_scene_state(
+            audio_silence_behavior="decay_min",
+            brightness_min=30,
+            brightness_max=100,
+        )
+        scene_state.brightness_modifier = 0.8
+        loop = asyncio.new_event_loop()
+        stop = asyncio.Event()
+        try:
+            loop.run_until_complete(handler.enter_silence(scene_state, stop))
+            assert handler._silence_task is not None
+        finally:
+            if handler._silence_task and not handler._silence_task.done():
+                handler._silence_task.cancel()
+            loop.close()
+
+    def test_silence_behavior_decay_mid_starts_decay(self):
+        import asyncio
+        manager = MagicMock()
+
+        async def _fake_apply(*args, **kwargs):
+            pass
+
+        manager._apply_colors_with_offset = _fake_apply
+        handler = OnsetHandler(manager)
+        scene_state = _mock_scene_state(
+            audio_silence_behavior="decay_mid",
+            brightness_min=30,
+            brightness_max=100,
+        )
+        scene_state.brightness_modifier = 0.9
+        loop = asyncio.new_event_loop()
+        stop = asyncio.Event()
+        try:
+            loop.run_until_complete(handler.enter_silence(scene_state, stop))
+            assert handler._silence_task is not None
+        finally:
+            if handler._silence_task and not handler._silence_task.done():
+                handler._silence_task.cancel()
+            loop.close()
+
+    def test_silence_decay_min_reaches_target(self):
+        import asyncio
+        manager = MagicMock()
+
+        async def _fake_apply(*args, **kwargs):
+            pass
+
+        manager._apply_colors_with_offset = _fake_apply
+        handler = OnsetHandler(manager)
+        scene_state = _mock_scene_state(
+            audio_silence_behavior="decay_min",
+            brightness_min=30,
+            brightness_max=100,
+        )
+        scene_state.brightness_modifier = 0.8
+        loop = asyncio.new_event_loop()
+        stop = asyncio.Event()
+        try:
+            with patch("asyncio.sleep", new_callable=AsyncMock):
+                loop.run_until_complete(handler.enter_silence(scene_state, stop))
+                loop.run_until_complete(handler._silence_task)
+            # brightness_modifier should have decayed to min (30/100 = 0.30)
+            assert abs(scene_state.brightness_modifier - 0.30) < 0.02
+        finally:
+            loop.close()
+
+    def test_silence_decay_mid_reaches_target(self):
+        import asyncio
+        manager = MagicMock()
+
+        async def _fake_apply(*args, **kwargs):
+            pass
+
+        manager._apply_colors_with_offset = _fake_apply
+        handler = OnsetHandler(manager)
+        scene_state = _mock_scene_state(
+            audio_silence_behavior="decay_mid",
+            brightness_min=30,
+            brightness_max=100,
+        )
+        scene_state.brightness_modifier = 0.9
+        loop = asyncio.new_event_loop()
+        stop = asyncio.Event()
+        try:
+            with patch("asyncio.sleep", new_callable=AsyncMock):
+                loop.run_until_complete(handler.enter_silence(scene_state, stop))
+                loop.run_until_complete(handler._silence_task)
+            # Target = (30+100)/2/100 = 0.65
+            assert abs(scene_state.brightness_modifier - 0.65) < 0.02
+        finally:
+            loop.close()
+
+    def test_silence_decay_stops_mid_decay(self):
+        import asyncio
+        manager = MagicMock()
+        apply_count = 0
+
+        async def _counting_apply(*args, **kwargs):
+            nonlocal apply_count
+            apply_count += 1
+            if apply_count >= 3:
+                stop.set()
+
+        manager._apply_colors_with_offset = _counting_apply
+        handler = OnsetHandler(manager)
+        scene_state = _mock_scene_state(
+            audio_silence_behavior="decay_min",
+            brightness_min=10,
+            brightness_max=100,
+        )
+        scene_state.brightness_modifier = 1.0
+        loop = asyncio.new_event_loop()
+        stop = asyncio.Event()
+        try:
+            with patch("asyncio.sleep", new_callable=AsyncMock):
+                loop.run_until_complete(handler.enter_silence(scene_state, stop))
+                loop.run_until_complete(handler._silence_task)
+            # Should have stopped after 3 applies, not all 15
+            assert 3 <= apply_count < 15
+            # brightness_modifier should be partially decayed (not at target)
+            assert scene_state.brightness_modifier > 0.10
+        finally:
             loop.close()
 
 

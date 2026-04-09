@@ -12,6 +12,7 @@ from abc import ABC
 from typing import TYPE_CHECKING, Any, override
 
 from .const import (
+    AUDIO_SCENE_SILENCE_DECAY_SECONDS,
     SILENCE_DEGRADATION_STEP_SECONDS,
 )
 
@@ -57,10 +58,11 @@ class AudioModeHandler(ABC):
             self._silence_task = asyncio.ensure_future(
                 self._silence_cycle(scene_state, stop_event)
             )
-        # "hold", "decay_min", "decay_mid" do not start cycling.
-        # For scenes, hold means freeze in place. decay_min/decay_mid are
-        # handled by the consumer if the scene supports brightness decay
-        # (future enhancement — for now they behave like hold for scenes).
+        elif behavior in ("decay_min", "decay_mid"):
+            self._silence_task = asyncio.ensure_future(
+                self._silence_decay(scene_state, stop_event, behavior)
+            )
+        # "hold" does nothing — lights stay frozen in place
 
     async def exit_silence(self, scene_state: Any) -> None:
         """Return from silence to active audio mode."""
@@ -92,6 +94,55 @@ class AudioModeHandler(ABC):
                 await asyncio.wait_for(stop_event.wait(), timeout=step_time)
             except asyncio.TimeoutError:
                 pass
+
+    async def _silence_decay(
+        self,
+        scene_state: Any,
+        stop_event: asyncio.Event,
+        behavior: str,
+    ) -> None:
+        """Gradually decay brightness_modifier toward a target during silence.
+
+        Mirrors AudioEffectModulator._decay_to_targets: 15 steps over
+        AUDIO_SCENE_SILENCE_DECAY_SECONDS with cubic ease-in-out, reapplying
+        colors at each step so the dimming is visible.
+        """
+        scene = scene_state.scene
+        if behavior == "decay_mid":
+            target = (scene.audio_brightness_min + scene.audio_brightness_max) / 2 / 100.0
+        else:  # decay_min
+            target = scene.audio_brightness_min / 100.0
+        target = max(0.01, min(1.0, target))
+
+        start = scene_state.brightness_modifier
+        if start <= target:
+            # Already at or below target — nothing to decay
+            return
+
+        duration = AUDIO_SCENE_SILENCE_DECAY_SECONDS
+        steps = 15
+        interval = duration / steps
+
+        for i in range(1, steps + 1):
+            if stop_event.is_set() or not self._in_silence:
+                return
+
+            t = i / steps
+            # Cubic ease-in-out (same as AudioEffectModulator._decay_to_targets)
+            if t < 0.5:
+                eased = 4 * t * t * t
+            else:
+                eased = 1 - (-2 * t + 2) ** 3 / 2
+
+            scene_state.brightness_modifier = start + (target - start) * eased
+
+            await self._manager._apply_colors_with_offset(
+                scene_state, stop_event, transition=interval * 0.8
+            )
+            await asyncio.sleep(interval)
+
+        # Ensure final value is exactly the target
+        scene_state.brightness_modifier = target
 
     @staticmethod
     def _apply_brightness_curve(scene: Any, raw_value: float) -> float:
