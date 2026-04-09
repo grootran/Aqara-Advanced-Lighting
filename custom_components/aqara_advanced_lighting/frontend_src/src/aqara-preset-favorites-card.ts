@@ -36,6 +36,7 @@ import {
 } from './preset-thumbnails';
 
 import { PANEL_TRANSLATIONS } from './panel-translations';
+import { renderInput } from './editor-constants';
 
 // ---------------------------------------------------------------------------
 // Module-level API cache — shared across all card instances on the dashboard
@@ -132,22 +133,22 @@ export class AqaraPresetFavoritesCardEditor extends LitElement {
             if (this._config!.entity) this._updateConfig('entity', undefined);
           }}
         ></ha-selector>
-        <ha-textfield
-          .label=${this._t.editor.title_label}
-          .value=${this._config.title || ''}
-          @input=${(e: InputEvent) => this._updateConfig('title', (e.target as HTMLInputElement).value)}
-        ></ha-textfield>
-        <ha-textfield
-          .label=${this._t.editor.columns_label}
-          type="number"
-          min="0"
-          max="6"
-          .value=${String(this._config.columns || 0)}
-          @input=${(e: InputEvent) => {
+        ${renderInput({
+          label: this._t.editor.title_label,
+          value: this._config.title || '',
+          onInput: (e: Event) => this._updateConfig('title', (e.target as HTMLInputElement).value),
+        })}
+        ${renderInput({
+          label: this._t.editor.columns_label,
+          type: 'number',
+          min: '0',
+          max: '6',
+          value: String(this._config.columns || 0),
+          onInput: (e: Event) => {
             const val = parseInt((e.target as HTMLInputElement).value, 10);
             this._updateConfig('columns', isNaN(val) || val <= 0 ? undefined : val);
-          }}
-        ></ha-textfield>
+          },
+        })}
         <ha-formfield .label=${this._t.editor.compact_label}>
           <ha-switch
             .checked=${this._config.compact || false}

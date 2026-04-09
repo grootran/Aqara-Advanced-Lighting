@@ -26,7 +26,7 @@ import {
   getComplementaryColor,
 } from './color-utils';
 import { addColorToHistory } from './color-history';
-import { dialogActions, localize, DEFAULT_PALETTE, DEFAULT_GRADIENT_COLORS, DEFAULT_BLOCK_COLORS } from './editor-constants';
+import { dialogActions, localize, renderInput, DEFAULT_PALETTE, DEFAULT_GRADIENT_COLORS, DEFAULT_BLOCK_COLORS } from './editor-constants';
 import './color-history-swatches';
 
 // Component mode types
@@ -1911,14 +1911,14 @@ export class SegmentSelector extends LitElement {
         </div>
         <div class="options-row">
           <label class="option-item">
-            <ha-textfield
-              type="number"
-              class="option-number-input"
-              min="1"
-              max="10"
-              .value=${String(this.gradientRepeat)}
-              @change=${this._handleGradientRepeatChange}
-            ></ha-textfield>
+            ${renderInput({
+              type: 'number',
+              className: 'option-number-input',
+              min: '1',
+              max: '10',
+              value: String(this.gradientRepeat),
+              onChange: this._handleGradientRepeatChange,
+            })}
             <span class="option-label">${this._localize('editors.gradient_repeat_label')}</span>
           </label>
           <label class="option-item">
@@ -1942,14 +1942,14 @@ export class SegmentSelector extends LitElement {
           </label>
           ${this.gradientWave ? html`
             <label class="option-item">
-              <ha-textfield
-                type="number"
-                class="option-number-input"
-                min="1"
-                max="5"
-                .value=${String(this.gradientWaveCycles)}
-                @change=${this._handleGradientWaveCyclesChange}
-              ></ha-textfield>
+              ${renderInput({
+                type: 'number',
+                className: 'option-number-input',
+                min: '1',
+                max: '5',
+                value: String(this.gradientWaveCycles),
+                onChange: this._handleGradientWaveCyclesChange,
+              })}
               <span class="option-label">${this._localize('editors.gradient_wave_cycles_label')}</span>
             </label>
           ` : ''}

@@ -13,7 +13,7 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { baseStyles, sectionStyles, configStyles, sharedFormStyles } from './styles/index';
-import { localize } from './editor-constants';
+import { localize, renderInput } from './editor-constants';
 import { getEntityFriendlyName, getEntityIcon, getEntityDeviceType } from './entity-utils';
 import type { SupportedEntityMap } from './entity-utils';
 import { findSiblingNumberEntity, findAllSiblingNumberEntities } from './sibling-entity-finder';
@@ -868,26 +868,26 @@ export class AqaraConfigTab extends LitElement {
 
             ${this._audioConfigSelectedEntity ? html`
               <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 16px;">
-                <ha-textfield
-                  label="${this._localize('config.audio_on_service_label') || 'Activate service (e.g., light.turn_on)'}"
-                  .value=${this.entityAudioConfig[this._audioConfigSelectedEntity]?.audio_on_service || ''}
-                  @change=${(e: Event) => this._updateEntityAudioConfig('audio_on_service', (e.target as HTMLInputElement).value)}
-                ></ha-textfield>
-                <ha-textfield
-                  label="${this._localize('config.audio_on_service_data_label') || 'Activate data (JSON)'}"
-                  .value=${this.entityAudioConfig[this._audioConfigSelectedEntity]?.audio_on_service_data || ''}
-                  @change=${(e: Event) => this._updateEntityAudioConfig('audio_on_service_data', (e.target as HTMLInputElement).value)}
-                ></ha-textfield>
-                <ha-textfield
-                  label="${this._localize('config.audio_off_service_label') || 'Deactivate service'}"
-                  .value=${this.entityAudioConfig[this._audioConfigSelectedEntity]?.audio_off_service || ''}
-                  @change=${(e: Event) => this._updateEntityAudioConfig('audio_off_service', (e.target as HTMLInputElement).value)}
-                ></ha-textfield>
-                <ha-textfield
-                  label="${this._localize('config.audio_off_service_data_label') || 'Deactivate data (JSON)'}"
-                  .value=${this.entityAudioConfig[this._audioConfigSelectedEntity]?.audio_off_service_data || ''}
-                  @change=${(e: Event) => this._updateEntityAudioConfig('audio_off_service_data', (e.target as HTMLInputElement).value)}
-                ></ha-textfield>
+                ${renderInput({
+                  label: this._localize('config.audio_on_service_label') || 'Activate service (e.g., light.turn_on)',
+                  value: this.entityAudioConfig[this._audioConfigSelectedEntity]?.audio_on_service || '',
+                  onChange: (e: Event) => this._updateEntityAudioConfig('audio_on_service', (e.target as HTMLInputElement).value),
+                })}
+                ${renderInput({
+                  label: this._localize('config.audio_on_service_data_label') || 'Activate data (JSON)',
+                  value: this.entityAudioConfig[this._audioConfigSelectedEntity]?.audio_on_service_data || '',
+                  onChange: (e: Event) => this._updateEntityAudioConfig('audio_on_service_data', (e.target as HTMLInputElement).value),
+                })}
+                ${renderInput({
+                  label: this._localize('config.audio_off_service_label') || 'Deactivate service',
+                  value: this.entityAudioConfig[this._audioConfigSelectedEntity]?.audio_off_service || '',
+                  onChange: (e: Event) => this._updateEntityAudioConfig('audio_off_service', (e.target as HTMLInputElement).value),
+                })}
+                ${renderInput({
+                  label: this._localize('config.audio_off_service_data_label') || 'Deactivate data (JSON)',
+                  value: this.entityAudioConfig[this._audioConfigSelectedEntity]?.audio_off_service_data || '',
+                  onChange: (e: Event) => this._updateEntityAudioConfig('audio_off_service_data', (e.target as HTMLInputElement).value),
+                })}
               </div>
             ` : ''}
 
