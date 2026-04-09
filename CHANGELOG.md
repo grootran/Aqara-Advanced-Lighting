@@ -49,6 +49,8 @@ Scenes and effects now share the same richer audio parameter model:
   - Brightness override disabled automatically when effect audio-reactive is enabled
   - Panel section descriptions updated throughout
   - EMA filter extracted to shared `EMAFilter` class; alpha and decay constants centralised in `const.py`
+  - Implement spectral features, beat-phase prediction
+  - Implement decay_min/decay_mid silence behaviors for audio scenes
 
 ### Fixes
 
@@ -57,6 +59,10 @@ Scenes and effects now share the same richer audio parameter model:
   - Stop orphaned audio engine and modulator when an effect replaces another running audio-reactive effect
   - Audio modulator brightness writes tagged with integration context, eliminating false pause-detection log spam
   - Sensitivity slider no longer overflows running-operation cards on narrow layouts
+  - Apply audio waveform badge to scene presets with custom icons
+  - Prevent false external change detection during scene transitions
+  - Add missing audio fields to dynamic scene preset store whitelist
+  - Dynamic scene preview audio
 
 ### Code Quality
 

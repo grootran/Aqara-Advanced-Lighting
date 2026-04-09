@@ -55,6 +55,8 @@ Scenes and effects now share the same richer audio controls:
   - Default audio sensor auto-populated in both the scene editor and effect editor
   - Activation overrides panel reordered: all toggles grouped at the top, parameters below
   - Brightness override automatically disabled when effect audio-reactive is enabled (they conflict)
+  - Implement spectral features, beat-phase prediction
+  - Implement decay_min/decay_mid silence behaviors for audio scenes
 
 ### Fixes
 
@@ -62,6 +64,10 @@ Scenes and effects now share the same richer audio controls:
   - On-device audio modes (T1 Strip music sync, generic on-device) now correctly cleaned up when a scene is detached, not left running
   - Stop orphaned audio engine and modulator when a new effect replaces a running audio-reactive effect
   - Audio modulator brightness writes now tagged with integration context, eliminating false pause-detection log spam
+  - Apply audio waveform badge to scene presets with custom icons
+  - Prevent false external change detection during scene transitions
+  - Add missing audio fields to dynamic scene preset store whitelist
+  - Dynamic scene preview audio
 
 ## Full Changelog
 
