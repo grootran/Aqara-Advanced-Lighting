@@ -4550,12 +4550,17 @@ export class AqaraPanel extends LitElement {
 
   /** Render a user dynamic scene preset icon: generated thumbnail or MDI icon. */
   private _renderUserDynamicSceneIcon(preset: UserDynamicScenePreset) {
+    const isAudio = !!(preset.audio_entity || preset.audio_color_advance);
     if (preset.icon) {
-      return this._renderPresetIcon(preset.icon, 'mdi:lamps');
+      const icon = this._renderPresetIcon(preset.icon, 'mdi:lamps');
+      if (isAudio) {
+        return html`${icon}<span class="audio-badge"><ha-icon icon="mdi:waveform"></ha-icon></span>`;
+      }
+      return icon;
     }
     const thumb = renderDynamicSceneThumbnail(preset)
       ?? html`<ha-icon icon="mdi:lamps"></ha-icon>`;
-    if (preset.audio_entity || preset.audio_color_advance) {
+    if (isAudio) {
       return html`${thumb}<span class="audio-badge"><ha-icon icon="mdi:waveform"></ha-icon></span>`;
     }
     return thumb;
