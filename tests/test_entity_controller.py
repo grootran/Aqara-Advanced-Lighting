@@ -529,3 +529,31 @@ def test_pause_entity_public_api(controller, mock_hass):
 
     controller.pause_entity("light.test", OverrideAttributes.BRIGHTNESS)
     assert controller.get_override_attributes("light.test") == OverrideAttributes.BRIGHTNESS
+
+
+# -- Transition grace tests --
+
+
+def test_transition_grace_set_and_check(controller):
+    """set_transition_grace sets a deadline in the future."""
+    controller.set_transition_grace("light.test", 3.0)
+    assert "light.test" in controller._transition_grace_deadlines
+
+
+def test_transition_grace_cleared_on_clear_entity(controller):
+    """clear_entity removes transition grace tracking."""
+    controller.set_transition_grace("light.test", 5.0)
+    controller.clear_entity("light.test")
+    assert "light.test" not in controller._transition_grace_deadlines
+
+
+def test_clear_transition_grace(controller):
+    """clear_transition_grace removes a single entity's grace."""
+    controller.set_transition_grace("light.test", 5.0)
+    controller.clear_transition_grace("light.test")
+    assert "light.test" not in controller._transition_grace_deadlines
+
+
+def test_clear_transition_grace_missing_key(controller):
+    """clear_transition_grace does not raise for unknown entity."""
+    controller.clear_transition_grace("light.nonexistent")  # should not raise

@@ -27,6 +27,7 @@ from .const import (
     CONF_AUDIO_OFF_SERVICE_DATA,
     CONF_AUDIO_ON_SERVICE,
     CONF_AUDIO_ON_SERVICE_DATA,
+    DATA_ENTITY_CONTROLLER,
     DATA_USER_PREFERENCES_STORE,
     DOMAIN,
     EVENT_ATTR_ENTITY_ID,
@@ -1230,6 +1231,9 @@ class DynamicSceneManager:
             else None
         )
 
+        # Get entity controller for transition grace
+        ec = self.hass.data.get(DOMAIN, {}).get(DATA_ENTITY_CONTROLLER)
+
         # Collect software transition tasks for T1-family devices
         software_tasks: list[asyncio.Task[None]] = []
 
@@ -1293,6 +1297,9 @@ class DynamicSceneManager:
             # Check if this entity needs software-interpolated transitions
             model_id = scene_state.software_transition_entities.get(entity_id)
             if model_id and transition_time > 0 and override == OverrideAttributes.NONE:
+                # Set transition grace for software-interpolated entities too
+                if ec:
+                    ec.set_transition_grace(entity_id, transition_time)
                 # Launch async task for software interpolation
                 task = asyncio.create_task(
                     self._software_color_transition(
@@ -1345,6 +1352,11 @@ class DynamicSceneManager:
                     if not (set(service_data.keys()) & value_keys):
                         continue
 
+                # Set transition grace so device state reports during/after
+                # the hardware transition are not mistaken for external changes.
+                if ec and transition_time > 0:
+                    ec.set_transition_grace(entity_id, transition_time)
+
                 await self.hass.services.async_call(
                     "light",
                     "turn_on",
@@ -1383,7 +1395,6 @@ class DynamicSceneManager:
             except TimeoutError:
                 pass  # Normal - transition time elapsed
 
-            # Refresh grace window after transition completes so the
     async def _software_color_transition(
         self,
         entity_id: str,
