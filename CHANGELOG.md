@@ -51,18 +51,21 @@ Scenes and effects now share the same richer audio parameter model:
   - EMA filter extracted to shared `EMAFilter` class; alpha and decay constants centralised in `const.py`
   - Implement spectral features, beat-phase prediction
   - Implement decay_min/decay_mid silence behaviors for audio scenes
+  - Add drag-and-drop reordering for effect editor color swatches
+  - Add drag-and-drop reordering for segment-selector gradient/blocks swatches
 
 ### Fixes
 
-  - Preserve original light state when switching between dynamic scene presets
-  - On-device audio (T1 Strip music sync, generic on-device mode) now cleaned up on scene detach
-  - Stop orphaned audio engine and modulator when an effect replaces another running audio-reactive effect
-  - Audio modulator brightness writes tagged with integration context, eliminating false pause-detection log spam
-  - Sensitivity slider no longer overflows running-operation cards on narrow layouts
+  - Preserve original light state when switching between dynamic scene presets — preset B no longer restores to preset A's captured state baseline
+  - On-device audio modes (T1 Strip music sync, generic on-device) now correctly cleaned up when a scene is detached, not left running
+  - Stop orphaned audio engine and modulator when a new effect replaces a running audio-reactive effect
+  - Audio modulator brightness writes now tagged with integration context, eliminating false pause-detection log spam
   - Apply audio waveform badge to scene presets with custom icons
   - Prevent false external change detection during scene transitions
   - Add missing audio fields to dynamic scene preset store whitelist
   - Dynamic scene preview audio
+  - Add ESPHome name-derived unique_id aliases for companion sensor discovery
+  - Migrate ha-textfield to ha-input for HA 2026.5+ compatibility
 
 ### Code Quality
 

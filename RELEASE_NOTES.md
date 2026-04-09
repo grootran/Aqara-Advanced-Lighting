@@ -57,6 +57,8 @@ Scenes and effects now share the same richer audio controls:
   - Brightness override automatically disabled when effect audio-reactive is enabled (they conflict)
   - Implement spectral features, beat-phase prediction
   - Implement decay_min/decay_mid silence behaviors for audio scenes
+  - Add drag-and-drop reordering for effect editor color swatches
+  - Add drag-and-drop reordering for segment-selector gradient/blocks swatches
 
 ### Fixes
 
@@ -68,6 +70,8 @@ Scenes and effects now share the same richer audio controls:
   - Prevent false external change detection during scene transitions
   - Add missing audio fields to dynamic scene preset store whitelist
   - Dynamic scene preview audio
+  - Add ESPHome name-derived unique_id aliases for companion sensor discovery
+  - Migrate ha-textfield to ha-input for HA 2026.5+ compatibility
 
 ## Full Changelog
 
