@@ -27,6 +27,7 @@ import {
 } from './color-utils';
 import { addColorToHistory } from './color-history';
 import { dialogActions, localize, renderInput, DEFAULT_PALETTE, DEFAULT_GRADIENT_COLORS, DEFAULT_BLOCK_COLORS } from './editor-constants';
+import { ReorderableStepsMixin, reorderableStepStyles, ReorderableStepItem } from './reorderable-steps-mixin';
 import './color-history-swatches';
 
 // Component mode types
@@ -35,8 +36,11 @@ type PatternMode = 'individual' | 'gradient' | 'blocks';
 type ColorSource = 'palette' | 'gradient' | 'blocks' | null;
 type InterpolationMode = 'shortest' | 'longest' | 'rgb';
 
+// Wrapper for XYColor with unique ID required by ReorderableStepsMixin
+interface DraggableColor extends XYColor, ReorderableStepItem {}
+
 @customElement('segment-selector')
-export class SegmentSelector extends LitElement {
+export class SegmentSelector extends ReorderableStepsMixin(LitElement) {
   @property({ type: Object }) hass?: HomeAssistant;
   @property({ type: String }) mode: SegmentSelectorMode = 'selection';
   @property({ type: Number }) maxSegments = 10;
@@ -62,6 +66,44 @@ export class SegmentSelector extends LitElement {
   @property({ type: Boolean }) turnOffUnspecified = true;
   @property({ type: Boolean }) hideControls = false;
 
+  protected override _reorderLayout: 'list' | 'grid' = 'grid';
+
+  // Must explicitly declare @state() — the mixin uses bare `declare` which is not reactive
+  @state() protected _steps: DraggableColor[] = [];
+
+  private _colorIdCounter = 0;
+
+  private _generateColorId(): string {
+    return `color-${++this._colorIdCounter}-${Date.now()}`;
+  }
+
+  /** Wrap plain XYColor values as DraggableColor with unique IDs. */
+  private _toColors(colors: XYColor[]): DraggableColor[] {
+    return colors.map(c => ({ x: c.x, y: c.y, id: this._generateColorId() }));
+  }
+
+  // Tracks which property array _steps currently mirrors
+  private _stepsSource: 'gradient' | 'blocks' | null = null;
+  // Prevents _syncSteps from re-generating _steps when _reorderStep writes back to the property
+  private _suppressSync = false;
+
+  /**
+   * Sync _steps from the active color property based on current pattern mode.
+   * Called when gradientColors, blockColors, or _patternMode changes.
+   */
+  private _syncSteps(): void {
+    if (this._patternMode === 'gradient') {
+      this._steps = this._toColors(this.gradientColors);
+      this._stepsSource = 'gradient';
+    } else if (this._patternMode === 'blocks') {
+      this._steps = this._toColors(this.blockColors);
+      this._stepsSource = 'blocks';
+    } else {
+      this._steps = [];
+      this._stepsSource = null;
+    }
+  }
+
   @state() private _selectedSegments: Set<number> = new Set();
   @state() private _coloredSegments: Map<number, XYColor> = new Map();
   @state() private _lastSelectedIndex: number | null = null;
@@ -84,7 +126,7 @@ export class SegmentSelector extends LitElement {
   private _wheelPointerUpBound: (() => void) | null = null;
 
   static get styles(): CSSResultGroup {
-    return css`
+    return [reorderableStepStyles, css`
       :host {
         display: block;
       }
@@ -407,6 +449,48 @@ export class SegmentSelector extends LitElement {
         visibility: hidden;
       }
 
+      /* Drag handle above color swatch */
+      .color-drag-handle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 48px;
+        height: 20px;
+        color: var(--secondary-text-color);
+        cursor: grab;
+        touch-action: none;
+        -webkit-user-select: none;
+        user-select: none;
+        transition: color 0.2s ease;
+      }
+
+      .color-drag-handle:hover {
+        color: var(--primary-color);
+      }
+
+      .color-drag-handle:active {
+        cursor: grabbing;
+      }
+
+      .color-drag-handle ha-icon {
+        --mdc-icon-size: 18px;
+      }
+
+      .color-drag-handle-spacer {
+        height: 20px;
+      }
+
+      /* Suppress swatch hover effect during drag */
+      .color-array.is-dragging .color-swatch:hover {
+        transform: none;
+      }
+
+      /* Suppress add button during drag */
+      .color-array.is-dragging .add-color-btn {
+        pointer-events: none;
+        opacity: 0.4;
+      }
+
       .add-color-btn {
         display: flex;
         flex-direction: column;
@@ -598,7 +682,7 @@ export class SegmentSelector extends LitElement {
           max-width: 100%;
         }
       }
-    `;
+    `];
   }
 
   disconnectedCallback(): void {
@@ -612,6 +696,30 @@ export class SegmentSelector extends LitElement {
       window.removeEventListener('mouseup', this._wheelPointerUpBound);
       window.removeEventListener('touchend', this._wheelPointerUpBound);
       this._wheelPointerUpBound = null;
+    }
+  }
+
+  protected willUpdate(changedProps: PropertyValues): void {
+    super.willUpdate(changedProps);
+
+    // Skip sync when _reorderStep just wrote back to the property
+    if (this._suppressSync) {
+      this._suppressSync = false;
+      return;
+    }
+
+    // Sync _steps when the active color array or pattern mode changes
+    const needsSync =
+      (changedProps.has('gradientColors') && this._patternMode === 'gradient') ||
+      (changedProps.has('blockColors') && this._patternMode === 'blocks');
+
+    if (needsSync) {
+      this._syncSteps();
+    }
+
+    // Initialize _steps on first render if starting in gradient/blocks mode
+    if (!this._stepsSource && (this._patternMode === 'gradient' || this._patternMode === 'blocks')) {
+      this._syncSteps();
     }
   }
 
@@ -1006,6 +1114,24 @@ export class SegmentSelector extends LitElement {
     this._patternMode = mode;
     this._clearMode = false;
     this._selectMode = false;
+    this._syncSteps();
+  }
+
+  protected override _reorderStep(fromIndex: number, toIndex: number): void {
+    super._reorderStep(fromIndex, toIndex);
+
+    // Suppress the next _syncSteps — _steps is already correct, no need to regenerate IDs
+    this._suppressSync = true;
+
+    // Write reordered colors back to the source property (stripped of IDs)
+    const reordered = this._steps.map(c => ({ x: c.x, y: c.y }));
+    if (this._stepsSource === 'gradient') {
+      this.gradientColors = reordered;
+      this._fireGradientColorsChanged();
+    } else if (this._stepsSource === 'blocks') {
+      this.blockColors = reordered;
+      this._fireBlockColorsChanged();
+    }
   }
 
   private _addGradientColor(): void {
@@ -1857,9 +1983,18 @@ export class SegmentSelector extends LitElement {
       <div class="mode-hint">
         ${this._localize('editors.gradient_mode_description')}
       </div>
-      <div class="color-array">
-        ${this.gradientColors.map((color, index) => html`
-          <div class="color-item">
+      <div class="color-array step-list" style="position: relative;">
+        ${this._renderGridDropIndicator()}
+        ${this._steps.map((color, index) => html`
+          <div class="color-item step-item ${this._dragState.draggingIndex === index ? 'dragging' : ''}">
+            <div
+              class="color-drag-handle"
+              role="button"
+              aria-label="Reorder color ${index + 1}"
+              @pointerdown=${(e: PointerEvent) => this._onDragHandlePointerDown(e, index)}
+            >
+              <ha-icon icon="mdi:drag"></ha-icon>
+            </div>
             <div
               class="color-swatch"
               role="button"
@@ -1878,6 +2013,7 @@ export class SegmentSelector extends LitElement {
         `)}
         ${this.gradientColors.length < 6 ? html`
           <div class="add-color-btn">
+            <div class="color-drag-handle-spacer"></div>
             <div class="add-color-icon" @click=${this._addGradientColor}>
               <ha-icon icon="mdi:plus"></ha-icon>
             </div>
@@ -1976,9 +2112,18 @@ export class SegmentSelector extends LitElement {
       <div class="mode-hint">
         ${this._localize('editors.blocks_mode_description')}
       </div>
-      <div class="color-array">
-        ${this.blockColors.map((color, index) => html`
-          <div class="color-item">
+      <div class="color-array step-list" style="position: relative;">
+        ${this._renderGridDropIndicator()}
+        ${this._steps.map((color, index) => html`
+          <div class="color-item step-item ${this._dragState.draggingIndex === index ? 'dragging' : ''}">
+            <div
+              class="color-drag-handle"
+              role="button"
+              aria-label="Reorder color ${index + 1}"
+              @pointerdown=${(e: PointerEvent) => this._onDragHandlePointerDown(e, index)}
+            >
+              <ha-icon icon="mdi:drag"></ha-icon>
+            </div>
             <div
               class="color-swatch"
               role="button"
@@ -1997,6 +2142,7 @@ export class SegmentSelector extends LitElement {
         `)}
         ${this.blockColors.length < 6 ? html`
           <div class="add-color-btn">
+            <div class="color-drag-handle-spacer"></div>
             <div class="add-color-icon" @click=${this._addBlockColor}>
               <ha-icon icon="mdi:plus"></ha-icon>
             </div>
