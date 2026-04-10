@@ -369,13 +369,11 @@ def _build_presets_data() -> dict[str, Any]:
                 "brightness": preset_data.get("brightness"),
                 "colors": preset_data["colors"],
                 "device_types": device_types,
-                "audio_detection_mode": preset_data.get("audio_detection_mode"),
                 "audio_sensitivity": preset_data.get("audio_sensitivity"),
                 "audio_silence_behavior": preset_data.get("audio_silence_behavior"),
                 "audio_speed_mode": preset_data.get("audio_speed_mode"),
                 "audio_speed_min": preset_data.get("audio_speed_min"),
                 "audio_speed_max": preset_data.get("audio_speed_max"),
-                "audio_speed_curve": preset_data.get("audio_speed_curve"),
             }
         )
 
@@ -918,7 +916,6 @@ class UserPreferencesView(HomeAssistantView):
         audio_override_rolloff_brightness = _UNSET
         use_effect_audio_reactive = _UNSET
         effect_audio_override_sensitivity = _UNSET
-        effect_audio_override_detection_mode = _UNSET
         effect_audio_override_speed_enabled = _UNSET
         effect_audio_override_brightness_enabled = _UNSET
         effect_audio_override_silence_behavior = _UNSET
@@ -1125,13 +1122,6 @@ class UserPreferencesView(HomeAssistantView):
                 )
             effect_audio_override_sensitivity = int(value)
 
-        if "effect_audio_override_detection_mode" in data:
-            if not isinstance(data["effect_audio_override_detection_mode"], str):
-                return web.Response(
-                    status=400, text="effect_audio_override_detection_mode must be a string"
-                )
-            effect_audio_override_detection_mode = data["effect_audio_override_detection_mode"]
-
         if "effect_audio_override_speed_enabled" in data:
             if not isinstance(data["effect_audio_override_speed_enabled"], bool):
                 return web.Response(
@@ -1200,7 +1190,6 @@ class UserPreferencesView(HomeAssistantView):
             and audio_override_rolloff_brightness is _UNSET
             and use_effect_audio_reactive is _UNSET
             and effect_audio_override_sensitivity is _UNSET
-            and effect_audio_override_detection_mode is _UNSET
             and effect_audio_override_speed_enabled is _UNSET
             and effect_audio_override_brightness_enabled is _UNSET
             and effect_audio_override_silence_behavior is _UNSET
@@ -1239,7 +1228,6 @@ class UserPreferencesView(HomeAssistantView):
             audio_override_rolloff_brightness=audio_override_rolloff_brightness,
             use_effect_audio_reactive=use_effect_audio_reactive,
             effect_audio_override_sensitivity=effect_audio_override_sensitivity,
-            effect_audio_override_detection_mode=effect_audio_override_detection_mode,
             effect_audio_override_speed_enabled=effect_audio_override_speed_enabled,
             effect_audio_override_brightness_enabled=effect_audio_override_brightness_enabled,
             effect_audio_override_silence_behavior=effect_audio_override_silence_behavior,

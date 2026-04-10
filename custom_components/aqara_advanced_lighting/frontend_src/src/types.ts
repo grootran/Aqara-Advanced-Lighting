@@ -62,13 +62,11 @@ export interface DynamicEffectPreset {
   brightness?: number;
   colors: number[][];
   device_types: string[];
-  audio_detection_mode?: string;
   audio_sensitivity?: number;
   audio_silence_behavior?: string;
   audio_speed_mode?: string | null;
   audio_speed_min?: number;
   audio_speed_max?: number;
-  audio_speed_curve?: string;
 }
 
 export interface SegmentPatternPreset {
@@ -249,12 +247,10 @@ export interface SegmentColorEntry {
 export interface AudioEffectConfig {
   audio_entity: string;
   audio_sensitivity?: number;
-  audio_detection_mode?: 'spectral_flux' | 'bass_energy' | 'complex_domain';
   audio_silence_behavior?: 'hold' | 'decay_min' | 'decay_mid';
-  audio_speed_mode?: 'on_onset' | 'continuous' | 'intensity_breathing' | 'onset_flash' | null;
+  audio_speed_mode?: 'volume' | 'tempo' | 'combined' | null;
   audio_speed_min?: number;
   audio_speed_max?: number;
-  audio_speed_curve?: 'linear' | 'logarithmic' | 'exponential';
 }
 
 export interface UserEffectPreset {
@@ -425,7 +421,6 @@ export interface UserPreferences {
   // Effect audio overrides
   use_effect_audio_reactive?: boolean;
   effect_audio_override_sensitivity?: number;
-  effect_audio_override_detection_mode?: string;
   effect_audio_override_speed_enabled?: boolean;
   effect_audio_override_brightness_enabled?: boolean;
   effect_audio_override_silence_behavior?: string;

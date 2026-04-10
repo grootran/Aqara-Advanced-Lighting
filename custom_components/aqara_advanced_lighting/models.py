@@ -306,14 +306,12 @@ class AudioEffectConfig:
 
     audio_entity: str
     audio_sensitivity: int = DEFAULT_AUDIO_SENSITIVITY
-    audio_detection_mode: str = DEFAULT_AUDIO_DETECTION_MODE
     audio_silence_behavior: str = DEFAULT_AUDIO_SILENCE_BEHAVIOR
 
     # Speed modulation channel
     audio_speed_mode: str | None = None
     audio_speed_min: int = 1
     audio_speed_max: int = 100
-    audio_speed_curve: str = DEFAULT_AUDIO_RESPONSE_CURVE
 
     def __post_init__(self) -> None:
         """Validate and clamp audio configuration."""
@@ -323,18 +321,9 @@ class AudioEffectConfig:
             max(MIN_AUDIO_SENSITIVITY, min(MAX_AUDIO_SENSITIVITY, self.audio_sensitivity)),
         )
 
-        # Validate detection mode
-        if self.audio_detection_mode not in VALID_AUDIO_DETECTION_MODES:
-            object.__setattr__(self, "audio_detection_mode", DEFAULT_AUDIO_DETECTION_MODE)
-
         # Validate silence behavior
         if self.audio_silence_behavior not in VALID_AUDIO_SILENCE_BEHAVIORS:
             msg = f"Invalid audio_silence_behavior: {self.audio_silence_behavior}"
-            raise ValueError(msg)
-
-        # Validate speed mode
-        if self.audio_speed_mode is not None and self.audio_speed_mode not in VALID_AUDIO_EFFECT_MODES:
-            msg = f"Invalid audio_speed_mode: {self.audio_speed_mode}"
             raise ValueError(msg)
 
         # Speed mode must be enabled
@@ -342,9 +331,9 @@ class AudioEffectConfig:
             msg = "AudioEffectConfig requires audio_speed_mode"
             raise ValueError(msg)
 
-        # Validate response curve
-        if self.audio_speed_curve not in VALID_AUDIO_RESPONSE_CURVES:
-            msg = f"Invalid audio_speed_curve: {self.audio_speed_curve}"
+        # Validate speed mode
+        if self.audio_speed_mode not in VALID_AUDIO_EFFECT_MODES:
+            msg = f"Invalid audio_speed_mode: {self.audio_speed_mode}"
             raise ValueError(msg)
 
         # Clamp min/max ranges
@@ -361,29 +350,26 @@ class AudioEffectConfig:
         return {
             "audio_entity": self.audio_entity,
             "audio_sensitivity": self.audio_sensitivity,
-            "audio_detection_mode": self.audio_detection_mode,
             "audio_silence_behavior": self.audio_silence_behavior,
             "audio_speed_mode": self.audio_speed_mode,
             "audio_speed_min": self.audio_speed_min,
             "audio_speed_max": self.audio_speed_max,
-            "audio_speed_curve": self.audio_speed_curve,
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
         """Deserialize from dictionary.
 
-        Ignores legacy brightness fields from older presets.
+        Ignores legacy fields (audio_speed_curve, audio_detection_mode,
+        audio_brightness_*) from older presets.
         """
         return cls(
             audio_entity=data["audio_entity"],
             audio_sensitivity=data.get("audio_sensitivity", DEFAULT_AUDIO_SENSITIVITY),
-            audio_detection_mode=data.get("audio_detection_mode", DEFAULT_AUDIO_DETECTION_MODE),
             audio_silence_behavior=data.get("audio_silence_behavior", DEFAULT_AUDIO_SILENCE_BEHAVIOR),
             audio_speed_mode=data.get("audio_speed_mode"),
             audio_speed_min=data.get("audio_speed_min", 1),
             audio_speed_max=data.get("audio_speed_max", 100),
-            audio_speed_curve=data.get("audio_speed_curve", DEFAULT_AUDIO_RESPONSE_CURVE),
         )
 
 @dataclass(frozen=True, slots=True)

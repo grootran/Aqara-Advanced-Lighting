@@ -171,21 +171,6 @@ set_dynamic_effect:
           min: 1
           max: 100
           mode: slider
-    audio_detection_mode:
-      name: Detection mode
-      description: Audio detection algorithm on the ESP32.
-      required: false
-      default: "spectral_flux"
-      selector:
-        select:
-          options:
-            - label: "Spectral Flux"
-              value: "spectral_flux"
-            - label: "Bass Energy"
-              value: "bass_energy"
-            - label: "Complex Domain"
-              value: "complex_domain"
-          mode: dropdown
     audio_silence_behavior:
       name: Silence behavior
       description: What happens to speed/brightness when music stops.
@@ -203,20 +188,18 @@ set_dynamic_effect:
           mode: dropdown
     audio_speed_mode:
       name: Speed modulation mode
-      description: How audio drives the effect speed. Defaults to Continuous when audio entity is selected.
+      description: How audio drives the effect speed. Defaults to Volume when audio entity is selected.
       required: false
-      default: "continuous"
+      default: "volume"
       selector:
         select:
           options:
-            - label: "On Onset"
-              value: "on_onset"
-            - label: "Continuous"
-              value: "continuous"
-            - label: "Intensity Breathing"
-              value: "intensity_breathing"
-            - label: "Onset Flash"
-              value: "onset_flash"
+            - label: "Volume"
+              value: "volume"
+            - label: "Tempo"
+              value: "tempo"
+            - label: "Combined"
+              value: "combined"
           mode: dropdown
     audio_speed_min:
       name: Speed minimum
@@ -238,21 +221,6 @@ set_dynamic_effect:
           min: 1
           max: 100
           mode: slider
-    audio_speed_curve:
-      name: Speed response curve
-      description: How sensor values map to the speed range.
-      required: false
-      default: "linear"
-      selector:
-        select:
-          options:
-            - label: "Linear"
-              value: "linear"
-            - label: "Logarithmic"
-              value: "logarithmic"
-            - label: "Exponential"
-              value: "exponential"
-          mode: dropdown
     z2m_base_topic:
       name: Z2M base topic (deprecated)
       description: "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."

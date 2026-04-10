@@ -46,7 +46,6 @@ class UserPreferences(TypedDict):
     audio_override_rolloff_brightness: bool
     use_effect_audio_reactive: bool
     effect_audio_override_sensitivity: int
-    effect_audio_override_detection_mode: str
     effect_audio_override_speed_enabled: bool
     effect_audio_override_brightness_enabled: bool
     effect_audio_override_silence_behavior: str
@@ -80,7 +79,6 @@ DEFAULT_PREFERENCES: UserPreferences = {
     "audio_override_rolloff_brightness": False,
     "use_effect_audio_reactive": False,
     "effect_audio_override_sensitivity": 50,
-    "effect_audio_override_detection_mode": "spectral_flux",
     "effect_audio_override_speed_enabled": True,
     "effect_audio_override_brightness_enabled": True,
     "effect_audio_override_silence_behavior": "hold",
@@ -208,7 +206,6 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
                 "audio_override_rolloff_brightness": prefs.get("audio_override_rolloff_brightness", False),
                 "use_effect_audio_reactive": prefs.get("use_effect_audio_reactive", False),
                 "effect_audio_override_sensitivity": prefs.get("effect_audio_override_sensitivity", 50),
-                "effect_audio_override_detection_mode": prefs.get("effect_audio_override_detection_mode", "spectral_flux"),
                 "effect_audio_override_speed_enabled": prefs.get("effect_audio_override_speed_enabled", True),
                 "effect_audio_override_brightness_enabled": prefs.get("effect_audio_override_brightness_enabled", True),
                 "effect_audio_override_silence_behavior": prefs.get("effect_audio_override_silence_behavior", "hold"),
@@ -296,7 +293,6 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
         audio_override_rolloff_brightness: bool | None | _Unset = _UNSET,
         use_effect_audio_reactive: bool | None | _Unset = _UNSET,
         effect_audio_override_sensitivity: int | None | _Unset = _UNSET,
-        effect_audio_override_detection_mode: str | None | _Unset = _UNSET,
         effect_audio_override_speed_enabled: bool | None | _Unset = _UNSET,
         effect_audio_override_brightness_enabled: bool | None | _Unset = _UNSET,
         effect_audio_override_silence_behavior: str | None | _Unset = _UNSET,
@@ -335,7 +331,6 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
             audio_override_rolloff_brightness: Whether rolloff brightness is enabled, or _UNSET to leave unchanged.
             use_effect_audio_reactive: Whether effect audio-reactive is enabled, or _UNSET to leave unchanged.
             effect_audio_override_sensitivity: Effect audio sensitivity (1-100), or _UNSET to leave unchanged.
-            effect_audio_override_detection_mode: Effect detection mode string, or _UNSET to leave unchanged.
             effect_audio_override_speed_enabled: Whether speed responds to audio in effects, or _UNSET to leave unchanged.
             effect_audio_override_brightness_enabled: Whether brightness responds to audio in effects, or _UNSET to leave unchanged.
             effect_audio_override_silence_behavior: Effect silence behavior enum string, or _UNSET to leave unchanged.
@@ -425,9 +420,6 @@ class UserPreferencesStore(BaseStore[dict[str, UserPreferences]]):
 
         if not isinstance(effect_audio_override_sensitivity, _Unset):
             self._data[user_id]["effect_audio_override_sensitivity"] = effect_audio_override_sensitivity
-
-        if not isinstance(effect_audio_override_detection_mode, _Unset):
-            self._data[user_id]["effect_audio_override_detection_mode"] = effect_audio_override_detection_mode
 
         if not isinstance(effect_audio_override_speed_enabled, _Unset):
             self._data[user_id]["effect_audio_override_speed_enabled"] = effect_audio_override_speed_enabled

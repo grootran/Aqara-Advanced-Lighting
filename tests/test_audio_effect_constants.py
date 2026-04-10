@@ -1,44 +1,25 @@
 """Tests for audio-reactive effect constants."""
 from custom_components.aqara_advanced_lighting.const import (
-    AUDIO_EFFECT_MODE_ON_ONSET,
-    AUDIO_EFFECT_MODE_CONTINUOUS,
-    AUDIO_EFFECT_MODE_INTENSITY_BREATHING,
-    AUDIO_EFFECT_MODE_ONSET_FLASH,
+    AUDIO_EFFECT_MODE_VOLUME,
+    AUDIO_EFFECT_MODE_TEMPO,
+    AUDIO_EFFECT_MODE_COMBINED,
     VALID_AUDIO_EFFECT_MODES,
-    AUDIO_RESPONSE_CURVE_LINEAR,
-    AUDIO_RESPONSE_CURVE_LOGARITHMIC,
-    AUDIO_RESPONSE_CURVE_EXPONENTIAL,
-    VALID_AUDIO_RESPONSE_CURVES,
     AUDIO_SILENCE_HOLD,
     AUDIO_SILENCE_DECAY_MIN,
     AUDIO_SILENCE_DECAY_MID,
     AUDIO_SILENCE_SLOW_CYCLE,
     VALID_AUDIO_SILENCE_BEHAVIORS,
-    AUDIO_EFFECT_RATE_LIMIT_T1M,
-    AUDIO_EFFECT_RATE_LIMIT_T1_STRIP,
     SPEED_DEADBAND,
-    BRIGHTNESS_DEADBAND,
     DEFAULT_AUDIO_SILENCE_BEHAVIOR,
-    DEFAULT_AUDIO_RESPONSE_CURVE,
 )
 
 
 def test_audio_effect_modes():
-    assert AUDIO_EFFECT_MODE_ON_ONSET == "on_onset"
-    assert AUDIO_EFFECT_MODE_CONTINUOUS == "continuous"
-    assert AUDIO_EFFECT_MODE_INTENSITY_BREATHING == "intensity_breathing"
-    assert AUDIO_EFFECT_MODE_ONSET_FLASH == "onset_flash"
-    assert len(VALID_AUDIO_EFFECT_MODES) == 4
-    assert set(VALID_AUDIO_EFFECT_MODES) == {
-        "on_onset", "continuous", "intensity_breathing", "onset_flash",
-    }
-
-
-def test_response_curves():
-    assert AUDIO_RESPONSE_CURVE_LINEAR == "linear"
-    assert AUDIO_RESPONSE_CURVE_LOGARITHMIC == "logarithmic"
-    assert AUDIO_RESPONSE_CURVE_EXPONENTIAL == "exponential"
-    assert len(VALID_AUDIO_RESPONSE_CURVES) == 3
+    assert AUDIO_EFFECT_MODE_VOLUME == "volume"
+    assert AUDIO_EFFECT_MODE_TEMPO == "tempo"
+    assert AUDIO_EFFECT_MODE_COMBINED == "combined"
+    assert len(VALID_AUDIO_EFFECT_MODES) == 3
+    assert set(VALID_AUDIO_EFFECT_MODES) == {"volume", "tempo", "combined"}
 
 
 def test_silence_behaviors():
@@ -49,19 +30,25 @@ def test_silence_behaviors():
     assert len(VALID_AUDIO_SILENCE_BEHAVIORS) == 4
 
 
-def test_rate_limits():
-    assert AUDIO_EFFECT_RATE_LIMIT_T1M == 2.0
-    assert AUDIO_EFFECT_RATE_LIMIT_T1_STRIP == 0.5
+def test_deadband():
+    assert SPEED_DEADBAND == 4
 
 
-def test_deadbands():
-    assert SPEED_DEADBAND == 2
-    assert BRIGHTNESS_DEADBAND == 5
+def test_no_rate_limit_constants():
+    """Rate limit constants should be removed."""
+    import custom_components.aqara_advanced_lighting.const as c
+    assert not hasattr(c, "AUDIO_EFFECT_RATE_LIMIT_T1M")
+    assert not hasattr(c, "AUDIO_EFFECT_RATE_LIMIT_T1_STRIP")
+
+
+def test_no_response_curve_constants_for_effects():
+    """Response curve constants still exist (used by scenes) but effect modes don't reference them."""
+    assert "linear" not in VALID_AUDIO_EFFECT_MODES
+    assert "logarithmic" not in VALID_AUDIO_EFFECT_MODES
 
 
 def test_defaults():
     assert DEFAULT_AUDIO_SILENCE_BEHAVIOR == "decay_min"
-    assert DEFAULT_AUDIO_RESPONSE_CURVE == "linear"
 
 
 def test_silence_decay_duration():

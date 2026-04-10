@@ -481,21 +481,18 @@ Note: Only speed modulation is supported for hardware effects. Brightness cannot
 |---|---|---|---|
 | `audio_entity` | entity_id | none | ESPHome audio sensor entity (`binary_sensor` or `sensor`). Setting this enables audio modulation. Only supported on T1M and T1 Strip devices. |
 | `audio_sensitivity` | 1-100 | 50 | Beat detection sensitivity on the ESP32 device. |
-| `audio_detection_mode` | string | `spectral_flux` | Detection algorithm: `spectral_flux`, `bass_energy`, or `complex_domain`. |
 | `audio_silence_behavior` | string | `decay_min` | What happens when music stops: `hold` (keep last values), `decay_min` (fade to minimum), `decay_mid` (fade to midpoint). |
-| `audio_speed_mode` | string | `continuous` | How audio drives effect speed (see speed modulation modes below). Set to `null` to disable. |
+| `audio_speed_mode` | string | `volume` | How audio drives effect speed (see speed modulation modes below). Set to `null` to disable. |
 | `audio_speed_min` | 1-100 | 1 | Minimum speed in the modulation range. |
 | `audio_speed_max` | 1-100 | 100 | Maximum speed in the modulation range. |
-| `audio_speed_curve` | string | `linear` | How sensor values map to the speed range: `linear`, `logarithmic`, or `exponential`. |
 
 ### Speed modulation modes
 
 | Mode | Description |
 |---|---|
-| **On onset** (`on_onset`) | Speed jumps on each detected musical event. |
-| **Continuous** (`continuous`) | Speed maps continuously to audio energy. Default when audio is enabled. |
-| **Intensity breathing** (`intensity_breathing`) | Speed follows a slow intensity envelope. |
-| **Onset flash** (`onset_flash`) | Speed spikes briefly on each onset then decays. |
+| **Volume** (`volume`) | Louder music drives faster speed. Maps audio energy directly to the speed range. |
+| **Tempo** (`tempo`) | Faster BPM drives faster speed. Maps detected beats-per-minute to the speed range. Stable — updates as tempo changes. |
+| **Combined** (`combined`) | Tempo sets the baseline speed, volume modulates around it. Best of both — musically grounded with dynamic breathing. |
 ### Effect audio from a service call
 
 Call `aqara_advanced_lighting.set_dynamic_effect` with the `audio_entity` parameter to enable audio modulation:
@@ -511,12 +508,10 @@ data:
   color_2: [0, 0, 255]
   audio_entity: binary_sensor.audio_reactive_audio_sensor
   audio_sensitivity: 60
-  audio_detection_mode: spectral_flux
   audio_silence_behavior: decay_min
-  audio_speed_mode: continuous
+  audio_speed_mode: volume
   audio_speed_min: 10
   audio_speed_max: 100
-  audio_speed_curve: linear
 ```
 
 **Note:** Audio-reactive effects are not available for T2 bulbs. T2 devices do not support the required MQTT attributes for audio modulation.

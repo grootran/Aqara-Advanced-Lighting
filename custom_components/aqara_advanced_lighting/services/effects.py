@@ -9,11 +9,9 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError
 
 from ..const import (
-    ATTR_AUDIO_DETECTION_MODE,
     ATTR_AUDIO_ENTITY,
     ATTR_AUDIO_SENSITIVITY,
     ATTR_AUDIO_SILENCE_BEHAVIOR,
-    ATTR_AUDIO_SPEED_CURVE,
     ATTR_AUDIO_SPEED_MAX,
     ATTR_AUDIO_SPEED_MIN,
     ATTR_AUDIO_SPEED_MODE,
@@ -33,11 +31,12 @@ from ..const import (
     ATTR_SPEED,
     ATTR_SYNC,
     ATTR_TURN_ON,
+    AUDIO_EFFECT_MODE_COMBINED,
+    AUDIO_EFFECT_MODE_TEMPO,
+    AUDIO_EFFECT_MODE_VOLUME,
     DATA_ACTIVE_MUSIC_SYNC,
     DATA_ENTITY_CONTROLLER,
     DATA_USER_PREFERENCES_STORE,
-    DEFAULT_AUDIO_DETECTION_MODE,
-    DEFAULT_AUDIO_RESPONSE_CURVE,
     DEFAULT_AUDIO_SENSITIVITY,
     DEFAULT_AUDIO_SILENCE_BEHAVIOR,
     DOMAIN,
@@ -86,11 +85,11 @@ def _resolve_preset_audio_entity(
     """Resolve the audio entity for a built-in audio-reactive effect preset.
 
     Precedence: call override → user preference default → None.
-    Returns None if the preset has no audio_detection_mode (not audio-reactive).
+    Returns None if the preset has no audio_speed_mode (not audio-reactive).
     Uses the same entity-resolution approach as dynamic_scene (different signature:
     takes raw hass_data and user_id to resolve prefs internally).
     """
-    if "audio_detection_mode" not in preset_data:
+    if "audio_speed_mode" not in preset_data:
         return None
 
     if call_audio_entity:
@@ -279,7 +278,7 @@ async def handle_set_dynamic_effect(hass: HomeAssistant, call: ServiceCall) -> N
         # Load from preset
         audio_config = AudioEffectConfig.from_dict(user_preset["audio_config"])
         audio_entity = audio_config.audio_entity
-    elif preset_data and "audio_detection_mode" in preset_data and audio_entity is None:
+    elif preset_data and "audio_speed_mode" in preset_data and audio_entity is None:
         # Built-in audio-reactive preset with no explicit audio_entity:
         # resolve entity from user prefs
         user_id = call.context.user_id or "default"
@@ -293,39 +292,35 @@ async def handle_set_dynamic_effect(hass: HomeAssistant, call: ServiceCall) -> N
             audio_config = AudioEffectConfig(
                 audio_entity=resolved_entity,
                 audio_sensitivity=preset_data.get("audio_sensitivity", DEFAULT_AUDIO_SENSITIVITY),
-                audio_detection_mode=preset_data.get("audio_detection_mode", DEFAULT_AUDIO_DETECTION_MODE),
                 audio_silence_behavior=preset_data.get("audio_silence_behavior", DEFAULT_AUDIO_SILENCE_BEHAVIOR),
                 audio_speed_mode=preset_data.get("audio_speed_mode"),
                 audio_speed_min=preset_data.get("audio_speed_min", 1),
                 audio_speed_max=preset_data.get("audio_speed_max", 100),
-                audio_speed_curve=preset_data.get("audio_speed_curve", DEFAULT_AUDIO_RESPONSE_CURVE),
             )
     elif audio_entity is not None:
         # Build from service call params, using preset data as defaults when a
         # built-in preset is specified (frontend may only send audio_entity
         # without the preset's audio params).
         raw_speed = call.data.get(ATTR_AUDIO_SPEED_MODE)
-        speed_mode = None if not raw_speed or raw_speed == "off" else raw_speed
+        speed_mode = raw_speed if raw_speed else None
 
         # When a built-in preset is active, use its audio params as defaults
-        pd = preset_data if preset_data and "audio_detection_mode" in preset_data else None
+        pd = preset_data if preset_data and "audio_speed_mode" in preset_data else None
 
-        # Default speed to "continuous" if not explicitly provided
+        # Default speed to "volume" if not explicitly provided
         if speed_mode is None:
             if pd:
                 speed_mode = pd.get("audio_speed_mode")
             if speed_mode is None:
-                speed_mode = "continuous"
+                speed_mode = "volume"
 
         audio_config = AudioEffectConfig(
             audio_entity=audio_entity,
             audio_sensitivity=call.data.get(ATTR_AUDIO_SENSITIVITY, pd.get("audio_sensitivity", 50) if pd else 50),
-            audio_detection_mode=call.data.get(ATTR_AUDIO_DETECTION_MODE, pd.get("audio_detection_mode", "spectral_flux") if pd else "spectral_flux"),
             audio_silence_behavior=call.data.get(ATTR_AUDIO_SILENCE_BEHAVIOR, pd.get("audio_silence_behavior", "decay_min") if pd else "decay_min"),
             audio_speed_mode=speed_mode,
             audio_speed_min=call.data.get(ATTR_AUDIO_SPEED_MIN, pd.get("audio_speed_min", 1) if pd else 1),
             audio_speed_max=call.data.get(ATTR_AUDIO_SPEED_MAX, pd.get("audio_speed_max", 100) if pd else 100),
-            audio_speed_curve=call.data.get(ATTR_AUDIO_SPEED_CURVE, pd.get("audio_speed_curve", "linear") if pd else "linear"),
         )
 
     # Prepare effects for all entities, grouped by instance for multi-Z2M support
@@ -569,23 +564,22 @@ async def handle_set_dynamic_effect(hass: HomeAssistant, call: ServiceCall) -> N
         from ..audio_engine import AudioEngine, AudioEngineConfig
 
         # Determine subscription needs based on speed mode
-        needs_onset = audio_config.audio_speed_mode in ("on_onset", "onset_flash")
-        needs_energy = audio_config.audio_speed_mode in ("continuous", "intensity_breathing", "onset_flash")
+        needs_energy = audio_config.audio_speed_mode in (
+            AUDIO_EFFECT_MODE_VOLUME, AUDIO_EFFECT_MODE_COMBINED,
+        )
+        needs_bpm = audio_config.audio_speed_mode in (
+            AUDIO_EFFECT_MODE_TEMPO, AUDIO_EFFECT_MODE_COMBINED,
+        )
 
         engine_config = AudioEngineConfig(
             audio_entity=audio_config.audio_entity,
             consumer_type="effect",
             sensitivity=audio_config.audio_sensitivity,
-            detection_mode=audio_config.audio_detection_mode,
-            subscribe_onset=needs_onset,
+            subscribe_onset=False,
             subscribe_energy=needs_energy,
+            subscribe_bpm=needs_bpm,
             subscribe_silence=True,
         )
-
-        # Collect device models for rate limiting
-        device_models = {}
-        for eid, _, aqara_dev, _, _, _ in validated_entities:
-            device_models[eid] = aqara_dev.model_id
 
         # Build speed write function that dispatches to correct backend
         # Both MQTT and ZHA backends accept entity_id and resolve internally
@@ -599,7 +593,6 @@ async def handle_set_dynamic_effect(hass: HomeAssistant, call: ServiceCall) -> N
             entity_ids=effect_entity_ids,
             audio_config=audio_config,
             backend_write_speed=write_speed,
-            device_models=device_models,
         )
 
         # Stop any existing audio engines using the same sensor

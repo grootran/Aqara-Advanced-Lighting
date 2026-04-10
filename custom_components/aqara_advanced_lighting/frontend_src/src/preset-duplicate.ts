@@ -42,16 +42,14 @@ export function builtinEffectToUser(
     modified_at: '',
   };
   // Copy audio-reactive fields if present
-  if (preset.audio_detection_mode) {
+  if (preset.audio_speed_mode) {
     result.audio_config = {
       audio_entity: '',
-      audio_detection_mode: preset.audio_detection_mode as AudioEffectConfig['audio_detection_mode'],
       audio_sensitivity: preset.audio_sensitivity,
       audio_silence_behavior: preset.audio_silence_behavior as AudioEffectConfig['audio_silence_behavior'],
       audio_speed_mode: preset.audio_speed_mode as AudioEffectConfig['audio_speed_mode'],
       audio_speed_min: preset.audio_speed_min,
       audio_speed_max: preset.audio_speed_max,
-      audio_speed_curve: preset.audio_speed_curve as AudioEffectConfig['audio_speed_curve'],
     };
   }
   return result;

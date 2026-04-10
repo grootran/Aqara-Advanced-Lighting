@@ -534,18 +534,14 @@ class TestDominantBandBias:
 # --- Constant consistency tests ---
 
 def test_ema_alpha_consistent_across_modules():
-    """EMA smoothing factor must be identical in modulator and mode handlers."""
+    """EMA smoothing factor must be identical in const and mode handlers."""
     from custom_components.aqara_advanced_lighting.const import AUDIO_EMA_ALPHA
-    from custom_components.aqara_advanced_lighting.audio_effect_modulator import _EMA_ALPHA
     from custom_components.aqara_advanced_lighting.audio_mode_handlers import ENERGY_EMA_ALPHA
-    assert _EMA_ALPHA == AUDIO_EMA_ALPHA
     assert ENERGY_EMA_ALPHA == AUDIO_EMA_ALPHA
 
 
 def test_flash_decay_consistent_across_modules():
-    """Flash brightness decay must be identical in modulator and mode handlers."""
+    """Flash brightness decay must be identical in const and mode handlers."""
     from custom_components.aqara_advanced_lighting.const import AUDIO_FLASH_BRIGHTNESS_DECAY
-    from custom_components.aqara_advanced_lighting.audio_effect_modulator import _FLASH_DECAY
     from custom_components.aqara_advanced_lighting.audio_mode_handlers import FLASH_BRIGHTNESS_DECAY
-    assert _FLASH_DECAY == AUDIO_FLASH_BRIGHTNESS_DECAY
     assert FLASH_BRIGHTNESS_DECAY == AUDIO_FLASH_BRIGHTNESS_DECAY

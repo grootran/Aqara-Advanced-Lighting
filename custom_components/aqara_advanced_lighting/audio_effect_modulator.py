@@ -1,148 +1,156 @@
-"""Audio effect modulator — maps sensor events to speed writes.
+"""Audio effect modulator — maps audio sensor events to speed writes.
 
 Consumes events from AudioEngine and translates them into
-effect_speed commands for T1M and T1 Strip devices.
+effect_speed commands. Three modes:
+- volume: energy (loudness) maps to speed
+- tempo: BPM maps to speed
+- combined: tempo sets baseline, energy modulates around it
 
-Note: Brightness modulation is not supported for hardware effects because
-the T1M restarts the effect on every brightness change (move_to_level).
-Only speed can be adjusted live via the custom Aqara cluster.
+Brightness modulation is not supported for hardware effects because
+the T1M/T2 restart the effect on every brightness change.
 """
 
 import asyncio
 import logging
-import time
 from typing import Any
 
 from homeassistant.core import HomeAssistant
 
-from .audio_curves import apply_response_curve, map_to_range
 from .audio_engine import AudioConsumer, AudioEngine, AudioEngineConfig
 from .const import (
-    AUDIO_EFFECT_MODE_CONTINUOUS,
-    AUDIO_EFFECT_MODE_INTENSITY_BREATHING,
-    AUDIO_EFFECT_MODE_ON_ONSET,
-    AUDIO_EFFECT_MODE_ONSET_FLASH,
-    AUDIO_EFFECT_RATE_LIMIT_T1M,
-    AUDIO_EFFECT_RATE_LIMIT_T1_STRIP,
+    AUDIO_EFFECT_MODE_VOLUME,
+    AUDIO_EFFECT_MODE_TEMPO,
+    AUDIO_EFFECT_MODE_COMBINED,
     AUDIO_EFFECT_SILENCE_DECAY_SECONDS,
     SPEED_DEADBAND,
-    T1M_MODELS,
 )
 from .models import AudioEffectConfig
 
 _LOGGER = logging.getLogger(__name__)
 
-from .const import AUDIO_EMA_ALPHA as _EMA_ALPHA, AUDIO_FLASH_BRIGHTNESS_DECAY as _FLASH_DECAY
-# Per-tick onset decay rate for on_onset mode (decays toward min between beats)
-_ONSET_DECAY_RATE = 0.03
+# BPM range matching the ESPHome beat tracker's clamped output
+BPM_MIN = 40.0
+BPM_MAX = 200.0
 
 
-class ModulationChannel:
-    """Single modulation channel (speed)."""
+def _apply_sensitivity(value: float, sensitivity: int) -> float:
+    """Scale a 0-1 signal by sensitivity.
 
-    def __init__(
-        self,
-        mode: str | None,
-        range_min: int,
-        range_max: int,
-        curve: str,
-        deadband: int,
-    ) -> None:
-        self.mode = mode
-        self.range_min = range_min
-        self.range_max = range_max
-        self.curve = curve
-        self.deadband = deadband
+    sensitivity=50 is neutral (1:1 mapping).
+    Higher sensitivity amplifies the signal, lower attenuates.
+    """
+    factor = sensitivity / 50.0
+    return min(1.0, max(0.0, value * factor))
+
+
+def compute_speed_volume(energy: float, sensitivity: int, speed_min: int, speed_max: int) -> int:
+    """Map energy (0-1) to speed range."""
+    scaled = _apply_sensitivity(energy, sensitivity)
+    return round(speed_min + scaled * (speed_max - speed_min))
+
+
+def compute_speed_tempo(bpm: float, sensitivity: int, speed_min: int, speed_max: int) -> int:
+    """Map BPM (40-200) to speed range.
+
+    BPM <= 0 (unknown) maps to speed_min.
+    Sensitivity narrows the effective BPM window around the center (120 BPM).
+    """
+    if bpm <= 0:
+        return speed_min
+
+    center = (BPM_MIN + BPM_MAX) / 2.0  # 120 BPM
+    half_range = (BPM_MAX - BPM_MIN) / 2.0  # 80
+
+    # Sensitivity narrows the window: higher = smaller BPM range maps to full speed range
+    factor = sensitivity / 50.0
+    effective_half = half_range / max(factor, 0.1)
+
+    normalized = (bpm - center) / effective_half  # -1 to 1 at neutral sensitivity
+    scaled = (normalized + 1.0) / 2.0  # 0 to 1
+    clamped = min(1.0, max(0.0, scaled))
+
+    return round(speed_min + clamped * (speed_max - speed_min))
+
+
+def compute_speed_combined(
+    bpm: float, energy: float, sensitivity: int, speed_min: int, speed_max: int,
+) -> int:
+    """Tempo sets baseline, energy modulates around it.
+
+    The energy offset is relative to zero — positive energy pushes speed up
+    from the tempo baseline, clamped to [speed_min, speed_max].
+    """
+    baseline = compute_speed_tempo(bpm, sensitivity, speed_min, speed_max)
+    energy_scaled = _apply_sensitivity(energy, sensitivity)
+    speed_range = speed_max - speed_min
+    offset = energy_scaled * speed_range * 0.5  # modulate up to half the range
+    return round(min(speed_max, max(speed_min, baseline + offset)))
+
+
+# Smoothing constants
+_SMOOTH_ALPHA_LOW = 0.15   # heavy smoothing for small changes
+_SMOOTH_ALPHA_HIGH = 0.7   # fast tracking for large changes
+_SMOOTH_JUMP_THRESHOLD = 15  # speed units — changes above this track fast
+
+
+class SpeedSmoother:
+    """Adaptive EMA filter for speed values.
+
+    Small changes get heavy smoothing to reduce jitter.
+    Large changes (> jump_threshold) track quickly for responsiveness.
+    """
+
+    def __init__(self) -> None:
+        self._smoothed: float | None = None
+
+    def update(self, raw_speed: int) -> int:
+        """Smooth a raw speed value and return the filtered result."""
+        if self._smoothed is None:
+            self._smoothed = float(raw_speed)
+            return raw_speed
+
+        delta = abs(raw_speed - self._smoothed)
+        alpha = _SMOOTH_ALPHA_HIGH if delta >= _SMOOTH_JUMP_THRESHOLD else _SMOOTH_ALPHA_LOW
+        self._smoothed += alpha * (raw_speed - self._smoothed)
+        return round(self._smoothed)
+
+
+class DeadbandFilter:
+    """Filters out small speed changes below threshold."""
+
+    def __init__(self, threshold: int) -> None:
+        self.threshold = threshold
         self._last_written: int | None = None
-        from .audio_curves import EMAFilter
-        self._envelope = EMAFilter(alpha=_EMA_ALPHA, initial=0.5)
-        self._flash_brightness: float = 0.0
-        self._onset_level: float = 0.0
 
-    def process_energy(self, energy: float) -> tuple[int, bool] | None:
-        """Process an energy value. Returns (mapped_value, changed) or None if disabled."""
-        if self.mode is None:
-            return None
-
-        if self.mode == AUDIO_EFFECT_MODE_INTENSITY_BREATHING:
-            self._envelope.update(energy)
-            sensor_val = self._envelope.value
-        elif self.mode == AUDIO_EFFECT_MODE_ONSET_FLASH:
-            self._envelope.update(energy)
-            self._flash_brightness = max(0.0, self._flash_brightness - _FLASH_DECAY)
-            sensor_val = max(self._envelope.value, self._flash_brightness)
-        elif self.mode == AUDIO_EFFECT_MODE_CONTINUOUS:
-            sensor_val = energy
-        else:
-            # on_onset mode doesn't process energy (uses onset events)
-            return None
-
-        curved = apply_response_curve(sensor_val, self.curve)
-        value = map_to_range(curved, self.range_min, self.range_max)
-        changed = self._check_deadband(value, bypass=False)
-        if changed:
+    def check(self, value: int) -> bool:
+        """Return True if value exceeds deadband from last written."""
+        if self._last_written is None:
             self._last_written = value
-        return value, changed
-
-    def process_energy_tick(self) -> tuple[int, bool] | None:
-        """Process a decay tick for on_onset mode (called periodically between beats).
-
-        Returns (mapped_value, changed) or None if not applicable.
-        """
-        if self.mode != AUDIO_EFFECT_MODE_ON_ONSET:
-            return None
-        # Decay toward 0.0 (will map to range_min)
-        self._onset_level = max(0.0, self._onset_level - _ONSET_DECAY_RATE)
-        curved = apply_response_curve(self._onset_level, self.curve)
-        value = map_to_range(curved, self.range_min, self.range_max)
-        changed = self._check_deadband(value, bypass=False)
-        if changed:
-            self._last_written = value
-        return value, changed
-
-    def process_onset(self, strength: float) -> tuple[int, bool] | None:
-        """Process an onset event. Returns (mapped_value, changed) or None if disabled."""
-        if self.mode is None:
-            return None
-
-        if self.mode == AUDIO_EFFECT_MODE_ONSET_FLASH:
-            self._flash_brightness = min(1.0, strength)
-            sensor_val = max(self._envelope.value, self._flash_brightness)
-        elif self.mode == AUDIO_EFFECT_MODE_ON_ONSET:
-            self._onset_level = min(1.0, strength)
-            sensor_val = self._onset_level
-        else:
-            # Continuous/breathing modes don't process onsets
-            return None
-
-        curved = apply_response_curve(sensor_val, self.curve)
-        value = map_to_range(curved, self.range_min, self.range_max)
-        # Onset always bypasses deadband
-        self._last_written = value
-        return value, True
-
-    def get_silence_target(self, behavior: str) -> int:
-        """Get the target value for silence decay."""
-        if behavior == "hold":
-            return self._last_written if self._last_written is not None else self.range_min
-        if behavior == "decay_mid":
-            return round((self.range_min + self.range_max) / 2)
-        # decay_min (default)
-        return self.range_min
-
-    def _check_deadband(self, value: int, bypass: bool = False) -> bool:
-        """Check if value exceeds deadband threshold from last write."""
-        if bypass or self._last_written is None:
             return True
-        return abs(value - self._last_written) > self.deadband
+        if abs(value - self._last_written) > self.threshold:
+            self._last_written = value
+            return True
+        return False
+
+    @property
+    def last_written(self) -> int | None:
+        return self._last_written
+
+
+def get_silence_target(behavior: str, last_written: int | None, speed_min: int, speed_max: int) -> int:
+    """Get the target speed value for silence decay."""
+    if behavior == "hold":
+        return last_written if last_written is not None else speed_min
+    if behavior == "decay_mid":
+        return round((speed_min + speed_max) / 2)
+    # decay_min (default)
+    return speed_min
 
 
 class AudioEffectModulator(AudioConsumer):
     """Maps audio sensor events to effect speed writes.
 
     Implements AudioConsumer to receive events from AudioEngine.
-    Brightness modulation is not supported for hardware effects —
-    the T1M restarts the effect on every brightness change.
     """
 
     def __init__(
@@ -151,41 +159,20 @@ class AudioEffectModulator(AudioConsumer):
         entity_ids: list[str],
         audio_config: AudioEffectConfig,
         backend_write_speed: Any,  # Callable for speed writes
-        device_models: dict[str, str],  # entity_id -> model_id
     ) -> None:
         self.hass = hass
         self._entity_ids = entity_ids
         self._audio_config = audio_config
         self._write_speed = backend_write_speed
-        self._device_models = device_models
         self._engine: AudioEngine | None = None
         self._silence_task: asyncio.Task | None = None
 
-        # Create speed modulation channel
-        self._speed_channel = ModulationChannel(
-            mode=audio_config.audio_speed_mode,
-            range_min=audio_config.audio_speed_min,
-            range_max=audio_config.audio_speed_max,
-            curve=audio_config.audio_speed_curve,
-            deadband=SPEED_DEADBAND,
-        )
-
-        # Rate limiting
-        self._last_speed_write: float = 0.0
+        self._smoother = SpeedSmoother()
+        self._deadband = DeadbandFilter(threshold=SPEED_DEADBAND)
+        self._last_bpm: float = 0.0
 
         # Audio sensor availability flag (read by running-operations API)
         self.audio_waiting: bool = False
-
-    def _get_rate_limit(self, entity_id: str) -> float:
-        """Get rate limit for entity based on device model."""
-        model = self._device_models.get(entity_id, "")
-        if model in T1M_MODELS:
-            return AUDIO_EFFECT_RATE_LIMIT_T1M
-        return AUDIO_EFFECT_RATE_LIMIT_T1_STRIP
-
-    def _is_onset_mode(self, channel: ModulationChannel) -> bool:
-        """Check if channel uses an onset-responsive mode."""
-        return channel.mode in (AUDIO_EFFECT_MODE_ON_ONSET, AUDIO_EFFECT_MODE_ONSET_FLASH)
 
     async def start(self, engine: AudioEngine) -> None:
         """Store engine reference for lifecycle management."""
@@ -196,56 +183,55 @@ class AudioEffectModulator(AudioConsumer):
         if self._silence_task and not self._silence_task.done():
             self._silence_task.cancel()
 
+    def _compute_speed(self, energy: float) -> int:
+        """Compute speed value based on current mode."""
+        mode = self._audio_config.audio_speed_mode
+        sens = self._audio_config.audio_sensitivity
+        smin = self._audio_config.audio_speed_min
+        smax = self._audio_config.audio_speed_max
+
+        if mode == AUDIO_EFFECT_MODE_VOLUME:
+            return compute_speed_volume(energy, sens, smin, smax)
+        if mode == AUDIO_EFFECT_MODE_TEMPO:
+            return compute_speed_tempo(self._last_bpm, sens, smin, smax)
+        if mode == AUDIO_EFFECT_MODE_COMBINED:
+            return compute_speed_combined(self._last_bpm, energy, sens, smin, smax)
+        return smin
+
     async def on_audio_events(self, events: dict[str, Any]) -> None:
         """Process audio events into speed writes."""
-        now = time.monotonic()
+        # Track latest BPM
+        if "bpm" in events:
+            self._last_bpm = events["bpm"]
 
-        # Process decay ticks for on_onset channel (called on every event cycle)
-        if "onset" not in events:
-            decay_result = self._speed_channel.process_energy_tick()
-            if decay_result:
-                value, changed = decay_result
-                if changed:
-                    await self._write_speed_to_all(value)
-                    self._last_speed_write = now
+        # For tempo-only mode, only recompute when BPM changes
+        if self._audio_config.audio_speed_mode == AUDIO_EFFECT_MODE_TEMPO:
+            if "bpm" not in events:
+                return
+            speed = self._compute_speed(0.0)
+        else:
+            # Volume and combined modes need energy
+            energy = events.get("energy", 0.0)
+            speed = self._compute_speed(energy)
 
-        # Process onset events
-        if "onset" in events:
-            strength = events["onset"].get("strength", 1.0)
-            speed_result = self._speed_channel.process_onset(strength)
-            if speed_result:
-                value, _ = speed_result
-                await self._write_speed_to_all(value)
-                self._last_speed_write = now
-
-        # Process energy events (rate-limited)
-        if "energy" in events:
-            energy = events["energy"]
-
-            speed_result = self._speed_channel.process_energy(energy)
-            if speed_result:
-                value, changed = speed_result
-                if changed:
-                    # Rate limit unless onset mode
-                    min_interval = min(
-                        self._get_rate_limit(eid) for eid in self._entity_ids
-                    )
-                    if self._is_onset_mode(self._speed_channel) or (
-                        now - self._last_speed_write >= min_interval
-                    ):
-                        await self._write_speed_to_all(value)
-                        self._last_speed_write = now
+        speed = self._smoother.update(speed)
+        if self._deadband.check(speed):
+            await self._write_speed_to_all(speed)
 
     async def on_silence_enter(self) -> None:
         """Handle silence — decay or hold based on config."""
         behavior = self._audio_config.audio_silence_behavior
         if behavior == "hold":
-            return  # Do nothing, values stay where they are
+            return
 
-        # Decay to target over AUDIO_EFFECT_SILENCE_DECAY_SECONDS
-        speed_target = self._speed_channel.get_silence_target(behavior)
+        target = get_silence_target(
+            behavior,
+            self._deadband.last_written,
+            self._audio_config.audio_speed_min,
+            self._audio_config.audio_speed_max,
+        )
         self._silence_task = asyncio.ensure_future(
-            self._decay_to_target(speed_target)
+            self._decay_to_target(target)
         )
 
     async def on_silence_exit(self) -> None:
@@ -278,8 +264,8 @@ class AudioEffectModulator(AudioConsumer):
         interval = duration / steps
 
         speed_start = (
-            self._speed_channel._last_written
-            if self._speed_channel._last_written is not None
+            self._deadband.last_written
+            if self._deadband.last_written is not None
             else speed_target
         )
 
@@ -291,8 +277,7 @@ class AudioEffectModulator(AudioConsumer):
             else:
                 eased = 1 - (-2 * t + 2) ** 3 / 2
 
-            if self._speed_channel.mode is not None:
-                speed_val = round(speed_start + (speed_target - speed_start) * eased)
-                await self._write_speed_to_all(speed_val)
+            speed_val = round(speed_start + (speed_target - speed_start) * eased)
+            await self._write_speed_to_all(speed_val)
 
             await asyncio.sleep(interval)

@@ -18,11 +18,9 @@ class TestAudioEffectValidation:
         service_data = {
             "audio_entity": "binary_sensor.beat",
             "audio_sensitivity": 75,
-            "audio_speed_mode": "continuous",
+            "audio_speed_mode": "volume",
             "audio_speed_min": 20,
             "audio_speed_max": 80,
-            "audio_speed_curve": "logarithmic",
-            "audio_brightness_mode": "on_onset",
         }
         config = AudioEffectConfig(
             audio_entity=service_data["audio_entity"],
@@ -30,18 +28,31 @@ class TestAudioEffectValidation:
             audio_speed_mode=service_data.get("audio_speed_mode"),
             audio_speed_min=service_data.get("audio_speed_min", 1),
             audio_speed_max=service_data.get("audio_speed_max", 100),
-            audio_speed_curve=service_data.get("audio_speed_curve", "linear"),
-            audio_brightness_mode=service_data.get("audio_brightness_mode"),
         )
         assert config.audio_entity == "binary_sensor.beat"
-        assert config.audio_speed_mode == "continuous"
-        assert config.audio_brightness_mode == "on_onset"
+        assert config.audio_speed_mode == "volume"
+
+    def test_audio_config_tempo_mode(self):
+        """Tempo mode should be valid."""
+        config = AudioEffectConfig(
+            audio_entity="binary_sensor.beat",
+            audio_speed_mode="tempo",
+        )
+        assert config.audio_speed_mode == "tempo"
+
+    def test_audio_config_combined_mode(self):
+        """Combined mode should be valid."""
+        config = AudioEffectConfig(
+            audio_entity="binary_sensor.beat",
+            audio_speed_mode="combined",
+        )
+        assert config.audio_speed_mode == "combined"
 
     def test_audio_config_from_preset_override(self):
         """Preset audio_config should be overridable at activation."""
         preset_config = AudioEffectConfig(
             audio_entity="binary_sensor.beat",
-            audio_speed_mode="continuous",
+            audio_speed_mode="volume",
             audio_speed_min=10,
             audio_speed_max=90,
         )
@@ -50,4 +61,4 @@ class TestAudioEffectValidation:
         override_data["audio_sensitivity"] = 80
         restored = AudioEffectConfig.from_dict(override_data)
         assert restored.audio_sensitivity == 80
-        assert restored.audio_speed_mode == "continuous"
+        assert restored.audio_speed_mode == "volume"

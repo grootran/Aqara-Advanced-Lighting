@@ -13,9 +13,7 @@ from custom_components.aqara_advanced_lighting.const import (
     MODEL_T1M_20_SEGMENT,
     MODEL_T1M_26_SEGMENT,
     MODEL_T1_STRIP,
-    VALID_AUDIO_DETECTION_MODES,
     VALID_AUDIO_EFFECT_MODES,
-    VALID_AUDIO_RESPONSE_CURVES,
     VALID_AUDIO_SILENCE_BEHAVIORS,
 )
 from custom_components.aqara_advanced_lighting.presets import EFFECT_PRESETS
@@ -130,18 +128,11 @@ def test_preset_each_uses_distinct_effect_type():
 def test_preset_has_audio_defaults(preset_id):
     preset = EFFECT_PRESETS[preset_id]
     required_audio_fields = [
-        "audio_detection_mode",
         "audio_sensitivity",
         "audio_silence_behavior",
     ]
     for field in required_audio_fields:
         assert field in preset, f"{preset_id} missing audio field: {field}"
-
-
-@pytest.mark.parametrize("preset_id", ALL_NEW_PRESET_IDS)
-def test_preset_audio_detection_mode_valid(preset_id):
-    mode = EFFECT_PRESETS[preset_id]["audio_detection_mode"]
-    assert mode in VALID_AUDIO_DETECTION_MODES
 
 
 @pytest.mark.parametrize("preset_id", ALL_NEW_PRESET_IDS)
@@ -160,21 +151,13 @@ def test_preset_audio_sensitivity_in_range(preset_id):
 def test_preset_audio_at_least_one_mode_non_none(preset_id):
     preset = EFFECT_PRESETS[preset_id]
     speed_mode = preset.get("audio_speed_mode")
-    brightness_mode = preset.get("audio_brightness_mode")
-    assert speed_mode is not None or brightness_mode is not None, \
-        f"{preset_id}: both speed_mode and brightness_mode are None"
+    assert speed_mode is not None, \
+        f"{preset_id}: audio_speed_mode is None"
 
 
 @pytest.mark.parametrize("preset_id", ALL_NEW_PRESET_IDS)
 def test_preset_audio_speed_mode_valid_if_set(preset_id):
     mode = EFFECT_PRESETS[preset_id].get("audio_speed_mode")
-    if mode is not None:
-        assert mode in VALID_AUDIO_EFFECT_MODES
-
-
-@pytest.mark.parametrize("preset_id", ALL_NEW_PRESET_IDS)
-def test_preset_audio_brightness_mode_valid_if_set(preset_id):
-    mode = EFFECT_PRESETS[preset_id].get("audio_brightness_mode")
     if mode is not None:
         assert mode in VALID_AUDIO_EFFECT_MODES
 
@@ -186,29 +169,6 @@ def test_preset_audio_speed_min_max_valid(preset_id):
         lo = preset["audio_speed_min"]
         hi = preset["audio_speed_max"]
         assert 1 <= lo < hi <= 100, f"{preset_id} invalid speed range: {lo}-{hi}"
-
-
-@pytest.mark.parametrize("preset_id", ALL_NEW_PRESET_IDS)
-def test_preset_audio_brightness_min_max_valid(preset_id):
-    preset = EFFECT_PRESETS[preset_id]
-    if preset.get("audio_brightness_mode") is not None:
-        lo = preset["audio_brightness_min"]
-        hi = preset["audio_brightness_max"]
-        assert 1 <= lo < hi <= 100, f"{preset_id} invalid brightness range: {lo}-{hi}"
-
-
-@pytest.mark.parametrize("preset_id", ALL_NEW_PRESET_IDS)
-def test_preset_audio_speed_curve_valid_if_set(preset_id):
-    curve = EFFECT_PRESETS[preset_id].get("audio_speed_curve")
-    if curve is not None:
-        assert curve in VALID_AUDIO_RESPONSE_CURVES
-
-
-@pytest.mark.parametrize("preset_id", ALL_NEW_PRESET_IDS)
-def test_preset_audio_brightness_curve_valid_if_set(preset_id):
-    curve = EFFECT_PRESETS[preset_id].get("audio_brightness_curve")
-    if curve is not None:
-        assert curve in VALID_AUDIO_RESPONSE_CURVES
 
 
 @pytest.mark.parametrize("preset_id", ALL_NEW_PRESET_IDS)
@@ -240,17 +200,11 @@ def _make_hass_data(entity: str = "") -> dict:
 
 
 AUDIO_PRESET = {
-    "audio_detection_mode": "bass_energy",
     "audio_sensitivity": 70,
     "audio_silence_behavior": "decay_min",
-    "audio_speed_mode": "on_onset",
+    "audio_speed_mode": "volume",
     "audio_speed_min": 40,
     "audio_speed_max": 100,
-    "audio_speed_curve": "linear",
-    "audio_brightness_mode": "intensity_breathing",
-    "audio_brightness_min": 50,
-    "audio_brightness_max": 100,
-    "audio_brightness_curve": "linear",
 }
 
 NON_AUDIO_PRESET = {
@@ -263,7 +217,7 @@ NON_AUDIO_PRESET = {
 class TestResolvePresetAudioEntity:
 
     def test_returns_none_for_non_audio_preset(self):
-        """Preset without audio_detection_mode is not audio-reactive — entity is None."""
+        """Preset without audio_speed_mode is not audio-reactive -- entity is None."""
         result = _resolve_preset_audio_entity(
             NON_AUDIO_PRESET,
             call_audio_entity=None,
@@ -293,7 +247,7 @@ class TestResolvePresetAudioEntity:
         assert result == "binary_sensor.override"
 
     def test_returns_none_when_no_entity_anywhere(self):
-        """No call entity and no user default → None (preset runs without audio)."""
+        """No call entity and no user default -- None (preset runs without audio)."""
         result = _resolve_preset_audio_entity(
             AUDIO_PRESET,
             call_audio_entity=None,
@@ -307,7 +261,7 @@ class TestResolvePresetAudioEntity:
         result = _resolve_preset_audio_entity(
             AUDIO_PRESET,
             call_audio_entity=None,
-            hass_data=_make_hass_data(""),  # empty — should not be returned
+            hass_data=_make_hass_data(""),  # empty -- should not be returned
             user_id="user1",
         )
         assert result is None

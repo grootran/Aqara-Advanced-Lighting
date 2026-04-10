@@ -30,7 +30,6 @@ export interface PreferencesState {
   audioOverrideRolloffBrightness: boolean;
   useEffectAudioReactive: boolean;
   effectAudioOverrideSensitivity: number;
-  effectAudioOverrideDetectionMode: string;
   effectAudioOverrideSilenceBehavior: string;
   hiddenBuiltinPresets: FavoritePresetRef[];
   selectedEntities: string[];
@@ -73,7 +72,6 @@ const DEFAULT_STATE: PreferencesState = {
   audioOverrideRolloffBrightness: false,
   useEffectAudioReactive: false,
   effectAudioOverrideSensitivity: 50,
-  effectAudioOverrideDetectionMode: 'spectral_flux',
   effectAudioOverrideSilenceBehavior: 'hold',
   hiddenBuiltinPresets: [],
   selectedEntities: [],
@@ -228,7 +226,6 @@ export class PreferencesController implements ReactiveController {
     if (prefs.audio_override_rolloff_brightness !== undefined) this.state.audioOverrideRolloffBrightness = prefs.audio_override_rolloff_brightness;
     if (prefs.use_effect_audio_reactive !== undefined) this.state.useEffectAudioReactive = prefs.use_effect_audio_reactive;
     if (prefs.effect_audio_override_sensitivity !== undefined) this.state.effectAudioOverrideSensitivity = prefs.effect_audio_override_sensitivity;
-    if (prefs.effect_audio_override_detection_mode !== undefined) this.state.effectAudioOverrideDetectionMode = prefs.effect_audio_override_detection_mode;
     if (prefs.effect_audio_override_silence_behavior !== undefined) this.state.effectAudioOverrideSilenceBehavior = prefs.effect_audio_override_silence_behavior;
     if (prefs.selected_entities && prefs.selected_entities.length > 0) {
       this.state.selectedEntities = prefs.selected_entities;
@@ -328,7 +325,6 @@ export class PreferencesController implements ReactiveController {
           audio_override_rolloff_brightness: this.state.audioOverrideRolloffBrightness,
           use_effect_audio_reactive: this.state.useEffectAudioReactive,
           effect_audio_override_sensitivity: this.state.effectAudioOverrideSensitivity,
-          effect_audio_override_detection_mode: this.state.effectAudioOverrideDetectionMode,
           effect_audio_override_silence_behavior: this.state.effectAudioOverrideSilenceBehavior,
           selected_entities: this.state.selectedEntities,
           active_favorite_id: this.state.activeFavoriteId,

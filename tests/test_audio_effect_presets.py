@@ -19,7 +19,7 @@ class TestEffectPresetAudioConfig:
         config = AudioEffectConfig(
             audio_entity="binary_sensor.beat",
             audio_sensitivity=75,
-            audio_speed_mode="continuous",
+            audio_speed_mode="volume",
             audio_speed_min=20,
             audio_speed_max=80,
         )
@@ -33,16 +33,10 @@ class TestEffectPresetAudioConfig:
         config = AudioEffectConfig(
             audio_entity="binary_sensor.beat",
             audio_sensitivity=75,
-            audio_detection_mode="bass_energy",
             audio_silence_behavior="hold",
-            audio_speed_mode="onset_flash",
+            audio_speed_mode="volume",
             audio_speed_min=10,
             audio_speed_max=90,
-            audio_speed_curve="exponential",
-            audio_brightness_mode="intensity_breathing",
-            audio_brightness_min=5,
-            audio_brightness_max=95,
-            audio_brightness_curve="logarithmic",
         )
         d = config.to_dict()
         restored = AudioEffectConfig.from_dict(d)

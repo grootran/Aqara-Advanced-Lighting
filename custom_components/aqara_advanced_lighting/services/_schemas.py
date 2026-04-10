@@ -14,12 +14,10 @@ from ..const import (
     ACTIVATION_RANDOM,
     ACTIVATION_SEQUENTIAL_FORWARD,
     ACTIVATION_SEQUENTIAL_REVERSE,
-    ATTR_AUDIO_DETECTION_MODE,
     ATTR_AUDIO_EFFECT,
     ATTR_AUDIO_ENTITY,
     ATTR_AUDIO_SENSITIVITY,
     ATTR_AUDIO_SILENCE_BEHAVIOR,
-    ATTR_AUDIO_SPEED_CURVE,
     ATTR_AUDIO_SPEED_MAX,
     ATTR_AUDIO_SPEED_MIN,
     ATTR_AUDIO_SPEED_MODE,
@@ -180,23 +178,17 @@ SERVICE_SET_DYNAMIC_EFFECT_SCHEMA = vol.Schema(
         vol.Optional(ATTR_AUDIO_SENSITIVITY): vol.All(
             vol.Coerce(int), vol.Range(min=1, max=100)
         ),
-        vol.Optional(ATTR_AUDIO_DETECTION_MODE): vol.In(
-            ["spectral_flux", "bass_energy", "complex_domain"]
-        ),
         vol.Optional(ATTR_AUDIO_SILENCE_BEHAVIOR): vol.In(
             ["hold", "decay_min", "decay_mid"]
         ),
         vol.Optional(ATTR_AUDIO_SPEED_MODE): vol.In(
-            ["on_onset", "continuous", "intensity_breathing", "onset_flash", "off"]
+            ["volume", "tempo", "combined"]
         ),
         vol.Optional(ATTR_AUDIO_SPEED_MIN): vol.All(
             vol.Coerce(int), vol.Range(min=1, max=100)
         ),
         vol.Optional(ATTR_AUDIO_SPEED_MAX): vol.All(
             vol.Coerce(int), vol.Range(min=1, max=100)
-        ),
-        vol.Optional(ATTR_AUDIO_SPEED_CURVE): vol.In(
-            ["linear", "logarithmic", "exponential"]
         ),
     }
 )

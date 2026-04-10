@@ -84,17 +84,15 @@ The effect editor includes an **Audio reactive** section for T1M and T1 Strip de
 
 - **Audio sensor entity**: Select the `binary_sensor` or `sensor` entity from your ESPHome audio-reactive device
 - **Sensitivity** (1–100): Beat detection sensitivity on the ESP32 device
-- **Detection mode**: Audio detection algorithm
-  - Spectral flux (all genres)
-  - Bass energy (rhythmic music)
-  - Complex domain (phase + magnitude)
 - **Silence behavior**: What happens when music stops
   - Hold last values
   - Decay to minimum
   - Decay to midpoint
 - **Speed modulation**: Controls how audio drives the effect speed
-  - **Mode**: On Onset, Continuous, Intensity Breathing, or Onset Flash (defaults to Continuous)
-  - **Response curve**: How sensor values map to the speed range (Linear, Logarithmic, or Exponential)
+  - **Mode**: Volume, Tempo, or Combined (defaults to Volume)
+    - Volume: Louder music drives faster speed, mapped directly to the speed range
+    - Tempo: Detected BPM drives speed, stable and musically grounded
+    - Combined: Tempo sets the baseline, volume modulates around it
   - **Range min** (1–99): Minimum speed in the modulation range
   - **Range max** (2–100): Maximum speed in the modulation range
 
