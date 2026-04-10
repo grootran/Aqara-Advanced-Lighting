@@ -21,8 +21,7 @@ Version 1.3.0 introduces audio-reactive effects for Aqara devices, allowing T1M 
 T1M and T1 Strip lights can now run their built-in color effects (rainbow, flow, breathing, and more) with speed driven live by an ESPHome audio sensor.
 
   - Speed modulation channel
-  - 4 modulation modes: continuous (tracks audio level), on-onset (triggers on beat), intensity-breathing (smooth pulsing), and onset-flash (sharp beat flash)
-  - Response curves — linear, logarithmic, and exponential — for natural-feeling modulation
+  - 3 modulation modes: temp, volume, and combined
   - Configurable min/max ranges for modulation
   - Silence behavior: hold last state  or decay toward minimum/mid point
   - Deadband filtering and rate limiting prevent flicker during quiet passages
@@ -31,31 +30,27 @@ T1M and T1 Strip lights can now run their built-in color effects (rainbow, flow,
   - Effect audio reactive override panel with per-entity sensor and sensitivity controls
   - 8 new audio-reactive effects presets for T1M/T1 Strip
 
-### **Unified Audio Parameters**
+### Audio Engine Reliability
 
-Scenes and effects now share the same richer audio controls:
-
-  - **Silence behavior** — replaces the old on/off toggle with four options: `Hold`, `Slow cycle`, `Decay to min`, `Decay to mid`
-  - **Brightness response curve** — linear, logarithmic, or exponential, with configurable min/max bounds; replaces the old boolean brightness-response toggle
-  - All existing audio-reactive presets are migrated automatically — no manual changes needed
-  - Default audio sensor selector moved to the Device Config tab for easier access
-
-### **Audio Engine Reliability**
-
-  - A new central `AudioEngineRegistry` tracks all active engines and stops conflicting engines before starting new ones — fixing the bug where two audio-reactive effects on different lights sharing the same sensor would silently orphan the first engine
-  - The shared `AudioEngine` class now handles both scenes and effects, bringing consistent pause/resume, silence detection, and sensor reconnection across both features
-  - Running-operation cards show a warning when the audio sensor goes unavailable
+  - Central `AudioEngineRegistry` tracks all active engines and resolves conflicts before starting new ones, eliminating the orphaned-engine bug where two effects on different lights sharing the same sensor would silently strand the first engine
+  - `AudioEngine` shared class now powers both scenes and effects, replacing ~430 lines of inline subscription/queue/silence code in the scene manager
+  - Sensor unavailability warning in running-operation cards when the audio entity goes offline
 
 ### Improvements
 
-  - Devices removed from Zigbee2MQTT or ZHA are now automatically cleaned up from the HA device registry
-  - Setup problems with your configured backend now surface in **Settings → System → Repairs** with clear guidance on how to fix them
-  - Default audio sensor auto-populated in both the scene editor and effect editor
-  - Activation overrides panel reordered: all toggles grouped at the top, parameters below
+  - Stale devices automatically removed from the HA device registry when Z2M drops them from its device list or ZHA no longer reports them at startup
+  - Repair issues raised in Settings → System → Repairs when the configured backend is unreachable (Z2M: bridge not responding after 2 minutes; ZHA: integration not installed); auto-clear when resolved
+  - Auto-populate audio sensor in both scene editor and effect editor when the default sensor preference is set
+  - Activation overrides panel reordered: all toggles at top, parameters below
+  - Panel section descriptions updated throughout
+  - EMA filter extracted to shared `EMAFilter` class; alpha and decay constants centralised in `const.py`
   - Implement spectral features, beat-phase prediction
   - Implement decay_min/decay_mid silence behaviors for audio scenes
   - Add drag-and-drop reordering for effect editor color swatches
   - Add drag-and-drop reordering for segment-selector gradient/blocks swatches
+  - Default audio sensor selector moved to Device Config tab for easier discovery
+  - `audio_silence_behavior` enum replaces the old boolean toggle: `hold`, `slow_cycle`, `decay_min`, `decay_mid`
+  - `audio_brightness_curve` (linear/logarithmic/exponential) with configurable min/max replaces the boolean brightness-response toggle
 
 ### Fixes
 

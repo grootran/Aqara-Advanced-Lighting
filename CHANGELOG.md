@@ -8,13 +8,12 @@ All notable changes to the Aqara Advanced Lighting integration will be documente
 
 Version 1.3.0 introduces audio-reactive effects for Aqara devices, allowing T1M and T1 Strip lights to run their native device effects speed modulated live by music. It also unifies the audio parameter model across scenes and effects for a consistent editing experience, and introduces a central engine registry that eliminates orphaned audio engines.
 
-### **Audio-Reactive Effects**
+### Audio-Reactive Effects
 
 T1M and T1 Strip lights can now run their built-in color effects (rainbow, flow, breathing, and more) with speed driven live by an ESPHome audio sensor.
 
   - Speed modulation channel
-  - 4 modulation modes: continuous (tracks audio level), on-onset (triggers on beat), intensity-breathing (smooth pulsing), and onset-flash (sharp beat flash)
-  - Response curves — linear, logarithmic, and exponential — for natural-feeling modulation
+  - 3 modulation modes: temp, volume, and combined
   - Configurable min/max ranges for modulation
   - Silence behavior: hold last state  or decay toward minimum/mid point
   - Deadband filtering and rate limiting prevent flicker during quiet passages
@@ -23,16 +22,7 @@ T1M and T1 Strip lights can now run their built-in color effects (rainbow, flow,
   - Effect audio reactive override panel with per-entity sensor and sensitivity controls
   - 8 new audio-reactive effects presets for T1M/T1 Strip
 
-### **Unified Audio Parameters**
-
-Scenes and effects now share the same richer audio parameter model:
-
-  - `audio_silence_behavior` enum replaces the old boolean toggle: `hold`, `slow_cycle`, `decay_min`, `decay_mid`
-  - `audio_brightness_curve` (linear/logarithmic/exponential) with configurable min/max replaces the boolean brightness-response toggle
-  - Existing presets are automatically migrated to the new format
-  - Default audio sensor selector moved to Device Config tab for easier discovery
-
-### **Audio Engine Reliability**
+### Audio Engine Reliability
 
   - Central `AudioEngineRegistry` tracks all active engines and resolves conflicts before starting new ones, eliminating the orphaned-engine bug where two effects on different lights sharing the same sensor would silently strand the first engine
   - `AudioEngine` shared class now powers both scenes and effects, replacing ~430 lines of inline subscription/queue/silence code in the scene manager
@@ -50,6 +40,9 @@ Scenes and effects now share the same richer audio parameter model:
   - Implement decay_min/decay_mid silence behaviors for audio scenes
   - Add drag-and-drop reordering for effect editor color swatches
   - Add drag-and-drop reordering for segment-selector gradient/blocks swatches
+  - Default audio sensor selector moved to Device Config tab for easier discovery
+  - `audio_silence_behavior` enum replaces the old boolean toggle: `hold`, `slow_cycle`, `decay_min`, `decay_mid`
+  - `audio_brightness_curve` (linear/logarithmic/exponential) with configurable min/max replaces the boolean brightness-response toggle
 
 ### Fixes
 
