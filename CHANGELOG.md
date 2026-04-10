@@ -6,19 +6,17 @@ All notable changes to the Aqara Advanced Lighting integration will be documente
 
 ### What's New
 
-Version 1.3.0 introduces audio-reactive effects for Aqara devices, allowing native device effects on T1M and T1 Strip lights to modulate their speed and brightness in sync with music. It also unifies the audio parameter model across scenes and effects, and introduces a central engine registry that prevents orphaned audio engines.
+Version 1.3.0 introduces audio-reactive effects for Aqara devices, allowing T1M and T1 Strip lights to run their native device effects speed modulated live by music. It also unifies the audio parameter model across scenes and effects for a consistent editing experience, and introduces a central engine registry that eliminates orphaned audio engines.
 
 ### **Audio-Reactive Effects**
 
-**Native device effects that pulse, breathe, and react to music**
+T1M and T1 Strip lights can now run their built-in color effects (rainbow, flow, breathing, and more) with speed driven live by an ESPHome audio sensor.
 
-T1M and T1 Strip lights can now run their built-in color effects (rainbow, flow, breathing, and more) with speed and brightness driven live by an ESPHome audio sensor.
-
-  - Speed and brightness modulation channels, each independently configurable
-  - 4 modulation modes per channel: continuous (tracks audio level), on-onset (triggers on beat), intensity-breathing (smooth pulsing), and onset-flash (sharp beat flash)
+  - Speed modulation channel
+  - 4 modulation modes: continuous (tracks audio level), on-onset (triggers on beat), intensity-breathing (smooth pulsing), and onset-flash (sharp beat flash)
   - Response curves — linear, logarithmic, and exponential — for natural-feeling modulation
-  - Configurable min/max ranges for speed and brightness modulation
-  - Silence behavior: hold last state, slow-cycle through the effect, or decay toward minimum
+  - Configurable min/max ranges for modulation
+  - Silence behavior: hold last state  or decay toward minimum/mid point
   - Deadband filtering and rate limiting prevent flicker during quiet passages
   - Waveform badge on preset icons when audio-reactive is enabled
   - Live sensitivity slider in running-operation cards
@@ -46,7 +44,6 @@ Scenes and effects now share the same richer audio parameter model:
   - Repair issues raised in Settings → System → Repairs when the configured backend is unreachable (Z2M: bridge not responding after 2 minutes; ZHA: integration not installed); auto-clear when resolved
   - Auto-populate audio sensor in both scene editor and effect editor when the default sensor preference is set
   - Activation overrides panel reordered: all toggles at top, parameters below
-  - Brightness override disabled automatically when effect audio-reactive is enabled
   - Panel section descriptions updated throughout
   - EMA filter extracted to shared `EMAFilter` class; alpha and decay constants centralised in `const.py`
   - Implement spectral features, beat-phase prediction

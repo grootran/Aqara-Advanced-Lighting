@@ -298,7 +298,9 @@ class SegmentColor:
 class AudioEffectConfig:
     """Audio-reactive configuration for dynamic effects.
 
-    Encapsulates all audio parameters for effect speed/brightness modulation.
+    Encapsulates all audio parameters for effect speed modulation.
+    Brightness modulation is not supported for hardware effects —
+    the T1M restarts the effect on every brightness change.
     Frozen — new instances are created for overrides, not mutated.
     """
 
@@ -312,12 +314,6 @@ class AudioEffectConfig:
     audio_speed_min: int = 1
     audio_speed_max: int = 100
     audio_speed_curve: str = DEFAULT_AUDIO_RESPONSE_CURVE
-
-    # Brightness modulation channel
-    audio_brightness_mode: str | None = None
-    audio_brightness_min: int = 1
-    audio_brightness_max: int = 100
-    audio_brightness_curve: str = DEFAULT_AUDIO_RESPONSE_CURVE
 
     def __post_init__(self) -> None:
         """Validate and clamp audio configuration."""
@@ -341,36 +337,23 @@ class AudioEffectConfig:
             msg = f"Invalid audio_speed_mode: {self.audio_speed_mode}"
             raise ValueError(msg)
 
-        # Validate brightness mode
-        if self.audio_brightness_mode is not None and self.audio_brightness_mode not in VALID_AUDIO_EFFECT_MODES:
-            msg = f"Invalid audio_brightness_mode: {self.audio_brightness_mode}"
+        # Speed mode must be enabled
+        if self.audio_speed_mode is None:
+            msg = "AudioEffectConfig requires audio_speed_mode"
             raise ValueError(msg)
 
-        # At least one mode must be enabled
-        if self.audio_speed_mode is None and self.audio_brightness_mode is None:
-            msg = "AudioEffectConfig requires at least one audio_speed_mode or audio_brightness_mode"
-            raise ValueError(msg)
-
-        # Validate response curves
+        # Validate response curve
         if self.audio_speed_curve not in VALID_AUDIO_RESPONSE_CURVES:
             msg = f"Invalid audio_speed_curve: {self.audio_speed_curve}"
-            raise ValueError(msg)
-        if self.audio_brightness_curve not in VALID_AUDIO_RESPONSE_CURVES:
-            msg = f"Invalid audio_brightness_curve: {self.audio_brightness_curve}"
             raise ValueError(msg)
 
         # Clamp min/max ranges
         object.__setattr__(self, "audio_speed_min", max(1, min(100, self.audio_speed_min)))
         object.__setattr__(self, "audio_speed_max", max(1, min(100, self.audio_speed_max)))
-        object.__setattr__(self, "audio_brightness_min", max(1, min(100, self.audio_brightness_min)))
-        object.__setattr__(self, "audio_brightness_max", max(1, min(100, self.audio_brightness_max)))
 
-        # Validate min < max (only for enabled channels)
-        if self.audio_speed_mode is not None and self.audio_speed_min >= self.audio_speed_max:
+        # Validate min < max
+        if self.audio_speed_min >= self.audio_speed_max:
             msg = f"audio_speed_min ({self.audio_speed_min}) must be less than audio_speed_max ({self.audio_speed_max})"
-            raise ValueError(msg)
-        if self.audio_brightness_mode is not None and self.audio_brightness_min >= self.audio_brightness_max:
-            msg = f"audio_brightness_min ({self.audio_brightness_min}) must be less than audio_brightness_max ({self.audio_brightness_max})"
             raise ValueError(msg)
 
     def to_dict(self) -> dict[str, Any]:
@@ -384,15 +367,14 @@ class AudioEffectConfig:
             "audio_speed_min": self.audio_speed_min,
             "audio_speed_max": self.audio_speed_max,
             "audio_speed_curve": self.audio_speed_curve,
-            "audio_brightness_mode": self.audio_brightness_mode,
-            "audio_brightness_min": self.audio_brightness_min,
-            "audio_brightness_max": self.audio_brightness_max,
-            "audio_brightness_curve": self.audio_brightness_curve,
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
-        """Deserialize from dictionary."""
+        """Deserialize from dictionary.
+
+        Ignores legacy brightness fields from older presets.
+        """
         return cls(
             audio_entity=data["audio_entity"],
             audio_sensitivity=data.get("audio_sensitivity", DEFAULT_AUDIO_SENSITIVITY),
@@ -402,10 +384,6 @@ class AudioEffectConfig:
             audio_speed_min=data.get("audio_speed_min", 1),
             audio_speed_max=data.get("audio_speed_max", 100),
             audio_speed_curve=data.get("audio_speed_curve", DEFAULT_AUDIO_RESPONSE_CURVE),
-            audio_brightness_mode=data.get("audio_brightness_mode"),
-            audio_brightness_min=data.get("audio_brightness_min", 1),
-            audio_brightness_max=data.get("audio_brightness_max", 100),
-            audio_brightness_curve=data.get("audio_brightness_curve", DEFAULT_AUDIO_RESPONSE_CURVE),
         )
 
 @dataclass(frozen=True, slots=True)

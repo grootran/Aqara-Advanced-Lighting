@@ -1,7 +1,11 @@
-"""Audio effect modulator — maps sensor events to speed/brightness writes.
+"""Audio effect modulator — maps sensor events to speed writes.
 
 Consumes events from AudioEngine and translates them into
-effect_speed and brightness commands for T1M and T1 Strip devices.
+effect_speed commands for T1M and T1 Strip devices.
+
+Note: Brightness modulation is not supported for hardware effects because
+the T1M restarts the effect on every brightness change (move_to_level).
+Only speed can be adjusted live via the custom Aqara cluster.
 """
 
 import asyncio
@@ -21,12 +25,8 @@ from .const import (
     AUDIO_EFFECT_RATE_LIMIT_T1M,
     AUDIO_EFFECT_RATE_LIMIT_T1_STRIP,
     AUDIO_EFFECT_SILENCE_DECAY_SECONDS,
-    BRIGHTNESS_DEADBAND,
-    DATA_ENTITY_CONTROLLER,
-    DOMAIN,
     SPEED_DEADBAND,
     T1M_MODELS,
-    brightness_percent_to_device,
 )
 from .models import AudioEffectConfig
 
@@ -38,7 +38,7 @@ _ONSET_DECAY_RATE = 0.03
 
 
 class ModulationChannel:
-    """Single modulation channel (speed or brightness)."""
+    """Single modulation channel (speed)."""
 
     def __init__(
         self,
@@ -138,9 +138,11 @@ class ModulationChannel:
 
 
 class AudioEffectModulator(AudioConsumer):
-    """Maps audio sensor events to effect speed and brightness writes.
+    """Maps audio sensor events to effect speed writes.
 
     Implements AudioConsumer to receive events from AudioEngine.
+    Brightness modulation is not supported for hardware effects —
+    the T1M restarts the effect on every brightness change.
     """
 
     def __init__(
@@ -159,7 +161,7 @@ class AudioEffectModulator(AudioConsumer):
         self._engine: AudioEngine | None = None
         self._silence_task: asyncio.Task | None = None
 
-        # Create modulation channels
+        # Create speed modulation channel
         self._speed_channel = ModulationChannel(
             mode=audio_config.audio_speed_mode,
             range_min=audio_config.audio_speed_min,
@@ -167,17 +169,9 @@ class AudioEffectModulator(AudioConsumer):
             curve=audio_config.audio_speed_curve,
             deadband=SPEED_DEADBAND,
         )
-        self._brightness_channel = ModulationChannel(
-            mode=audio_config.audio_brightness_mode,
-            range_min=audio_config.audio_brightness_min,
-            range_max=audio_config.audio_brightness_max,
-            curve=audio_config.audio_brightness_curve,
-            deadband=BRIGHTNESS_DEADBAND,
-        )
 
         # Rate limiting
         self._last_speed_write: float = 0.0
-        self._last_brightness_write: float = 0.0
 
         # Audio sensor availability flag (read by running-operations API)
         self.audio_waiting: bool = False
@@ -203,21 +197,17 @@ class AudioEffectModulator(AudioConsumer):
             self._silence_task.cancel()
 
     async def on_audio_events(self, events: dict[str, Any]) -> None:
-        """Process audio events into speed/brightness writes."""
+        """Process audio events into speed writes."""
         now = time.monotonic()
 
-        # Process decay ticks for on_onset channels (called on every event cycle)
+        # Process decay ticks for on_onset channel (called on every event cycle)
         if "onset" not in events:
-            for channel, write_fn, last_write_attr in [
-                (self._speed_channel, self._write_speed_to_all, "_last_speed_write"),
-                (self._brightness_channel, self._write_brightness_to_all, "_last_brightness_write"),
-            ]:
-                decay_result = channel.process_energy_tick()
-                if decay_result:
-                    value, changed = decay_result
-                    if changed:
-                        await write_fn(value)
-                        setattr(self, last_write_attr, now)
+            decay_result = self._speed_channel.process_energy_tick()
+            if decay_result:
+                value, changed = decay_result
+                if changed:
+                    await self._write_speed_to_all(value)
+                    self._last_speed_write = now
 
         # Process onset events
         if "onset" in events:
@@ -227,12 +217,6 @@ class AudioEffectModulator(AudioConsumer):
                 value, _ = speed_result
                 await self._write_speed_to_all(value)
                 self._last_speed_write = now
-
-            brightness_result = self._brightness_channel.process_onset(strength)
-            if brightness_result:
-                value, _ = brightness_result
-                await self._write_brightness_to_all(value)
-                self._last_brightness_write = now
 
         # Process energy events (rate-limited)
         if "energy" in events:
@@ -252,19 +236,6 @@ class AudioEffectModulator(AudioConsumer):
                         await self._write_speed_to_all(value)
                         self._last_speed_write = now
 
-            brightness_result = self._brightness_channel.process_energy(energy)
-            if brightness_result:
-                value, changed = brightness_result
-                if changed:
-                    min_interval = min(
-                        self._get_rate_limit(eid) for eid in self._entity_ids
-                    )
-                    if self._is_onset_mode(self._brightness_channel) or (
-                        now - self._last_brightness_write >= min_interval
-                    ):
-                        await self._write_brightness_to_all(value)
-                        self._last_brightness_write = now
-
     async def on_silence_enter(self) -> None:
         """Handle silence — decay or hold based on config."""
         behavior = self._audio_config.audio_silence_behavior
@@ -273,9 +244,8 @@ class AudioEffectModulator(AudioConsumer):
 
         # Decay to target over AUDIO_EFFECT_SILENCE_DECAY_SECONDS
         speed_target = self._speed_channel.get_silence_target(behavior)
-        brightness_target = self._brightness_channel.get_silence_target(behavior)
         self._silence_task = asyncio.ensure_future(
-            self._decay_to_targets(speed_target, brightness_target)
+            self._decay_to_target(speed_target)
         )
 
     async def on_silence_exit(self) -> None:
@@ -301,32 +271,8 @@ class AudioEffectModulator(AudioConsumer):
             except Exception:
                 _LOGGER.warning("Failed to write speed to %s", entity_id, exc_info=True)
 
-    def _create_context(self):
-        """Create an integration-tagged context to avoid external change detection."""
-        ec = self.hass.data.get(DOMAIN, {}).get(DATA_ENTITY_CONTROLLER)
-        if ec:
-            return ec.create_context()
-        return None
-
-    async def _write_brightness_to_all(self, brightness_pct: int) -> None:
-        """Write brightness to all entities via HA light service."""
-        brightness_device = brightness_percent_to_device(brightness_pct)
-        context = self._create_context()
-        tasks = [
-            self.hass.services.async_call(
-                "light", "turn_on",
-                {"entity_id": eid, "brightness": brightness_device},
-                blocking=False,
-                context=context,
-            )
-            for eid in self._entity_ids
-        ]
-        await asyncio.gather(*tasks, return_exceptions=True)
-
-    async def _decay_to_targets(
-        self, speed_target: int, brightness_target: int
-    ) -> None:
-        """Gradually decay speed and brightness to target values using cubic easing."""
+    async def _decay_to_target(self, speed_target: int) -> None:
+        """Gradually decay speed to target value using cubic easing."""
         duration = AUDIO_EFFECT_SILENCE_DECAY_SECONDS
         steps = 15  # ~5 updates/second over 3 seconds
         interval = duration / steps
@@ -335,11 +281,6 @@ class AudioEffectModulator(AudioConsumer):
             self._speed_channel._last_written
             if self._speed_channel._last_written is not None
             else speed_target
-        )
-        brightness_start = (
-            self._brightness_channel._last_written
-            if self._brightness_channel._last_written is not None
-            else brightness_target
         )
 
         for i in range(1, steps + 1):
@@ -353,11 +294,5 @@ class AudioEffectModulator(AudioConsumer):
             if self._speed_channel.mode is not None:
                 speed_val = round(speed_start + (speed_target - speed_start) * eased)
                 await self._write_speed_to_all(speed_val)
-
-            if self._brightness_channel.mode is not None:
-                bright_val = round(
-                    brightness_start + (brightness_target - brightness_start) * eased
-                )
-                await self._write_brightness_to_all(bright_val)
 
             await asyncio.sleep(interval)

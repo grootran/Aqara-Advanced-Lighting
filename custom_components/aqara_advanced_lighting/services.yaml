@@ -253,59 +253,6 @@ set_dynamic_effect:
             - label: "Exponential"
               value: "exponential"
           mode: dropdown
-    audio_brightness_mode:
-      name: Brightness modulation mode
-      description: How audio drives the brightness. Omit to disable brightness modulation.
-      required: false
-      selector:
-        select:
-          options:
-            - label: "On Onset"
-              value: "on_onset"
-            - label: "Continuous"
-              value: "continuous"
-            - label: "Intensity Breathing"
-              value: "intensity_breathing"
-            - label: "Onset Flash"
-              value: "onset_flash"
-          mode: dropdown
-    audio_brightness_min:
-      name: Brightness minimum
-      description: Minimum brightness in the modulation range (1-100%).
-      required: false
-      default: 1
-      selector:
-        number:
-          min: 1
-          max: 100
-          unit_of_measurement: "%"
-          mode: slider
-    audio_brightness_max:
-      name: Brightness maximum
-      description: Maximum brightness in the modulation range (1-100%).
-      required: false
-      default: 100
-      selector:
-        number:
-          min: 1
-          max: 100
-          unit_of_measurement: "%"
-          mode: slider
-    audio_brightness_curve:
-      name: Brightness response curve
-      description: How sensor values map to the brightness range.
-      required: false
-      default: "linear"
-      selector:
-        select:
-          options:
-            - label: "Linear"
-              value: "linear"
-            - label: "Logarithmic"
-              value: "logarithmic"
-            - label: "Exponential"
-              value: "exponential"
-          mode: dropdown
     z2m_base_topic:
       name: Z2M base topic (deprecated)
       description: "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."

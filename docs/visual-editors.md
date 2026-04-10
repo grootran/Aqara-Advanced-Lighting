@@ -73,14 +73,14 @@ See [Audio-reactive lighting setup](audio-reactive-setup.md) for hardware setup,
   - **T1 / T1M**: Flow 1, flow 2, fading, hopping, breathing, rolling
   - **T1 Strip**: Breathing, rainbow 1, chasing, flash, hopping, rainbow 2, flicker, dash
 - Add up to 8 colors using color pickers with color history for quick reuse
-- Adjust speed (1-100) and brightness (1-100%) with sliders
+- Adjust speed (1-100) with a slider, and set initial brightness (1-100%)
 - For T1 Strip: specify which segments to light using the segment selector
 - Preview the effect before saving to see how it looks on your lights
 - Save as custom preset for reuse
 
 ### Audio-reactive options
 
-The effect editor includes an **Audio reactive** section for T1M and T1 Strip devices that modulates the effect's speed and brightness based on live audio data. Toggle **Audio reactive** to expand the controls:
+The effect editor includes an **Audio reactive** section for T1M and T1 Strip devices that modulates the effect's speed based on live audio data. Toggle **Audio reactive** to expand the controls:
 
 - **Audio sensor entity**: Select the `binary_sensor` or `sensor` entity from your ESPHome audio-reactive device
 - **Sensitivity** (1–100): Beat detection sensitivity on the ESP32 device
@@ -93,15 +93,12 @@ The effect editor includes an **Audio reactive** section for T1M and T1 Strip de
   - Decay to minimum
   - Decay to midpoint
 - **Speed modulation**: Controls how audio drives the effect speed
-  - **Mode**: Off, On onset, Continuous, Intensity breathing, or Onset flash (defaults to Continuous when audio is enabled)
+  - **Mode**: On Onset, Continuous, Intensity Breathing, or Onset Flash (defaults to Continuous)
   - **Response curve**: How sensor values map to the speed range (Linear, Logarithmic, or Exponential)
   - **Range min** (1–99): Minimum speed in the modulation range
   - **Range max** (2–100): Maximum speed in the modulation range
-- **Brightness modulation**: Controls how audio drives the brightness
-  - **Mode**: Off, On onset, Continuous, Intensity breathing, or Onset flash (off by default)
-  - **Response curve**: How sensor values map to the brightness range (Linear, Logarithmic, or Exponential)
-  - **Range min** (1–99%): Minimum brightness in the modulation range
-  - **Range max** (2–100%): Maximum brightness in the modulation range
+
+Note: Only speed modulation is supported for hardware effects. Brightness cannot be modulated in real time because the T1M restarts the effect on every brightness change.
 
 Audio-reactive effects are not available for T2 bulbs. See [Audio-reactive lighting setup](audio-reactive-setup.md) for hardware setup and calibration.
 

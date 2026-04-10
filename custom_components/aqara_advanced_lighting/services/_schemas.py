@@ -14,10 +14,6 @@ from ..const import (
     ACTIVATION_RANDOM,
     ACTIVATION_SEQUENTIAL_FORWARD,
     ACTIVATION_SEQUENTIAL_REVERSE,
-    ATTR_AUDIO_BRIGHTNESS_CURVE,
-    ATTR_AUDIO_BRIGHTNESS_MAX,
-    ATTR_AUDIO_BRIGHTNESS_MIN,
-    ATTR_AUDIO_BRIGHTNESS_MODE,
     ATTR_AUDIO_DETECTION_MODE,
     ATTR_AUDIO_EFFECT,
     ATTR_AUDIO_ENTITY,
@@ -200,18 +196,6 @@ SERVICE_SET_DYNAMIC_EFFECT_SCHEMA = vol.Schema(
             vol.Coerce(int), vol.Range(min=1, max=100)
         ),
         vol.Optional(ATTR_AUDIO_SPEED_CURVE): vol.In(
-            ["linear", "logarithmic", "exponential"]
-        ),
-        vol.Optional(ATTR_AUDIO_BRIGHTNESS_MODE): vol.In(
-            ["on_onset", "continuous", "intensity_breathing", "onset_flash", "off"]
-        ),
-        vol.Optional(ATTR_AUDIO_BRIGHTNESS_MIN): vol.All(
-            vol.Coerce(int), vol.Range(min=1, max=100)
-        ),
-        vol.Optional(ATTR_AUDIO_BRIGHTNESS_MAX): vol.All(
-            vol.Coerce(int), vol.Range(min=1, max=100)
-        ),
-        vol.Optional(ATTR_AUDIO_BRIGHTNESS_CURVE): vol.In(
             ["linear", "logarithmic", "exponential"]
         ),
     }

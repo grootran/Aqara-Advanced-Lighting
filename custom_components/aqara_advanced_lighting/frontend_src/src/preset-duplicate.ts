@@ -52,10 +52,6 @@ export function builtinEffectToUser(
       audio_speed_min: preset.audio_speed_min,
       audio_speed_max: preset.audio_speed_max,
       audio_speed_curve: preset.audio_speed_curve as AudioEffectConfig['audio_speed_curve'],
-      audio_brightness_mode: preset.audio_brightness_mode as AudioEffectConfig['audio_brightness_mode'],
-      audio_brightness_min: preset.audio_brightness_min,
-      audio_brightness_max: preset.audio_brightness_max,
-      audio_brightness_curve: preset.audio_brightness_curve as AudioEffectConfig['audio_brightness_curve'],
     };
   }
   return result;

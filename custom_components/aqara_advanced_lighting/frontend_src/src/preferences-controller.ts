@@ -31,8 +31,6 @@ export interface PreferencesState {
   useEffectAudioReactive: boolean;
   effectAudioOverrideSensitivity: number;
   effectAudioOverrideDetectionMode: string;
-  effectAudioOverrideSpeedEnabled: boolean;
-  effectAudioOverrideBrightnessEnabled: boolean;
   effectAudioOverrideSilenceBehavior: string;
   hiddenBuiltinPresets: FavoritePresetRef[];
   selectedEntities: string[];
@@ -76,8 +74,6 @@ const DEFAULT_STATE: PreferencesState = {
   useEffectAudioReactive: false,
   effectAudioOverrideSensitivity: 50,
   effectAudioOverrideDetectionMode: 'spectral_flux',
-  effectAudioOverrideSpeedEnabled: true,
-  effectAudioOverrideBrightnessEnabled: true,
   effectAudioOverrideSilenceBehavior: 'hold',
   hiddenBuiltinPresets: [],
   selectedEntities: [],
@@ -233,8 +229,6 @@ export class PreferencesController implements ReactiveController {
     if (prefs.use_effect_audio_reactive !== undefined) this.state.useEffectAudioReactive = prefs.use_effect_audio_reactive;
     if (prefs.effect_audio_override_sensitivity !== undefined) this.state.effectAudioOverrideSensitivity = prefs.effect_audio_override_sensitivity;
     if (prefs.effect_audio_override_detection_mode !== undefined) this.state.effectAudioOverrideDetectionMode = prefs.effect_audio_override_detection_mode;
-    if (prefs.effect_audio_override_speed_enabled !== undefined) this.state.effectAudioOverrideSpeedEnabled = prefs.effect_audio_override_speed_enabled;
-    if (prefs.effect_audio_override_brightness_enabled !== undefined) this.state.effectAudioOverrideBrightnessEnabled = prefs.effect_audio_override_brightness_enabled;
     if (prefs.effect_audio_override_silence_behavior !== undefined) this.state.effectAudioOverrideSilenceBehavior = prefs.effect_audio_override_silence_behavior;
     if (prefs.selected_entities && prefs.selected_entities.length > 0) {
       this.state.selectedEntities = prefs.selected_entities;
@@ -335,8 +329,6 @@ export class PreferencesController implements ReactiveController {
           use_effect_audio_reactive: this.state.useEffectAudioReactive,
           effect_audio_override_sensitivity: this.state.effectAudioOverrideSensitivity,
           effect_audio_override_detection_mode: this.state.effectAudioOverrideDetectionMode,
-          effect_audio_override_speed_enabled: this.state.effectAudioOverrideSpeedEnabled,
-          effect_audio_override_brightness_enabled: this.state.effectAudioOverrideBrightnessEnabled,
           effect_audio_override_silence_behavior: this.state.effectAudioOverrideSilenceBehavior,
           selected_entities: this.state.selectedEntities,
           active_favorite_id: this.state.activeFavoriteId,

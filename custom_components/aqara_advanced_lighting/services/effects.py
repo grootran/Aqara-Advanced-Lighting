@@ -9,10 +9,6 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError
 
 from ..const import (
-    ATTR_AUDIO_BRIGHTNESS_CURVE,
-    ATTR_AUDIO_BRIGHTNESS_MAX,
-    ATTR_AUDIO_BRIGHTNESS_MIN,
-    ATTR_AUDIO_BRIGHTNESS_MODE,
     ATTR_AUDIO_DETECTION_MODE,
     ATTR_AUDIO_ENTITY,
     ATTR_AUDIO_SENSITIVITY,
@@ -284,9 +280,8 @@ async def handle_set_dynamic_effect(hass: HomeAssistant, call: ServiceCall) -> N
         audio_config = AudioEffectConfig.from_dict(user_preset["audio_config"])
         audio_entity = audio_config.audio_entity
     elif preset_data and "audio_detection_mode" in preset_data and audio_entity is None:
-        # Built-in audio-reactive preset: resolve entity from call or user prefs
-        # Guard on audio_entity is None so that useEffectAudioReactive overrides
-        # (which pass an explicit audio_entity) fall through to the manual branch below.
+        # Built-in audio-reactive preset with no explicit audio_entity:
+        # resolve entity from user prefs
         user_id = call.context.user_id or "default"
         resolved_entity = _resolve_preset_audio_entity(
             preset_data,
@@ -304,37 +299,33 @@ async def handle_set_dynamic_effect(hass: HomeAssistant, call: ServiceCall) -> N
                 audio_speed_min=preset_data.get("audio_speed_min", 1),
                 audio_speed_max=preset_data.get("audio_speed_max", 100),
                 audio_speed_curve=preset_data.get("audio_speed_curve", DEFAULT_AUDIO_RESPONSE_CURVE),
-                audio_brightness_mode=preset_data.get("audio_brightness_mode"),
-                audio_brightness_min=preset_data.get("audio_brightness_min", 1),
-                audio_brightness_max=preset_data.get("audio_brightness_max", 100),
-                audio_brightness_curve=preset_data.get("audio_brightness_curve", DEFAULT_AUDIO_RESPONSE_CURVE),
             )
     elif audio_entity is not None:
-        # Build from service call params (overrides preset if both present)
-        # Convert empty strings and "off" to None (frontend sends "off" for disabled)
+        # Build from service call params, using preset data as defaults when a
+        # built-in preset is specified (frontend may only send audio_entity
+        # without the preset's audio params).
         raw_speed = call.data.get(ATTR_AUDIO_SPEED_MODE)
-        raw_brightness = call.data.get(ATTR_AUDIO_BRIGHTNESS_MODE)
         speed_mode = None if not raw_speed or raw_speed == "off" else raw_speed
-        brightness_mode = None if not raw_brightness or raw_brightness == "off" else raw_brightness
 
-        # Default speed to "continuous" only if neither mode was explicitly provided,
-        # consistent with dynamic scenes defaulting audio_color_advance to "on_onset"
-        if speed_mode is None and brightness_mode is None:
-            speed_mode = "continuous"
+        # When a built-in preset is active, use its audio params as defaults
+        pd = preset_data if preset_data and "audio_detection_mode" in preset_data else None
+
+        # Default speed to "continuous" if not explicitly provided
+        if speed_mode is None:
+            if pd:
+                speed_mode = pd.get("audio_speed_mode")
+            if speed_mode is None:
+                speed_mode = "continuous"
 
         audio_config = AudioEffectConfig(
             audio_entity=audio_entity,
-            audio_sensitivity=call.data.get(ATTR_AUDIO_SENSITIVITY, 50),
-            audio_detection_mode=call.data.get(ATTR_AUDIO_DETECTION_MODE, "spectral_flux"),
-            audio_silence_behavior=call.data.get(ATTR_AUDIO_SILENCE_BEHAVIOR, "decay_min"),
+            audio_sensitivity=call.data.get(ATTR_AUDIO_SENSITIVITY, pd.get("audio_sensitivity", 50) if pd else 50),
+            audio_detection_mode=call.data.get(ATTR_AUDIO_DETECTION_MODE, pd.get("audio_detection_mode", "spectral_flux") if pd else "spectral_flux"),
+            audio_silence_behavior=call.data.get(ATTR_AUDIO_SILENCE_BEHAVIOR, pd.get("audio_silence_behavior", "decay_min") if pd else "decay_min"),
             audio_speed_mode=speed_mode,
-            audio_speed_min=call.data.get(ATTR_AUDIO_SPEED_MIN, 1),
-            audio_speed_max=call.data.get(ATTR_AUDIO_SPEED_MAX, 100),
-            audio_speed_curve=call.data.get(ATTR_AUDIO_SPEED_CURVE, "linear"),
-            audio_brightness_mode=brightness_mode,
-            audio_brightness_min=call.data.get(ATTR_AUDIO_BRIGHTNESS_MIN, 1),
-            audio_brightness_max=call.data.get(ATTR_AUDIO_BRIGHTNESS_MAX, 100),
-            audio_brightness_curve=call.data.get(ATTR_AUDIO_BRIGHTNESS_CURVE, "linear"),
+            audio_speed_min=call.data.get(ATTR_AUDIO_SPEED_MIN, pd.get("audio_speed_min", 1) if pd else 1),
+            audio_speed_max=call.data.get(ATTR_AUDIO_SPEED_MAX, pd.get("audio_speed_max", 100) if pd else 100),
+            audio_speed_curve=call.data.get(ATTR_AUDIO_SPEED_CURVE, pd.get("audio_speed_curve", "linear") if pd else "linear"),
         )
 
     # Prepare effects for all entities, grouped by instance for multi-Z2M support
@@ -577,11 +568,9 @@ async def handle_set_dynamic_effect(hass: HomeAssistant, call: ServiceCall) -> N
         from ..audio_effect_modulator import AudioEffectModulator
         from ..audio_engine import AudioEngine, AudioEngineConfig
 
-        # Determine subscription needs based on modes
-        needs_onset = audio_config.audio_speed_mode in ("on_onset", "onset_flash") or \
-                      audio_config.audio_brightness_mode in ("on_onset", "onset_flash")
-        needs_energy = audio_config.audio_speed_mode in ("continuous", "intensity_breathing", "onset_flash") or \
-                       audio_config.audio_brightness_mode in ("continuous", "intensity_breathing", "onset_flash")
+        # Determine subscription needs based on speed mode
+        needs_onset = audio_config.audio_speed_mode in ("on_onset", "onset_flash")
+        needs_energy = audio_config.audio_speed_mode in ("continuous", "intensity_breathing", "onset_flash")
 
         engine_config = AudioEngineConfig(
             audio_entity=audio_config.audio_entity,

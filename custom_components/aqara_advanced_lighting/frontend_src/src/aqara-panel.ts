@@ -1673,10 +1673,15 @@ export class AqaraPanel extends LitElement {
     if (this._prefs.state.useEffectAudioReactive) {
       if (this._prefs.state.audioOverrideEntity) {
         serviceData.audio_entity = this._prefs.state.audioOverrideEntity;
-        serviceData.audio_sensitivity = this._prefs.state.effectAudioOverrideSensitivity;
-        serviceData.audio_detection_mode = this._prefs.state.effectAudioOverrideDetectionMode;
-        serviceData.audio_speed_mode = this._prefs.state.effectAudioOverrideSpeedEnabled ? 'continuous' : 'off';
-        serviceData.audio_brightness_mode = this._prefs.state.effectAudioOverrideBrightnessEnabled ? 'continuous' : 'off';
+        serviceData.audio_sensitivity = preset.audio_sensitivity ?? this._prefs.state.effectAudioOverrideSensitivity;
+        serviceData.audio_detection_mode = preset.audio_detection_mode ?? this._prefs.state.effectAudioOverrideDetectionMode;
+        serviceData.audio_silence_behavior = preset.audio_silence_behavior ?? 'decay_min';
+        // Use preset's configured speed mode, fall back to 'continuous' for non-audio presets
+        serviceData.audio_speed_mode = preset.audio_speed_mode || 'continuous';
+        // Pass through preset's speed min/max/curve when available
+        if (preset.audio_speed_min !== undefined) serviceData.audio_speed_min = preset.audio_speed_min;
+        if (preset.audio_speed_max !== undefined) serviceData.audio_speed_max = preset.audio_speed_max;
+        if (preset.audio_speed_curve) serviceData.audio_speed_curve = preset.audio_speed_curve;
       } else {
         console.warn('Effect audio reactive override is enabled but no audio sensor entity is configured');
       }
@@ -1890,14 +1895,20 @@ export class AqaraPanel extends LitElement {
       serviceData.segments = preset.effect_segments;
     }
 
-    // Effect audio override takes precedence
+    // Effect audio override takes precedence, but merge with preset's audio config
     if (this._prefs.state.useEffectAudioReactive) {
       if (this._prefs.state.audioOverrideEntity) {
+        const ac = preset.audio_config;
         serviceData.audio_entity = this._prefs.state.audioOverrideEntity;
-        serviceData.audio_sensitivity = this._prefs.state.effectAudioOverrideSensitivity;
-        serviceData.audio_detection_mode = this._prefs.state.effectAudioOverrideDetectionMode;
-        serviceData.audio_speed_mode = this._prefs.state.effectAudioOverrideSpeedEnabled ? 'continuous' : 'off';
-        serviceData.audio_brightness_mode = this._prefs.state.effectAudioOverrideBrightnessEnabled ? 'continuous' : 'off';
+        serviceData.audio_sensitivity = ac?.audio_sensitivity ?? this._prefs.state.effectAudioOverrideSensitivity;
+        serviceData.audio_detection_mode = ac?.audio_detection_mode ?? this._prefs.state.effectAudioOverrideDetectionMode;
+        serviceData.audio_silence_behavior = ac?.audio_silence_behavior ?? 'decay_min';
+        // Use preset's configured speed mode, fall back to 'continuous' for non-audio presets
+        serviceData.audio_speed_mode = ac?.audio_speed_mode || 'continuous';
+        // Pass through preset's speed min/max/curve when available
+        if (ac?.audio_speed_min !== undefined) serviceData.audio_speed_min = ac.audio_speed_min;
+        if (ac?.audio_speed_max !== undefined) serviceData.audio_speed_max = ac.audio_speed_max;
+        if (ac?.audio_speed_curve) serviceData.audio_speed_curve = ac.audio_speed_curve;
       } else {
         console.warn('Effect audio reactive override is enabled but no audio sensor entity is configured');
       }
@@ -1915,12 +1926,6 @@ export class AqaraPanel extends LitElement {
           serviceData.audio_speed_min = ac.audio_speed_min ?? 1;
           serviceData.audio_speed_max = ac.audio_speed_max ?? 100;
           serviceData.audio_speed_curve = ac.audio_speed_curve ?? 'linear';
-        }
-        if (ac.audio_brightness_mode) {
-          serviceData.audio_brightness_mode = ac.audio_brightness_mode;
-          serviceData.audio_brightness_min = ac.audio_brightness_min ?? 1;
-          serviceData.audio_brightness_max = ac.audio_brightness_max ?? 100;
-          serviceData.audio_brightness_curve = ac.audio_brightness_curve ?? 'linear';
         }
       }
     }
@@ -2460,11 +2465,11 @@ export class AqaraPanel extends LitElement {
               <div class="section-content controls-content">
                 <!-- All toggles at the top -->
                 <div class="overrides-grid">
-                  <div class="override-item" style="opacity: ${this._prefs.state.useAudioReactive || this._prefs.state.useEffectAudioReactive ? '0.5' : '1'}">
+                  <div class="override-item" style="opacity: ${this._prefs.state.useAudioReactive ? '0.5' : '1'}">
                     <span class="form-label">${this._localize('target.custom_brightness_label')}</span>
                     <ha-switch
                       .checked=${this._prefs.state.useCustomBrightness}
-                      .disabled=${this._prefs.state.useAudioReactive || this._prefs.state.useEffectAudioReactive}
+                      .disabled=${this._prefs.state.useAudioReactive}
                       @change=${this._handleCustomBrightnessToggle}
                     ></ha-switch>
                   </div>
@@ -2773,30 +2778,13 @@ export class AqaraPanel extends LitElement {
                           <ha-selector
                             .hass=${this.hass}
                             .selector=${{ select: { options: [
-                              { value: 'hold', label: this._localize('dynamic_scene.audio_silence_hold') || 'Hold last state' },
-                              { value: 'slow_cycle', label: this._localize('dynamic_scene.audio_silence_slow_cycle') || 'Slow cycle' },
-                              { value: 'decay_min', label: this._localize('dynamic_scene.audio_silence_decay_min') || 'Decay to min' },
-                              { value: 'decay_mid', label: this._localize('dynamic_scene.audio_silence_decay_mid') || 'Decay to mid' },
+                              { value: 'hold', label: this._localize('effect_editor.silence_hold') || 'Hold last values' },
+                              { value: 'decay_min', label: this._localize('effect_editor.silence_decay_min') || 'Decay to minimum' },
+                              { value: 'decay_mid', label: this._localize('effect_editor.silence_decay_mid') || 'Decay to midpoint' },
                             ], mode: 'dropdown' } }}
                             .value=${this._prefs.state.effectAudioOverrideSilenceBehavior}
-                            @value-changed=${(e: CustomEvent) => { this._prefs.update({ effectAudioOverrideSilenceBehavior: e.detail.value || 'hold' }, this.hass); }}
+                            @value-changed=${(e: CustomEvent) => { this._prefs.update({ effectAudioOverrideSilenceBehavior: e.detail.value || 'decay_min' }, this.hass); }}
                           ></ha-selector>
-                        </div>
-                      </div>
-                      <div class="audio-toggles-grid">
-                        <div class="override-item">
-                          <span class="form-label">${this._localize('target.effect_speed_modulation_label') || 'Speed modulation'}</span>
-                          <ha-switch
-                            .checked=${this._prefs.state.effectAudioOverrideSpeedEnabled}
-                            @change=${(e: Event) => { this._prefs.update({ effectAudioOverrideSpeedEnabled: (e.target as HTMLInputElement).checked }, this.hass); }}
-                          ></ha-switch>
-                        </div>
-                        <div class="override-item">
-                          <span class="form-label">${this._localize('target.effect_brightness_modulation_label') || 'Brightness modulation'}</span>
-                          <ha-switch
-                            .checked=${this._prefs.state.effectAudioOverrideBrightnessEnabled}
-                            @change=${(e: Event) => { this._prefs.update({ effectAudioOverrideBrightnessEnabled: (e.target as HTMLInputElement).checked }, this.hass); }}
-                          ></ha-switch>
                         </div>
                       </div>
                     `
@@ -3069,6 +3057,18 @@ export class AqaraPanel extends LitElement {
 
     if (data.effect_segments) {
       serviceData.segments = data.effect_segments;
+    }
+
+    // Pass audio-reactive config if configured in the editor
+    if (data.audio_config?.audio_entity && data.audio_config?.audio_speed_mode) {
+      serviceData.audio_entity = data.audio_config.audio_entity;
+      serviceData.audio_sensitivity = data.audio_config.audio_sensitivity;
+      serviceData.audio_detection_mode = data.audio_config.audio_detection_mode;
+      serviceData.audio_silence_behavior = data.audio_config.audio_silence_behavior;
+      serviceData.audio_speed_mode = data.audio_config.audio_speed_mode;
+      if (data.audio_config.audio_speed_min !== undefined) serviceData.audio_speed_min = data.audio_config.audio_speed_min;
+      if (data.audio_config.audio_speed_max !== undefined) serviceData.audio_speed_max = data.audio_config.audio_speed_max;
+      if (data.audio_config.audio_speed_curve) serviceData.audio_speed_curve = data.audio_config.audio_speed_curve;
     }
 
     await this.hass.callService('aqara_advanced_lighting', 'set_dynamic_effect', serviceData);

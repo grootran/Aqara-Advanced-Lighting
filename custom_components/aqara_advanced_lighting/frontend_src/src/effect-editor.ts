@@ -76,14 +76,10 @@ export class EffectEditor extends ReorderableStepsMixin(LitElement) {
   @state() private _audioSensitivity = 50;
   @state() private _audioDetectionMode: 'spectral_flux' | 'bass_energy' | 'complex_domain' = 'spectral_flux';
   @state() private _audioSilenceBehavior: 'hold' | 'decay_min' | 'decay_mid' = 'decay_min';
-  @state() private _audioSpeedMode: 'on_onset' | 'continuous' | 'intensity_breathing' | 'onset_flash' | 'off' = 'continuous';
+  @state() private _audioSpeedMode: 'on_onset' | 'continuous' | 'intensity_breathing' | 'onset_flash' = 'continuous';
   @state() private _audioSpeedMin = 1;
   @state() private _audioSpeedMax = 100;
   @state() private _audioSpeedCurve: 'linear' | 'logarithmic' | 'exponential' = 'linear';
-  @state() private _audioBrightnessMode: 'on_onset' | 'continuous' | 'intensity_breathing' | 'onset_flash' | 'off' = 'off';
-  @state() private _audioBrightnessMin = 1;
-  @state() private _audioBrightnessMax = 100;
-  @state() private _audioBrightnessCurve: 'linear' | 'logarithmic' | 'exponential' = 'linear';
 
   static styles = [
     colorPickerStyles,
@@ -211,14 +207,10 @@ export class EffectEditor extends ReorderableStepsMixin(LitElement) {
       this._audioSensitivity = preset.audio_config.audio_sensitivity ?? 50;
       this._audioDetectionMode = preset.audio_config.audio_detection_mode ?? 'spectral_flux';
       this._audioSilenceBehavior = preset.audio_config.audio_silence_behavior ?? 'decay_min';
-      this._audioSpeedMode = preset.audio_config.audio_speed_mode || 'off';
+      this._audioSpeedMode = preset.audio_config.audio_speed_mode || 'continuous';
       this._audioSpeedMin = preset.audio_config.audio_speed_min ?? 1;
       this._audioSpeedMax = preset.audio_config.audio_speed_max ?? 100;
       this._audioSpeedCurve = preset.audio_config.audio_speed_curve ?? 'linear';
-      this._audioBrightnessMode = preset.audio_config.audio_brightness_mode || 'off';
-      this._audioBrightnessMin = preset.audio_config.audio_brightness_min ?? 1;
-      this._audioBrightnessMax = preset.audio_config.audio_brightness_max ?? 100;
-      this._audioBrightnessCurve = preset.audio_config.audio_brightness_curve ?? 'linear';
     } else {
       this._audioEnabled = false;
       this._audioEntity = '';
@@ -241,14 +233,10 @@ export class EffectEditor extends ReorderableStepsMixin(LitElement) {
         audio_sensitivity: this._audioSensitivity,
         audio_detection_mode: this._audioDetectionMode,
         audio_silence_behavior: this._audioSilenceBehavior,
-        audio_speed_mode: this._audioSpeedMode === 'off' ? null : this._audioSpeedMode,
+        audio_speed_mode: this._audioSpeedMode,
         audio_speed_min: this._audioSpeedMin,
         audio_speed_max: this._audioSpeedMax,
         audio_speed_curve: this._audioSpeedCurve,
-        audio_brightness_mode: this._audioBrightnessMode === 'off' ? null : this._audioBrightnessMode,
-        audio_brightness_min: this._audioBrightnessMin,
-        audio_brightness_max: this._audioBrightnessMax,
-        audio_brightness_curve: this._audioBrightnessCurve,
       } : undefined,
     };
   }
@@ -272,10 +260,6 @@ export class EffectEditor extends ReorderableStepsMixin(LitElement) {
     this._audioSpeedMin = 1;
     this._audioSpeedMax = 100;
     this._audioSpeedCurve = 'linear';
-    this._audioBrightnessMode = 'off';
-    this._audioBrightnessMin = 1;
-    this._audioBrightnessMax = 100;
-    this._audioBrightnessCurve = 'linear';
   }
 
   private _restoreDraft(draft: EffectEditorDraft): void {
@@ -294,14 +278,10 @@ export class EffectEditor extends ReorderableStepsMixin(LitElement) {
       this._audioSensitivity = draft.audioConfig.audio_sensitivity ?? 50;
       this._audioDetectionMode = draft.audioConfig.audio_detection_mode ?? 'spectral_flux';
       this._audioSilenceBehavior = draft.audioConfig.audio_silence_behavior ?? 'decay_min';
-      this._audioSpeedMode = draft.audioConfig.audio_speed_mode || 'off';
+      this._audioSpeedMode = draft.audioConfig.audio_speed_mode || 'continuous';
       this._audioSpeedMin = draft.audioConfig.audio_speed_min ?? 1;
       this._audioSpeedMax = draft.audioConfig.audio_speed_max ?? 100;
       this._audioSpeedCurve = draft.audioConfig.audio_speed_curve ?? 'linear';
-      this._audioBrightnessMode = draft.audioConfig.audio_brightness_mode || 'off';
-      this._audioBrightnessMin = draft.audioConfig.audio_brightness_min ?? 1;
-      this._audioBrightnessMax = draft.audioConfig.audio_brightness_max ?? 100;
-      this._audioBrightnessCurve = draft.audioConfig.audio_brightness_curve ?? 'linear';
     } else {
       this._audioEnabled = false;
     }
@@ -434,7 +414,7 @@ export class EffectEditor extends ReorderableStepsMixin(LitElement) {
   }
 
   private _handleAudioSpeedModeChange(e: CustomEvent): void {
-    this._audioSpeedMode = e.detail.value || 'off';
+    this._audioSpeedMode = e.detail.value || 'continuous';
     this._hasUserInteraction = true;
   }
 
@@ -453,25 +433,6 @@ export class EffectEditor extends ReorderableStepsMixin(LitElement) {
     this._hasUserInteraction = true;
   }
 
-  private _handleAudioBrightnessModeChange(e: CustomEvent): void {
-    this._audioBrightnessMode = e.detail.value || 'off';
-    this._hasUserInteraction = true;
-  }
-
-  private _handleAudioBrightnessMinChange(e: CustomEvent): void {
-    this._audioBrightnessMin = e.detail.value ?? 1;
-    this._hasUserInteraction = true;
-  }
-
-  private _handleAudioBrightnessMaxChange(e: CustomEvent): void {
-    this._audioBrightnessMax = e.detail.value ?? 100;
-    this._hasUserInteraction = true;
-  }
-
-  private _handleAudioBrightnessCurveChange(e: CustomEvent): void {
-    this._audioBrightnessCurve = e.detail.value || 'linear';
-    this._hasUserInteraction = true;
-  }
 
   private _getEffectIconUrl(effect: string): string {
     return `/api/aqara_advanced_lighting/icons/${effect}.svg`;
@@ -503,14 +464,10 @@ export class EffectEditor extends ReorderableStepsMixin(LitElement) {
         audio_sensitivity: this._audioSensitivity,
         audio_detection_mode: this._audioDetectionMode,
         audio_silence_behavior: this._audioSilenceBehavior,
-        audio_speed_mode: this._audioSpeedMode === 'off' ? null : this._audioSpeedMode,
+        audio_speed_mode: this._audioSpeedMode,
         audio_speed_min: this._audioSpeedMin,
         audio_speed_max: this._audioSpeedMax,
         audio_speed_curve: this._audioSpeedCurve,
-        audio_brightness_mode: this._audioBrightnessMode === 'off' ? null : this._audioBrightnessMode,
-        audio_brightness_min: this._audioBrightnessMin,
-        audio_brightness_max: this._audioBrightnessMax,
-        audio_brightness_curve: this._audioBrightnessCurve,
       };
     }
 
@@ -544,17 +501,8 @@ export class EffectEditor extends ReorderableStepsMixin(LitElement) {
     );
   }
 
-  private _hasAudioBothModesOff(): boolean {
-    return (
-      this._audioEnabled &&
-      !!this._audioEntity &&
-      this._audioSpeedMode === 'off' &&
-      this._audioBrightnessMode === 'off'
-    );
-  }
-
   private async _save(): Promise<void> {
-    if (!this._name.trim() || !this._effect || this._hasAudioBothModesOff()) {
+    if (!this._name.trim() || !this._effect) {
       return;
     }
 
@@ -873,7 +821,6 @@ export class EffectEditor extends ReorderableStepsMixin(LitElement) {
                     .selector=${{
                       select: {
                         options: [
-                          { value: 'off', label: this._localize('effect_editor.mode_off') || 'Off' },
                           { value: 'on_onset', label: this._localize('effect_editor.mode_on_onset') || 'On Onset' },
                           { value: 'continuous', label: this._localize('effect_editor.mode_continuous') || 'Continuous' },
                           { value: 'intensity_breathing', label: this._localize('effect_editor.mode_intensity_breathing') || 'Intensity Breathing' },
@@ -890,7 +837,7 @@ export class EffectEditor extends ReorderableStepsMixin(LitElement) {
                   <span class="form-label">${this._localize('effect_editor.response_curve_label') || 'Response curve'}</span>
                   <ha-selector
                     .hass=${this.hass}
-                    .disabled=${!this._audioEntity || this._audioSpeedMode === 'off'}
+                    .disabled=${!this._audioEntity}
                     .selector=${{
                       select: {
                         options: [
@@ -911,7 +858,7 @@ export class EffectEditor extends ReorderableStepsMixin(LitElement) {
                   <span class="form-label">${this._localize('effect_editor.range_min_label') || 'Range min'}</span>
                   <ha-selector
                     .hass=${this.hass}
-                    .disabled=${!this._audioEntity || this._audioSpeedMode === 'off'}
+                    .disabled=${!this._audioEntity}
                     .selector=${{ number: { min: 1, max: 99, mode: 'slider' } }}
                     .value=${this._audioSpeedMin}
                     @value-changed=${this._handleAudioSpeedMinChange}
@@ -921,7 +868,7 @@ export class EffectEditor extends ReorderableStepsMixin(LitElement) {
                   <span class="form-label">${this._localize('effect_editor.range_max_label') || 'Range max'}</span>
                   <ha-selector
                     .hass=${this.hass}
-                    .disabled=${!this._audioEntity || this._audioSpeedMode === 'off'}
+                    .disabled=${!this._audioEntity}
                     .selector=${{ number: { min: 2, max: 100, mode: 'slider' } }}
                     .value=${this._audioSpeedMax}
                     @value-changed=${this._handleAudioSpeedMaxChange}
@@ -931,73 +878,6 @@ export class EffectEditor extends ReorderableStepsMixin(LitElement) {
             </div>
 
             <!-- Brightness Modulation -->
-            <div>
-              <span class="form-label" style="font-weight: 500;">${this._localize('effect_editor.brightness_modulation_label') || 'Brightness modulation'}</span>
-              <div class="form-row-pair">
-                <div class="form-field">
-                  <span class="form-label">${this._localize('effect_editor.audio_mode_label') || 'Mode'}</span>
-                  <ha-selector
-                    .hass=${this.hass}
-                    .disabled=${!this._audioEntity}
-                    .selector=${{
-                      select: {
-                        options: [
-                          { value: 'off', label: this._localize('effect_editor.mode_off') || 'Off' },
-                          { value: 'on_onset', label: this._localize('effect_editor.mode_on_onset') || 'On Onset' },
-                          { value: 'continuous', label: this._localize('effect_editor.mode_continuous') || 'Continuous' },
-                          { value: 'intensity_breathing', label: this._localize('effect_editor.mode_intensity_breathing') || 'Intensity Breathing' },
-                          { value: 'onset_flash', label: this._localize('effect_editor.mode_onset_flash') || 'Onset Flash' },
-                        ],
-                        mode: 'dropdown',
-                      },
-                    }}
-                    .value=${this._audioBrightnessMode}
-                    @value-changed=${this._handleAudioBrightnessModeChange}
-                  ></ha-selector>
-                </div>
-                <div class="form-field">
-                  <span class="form-label">${this._localize('effect_editor.response_curve_label') || 'Response curve'}</span>
-                  <ha-selector
-                    .hass=${this.hass}
-                    .disabled=${!this._audioEntity || this._audioBrightnessMode === 'off'}
-                    .selector=${{
-                      select: {
-                        options: [
-                          { value: 'linear', label: this._localize('effect_editor.curve_linear') || 'Linear' },
-                          { value: 'logarithmic', label: this._localize('effect_editor.curve_logarithmic') || 'Logarithmic' },
-                          { value: 'exponential', label: this._localize('effect_editor.curve_exponential') || 'Exponential' },
-                        ],
-                        mode: 'dropdown',
-                      },
-                    }}
-                    .value=${this._audioBrightnessCurve}
-                    @value-changed=${this._handleAudioBrightnessCurveChange}
-                  ></ha-selector>
-                </div>
-              </div>
-              <div class="form-row-pair">
-                <div class="form-field">
-                  <span class="form-label">${this._localize('effect_editor.range_min_label') || 'Range min'}</span>
-                  <ha-selector
-                    .hass=${this.hass}
-                    .disabled=${!this._audioEntity || this._audioBrightnessMode === 'off'}
-                    .selector=${{ number: { min: 1, max: 99, mode: 'slider', unit_of_measurement: '%' } }}
-                    .value=${this._audioBrightnessMin}
-                    @value-changed=${this._handleAudioBrightnessMinChange}
-                  ></ha-selector>
-                </div>
-                <div class="form-field">
-                  <span class="form-label">${this._localize('effect_editor.range_max_label') || 'Range max'}</span>
-                  <ha-selector
-                    .hass=${this.hass}
-                    .disabled=${!this._audioEntity || this._audioBrightnessMode === 'off'}
-                    .selector=${{ number: { min: 2, max: 100, mode: 'slider', unit_of_measurement: '%' } }}
-                    .value=${this._audioBrightnessMax}
-                    @value-changed=${this._handleAudioBrightnessMaxChange}
-                  ></ha-selector>
-                </div>
-              </div>
-            </div>
           ` : ''}
         </div>
         ` : ''}
@@ -1047,14 +927,6 @@ export class EffectEditor extends ReorderableStepsMixin(LitElement) {
             `
           : ''}
 
-        ${this._hasAudioBothModesOff()
-          ? html`
-              <div class="preview-warning">
-                <ha-icon icon="mdi:alert-circle"></ha-icon>
-                <span>${this._localize('effect_editor.audio_modulation_required')}</span>
-              </div>
-            `
-          : ''}
 
         <div class="form-actions">
           <div class="form-actions-left">
@@ -1083,7 +955,7 @@ export class EffectEditor extends ReorderableStepsMixin(LitElement) {
                   <span class="btn-text">${this._localize('editors.preview_button')}</span>
                 </ha-button>
               `}
-          <ha-button @click=${this._save} .disabled=${!this._name.trim() || !this._effect || this._saving || this._hasAudioBothModesOff()}>
+          <ha-button @click=${this._save} .disabled=${!this._name.trim() || !this._effect || this._saving}>
             <ha-icon icon="mdi:content-save"></ha-icon>
             <span class="btn-text">${this.editMode ? this._localize('editors.update_button') : this._localize('editors.save_button')}</span>
           </ha-button>

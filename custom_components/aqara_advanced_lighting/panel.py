@@ -376,10 +376,6 @@ def _build_presets_data() -> dict[str, Any]:
                 "audio_speed_min": preset_data.get("audio_speed_min"),
                 "audio_speed_max": preset_data.get("audio_speed_max"),
                 "audio_speed_curve": preset_data.get("audio_speed_curve"),
-                "audio_brightness_mode": preset_data.get("audio_brightness_mode"),
-                "audio_brightness_min": preset_data.get("audio_brightness_min"),
-                "audio_brightness_max": preset_data.get("audio_brightness_max"),
-                "audio_brightness_curve": preset_data.get("audio_brightness_curve"),
             }
         )
 

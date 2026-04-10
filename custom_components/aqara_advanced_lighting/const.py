@@ -343,10 +343,6 @@ ATTR_AUDIO_SPEED_MODE: Final = "audio_speed_mode"
 ATTR_AUDIO_SPEED_MIN: Final = "audio_speed_min"
 ATTR_AUDIO_SPEED_MAX: Final = "audio_speed_max"
 ATTR_AUDIO_SPEED_CURVE: Final = "audio_speed_curve"
-ATTR_AUDIO_BRIGHTNESS_MODE: Final = "audio_brightness_mode"
-ATTR_AUDIO_BRIGHTNESS_MIN: Final = "audio_brightness_min"
-ATTR_AUDIO_BRIGHTNESS_MAX: Final = "audio_brightness_max"
-ATTR_AUDIO_BRIGHTNESS_CURVE: Final = "audio_brightness_curve"
 
 MIN_DURATION: Final = 0.0
 MAX_DURATION: Final = 3600.0  # 1 hour
