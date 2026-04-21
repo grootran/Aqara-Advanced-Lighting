@@ -58,11 +58,7 @@ from .audio_engine import AudioEngine
 from .audio_scene_consumer import DynamicSceneAudioConsumer, build_scene_engine_config
 from .audio_mode_handlers import (
     AudioModeHandler,
-    BeatPredictiveHandler,
-    ContinuousHandler,
-    IntensityBreathingHandler,
-    OnsetFlashHandler,
-    OnsetHandler,
+    create_handler,
 )
 from .audio_discovery import (
     discover_companion_sensors,
@@ -134,6 +130,10 @@ class SceneState:
     audio_engine: Any = None  # AudioEngine instance (runtime only, avoids circular import)
     audio_companion_sensors: dict[str, str | None] = field(default_factory=dict)
     audio_waiting: bool = False
+    # Optional (x, y) override produced by hue-driven audio modes
+    # (freq_to_hue). When set, overrides the palette color during
+    # _apply_colors_with_offset. Cleared to None by non-hue modes.
+    audio_hue_override_xy: tuple[float, float] | None = None
 
 class DynamicSceneManager:
     """Manages dynamic scene execution as background tasks."""
@@ -1277,6 +1277,15 @@ class DynamicSceneManager:
                 color_index = position
             color = scene.colors[color_index]
 
+            # Audio-driven hue override (freq_to_hue mode): substitute the
+            # palette color's xy with the handler-supplied override while
+            # preserving the palette's brightness_pct baseline.
+            override_xy = scene_state.audio_hue_override_xy
+            if override_xy is not None:
+                color_x, color_y = override_xy
+            else:
+                color_x, color_y = color.x, color.y
+
             # Convert per-color brightness percentage to device value (1-255)
             effective_brightness = brightness_percent_to_device(
                 color.brightness_pct
@@ -1304,8 +1313,8 @@ class DynamicSceneManager:
                 task = asyncio.create_task(
                     self._software_color_transition(
                         entity_id,
-                        color.x,
-                        color.y,
+                        color_x,
+                        color_y,
                         effective_brightness,
                         transition_time,
                         model_id,
@@ -1321,8 +1330,8 @@ class DynamicSceneManager:
                     "XY(%.4f,%.4f) brightness=%d transition=%ss",
                     color_index,
                     entity_id,
-                    color.x,
-                    color.y,
+                    color_x,
+                    color_y,
                     effective_brightness,
                     transition_time,
                 )
@@ -1331,8 +1340,8 @@ class DynamicSceneManager:
                 # Build service data adapted to entity capability
                 service_data = self._build_adapted_service_data(
                     entity_id,
-                    color.x,
-                    color.y,
+                    color_x,
+                    color_y,
                     effective_brightness,
                     profile,
                     transition=transition_time,
@@ -1370,8 +1379,8 @@ class DynamicSceneManager:
                     "transition=%ss%s",
                     color_index,
                     entity_id,
-                    color.x,
-                    color.y,
+                    color_x,
+                    color_y,
                     effective_brightness,
                     transition_time,
                     " (initial)" if is_initial else "",
@@ -1541,6 +1550,29 @@ class DynamicSceneManager:
             "Software color transition complete for %s", entity_id
         )
 
+    def _set_hue(self, scene_state: SceneState, hue_degrees: float) -> None:
+        """Set a runtime xy override from a hue angle (degrees).
+
+        Used by hue-driven audio modes (freq_to_hue). Converts the hue to
+        full-saturation RGB, then to CIE xy via the shared payload_builder
+        utility, and stores the result on the scene_state so the next
+        _apply_colors_with_offset call substitutes it for the palette color.
+
+        Keeps the palette's per-color brightness_pct intact — only xy is
+        overridden.
+        """
+        import colorsys
+
+        from .payload_builder import rgb_to_xy
+
+        h = (hue_degrees % 360.0) / 360.0
+        r_f, g_f, b_f = colorsys.hsv_to_rgb(h, 1.0, 1.0)
+        r = max(0, min(255, round(r_f * 255)))
+        g = max(0, min(255, round(g_f * 255)))
+        b = max(0, min(255, round(b_f * 255)))
+        x, y = rgb_to_xy(r, g, b)
+        scene_state.audio_hue_override_xy = (x, y)
+
     def _advance_colors(self, scene_state: SceneState) -> None:
         """Advance color indices for the next iteration."""
         scene = scene_state.scene
@@ -1663,23 +1695,6 @@ class DynamicSceneManager:
                 "Failed to call %s on %s", service, entity_id, exc_info=True
             )
 
-    def _create_audio_handler(self, scene: DynamicScene) -> AudioModeHandler:
-        """Create the appropriate audio mode handler for the scene."""
-        mode = scene.audio_color_advance
-        match mode:
-            case "continuous":
-                return ContinuousHandler(self)
-            case "beat_predictive":
-                handler = BeatPredictiveHandler(self, self.hass)
-                handler.configure(scene)
-                return handler
-            case "intensity_breathing":
-                return IntensityBreathingHandler(self)
-            case "onset_flash":
-                return OnsetFlashHandler(self)
-            case _:  # on_onset is default
-                return OnsetHandler(self)
-
     @staticmethod
     def _split_frequency_zones(
         lights: list[str],
@@ -1753,7 +1768,7 @@ class DynamicSceneManager:
             await self._apply_colors_with_offset(scene_state, stop_event)
 
         # -- Create mode handler --
-        handler = self._create_audio_handler(scene)
+        handler = create_handler(scene.audio_color_advance, self)
 
         # -- Frequency zone setup --
         companions = scene_state.audio_companion_sensors

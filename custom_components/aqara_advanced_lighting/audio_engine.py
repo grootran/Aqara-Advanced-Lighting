@@ -96,6 +96,9 @@ class AudioEngine:
         self._task: asyncio.Task | None = None
         self._companions: dict[str, str | None] = {}
         self._in_silence = False
+        # Track whether we have already warned about a stale calibration signal
+        # for this engine instance, to avoid log spam.
+        self._calibration_warning_emitted = False
 
     @staticmethod
     def _make_claim_key(audio_entity: str, consumer_type: str) -> str:
@@ -300,13 +303,34 @@ class AudioEngine:
                 subscribe.add(entity)
                 role_map[entity] = "silence"
 
-        # Frequency bands
+        # Frequency bands — basic tier (bass/mid/high) plus pro-tier musical
+        # bands (sub_bass, low_mid, upper_mid, air). Pro-tier companions are
+        # only present on devices running the audio-reactive pro DSP build;
+        # the loop silently skips any missing entries.
         if cfg.subscribe_frequency_bands:
-            for band_key in ("bass_energy", "mid_energy", "high_energy"):
+            for band_key in (
+                "bass_energy",
+                "mid_energy",
+                "high_energy",
+                "sub_bass_energy",
+                "low_mid_energy",
+                "upper_mid_energy",
+                "air_energy",
+            ):
                 entity = companions.get(band_key)
                 if entity:
                     subscribe.add(entity)
                     role_map[entity] = f"band_{band_key}"
+
+        # Calibration-stale binary sensor — always subscribe when present. This
+        # is informational (not a modulation input): the engine logs a warning
+        # the first time it flips to "on" per engine lifetime so users know
+        # their pro-tier device needs recalibration. Users can also build HA
+        # automations on the binary_sensor entity.
+        calibration_entity = companions.get("calibration_stale")
+        if calibration_entity:
+            subscribe.add(calibration_entity)
+            role_map[calibration_entity] = "calibration_stale"
 
         # Warn about requested-but-missing sensors
         if cfg.subscribe_spectral:
@@ -385,6 +409,11 @@ class AudioEngine:
                     queue.put_nowait(("onset_strength", float(state_val)))
                 elif role == "silence":
                     queue.put_nowait(("silence", state_val == "on"))
+                elif role == "calibration_stale":
+                    # Binary sensor: "on" when the device reports its
+                    # auto-calibration profile as stale and recommends a
+                    # recalibration pass.
+                    queue.put_nowait(("calibration_stale", state_val == "on"))
                 elif role in ("bpm", "beat_confidence", "beat_phase",
                               "energy", "centroid", "rolloff"):
                     queue.put_nowait((role, float(state_val)))
@@ -476,10 +505,28 @@ class AudioEngine:
                 if "onset" in events and "onset_strength" in events:
                     events["onset"]["strength"] = events["onset_strength"]
 
+                # Calibration-stale warning: log once per engine lifetime when
+                # the binary sensor reports on. Informational only; not
+                # forwarded to consumers (they should read the binary_sensor
+                # entity directly if they want to react).
+                if events.get("calibration_stale") and not self._calibration_warning_emitted:
+                    _LOGGER.warning(
+                        "Audio sensor '%s' reports calibration_stale=on; a "
+                        "recalibration pass is recommended for accurate "
+                        "pro-tier band energies.",
+                        self.config.audio_entity,
+                    )
+                    self._calibration_warning_emitted = True
+
                 # Dispatch to consumer
                 dispatch_events = {
                     k: v for k, v in events.items()
-                    if k not in ("unavailable", "silence", "onset_strength")
+                    if k not in (
+                        "unavailable",
+                        "silence",
+                        "onset_strength",
+                        "calibration_stale",
+                    )
                 }
                 if dispatch_events:
                     await self._consumer.on_audio_events(dispatch_events)

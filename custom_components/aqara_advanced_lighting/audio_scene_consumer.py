@@ -13,8 +13,10 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 from .audio_engine import AudioConsumer, AudioEngineConfig
 from .const import (
+    AUDIO_COLOR_ADVANCE_BASS_KICK,
     AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
     AUDIO_COLOR_ADVANCE_CONTINUOUS,
+    AUDIO_COLOR_ADVANCE_FREQ_TO_HUE,
     AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING,
     AUDIO_COLOR_ADVANCE_ON_ONSET,
     AUDIO_COLOR_ADVANCE_ONSET_FLASH,
@@ -30,11 +32,23 @@ _ONSET_MODES = frozenset({
     AUDIO_COLOR_ADVANCE_ON_ONSET,
     AUDIO_COLOR_ADVANCE_ONSET_FLASH,
     AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
+    AUDIO_COLOR_ADVANCE_BASS_KICK,
 })
 _ENERGY_MODES = frozenset({
     AUDIO_COLOR_ADVANCE_CONTINUOUS,
     AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING,
     AUDIO_COLOR_ADVANCE_ONSET_FLASH,
+    AUDIO_COLOR_ADVANCE_BASS_KICK,
+    AUDIO_COLOR_ADVANCE_FREQ_TO_HUE,
+})
+# Modes that require per-band energies merged into the onset attrs dict
+# (for dominance checks) and therefore need subscribe_frequency_bands=True.
+_BAND_ATTR_MODES = frozenset({
+    AUDIO_COLOR_ADVANCE_BASS_KICK,
+})
+# Modes that rely on spectral centroid/rolloff sensors.
+_SPECTRAL_MODES = frozenset({
+    AUDIO_COLOR_ADVANCE_FREQ_TO_HUE,
 })
 
 
@@ -53,9 +67,15 @@ def build_scene_engine_config(scene: DynamicScene) -> AudioEngineConfig:
         subscribe_energy=is_energy or scene.audio_brightness_curve is not None,
         subscribe_bpm=mode == AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
         subscribe_beat_tracking=mode == AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
-        subscribe_spectral=scene.audio_color_by_frequency or scene.audio_rolloff_brightness,
+        subscribe_spectral=(
+            scene.audio_color_by_frequency
+            or scene.audio_rolloff_brightness
+            or mode in _SPECTRAL_MODES
+        ),
         subscribe_silence=True,
-        subscribe_frequency_bands=scene.audio_frequency_zone,
+        subscribe_frequency_bands=(
+            scene.audio_frequency_zone or mode in _BAND_ATTR_MODES
+        ),
     )
 
 
@@ -121,7 +141,26 @@ class DynamicSceneAudioConsumer(AudioConsumer):
 
         # Onset events
         if "onset" in events:
-            self._handler.handle_onset(self._scene_state, events["onset"])
+            # Merge per-band energies into the onset attrs dict so
+            # band-aware handlers (BassKickHandler) can perform dominance
+            # checks without reaching back into engine state. Prefer the
+            # current drain's band_* values; fall back to cached ones.
+            onset_attrs = events["onset"]
+            for band_key in (
+                "bass_energy",
+                "mid_energy",
+                "high_energy",
+                "sub_bass_energy",
+                "low_mid_energy",
+                "upper_mid_energy",
+                "air_energy",
+            ):
+                event_key = f"band_{band_key}"
+                if event_key in events:
+                    onset_attrs[band_key] = events[event_key]
+                elif band_key in self._band_energies and band_key not in onset_attrs:
+                    onset_attrs[band_key] = self._band_energies[band_key]
+            self._handler.handle_onset(self._scene_state, onset_attrs)
             if self._is_onset_mode:
                 needs_apply = True
             # Dominant-band bias: advance the loudest zone's lights by one palette step
@@ -147,6 +186,11 @@ class DynamicSceneAudioConsumer(AudioConsumer):
                     for eid in list(self._scene_state.light_color_indices.keys()):
                         self._scene_state.light_color_indices[eid] = pos
                     needs_apply = True
+            # Hue-driven modes set scene_state.audio_hue_override_xy via
+            # _set_hue() during handle_centroid — schedule a reapply so the
+            # override actually reaches the lights.
+            if getattr(self._scene_state, "audio_hue_override_xy", None) is not None:
+                needs_apply = True
         if "rolloff" in events:
             self._handler.handle_rolloff(self._scene_state, events["rolloff"])
             if scene.audio_rolloff_brightness:
@@ -162,7 +206,14 @@ class DynamicSceneAudioConsumer(AudioConsumer):
             if self._is_energy_mode or scene.audio_brightness_curve is not None:
                 needs_apply = True
 
-        # Frequency zone band events
+        # Track all band energies we see this drain, regardless of whether
+        # frequency-zone routing is enabled. Used by band-aware handlers
+        # (BassKickHandler) to cache recent values between onsets.
+        for key, value in events.items():
+            if key.startswith("band_"):
+                self._band_energies[key[len("band_"):]] = value
+
+        # Frequency zone band events (zone routing only)
         if self._freq_zone_bands:
             num_colors = len(scene.colors)
             if num_colors > 0:
@@ -170,7 +221,6 @@ class DynamicSceneAudioConsumer(AudioConsumer):
                     event_key = f"band_{band_key}"
                     if event_key in events and light_group:
                         band_energy = events[event_key]
-                        self._band_energies[band_key] = band_energy
                         pos = max(0, min(int(band_energy * num_colors), num_colors - 1))
                         for eid in light_group:
                             self._scene_state.light_color_indices[eid] = pos

@@ -7,11 +7,20 @@ to the manager for color advancement and light command dispatch.
 
 import asyncio
 import logging
+import math
 import time
 from abc import ABC
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, override
 
 from .const import (
+    AUDIO_COLOR_ADVANCE_BASS_KICK,
+    AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
+    AUDIO_COLOR_ADVANCE_CONTINUOUS,
+    AUDIO_COLOR_ADVANCE_FREQ_TO_HUE,
+    AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING,
+    AUDIO_COLOR_ADVANCE_ON_ONSET,
+    AUDIO_COLOR_ADVANCE_ONSET_FLASH,
     AUDIO_SCENE_SILENCE_DECAY_SECONDS,
     SILENCE_DEGRADATION_STEP_SECONDS,
 )
@@ -22,6 +31,21 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 from .const import AUDIO_EMA_ALPHA as ENERGY_EMA_ALPHA, AUDIO_FLASH_BRIGHTNESS_DECAY as FLASH_BRIGHTNESS_DECAY
+
+
+@dataclass(frozen=True)
+class ModeSpec:
+    """Declarative metadata for a scene-side audio mode.
+
+    Used by MODE_REGISTRY to centralize handler-class lookup and expose
+    pro-tier requirements to the frontend (which reads `requires_pro` to
+    render a "(pro)" badge on mode dropdowns).
+    """
+
+    constant: str               # the AUDIO_COLOR_ADVANCE_* constant string
+    handler_class: type         # subclass of AudioModeHandler
+    requires_pro: bool = False  # True when pro-tier sensors meaningfully improve quality
+    display_label: str = ""     # optional UI override; empty = use constant
 
 class AudioModeHandler(ABC):
     """Abstract base class for audio-reactive mode handlers."""
@@ -240,25 +264,50 @@ class BeatPredictiveHandler(AudioModeHandler):
     TRACKING = "tracking"
     PREDICTIVE = "predictive"
 
-    def __init__(self, manager: Any, hass: Any = None) -> None:
+    def __init__(self, manager: Any) -> None:
         super().__init__(manager)
-        self._hass = hass
         self._state = self.REACTIVE
         self._last_onset_time = 0.0
         self._bpm = 0.0
         self._confidence = 0
         self._consecutive_matches = 0
         self._pending_handles: list[asyncio.TimerHandle] = []
+        # Prediction tuning — filled on first handle_* call via _ensure_scene_configured().
+        self._scene_configured: Any = None
         self._aggressiveness = 50
         self._latency_ms = 150
         self._confidence_threshold = 60
 
-    def configure(self, scene: Any) -> None:
-        """Set prediction parameters from scene config."""
+    def _ensure_scene_configured(self, scene: Any) -> None:
+        """Lazy-init scene-derived prediction parameters on first event.
+
+        Called from each handle_* method. Idempotent — only recomputes when
+        the scene reference changes (currently one-handler-per-scene so this
+        fires exactly once; the scene-change guard is defensive for future
+        handler reuse).
+        """
+        if scene is self._scene_configured:
+            return
         self._aggressiveness = scene.audio_prediction_aggressiveness
         self._latency_ms = scene.audio_latency_compensation_ms
         # Map aggressiveness 1-100 to confidence threshold 90-30
         self._confidence_threshold = int(90 - (self._aggressiveness / 100) * 60)
+        self._scene_configured = scene
+
+    def configure(self, scene: Any) -> None:
+        """Deprecated: scene configuration is now lazy per-event.
+
+        Retained as a thin shim so external callers (tests, older code paths)
+        continue to work. Prefer letting the lazy path run via handle_*.
+        """
+        import warnings
+        warnings.warn(
+            "BeatPredictiveHandler.configure() is deprecated; scene "
+            "configuration now happens lazily on the first handle_* call.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self._ensure_scene_configured(scene)
 
     @override
     def update_bpm(self, bpm: float, confidence: int) -> None:
@@ -274,6 +323,7 @@ class BeatPredictiveHandler(AudioModeHandler):
         Only fires in PREDICTIVE state. Cancels any pending handle before
         scheduling a new one, so rapid phase updates don't stack.
         """
+        self._ensure_scene_configured(scene_state.scene)
         if self._state != self.PREDICTIVE or self._bpm <= 0:
             return
         beat_interval = 60.0 / self._bpm
@@ -291,6 +341,7 @@ class BeatPredictiveHandler(AudioModeHandler):
 
     @override
     def handle_onset(self, scene_state: Any, attrs: dict[str, Any]) -> None:
+        self._ensure_scene_configured(scene_state.scene)
         now = time.monotonic()
         self._last_onset_time = now
 
@@ -343,3 +394,192 @@ class BeatPredictiveHandler(AudioModeHandler):
         """Cancel prediction timers and parent cleanup."""
         self._cancel_mode_timers()
         super().cleanup()
+
+
+class BassKickHandler(AudioModeHandler):
+    """Brightness pulses on sub-bass (pro) or bass (basic-tier) onsets.
+
+    Fires only when:
+      - An onset event is published this frame, AND
+      - The driving band's energy exceeds the mean of the other available
+        bands by `dominance_ratio` (default 1.5x).
+
+    When it fires, brightness_modifier snaps to 1.0 and cubically decays
+    back to `floor_brightness` over `pulse_ms` — a percussive "thump"
+    envelope that tracks the kick drum rather than generic onsets.
+
+    Pro-tier selection: reads `sub_bass_energy` as the driver when present
+    (device running audio-reactive pro DSP build), otherwise falls back to
+    `bass_energy` vs mid/high. The consumer is responsible for merging band
+    values into the onset event's attrs dict.
+    """
+
+    def __init__(self, manager: Any) -> None:
+        super().__init__(manager)
+        from .audio_curves import BASS_KICK_DEFAULTS
+        self._defaults = BASS_KICK_DEFAULTS
+        self._pulse_start_ms: float | None = None
+
+    @override
+    def handle_onset(self, scene_state: Any, attrs: dict[str, Any]) -> None:
+        sub_bass = attrs.get("sub_bass_energy")  # pro-tier
+        bass = attrs.get("bass_energy", 0.0)
+        mid = attrs.get("mid_energy", 0.0)
+        high = attrs.get("high_energy", 0.0)
+        low_mid = attrs.get("low_mid_energy")
+        upper_mid = attrs.get("upper_mid_energy")
+        air = attrs.get("air_energy")
+
+        # Select driver + competitors based on which sensors are populated.
+        if sub_bass is not None:
+            driver = float(sub_bass)
+            competitors = [
+                float(v) for v in (bass, low_mid, mid, upper_mid, high, air)
+                if v is not None
+            ]
+        else:
+            driver = float(bass)
+            competitors = [float(mid), float(high)]
+
+        if not competitors:
+            return
+
+        competitor_mean = sum(competitors) / len(competitors)
+        if competitor_mean <= 0.01:  # effectively silence
+            return
+        if driver < competitor_mean * float(self._defaults["dominance_ratio"]):
+            return  # kick didn't dominate; ignore
+
+        # Fire the pulse.
+        self._pulse_start_ms = time.monotonic() * 1000.0
+        scene_state.brightness_modifier = 1.0
+        self._manager._advance_colors(scene_state)
+
+    @override
+    def handle_energy(self, scene_state: Any, energy: float) -> None:
+        floor = float(self._defaults["floor_brightness"])
+        pulse_ms = float(self._defaults["pulse_ms"])
+        if self._pulse_start_ms is None:
+            scene_state.brightness_modifier = floor
+            return
+        elapsed = time.monotonic() * 1000.0 - self._pulse_start_ms
+        if elapsed >= pulse_ms:
+            scene_state.brightness_modifier = floor
+            self._pulse_start_ms = None
+            return
+        t = elapsed / pulse_ms
+        eased = 1.0 - (t ** 3)  # cubic ease-out
+        scene_state.brightness_modifier = floor + (1.0 - floor) * eased
+
+
+class FreqToHueHandler(AudioModeHandler):
+    """Spectral centroid drives hue; amplitude drives brightness.
+
+    Silence-gated: hue holds its last value when the last observed
+    amplitude drops below `silence_gate_amplitude`. This prevents centroid
+    instability from flipping colors randomly during quiet sections.
+
+    The hue → xy conversion is performed by the manager via `_set_hue()`;
+    this handler only produces a smoothed hue angle in degrees.
+    """
+
+    def __init__(self, manager: Any) -> None:
+        super().__init__(manager)
+        from .audio_curves import FREQ_TO_HUE_DEFAULTS
+        self._defaults = FREQ_TO_HUE_DEFAULTS
+        self._last_hue: float = float(self._defaults["hue_start"])
+        self._last_amplitude: float = 0.0
+
+    @override
+    def handle_centroid(self, scene_state: Any, centroid: float) -> None:
+        d = self._defaults
+        # Silence gate — hold the last hue.
+        if self._last_amplitude < float(d["silence_gate_amplitude"]):
+            return
+
+        hz_min = float(d["hz_min"])
+        hz_max = float(d["hz_max"])
+        hz = max(hz_min, min(hz_max, float(centroid)))
+
+        if d["log_scale"]:
+            t = (math.log(hz) - math.log(hz_min)) / (math.log(hz_max) - math.log(hz_min))
+        else:
+            t = (hz - hz_min) / (hz_max - hz_min)
+
+        hue_start = float(d["hue_start"])
+        hue_end = float(d["hue_end"])
+        target_hue = hue_start + t * (hue_end - hue_start)
+
+        alpha = float(d["hue_ema_alpha"])
+        self._last_hue = alpha * target_hue + (1.0 - alpha) * self._last_hue
+
+        # Delegate the xy conversion + scene-state write to the manager.
+        set_hue = getattr(self._manager, "_set_hue", None)
+        if set_hue is not None:
+            set_hue(scene_state, self._last_hue)
+
+    @override
+    def handle_energy(self, scene_state: Any, energy: float) -> None:
+        self._last_amplitude = float(energy)
+        # Amplitude drives brightness via the scene's curve, same as OnsetHandler.
+        if scene_state.scene.audio_brightness_curve is not None:
+            scene_state.brightness_modifier = self._apply_brightness_curve(
+                scene_state.scene, energy
+            )
+
+
+# -----------------------------------------------------------------------------
+# Registry: declarative map from mode constant → ModeSpec. `create_handler()`
+# is the canonical dispatcher — the scene manager routes through it. Every
+# handler has a uniform (manager,) constructor; scene-derived configuration
+# is lazy, applied on first event via each handler's handle_* methods.
+# -----------------------------------------------------------------------------
+MODE_REGISTRY: dict[str, ModeSpec] = {
+    AUDIO_COLOR_ADVANCE_ON_ONSET: ModeSpec(
+        AUDIO_COLOR_ADVANCE_ON_ONSET, OnsetHandler, requires_pro=False,
+    ),
+    AUDIO_COLOR_ADVANCE_CONTINUOUS: ModeSpec(
+        AUDIO_COLOR_ADVANCE_CONTINUOUS, ContinuousHandler, requires_pro=False,
+    ),
+    AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING: ModeSpec(
+        AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING,
+        IntensityBreathingHandler,
+        requires_pro=False,
+    ),
+    AUDIO_COLOR_ADVANCE_ONSET_FLASH: ModeSpec(
+        AUDIO_COLOR_ADVANCE_ONSET_FLASH, OnsetFlashHandler, requires_pro=False,
+    ),
+    AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE: ModeSpec(
+        AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
+        BeatPredictiveHandler,
+        requires_pro=False,
+    ),
+    # New in Chunk 7: pro-aware modes.
+    AUDIO_COLOR_ADVANCE_BASS_KICK: ModeSpec(
+        AUDIO_COLOR_ADVANCE_BASS_KICK, BassKickHandler, requires_pro=True,
+    ),
+    AUDIO_COLOR_ADVANCE_FREQ_TO_HUE: ModeSpec(
+        AUDIO_COLOR_ADVANCE_FREQ_TO_HUE, FreqToHueHandler, requires_pro=False,
+    ),
+}
+
+
+def create_handler(mode: str, manager: Any) -> AudioModeHandler:
+    """Canonical factory: construct an AudioModeHandler from the mode constant.
+
+    Called by the scene manager on scene start. Every handler in the registry
+    has a uniform (manager,) constructor; scene-derived configuration happens
+    lazily on the first event each handler receives.
+
+    Unknown modes fall back to OnsetHandler (the default scene behavior) and
+    log a warning — preserves lenient handling of stale or typo'd scene
+    configs, surfaces the bug via logs rather than silent runtime error.
+    """
+    spec = MODE_REGISTRY.get(mode)
+    if spec is None:
+        _LOGGER.warning(
+            "Unknown audio mode %r — falling back to %s",
+            mode, AUDIO_COLOR_ADVANCE_ON_ONSET,
+        )
+        spec = MODE_REGISTRY[AUDIO_COLOR_ADVANCE_ON_ONSET]
+    return spec.handler_class(manager)
