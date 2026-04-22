@@ -2518,6 +2518,12 @@ start_dynamic_scene:
         "beat_predictive" uses beat prediction to pre-advance colors.
         "intensity_breathing" pulses color intensity with amplitude.
         "onset_flash" (Brightness flash) flashes brightness on each onset.
+        "bass_kick" (pro-tier) flashes brightness on bass-kick impact using the
+        sub_bass energy band with a short decay envelope - requires an
+        ESPHome audio-reactive device running the pro DSP tier.
+        "freq_to_hue" (pro-tier) drives hue from spectral centroid so warm
+        frequencies map to warm colors and bright frequencies to cool colors -
+        overrides the scene palette hue while keeping saturation and value.
       default: on_onset
       selector:
         select:
@@ -2527,6 +2533,8 @@ start_dynamic_scene:
             - "beat_predictive"
             - "intensity_breathing"
             - "onset_flash"
+            - "bass_kick"
+            - "freq_to_hue"
     audio_detection_mode:
       name: Audio Detection Mode
       description: Algorithm for detecting musical events
@@ -2537,6 +2545,7 @@ start_dynamic_scene:
           options:
             - "spectral_flux"
             - "bass_energy"
+            - "complex_domain"
     audio_frequency_zone:
       name: Audio Frequency Zone
       description: Auto-distribute lights across bass/mid/high frequency bands
