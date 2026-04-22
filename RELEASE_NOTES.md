@@ -10,6 +10,8 @@
 
 Your existing configuration, presets, and favorites are automatically preserved. Audio-reactive presets using the old boolean silence and brightness parameters are migrated automatically.
 
+If you are using the audio-reactive features, please update your device firmware to v0.4.0 via [web installer](https://absent42.github.io/esphome-audio-reactive/).
+
 ---
 
 ### What's New
