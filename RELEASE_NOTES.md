@@ -14,7 +14,7 @@ Your existing configuration, presets, and favorites are automatically preserved.
 
 ### What's New
 
-Version 1.3.0 introduces audio-reactive effects for Aqara devices, allowing T1M and T1 Strip lights to run their native device effects speed modulated live by music. It also unifies the audio parameter model across scenes and effects for a consistent editing experience, and introduces a central engine registry that eliminates orphaned audio engines.
+Version 1.3.0 introduces audio-reactive effects for Aqara devices, allowing T1M and T1 Strip lights to run their native device effects speed modulated live by music. It also unifies the audio parameter model across scenes and effects for a consistent editing experience, and introduces a central engine registry that eliminates orphaned audio engines. Integration-side support for the ESPHome Audio Reactive v0.4.0 pro DSP tier adds per-musical-band sensors, a tight beat-event binary sensor, and two new scene-side color-advance modes.
 
 ### **Audio-Reactive Effects**
 
@@ -35,6 +35,14 @@ T1M and T1 Strip lights can now run their built-in color effects (rainbow, flow,
   - Central `AudioEngineRegistry` tracks all active engines and resolves conflicts before starting new ones, eliminating the orphaned-engine bug where two effects on different lights sharing the same sensor would silently strand the first engine
   - `AudioEngine` shared class now powers both scenes and effects, replacing ~430 lines of inline subscription/queue/silence code in the scene manager
   - Sensor unavailability warning in running-operation cards when the audio entity goes offline
+
+  ### Pro-tier DSP Integration (ESPHome Audio Reactive v0.4.0)
+
+  - Auto-discovery of pro-tier companion sensors on any ESPHome audio device: `sub_bass_energy`, `low_mid_energy`, `upper_mid_energy`, `air_energy`, `beat_event` binary sensor, `calibration_stale` binary sensor, and the optional `fft_task_cycle_mean_us` / `fft_task_cycle_peak_us` diagnostic sensors. Basic-tier devices continue to work unchanged.
+  - Two new scene-side audio color-advance modes:
+    - `bass_kick` — pulses brightness on bass-kick impact using the sub_bass energy band with a cubic-decay envelope. Falls back to `bass_energy` on basic-tier devices; sharper on pro.
+    - `freq_to_hue` — drives hue from spectral centroid with log-scale mapping and EMA smoothing, silence-gated so hue holds during quiet passages. Works on both tiers.
+  - Calibration-stale warning logged once per device when a pro-tier audio device transitions its `calibration_stale` binary sensor to on, prompting the user to re-run quiet-room and music-level calibration after upgrading from v0.3.x firmware.
 
 ### Improvements
 

@@ -2,7 +2,7 @@
 
 All notable changes to the Aqara Advanced Lighting integration will be documented in this file.
 
-## [1.3.0] - 2026-04-06
+## [1.3.0] - 2026-04-22
 
 ### What's New
 
