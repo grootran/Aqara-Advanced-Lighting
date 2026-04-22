@@ -583,3 +583,29 @@ def create_handler(mode: str, manager: Any) -> AudioModeHandler:
         )
         spec = MODE_REGISTRY[AUDIO_COLOR_ADVANCE_ON_ONSET]
     return spec.handler_class(manager)
+
+
+def serialise_mode_registry() -> list[dict[str, Any]]:
+    """Return MODE_REGISTRY as a JSON-ready list of dicts for the frontend.
+
+    Stable ordering: iterates MODE_REGISTRY in insertion order, which matches
+    the original mode registration order. The frontend renders options in
+    this order too, so the Python registry is the canonical order of
+    appearance in the UI.
+
+    Schema (one dict per mode):
+        {
+            "constant": str,            # e.g. "bass_kick" -- the mode value used in scene configs
+            "requires_pro": bool,       # whether pro-tier hardware gives materially better results
+            "display_label": str,       # optional override; empty string means frontend derives
+                                        # the label from translation key "audio_mode_<constant>"
+        }
+    """
+    return [
+        {
+            "constant": spec.constant,
+            "requires_pro": spec.requires_pro,
+            "display_label": spec.display_label,
+        }
+        for spec in MODE_REGISTRY.values()
+    ]
