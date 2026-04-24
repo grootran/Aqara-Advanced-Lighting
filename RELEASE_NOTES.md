@@ -75,6 +75,10 @@ T1M and T1 Strip lights can now run their built-in color effects (rainbow, flow,
   - Add ESPHome name-derived unique_id aliases for companion sensor discovery
   - Migrate ha-textfield to ha-input for HA 2026.5+ compatibility
 
+### Code Quality
+
+  - Removed legacy preset-storage migration code introduced around 2026-02 (past the 3-month retention window): RGB-to-XY color format migration, `loop_mode: "loop"` → `"count"` rename migration, their flag constants, and the associated call sites in `PresetStore.async_load()`. Also removed the orphaned `XYColor.from_rgb()` classmethod.
+
 ## Full Changelog
 
 [View full changelog](https://github.com/absent42/Aqara-Advanced-Lighting/blob/main/CHANGELOG.md#130---2026-04-06)

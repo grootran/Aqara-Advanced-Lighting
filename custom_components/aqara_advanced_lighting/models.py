@@ -208,16 +208,6 @@ class XYColor:
             b=max(0, min(255, round(b_srgb * 255))),
         )
 
-    @classmethod
-    def from_rgb(cls, rgb: RGBColor) -> Self:
-        """Convert RGB to XY using Home Assistant's built-in utilities."""
-        from homeassistant.util.color import color_RGB_to_xy
-
-        x, y = color_RGB_to_xy(rgb.r, rgb.g, rgb.b)
-        # Calculate brightness from RGB (max channel value)
-        brightness = max(rgb.r, rgb.g, rgb.b)
-        return cls(x=round_xy(x), y=round_xy(y), brightness=brightness)
-
     def __post_init__(self) -> None:
         """Validate XY values."""
         if not (0.0 <= self.x <= 1.0):

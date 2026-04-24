@@ -76,6 +76,12 @@ T1M and T1 Strip lights can now run their built-in color effects (rainbow, flow,
   - `MODE_REGISTRY` in `audio_mode_handlers.py` becomes the single source of truth for scene-side mode → handler mapping; `create_handler()` factory replaces the scene manager's former `match`/`case` dispatcher. A new dispatcher-consistency test guards against drift.
   - `services.yaml` enum for `audio_detection_mode` now includes `complex_domain` (previously missing — firmware has always supported it).
   - 45 new tests covering engine activation, conflict resolution, consumer routing, and config mapping; +20 additional tests for the pro-tier mode handlers, dispatcher, and lazy-init path (619 tests total).
+  - Removed legacy preset-storage migration code introduced around 2026-02 (past the 3-month retention window):
+    - RGB-to-XY color format migration for effect and segment-sequence presets (`_migrate_rgb_colors_to_xy`, `_migrate_effect_preset`, `_migrate_segment_sequence_preset`)
+    - `loop_mode: "loop"` → `"count"` rename migration (`_migrate_loop_mode`)
+    - Associated `MIGRATION_FLAG_KEY` and `LOOP_MODE_MIGRATION_FLAG` constants and their call sites in `PresetStore.async_load()`
+    - Orphaned `XYColor.from_rgb()` classmethod in `models.py` (no remaining callers)
+    - Net: −157 lines across `preset_store.py` and `models.py`. `_validate_preset_structure()` continues to enforce XY color format on import; JSON schemas continue to enforce `loop_mode ∈ {once, count, continuous}` at service invocation.
 
 ---
 
