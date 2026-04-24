@@ -235,13 +235,41 @@ class TestBeatPredictiveHandler:
         assert handler._state == BeatPredictiveHandler.REACTIVE
 
     def test_configure_sets_threshold(self):
+        # Deprecated public shim path — still works (emits DeprecationWarning).
+        import warnings
         handler = BeatPredictiveHandler(MagicMock())
         scene = MagicMock()
         scene.audio_prediction_aggressiveness = 100
         scene.audio_latency_compensation_ms = 200
-        handler.configure(scene)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            handler.configure(scene)
         assert handler._confidence_threshold == 30  # 90 - (100/100)*60
         assert handler._latency_ms == 200
+
+    def test_scene_config_applied_on_first_onset(self):
+        # Lazy-init path — scene-derived config populated on first handle_* call.
+        handler = BeatPredictiveHandler(MagicMock())
+        scene_state = _mock_scene_state(brightness_curve=None)
+        scene_state.scene.audio_prediction_aggressiveness = 75
+        scene_state.scene.audio_latency_compensation_ms = 200
+        handler.handle_onset(scene_state, {"strength": 0.5})
+        assert handler._confidence_threshold == 45  # 90 - (75/100)*60
+        assert handler._latency_ms == 200
+        assert handler._scene_configured is scene_state.scene
+
+    def test_scene_config_idempotent_on_same_scene(self):
+        # Repeated calls with the same scene don't recompute.
+        handler = BeatPredictiveHandler(MagicMock())
+        scene_state = _mock_scene_state(brightness_curve=None)
+        scene_state.scene.audio_prediction_aggressiveness = 50
+        scene_state.scene.audio_latency_compensation_ms = 150
+        handler.handle_onset(scene_state, {"strength": 0.5})
+        scene_ref = handler._scene_configured
+        # Second call should not change the cached scene ref even if the
+        # MagicMock's attribute access creates a new value.
+        handler.handle_onset(scene_state, {"strength": 0.5})
+        assert handler._scene_configured is scene_ref
 
     def test_state_transitions_to_tracking(self):
         handler = BeatPredictiveHandler(MagicMock())
@@ -510,6 +538,19 @@ class TestBrightnessCurve:
 class TestBeatPredictivePhase:
     """Tests for BeatPredictiveHandler.update_phase()."""
 
+    def _make_scene_state(self, aggressiveness: int = 50, latency_ms: int = 0) -> MagicMock:
+        """Build a scene_state whose scene carries concrete numeric config.
+
+        Required because lazy-init reads scene.audio_prediction_aggressiveness /
+        audio_latency_compensation_ms on the first handle_* / update_* call.
+        Without this, MagicMock attribute access returns new MagicMocks that
+        break arithmetic inside update_phase.
+        """
+        scene_state = MagicMock()
+        scene_state.scene.audio_prediction_aggressiveness = aggressiveness
+        scene_state.scene.audio_latency_compensation_ms = latency_ms
+        return scene_state
+
     def _make_handler(self, bpm=120.0, latency_ms=0):
         from custom_components.aqara_advanced_lighting.audio_mode_handlers import (
             BeatPredictiveHandler,
@@ -551,7 +592,7 @@ class TestBeatPredictivePhase:
         )
         handler, manager = self._make_handler(bpm=120.0, latency_ms=0)
         handler._state = BeatPredictiveHandler.PREDICTIVE
-        scene_state = MagicMock()
+        scene_state = self._make_scene_state(latency_ms=0)
 
         with patch("asyncio.get_event_loop") as mock_loop:
             mock_handle = MagicMock()
@@ -573,7 +614,7 @@ class TestBeatPredictivePhase:
 
         with patch("asyncio.get_event_loop") as mock_loop:
             mock_loop.return_value.call_later = MagicMock(return_value=MagicMock())
-            handler.update_phase(MagicMock(), 0.5)
+            handler.update_phase(self._make_scene_state(latency_ms=100), 0.5)
             delay = mock_loop.return_value.call_later.call_args[0][0]
             # time_to_beat=0.25s - latency=0.1s = 0.15s
             assert abs(delay - 0.15) < 0.01
@@ -589,7 +630,7 @@ class TestBeatPredictivePhase:
         with patch("asyncio.get_event_loop") as mock_loop:
             mock_loop.return_value.call_later = MagicMock(return_value=MagicMock())
             # phase=0.5 → time_to_beat=0.25s - latency=0.24s = 0.01s < 0.02 → skip
-            handler.update_phase(MagicMock(), 0.5)
+            handler.update_phase(self._make_scene_state(latency_ms=240), 0.5)
             mock_loop.return_value.call_later.assert_not_called()
 
     def test_update_phase_cancels_previous_handle(self):
@@ -604,7 +645,7 @@ class TestBeatPredictivePhase:
 
         with patch("asyncio.get_event_loop") as mock_loop:
             mock_loop.return_value.call_later = MagicMock(return_value=MagicMock())
-            handler.update_phase(MagicMock(), 0.5)
+            handler.update_phase(self._make_scene_state(latency_ms=0), 0.5)
             old_handle.cancel.assert_called_once()
             assert old_handle not in handler._pending_handles
             assert len(handler._pending_handles) == 1  # new handle registered
@@ -620,3 +661,248 @@ class TestBeatPredictivePhase:
             mock_loop.return_value.call_later = MagicMock(return_value=MagicMock())
             handler.update_phase(MagicMock(), 0.5)
             mock_loop.return_value.call_later.assert_not_called()
+
+
+# -----------------------------------------------------------------------------
+# Pro-tier audio mode handlers (Chunk 7): BassKickHandler + FreqToHueHandler
+# -----------------------------------------------------------------------------
+from custom_components.aqara_advanced_lighting.audio_mode_handlers import (
+    BassKickHandler,
+    FreqToHueHandler,
+    MODE_REGISTRY,
+    ModeSpec,
+    create_handler,
+)
+from custom_components.aqara_advanced_lighting.const import (
+    AUDIO_COLOR_ADVANCE_BASS_KICK,
+    AUDIO_COLOR_ADVANCE_FREQ_TO_HUE,
+)
+
+
+class TestBassKickHandler:
+    """BassKickHandler fires pulses when the driver band dominates competitors."""
+
+    def test_bass_kick_pulses_on_dominant_sub_bass_onset(self):
+        """Pro-tier onset with sub_bass >> other bands -> brightness pulses to 1.0."""
+        manager = MagicMock()
+        handler = BassKickHandler(manager)
+        scene_state = _mock_scene_state(brightness_curve=None)
+        attrs = {
+            "sub_bass_energy": 0.8,
+            "bass_energy": 0.3,
+            "low_mid_energy": 0.2,
+            "mid_energy": 0.2,
+            "upper_mid_energy": 0.2,
+            "high_energy": 0.2,
+            "air_energy": 0.1,
+        }
+        handler.handle_onset(scene_state, attrs)
+        assert scene_state.brightness_modifier == 1.0
+        manager._advance_colors.assert_called_once_with(scene_state)
+        assert handler._pulse_start_ms is not None
+
+    def test_bass_kick_suppressed_when_not_dominant(self):
+        """Pro-tier onset but sub_bass not dominant -> no pulse."""
+        manager = MagicMock()
+        handler = BassKickHandler(manager)
+        scene_state = _mock_scene_state(brightness_curve=None)
+        scene_state.brightness_modifier = 0.5  # arbitrary prior value
+        attrs = {
+            "sub_bass_energy": 0.3,
+            "bass_energy": 0.3,
+            "mid_energy": 0.3,
+            "high_energy": 0.3,
+        }
+        handler.handle_onset(scene_state, attrs)
+        # brightness_modifier must not have been raised to 1.0
+        assert scene_state.brightness_modifier != 1.0
+        manager._advance_colors.assert_not_called()
+        assert handler._pulse_start_ms is None
+
+    def test_bass_kick_basic_tier_fallback(self):
+        """Without sub_bass_energy, falls back to bass_energy vs mid/high."""
+        manager = MagicMock()
+        handler = BassKickHandler(manager)
+        scene_state = _mock_scene_state(brightness_curve=None)
+        attrs = {"bass_energy": 0.8, "mid_energy": 0.2, "high_energy": 0.2}
+        handler.handle_onset(scene_state, attrs)
+        assert scene_state.brightness_modifier == 1.0
+        manager._advance_colors.assert_called_once_with(scene_state)
+
+    def test_bass_kick_basic_tier_suppressed_when_not_dominant(self):
+        """Basic-tier onset where bass is not dominant -> no pulse."""
+        manager = MagicMock()
+        handler = BassKickHandler(manager)
+        scene_state = _mock_scene_state(brightness_curve=None)
+        scene_state.brightness_modifier = 0.5
+        attrs = {"bass_energy": 0.3, "mid_energy": 0.3, "high_energy": 0.3}
+        handler.handle_onset(scene_state, attrs)
+        assert scene_state.brightness_modifier == 0.5
+        manager._advance_colors.assert_not_called()
+
+    def test_bass_kick_silence_suppressed(self):
+        """All bands near zero -> no pulse (avoid firing on silence)."""
+        manager = MagicMock()
+        handler = BassKickHandler(manager)
+        scene_state = _mock_scene_state(brightness_curve=None)
+        attrs = {
+            "sub_bass_energy": 0.005,
+            "bass_energy": 0.001,
+            "mid_energy": 0.001,
+            "high_energy": 0.001,
+        }
+        handler.handle_onset(scene_state, attrs)
+        manager._advance_colors.assert_not_called()
+
+    def test_bass_kick_decay_reaches_floor_after_pulse(self):
+        """handle_energy after pulse_ms should decay to floor_brightness."""
+        manager = MagicMock()
+        handler = BassKickHandler(manager)
+        scene_state = _mock_scene_state(brightness_curve=None)
+        # Force a pulse
+        attrs = {"bass_energy": 0.8, "mid_energy": 0.2, "high_energy": 0.2}
+        handler.handle_onset(scene_state, attrs)
+        assert scene_state.brightness_modifier == 1.0
+        # Move pulse_start back so elapsed > pulse_ms
+        handler._pulse_start_ms -= 10_000  # 10 seconds ago
+        handler.handle_energy(scene_state, 0.1)
+        assert scene_state.brightness_modifier == handler._defaults["floor_brightness"]
+        assert handler._pulse_start_ms is None
+
+    def test_bass_kick_no_pulse_holds_floor(self):
+        """With no pulse active, handle_energy keeps brightness at floor."""
+        manager = MagicMock()
+        handler = BassKickHandler(manager)
+        scene_state = _mock_scene_state(brightness_curve=None)
+        handler.handle_energy(scene_state, 0.5)
+        assert scene_state.brightness_modifier == handler._defaults["floor_brightness"]
+
+
+class TestFreqToHueHandler:
+    """FreqToHueHandler maps spectral centroid to hue with silence gating."""
+
+    def test_freq_to_hue_low_centroid_maps_to_hue_start(self):
+        manager = MagicMock()
+        handler = FreqToHueHandler(manager)
+        scene_state = _mock_scene_state(brightness_curve=None)
+        # Seed amplitude above the silence gate
+        handler.handle_energy(scene_state, 0.5)
+        handler.handle_centroid(scene_state, 100.0)
+        # hz_min maps to hue_start (0.0); EMA from 0.0 initial is still ~0.0
+        assert abs(handler._last_hue - 0.0) < 1.0
+
+    def test_freq_to_hue_high_centroid_maps_to_hue_end(self):
+        manager = MagicMock()
+        handler = FreqToHueHandler(manager)
+        scene_state = _mock_scene_state(brightness_curve=None)
+        handler.handle_energy(scene_state, 0.5)
+        for _ in range(60):
+            handler.handle_centroid(scene_state, 8000.0)
+        # hz_max maps to hue_end (240.0); EMA should converge
+        assert abs(handler._last_hue - 240.0) < 5.0
+
+    def test_freq_to_hue_silence_holds_hue(self):
+        """Amplitude below the gate should freeze hue."""
+        manager = MagicMock()
+        handler = FreqToHueHandler(manager)
+        scene_state = _mock_scene_state(brightness_curve=None)
+        # Converge to high end
+        handler.handle_energy(scene_state, 0.5)
+        for _ in range(60):
+            handler.handle_centroid(scene_state, 8000.0)
+        hue_before_silence = handler._last_hue
+        # Drop amplitude below gate
+        handler.handle_energy(scene_state, 0.001)
+        # Would otherwise pull hue back toward 0, but gate should hold it
+        handler.handle_centroid(scene_state, 100.0)
+        assert handler._last_hue == hue_before_silence
+
+    def test_freq_to_hue_calls_set_hue_on_manager(self):
+        """handle_centroid should invoke manager._set_hue(scene_state, hue)."""
+        manager = MagicMock()
+        handler = FreqToHueHandler(manager)
+        scene_state = _mock_scene_state(brightness_curve=None)
+        handler.handle_energy(scene_state, 0.5)
+        handler.handle_centroid(scene_state, 1000.0)
+        manager._set_hue.assert_called()
+        call_args = manager._set_hue.call_args
+        assert call_args[0][0] is scene_state
+        assert 0.0 <= call_args[0][1] <= 240.0
+
+    def test_freq_to_hue_energy_applies_brightness_curve(self):
+        """handle_energy with a curve should set brightness_modifier."""
+        manager = MagicMock()
+        handler = FreqToHueHandler(manager)
+        scene_state = _mock_scene_state(
+            brightness_curve="linear", brightness_min=30, brightness_max=100
+        )
+        handler.handle_energy(scene_state, 0.6)
+        # linear: 30 + 0.6*70 = 72 -> 0.72
+        assert abs(scene_state.brightness_modifier - 0.72) < 0.01
+        assert handler._last_amplitude == 0.6
+
+
+class TestModeRegistry:
+    """ModeSpec registry + create_handler factory."""
+
+    def test_registry_contains_all_existing_modes(self):
+        from custom_components.aqara_advanced_lighting.const import (
+            AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
+            AUDIO_COLOR_ADVANCE_CONTINUOUS,
+            AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING,
+            AUDIO_COLOR_ADVANCE_ON_ONSET,
+            AUDIO_COLOR_ADVANCE_ONSET_FLASH,
+        )
+        for mode in (
+            AUDIO_COLOR_ADVANCE_ON_ONSET,
+            AUDIO_COLOR_ADVANCE_CONTINUOUS,
+            AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING,
+            AUDIO_COLOR_ADVANCE_ONSET_FLASH,
+            AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
+            AUDIO_COLOR_ADVANCE_BASS_KICK,
+            AUDIO_COLOR_ADVANCE_FREQ_TO_HUE,
+        ):
+            assert mode in MODE_REGISTRY
+            spec = MODE_REGISTRY[mode]
+            assert isinstance(spec, ModeSpec)
+            assert spec.constant == mode
+
+    def test_bass_kick_marked_requires_pro(self):
+        assert MODE_REGISTRY[AUDIO_COLOR_ADVANCE_BASS_KICK].requires_pro is True
+
+    def test_freq_to_hue_not_marked_requires_pro(self):
+        # freq_to_hue works on basic-tier centroid; pro improves quality but
+        # is not strictly required.
+        assert MODE_REGISTRY[AUDIO_COLOR_ADVANCE_FREQ_TO_HUE].requires_pro is False
+
+    def test_create_handler_returns_bass_kick(self):
+        manager = MagicMock()
+        handler = create_handler(AUDIO_COLOR_ADVANCE_BASS_KICK, manager)
+        assert isinstance(handler, BassKickHandler)
+
+    def test_create_handler_returns_freq_to_hue(self):
+        manager = MagicMock()
+        handler = create_handler(AUDIO_COLOR_ADVANCE_FREQ_TO_HUE, manager)
+        assert isinstance(handler, FreqToHueHandler)
+
+    def test_create_handler_falls_back_to_onset_on_unknown_mode(self):
+        # Unknown mode falls back to OnsetHandler (lenient default) and logs
+        # a warning — preserves behaviour of the prior match/case dispatcher
+        # for stale or typo'd scene configs.
+        handler = create_handler("no_such_mode", MagicMock())
+        assert isinstance(handler, OnsetHandler)
+
+    def test_mode_registry_covers_all_audio_color_advance_constants(self):
+        """Every AUDIO_COLOR_ADVANCE_* constant must have a MODE_REGISTRY entry.
+
+        Catches drift when a new mode is added to const.py or to the scene
+        manager without updating the registry (which the frontend reads for
+        the requires_pro badge).
+        """
+        from custom_components.aqara_advanced_lighting import const
+        mode_constants = {
+            value for name, value in vars(const).items()
+            if name.startswith("AUDIO_COLOR_ADVANCE_") and isinstance(value, str)
+        }
+        missing = mode_constants - set(MODE_REGISTRY.keys())
+        assert not missing, f"Modes missing from MODE_REGISTRY: {missing}"

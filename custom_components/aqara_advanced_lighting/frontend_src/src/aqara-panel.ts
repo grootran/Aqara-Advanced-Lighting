@@ -21,6 +21,12 @@ import {
 } from './preset-thumbnails';
 import { PANEL_TRANSLATIONS } from './panel-translations';
 import {
+  AudioModeEntry,
+  audioDeviceTier,
+  buildAudioModeOptions,
+  fetchAudioModeRegistry,
+} from './audio-mode-registry';
+import {
   HomeAssistant,
   PresetsData,
   FilteredPresets,
@@ -84,6 +90,7 @@ export class AqaraPanel extends LitElement {
   @state() private _effectPreviewActive = false;
   @state() private _patternPreviewActive = false;
   @state() private _cctPreviewActive = false;
+  @state() private _audioModeRegistry: AudioModeEntry[] | null = null;
   @state() private _segmentSequencePreviewActive = false;
   @state() private _scenePreviewActive = false;
   @state() private _backendVersion?: string;
@@ -144,6 +151,12 @@ export class AqaraPanel extends LitElement {
     });
     this._loadRunningOperations();
     this._subscribeToOperationEvents();
+    void fetchAudioModeRegistry(this.hass).then((modes) => {
+      if (modes !== null) {
+        this._audioModeRegistry = modes;
+        this.requestUpdate();
+      }
+    });
 
     // Listen for color history events from child editors (bubbles through shadow DOM)
     this.addEventListener('color-history-changed', this._handleColorHistoryChanged as EventListener);
@@ -2586,13 +2599,11 @@ export class AqaraPanel extends LitElement {
                           <span class="form-label">${this._localize('dynamic_scene.audio_color_advance_label') || 'Color advance'}</span>
                           <ha-selector
                             .hass=${this.hass}
-                            .selector=${{ select: { options: [
-                              { value: 'on_onset', label: this._localize('dynamic_scene.audio_mode_on_onset') || 'Color cycle' },
-                              { value: 'continuous', label: this._localize('dynamic_scene.audio_mode_continuous') || 'Continuous' },
-                              { value: 'beat_predictive', label: this._localize('dynamic_scene.audio_mode_beat_predictive') || 'Beat predictive' },
-                              { value: 'intensity_breathing', label: this._localize('dynamic_scene.audio_mode_intensity_breathing') || 'Intensity breathing' },
-                              { value: 'onset_flash', label: this._localize('dynamic_scene.audio_mode_onset_flash') || 'Brightness flash' },
-                            ], mode: 'dropdown' } }}
+                            .selector=${{ select: { options: buildAudioModeOptions(
+                              this._audioModeRegistry,
+                              audioDeviceTier(this.hass, this._prefs.state.audioOverrideEntity),
+                              (k) => this._localize(k),
+                            ), mode: 'dropdown' } }}
                             .value=${this._prefs.state.audioOverrideColorAdvance}
                             @value-changed=${this._handleAudioOverrideColorAdvanceChange}
                           ></ha-selector>

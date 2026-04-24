@@ -44,6 +44,29 @@ def map_to_range(curved_value: float, range_min: int, range_max: int) -> int:
     return max(range_min, min(range_max, round(raw)))
 
 
+# Defaults for the pro-tier BassKick scene-side audio mode.
+# Brightness pulses on sub-bass (pro) or bass (basic-tier fallback) onsets,
+# then decays back toward floor_brightness over pulse_ms.
+BASS_KICK_DEFAULTS: dict[str, float] = {
+    "pulse_ms": 100.0,         # pulse width at full brightness (cubic ease-out tail)
+    "floor_brightness": 0.4,   # resting brightness between kicks
+    "dominance_ratio": 1.5,    # driver must exceed competitor mean by this factor
+}
+
+# Defaults for the pro-tier FreqToHue scene-side audio mode.
+# Spectral centroid maps to hue; amplitude drives brightness via the scene's
+# configured brightness curve.
+FREQ_TO_HUE_DEFAULTS: dict[str, float | bool] = {
+    "hz_min": 100.0,
+    "hz_max": 8000.0,
+    "hue_start": 0.0,              # degrees — red
+    "hue_end": 240.0,              # degrees — blue
+    "log_scale": True,
+    "silence_gate_amplitude": 0.05,  # hold hue when amplitude drops below this
+    "hue_ema_alpha": 0.2,          # EMA smoothing on hue to suppress flicker
+}
+
+
 class EMAFilter:
     """Exponential moving average filter for signal smoothing."""
 

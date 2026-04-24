@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from .segment_zone_store import SegmentZoneStore
     from .user_preferences_store import UserPreferencesStore
 
+from .audio_mode_handlers import serialise_mode_registry
 from .preset_store import get_preset_store
 from .user_preferences_store import _UNSET
 
@@ -139,6 +140,9 @@ async def async_register_panel(hass: HomeAssistant) -> None:
 
     # Register the presets data endpoint
     hass.http.register_view(PresetsDataView)
+
+    # Register the audio mode registry endpoint (source of truth for frontend mode selector)
+    hass.http.register_view(AudioModeRegistryView)
 
     # Register the icon files endpoint
     hass.http.register_view(IconView)
@@ -262,6 +266,22 @@ class PresetsDataView(HomeAssistantView):
         """Serve presets data as JSON."""
         presets_data = _build_presets_data()
         return web.json_response(presets_data)
+
+class AudioModeRegistryView(HomeAssistantView):
+    """Expose scene-side audio mode metadata (MODE_REGISTRY) to the frontend.
+
+    The frontend fetches this on editor mount and uses it to populate the
+    mode selector. Making this the sole source of mode metadata eliminates
+    Python-to-TypeScript drift.
+    """
+
+    url = f"/api/{DOMAIN}/audio_mode_registry"
+    name = f"api:{DOMAIN}:audio_mode_registry"
+    requires_auth = True
+
+    async def get(self, request: web.Request) -> web.Response:
+        """Serve MODE_REGISTRY as JSON."""
+        return web.json_response({"modes": serialise_mode_registry()})
 
 class IconView(HomeAssistantView):
     """View to serve preset icon files."""

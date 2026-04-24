@@ -15,6 +15,12 @@ import './xy-color-picker';
 import './color-history-swatches';
 import './image-color-extractor';
 import type { ColorsExtractedDetail } from './image-color-extractor';
+import {
+  AudioModeEntry,
+  audioDeviceTier,
+  buildAudioModeOptions,
+  fetchAudioModeRegistry,
+} from './audio-mode-registry';
 
 // Editable color slot with unique ID for drag/drop
 interface EditableColor extends DynamicSceneColor, ReorderableStepItem {}
@@ -151,7 +157,18 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
 
   private _cachedLoopModeOptions: { value: string; label: string }[] = [];
   private _cachedEndBehaviorOptions: { value: string; label: string }[] = [];
-  private _cachedAudioColorAdvanceOptions: { value: string; label: string }[] = [];
+  /**
+   * Mode registry fetched from the backend via
+   * /api/aqara_advanced_lighting/audio_mode_registry. `null` before the fetch
+   * completes; the template renders an empty dropdown in that tiny window.
+   *
+   * Each entry: { constant: string, requires_pro: boolean, display_label: string }.
+   * Backend is the single source of truth — do NOT add modes here.
+   * To add a new mode: add it to MODE_REGISTRY in audio_mode_handlers.py and
+   * add translation keys in panel.en.json (audio_mode_<constant>,
+   * audio_mode_<constant>_desc).
+   */
+  @state() private _audioModeRegistry: AudioModeEntry[] | null = null;
   private _cachedAudioDetectionModeOptions: { value: string; label: string }[] = [];
   private _cachedDistributionModeOptions: { value: string; label: string }[] = [];
 
@@ -160,13 +177,6 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
       const loc = (k: string) => this._localize(k);
       this._cachedLoopModeOptions = loopModeOptions(loc);
       this._cachedEndBehaviorOptions = endBehaviorOptions(loc, 'dynamic_scene.end_behavior_restore');
-      this._cachedAudioColorAdvanceOptions = [
-        { value: 'on_onset', label: loc('dynamic_scene.audio_mode_on_onset') || 'Color cycle' },
-        { value: 'continuous', label: loc('dynamic_scene.audio_mode_continuous') || 'Continuous' },
-        { value: 'beat_predictive', label: loc('dynamic_scene.audio_mode_beat_predictive') || 'Beat predictive' },
-        { value: 'intensity_breathing', label: loc('dynamic_scene.audio_mode_intensity_breathing') || 'Intensity breathing' },
-        { value: 'onset_flash', label: loc('dynamic_scene.audio_mode_onset_flash') || 'Brightness flash' },
-      ];
       this._cachedAudioDetectionModeOptions = [
         { value: 'spectral_flux', label: loc('dynamic_scene.audio_detection_spectral_flux') || 'Spectral flux (all genres)' },
         { value: 'bass_energy', label: loc('dynamic_scene.audio_detection_bass_energy') || 'Bass energy (rhythmic music)' },
@@ -182,7 +192,13 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
 
   private get _loopModeOptions() { return this._cachedLoopModeOptions; }
   private get _endBehaviorOptions() { return this._cachedEndBehaviorOptions; }
-  private get _audioColorAdvanceOptions() { return this._cachedAudioColorAdvanceOptions; }
+  private get _audioColorAdvanceOptions(): Array<{ value: string; label: string }> {
+    return buildAudioModeOptions(
+      this._audioModeRegistry,
+      audioDeviceTier(this.hass, this._audioEntity),
+      (key) => this._localize(key),
+    );
+  }
   private get _audioDetectionModeOptions() { return this._cachedAudioDetectionModeOptions; }
   private get _distributionModeOptions() { return this._cachedDistributionModeOptions; }
 
@@ -392,6 +408,24 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     super.connectedCallback();
     if (this._colors.length === 0 && !this.preset) {
       this._addDefaultColors();
+    }
+    void this._fetchAudioModeRegistry();
+  }
+
+  /**
+   * Fetch the audio mode registry from the backend. Runs once per component
+   * mount. The response is stable per HA-process lifetime — registry contents
+   * only change on integration reload — so re-fetching per editor open is
+   * safe but unnecessary; once per mount is sufficient.
+   *
+   * Delegates to the shared helper so AqaraPanel and this component can't
+   * drift. See audio-mode-registry.ts for the fetch implementation.
+   */
+  private async _fetchAudioModeRegistry(): Promise<void> {
+    const modes = await fetchAudioModeRegistry(this.hass);
+    if (modes !== null) {
+      this._audioModeRegistry = modes;
+      this.requestUpdate();
     }
   }
 
@@ -1321,6 +1355,11 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
                   .value=${this._audioColorAdvance}
                   @value-changed=${this._handleAudioColorAdvanceChange}
                 ></ha-selector>
+                ${audioDeviceTier(this.hass, this._audioEntity) !== 'pro' ? html`
+                  <div class="audio-mode-help" style="font-size: 0.85em; opacity: 0.75; margin-top: 4px;">
+                    ${this._localize('dynamic_scene.audio_mode_pro_badge_tooltip') || 'Modes labeled (pro) perform best on pro-tier audio devices. Basic-tier devices will fall back to a simplified implementation.'}
+                  </div>
+                ` : ''}
               </div>
             </div>
 
