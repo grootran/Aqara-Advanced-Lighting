@@ -397,7 +397,7 @@ class BeatPredictiveHandler(AudioModeHandler):
 
 
 class BassKickHandler(AudioModeHandler):
-    """Brightness pulses on sub-bass (pro) or bass (basic-tier) onsets.
+    """Brightness pulses on low-bass (pro) or bass (basic-tier) onsets.
 
     Fires only when:
       - An onset event is published this frame, AND
@@ -409,9 +409,12 @@ class BassKickHandler(AudioModeHandler):
     envelope that tracks the kick drum rather than generic onsets.
 
     Pro-tier selection: reads `sub_bass_energy` as the driver when present
-    (device running audio-reactive pro DSP build), otherwise falls back to
-    `bass_energy` vs mid/high. The consumer is responsible for merging band
-    values into the onset event's attrs dict.
+    (device running audio-reactive pro DSP build — the entity name retains
+    the `sub_bass` token for backwards compatibility but the band actually
+    covers ~80-240 Hz, which is the realistic low-bass region given the
+    mics' frequency response). Otherwise falls back to `bass_energy` vs
+    mid/high. The consumer is responsible for merging band values into the
+    onset event's attrs dict.
     """
 
     def __init__(self, manager: Any) -> None:

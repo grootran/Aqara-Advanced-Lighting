@@ -2519,8 +2519,8 @@ start_dynamic_scene:
         "intensity_breathing" pulses color intensity with amplitude.
         "onset_flash" (Brightness flash) flashes brightness on each onset.
         "bass_kick" (pro-tier) flashes brightness on bass-kick impact using the
-        sub_bass energy band with a short decay envelope - requires an
-        ESPHome audio-reactive device running the pro DSP tier.
+        low-bass energy band (~80-240 Hz) with a short decay envelope - requires
+        an ESPHome audio-reactive device running the pro DSP tier.
         "freq_to_hue" (pro-tier) drives hue from spectral centroid so warm
         frequencies map to warm colors and bright frequencies to cool colors -
         overrides the scene palette hue while keeping saturation and value.

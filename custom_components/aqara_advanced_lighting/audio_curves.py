@@ -45,8 +45,8 @@ def map_to_range(curved_value: float, range_min: int, range_max: int) -> int:
 
 
 # Defaults for the pro-tier BassKick scene-side audio mode.
-# Brightness pulses on sub-bass (pro) or bass (basic-tier fallback) onsets,
-# then decays back toward floor_brightness over pulse_ms.
+# Brightness pulses on low-bass (pro, ~80-240 Hz) or bass (basic-tier fallback)
+# onsets, then decays back toward floor_brightness over pulse_ms.
 BASS_KICK_DEFAULTS: dict[str, float] = {
     "pulse_ms": 100.0,         # pulse width at full brightness (cubic ease-out tail)
     "floor_brightness": 0.4,   # resting brightness between kicks
