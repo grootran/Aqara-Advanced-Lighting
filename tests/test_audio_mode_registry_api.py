@@ -29,10 +29,10 @@ class TestSerialiseModeRegistry:
         bass_kick = next(e for e in result if e["constant"] == AUDIO_COLOR_ADVANCE_BASS_KICK)
         assert bass_kick["requires_pro"] is True
 
-    def test_freq_to_hue_not_marked_requires_pro(self):
+    def test_freq_to_hue_marked_requires_pro(self):
         result = serialise_mode_registry()
         freq = next(e for e in result if e["constant"] == AUDIO_COLOR_ADVANCE_FREQ_TO_HUE)
-        assert freq["requires_pro"] is False
+        assert freq["requires_pro"] is True
 
     def test_on_onset_present_and_basic(self):
         result = serialise_mode_registry()

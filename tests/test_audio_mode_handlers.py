@@ -889,10 +889,12 @@ class TestModeRegistry:
     def test_bass_kick_marked_requires_pro(self):
         assert MODE_REGISTRY[AUDIO_COLOR_ADVANCE_BASS_KICK].requires_pro is True
 
-    def test_freq_to_hue_not_marked_requires_pro(self):
-        # freq_to_hue works on basic-tier centroid; pro improves quality but
-        # is not strictly required.
-        assert MODE_REGISTRY[AUDIO_COLOR_ADVANCE_FREQ_TO_HUE].requires_pro is False
+    def test_freq_to_hue_marked_requires_pro(self):
+        # freq_to_hue technically runs on basic-tier centroid (the sensor
+        # publishes on both tiers), but the basic-tier centroid is computed
+        # from a 512-point FFT vs pro's 2048 — too coarse to drive hue
+        # cleanly. Marked requires_pro so the panel surfaces the (pro) badge.
+        assert MODE_REGISTRY[AUDIO_COLOR_ADVANCE_FREQ_TO_HUE].requires_pro is True
 
     def test_create_handler_returns_bass_kick(self):
         manager = MagicMock()

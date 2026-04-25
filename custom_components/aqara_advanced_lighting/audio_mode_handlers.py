@@ -615,7 +615,7 @@ MODE_REGISTRY: dict[str, ModeSpec] = {
         is_onset_mode=True, is_energy_mode=True, needs_band_attrs=True,
     ),
     AUDIO_COLOR_ADVANCE_FREQ_TO_HUE: ModeSpec(
-        AUDIO_COLOR_ADVANCE_FREQ_TO_HUE, FreqToHueHandler, requires_pro=False,
+        AUDIO_COLOR_ADVANCE_FREQ_TO_HUE, FreqToHueHandler, requires_pro=True,
         is_energy_mode=True, is_spectral_mode=True,
     ),
 }
