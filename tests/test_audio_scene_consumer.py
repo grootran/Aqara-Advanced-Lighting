@@ -245,9 +245,15 @@ class TestDynamicSceneAudioConsumer:
 
     @pytest.mark.asyncio
     async def test_onset_triggers_apply(self):
+        # Onset-mode applies are now fire-and-forget (asyncio.create_task)
+        # rather than awaited inline — see audio_scene_consumer.py for the
+        # rationale. Yield to the loop so the scheduled task can run before
+        # we assert.
+        import asyncio
         apply_fn = AsyncMock()
         consumer, ss, handler, _ = _make_consumer(apply_colors_fn=apply_fn)
         await consumer.on_audio_events({"onset": {"strength": 1.0}})
+        await asyncio.sleep(0)
         apply_fn.assert_awaited_once()
 
     @pytest.mark.asyncio

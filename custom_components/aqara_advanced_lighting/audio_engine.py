@@ -99,6 +99,13 @@ class AudioEngine:
         # Track whether we have already warned about a stale calibration signal
         # for this engine instance, to avoid log spam.
         self._calibration_warning_emitted = False
+        # Last seen onset_strength value. The device publishes onset_strength
+        # and the binary onset sensor as two separate state-change events; if
+        # they land in different drain cycles, the merge at the bottom of the
+        # main loop drops the strength on the floor (handler reads
+        # `attrs.get("strength", 1.0)` → fallback). Caching here lets a stand-
+        # alone-onset drain still attach the most recent strength value.
+        self._last_onset_strength: float = 1.0
 
     @staticmethod
     def _make_claim_key(audio_entity: str, consumer_type: str) -> str:
@@ -501,9 +508,21 @@ class AudioEngine:
                 if self._in_silence:
                     continue
 
-                # Merge onset_strength into onset data
-                if "onset" in events and "onset_strength" in events:
-                    events["onset"]["strength"] = events["onset_strength"]
+                # Merge onset_strength into onset data. Cache the latest
+                # onset_strength so a stand-alone-onset drain (one without a
+                # co-drain onset_strength event) can still attach the most
+                # recent strength value rather than falling through to
+                # the handler's `attrs.get("strength", 1.0)` default —
+                # which would force every flash to full brightness and
+                # collapse the dynamic range across kicks of varying
+                # loudness.
+                if "onset_strength" in events:
+                    self._last_onset_strength = events["onset_strength"]
+                if "onset" in events:
+                    if "onset_strength" in events:
+                        events["onset"]["strength"] = events["onset_strength"]
+                    else:
+                        events["onset"]["strength"] = self._last_onset_strength
 
                 # Calibration-stale warning: log once per engine lifetime when
                 # the binary sensor reports on. Informational only; not

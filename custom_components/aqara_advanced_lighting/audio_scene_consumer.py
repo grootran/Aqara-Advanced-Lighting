@@ -12,15 +12,7 @@ import time
 from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 from .audio_engine import AudioConsumer, AudioEngineConfig
-from .const import (
-    AUDIO_COLOR_ADVANCE_BASS_KICK,
-    AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
-    AUDIO_COLOR_ADVANCE_CONTINUOUS,
-    AUDIO_COLOR_ADVANCE_FREQ_TO_HUE,
-    AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING,
-    AUDIO_COLOR_ADVANCE_ON_ONSET,
-    AUDIO_COLOR_ADVANCE_ONSET_FLASH,
-)
+from .audio_mode_handlers import MODE_REGISTRY, ModeSpec
 
 if TYPE_CHECKING:
     from .audio_mode_handlers import AudioModeHandler
@@ -28,35 +20,33 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-_ONSET_MODES = frozenset({
-    AUDIO_COLOR_ADVANCE_ON_ONSET,
-    AUDIO_COLOR_ADVANCE_ONSET_FLASH,
-    AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
-    AUDIO_COLOR_ADVANCE_BASS_KICK,
-})
-_ENERGY_MODES = frozenset({
-    AUDIO_COLOR_ADVANCE_CONTINUOUS,
-    AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING,
-    AUDIO_COLOR_ADVANCE_ONSET_FLASH,
-    AUDIO_COLOR_ADVANCE_BASS_KICK,
-    AUDIO_COLOR_ADVANCE_FREQ_TO_HUE,
-})
-# Modes that require per-band energies merged into the onset attrs dict
-# (for dominance checks) and therefore need subscribe_frequency_bands=True.
-_BAND_ATTR_MODES = frozenset({
-    AUDIO_COLOR_ADVANCE_BASS_KICK,
-})
-# Modes that rely on spectral centroid/rolloff sensors.
-_SPECTRAL_MODES = frozenset({
-    AUDIO_COLOR_ADVANCE_FREQ_TO_HUE,
-})
+
+def _spec_for(mode: str) -> ModeSpec | None:
+    """Look up the ModeSpec for an audio_color_advance mode constant.
+
+    Returns None for unknown modes (defensive — `create_handler` falls back
+    to OnsetHandler with a warning, so an unknown mode behaves as `on_onset`
+    here too).
+    """
+    return MODE_REGISTRY.get(mode)
 
 
 def build_scene_engine_config(scene: DynamicScene) -> AudioEngineConfig:
-    """Map DynamicScene audio settings to an AudioEngineConfig."""
+    """Map DynamicScene audio settings to an AudioEngineConfig.
+
+    The mode-specific subscribe gates are read directly from MODE_REGISTRY's
+    ModeSpec — single source of truth for both this function and the
+    consumer's per-event apply-trigger gates further down. Adding a new mode
+    is one ModeSpec row in audio_mode_handlers.py with no parallel updates
+    required here.
+    """
     mode = scene.audio_color_advance
-    is_onset = mode in _ONSET_MODES
-    is_energy = mode in _ENERGY_MODES
+    spec = _spec_for(mode)
+    is_onset = spec.is_onset_mode if spec else True  # unknown mode → on_onset
+    is_energy = spec.is_energy_mode if spec else False
+    is_spectral = spec.is_spectral_mode if spec else False
+    needs_bands = spec.needs_band_attrs if spec else False
+    needs_beat = spec.needs_beat_tracking if spec else False
 
     return AudioEngineConfig(
         audio_entity=scene.audio_entity,
@@ -65,16 +55,16 @@ def build_scene_engine_config(scene: DynamicScene) -> AudioEngineConfig:
         detection_mode=scene.audio_detection_mode,
         subscribe_onset=is_onset,
         subscribe_energy=is_energy or scene.audio_brightness_curve is not None,
-        subscribe_bpm=mode == AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
-        subscribe_beat_tracking=mode == AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
+        subscribe_bpm=needs_beat,
+        subscribe_beat_tracking=needs_beat,
         subscribe_spectral=(
             scene.audio_color_by_frequency
             or scene.audio_rolloff_brightness
-            or mode in _SPECTRAL_MODES
+            or is_spectral
         ),
         subscribe_silence=True,
         subscribe_frequency_bands=(
-            scene.audio_frequency_zone or mode in _BAND_ATTR_MODES
+            scene.audio_frequency_zone or needs_bands
         ),
     )
 
@@ -139,12 +129,24 @@ class DynamicSceneAudioConsumer(AudioConsumer):
         if "beat_phase" in events:
             self._handler.update_phase(self._scene_state, events["beat_phase"])
 
+        # Update the band-energy cache BEFORE the onset block. Without this
+        # ordering, an onset that arrives in a drain with no co-drain band_*
+        # events (which can happen because onsets fire on event whereas band
+        # sensors fire at ~20 Hz on the device) would read an empty / stale
+        # cache and BassKickHandler's dominance check would either silently
+        # drop the kick (when cache empty at scene start) or use one-drain-
+        # stale values for the dominance comparison.
+        for key, value in events.items():
+            if key.startswith("band_"):
+                self._band_energies[key[len("band_"):]] = value
+
         # Onset events
         if "onset" in events:
-            # Merge per-band energies into the onset attrs dict so
-            # band-aware handlers (BassKickHandler) can perform dominance
-            # checks without reaching back into engine state. Prefer the
-            # current drain's band_* values; fall back to cached ones.
+            # Merge per-band energies into the onset attrs dict so band-aware
+            # handlers (BassKickHandler) can perform dominance checks without
+            # reaching back into engine state. The cache (just refreshed
+            # above) holds the freshest values seen across recent drains;
+            # current-drain band_* events are now also in there.
             onset_attrs = events["onset"]
             for band_key in (
                 "bass_energy",
@@ -155,10 +157,7 @@ class DynamicSceneAudioConsumer(AudioConsumer):
                 "upper_mid_energy",
                 "air_energy",
             ):
-                event_key = f"band_{band_key}"
-                if event_key in events:
-                    onset_attrs[band_key] = events[event_key]
-                elif band_key in self._band_energies and band_key not in onset_attrs:
+                if band_key in self._band_energies and band_key not in onset_attrs:
                     onset_attrs[band_key] = self._band_energies[band_key]
             self._handler.handle_onset(self._scene_state, onset_attrs)
             if self._is_onset_mode:
@@ -206,12 +205,9 @@ class DynamicSceneAudioConsumer(AudioConsumer):
             if self._is_energy_mode or scene.audio_brightness_curve is not None:
                 needs_apply = True
 
-        # Track all band energies we see this drain, regardless of whether
-        # frequency-zone routing is enabled. Used by band-aware handlers
-        # (BassKickHandler) to cache recent values between onsets.
-        for key, value in events.items():
-            if key.startswith("band_"):
-                self._band_energies[key[len("band_"):]] = value
+        # (Band-energy cache update was moved to the top of this method so
+        # the onset block sees fresh values on the same drain — see comment
+        # there. No second update needed here.)
 
         # Frequency zone band events (zone routing only)
         if self._freq_zone_bands:
@@ -226,7 +222,21 @@ class DynamicSceneAudioConsumer(AudioConsumer):
                             self._scene_state.light_color_indices[eid] = pos
                         needs_apply = True
 
-        # Apply colors with rate limiting
+        # Apply colors. Two paths:
+        #  - rate-limited / energy-driven: await the apply directly. Energy
+        #    updates arrive at ~20 Hz; the rate-limit + serialised await keeps
+        #    backpressure sensible.
+        #  - onset-driven: fire-and-forget via create_task. The apply path
+        #    itself awaits a hardware/software transition that can take 0.5–2s
+        #    on Zigbee bulbs; awaiting it inside the consumer would block the
+        #    audio event loop, queue subsequent onsets in the engine queue,
+        #    and coalesce them at the next drain — so a rapid kick-kick-kick
+        #    run becomes a single visible flash (root cause of the
+        #    "bass_kick barely affects lights" symptom). create_task lets the
+        #    consumer return immediately and continue processing onsets while
+        #    the previous apply is still running. Multiple in-flight applies
+        #    are tolerated — HA serialises light.turn_on at the integration
+        #    layer.
         if needs_apply:
             rate_limit = self._is_energy_mode or (
                 "energy" in events
@@ -238,7 +248,11 @@ class DynamicSceneAudioConsumer(AudioConsumer):
                     await self._apply_colors(self._transition_seconds)
                     self._last_apply_time = now
             else:
-                await self._apply_colors(self._transition_seconds)
+                # Non-blocking apply for onset modes. We deliberately don't
+                # track / cancel in-flight tasks: asyncio cleans them up when
+                # they finish, and overlapping applies are correct on light
+                # hardware (each turn_on supersedes the previous state).
+                asyncio.create_task(self._apply_colors(self._transition_seconds))
                 self._last_apply_time = now
 
     async def on_silence_enter(self) -> None:

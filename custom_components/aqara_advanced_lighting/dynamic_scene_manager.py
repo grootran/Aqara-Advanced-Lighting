@@ -18,11 +18,6 @@ from .const import (
     DATA_AUDIO_ENGINE_REGISTRY,
     ATTR_ENABLED,
     ATTR_SENSITIVITY,
-    AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
-    AUDIO_COLOR_ADVANCE_CONTINUOUS,
-    AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING,
-    AUDIO_COLOR_ADVANCE_ON_ONSET,
-    AUDIO_COLOR_ADVANCE_ONSET_FLASH,
     CONF_AUDIO_OFF_SERVICE,
     CONF_AUDIO_OFF_SERVICE_DATA,
     CONF_AUDIO_ON_SERVICE,
@@ -55,9 +50,13 @@ from .const import (
     brightness_percent_to_device,
 )
 from .audio_engine import AudioEngine
-from .audio_scene_consumer import DynamicSceneAudioConsumer, build_scene_engine_config
+from .audio_scene_consumer import (
+    DynamicSceneAudioConsumer,
+    build_scene_engine_config,
+)
 from .audio_mode_handlers import (
     AudioModeHandler,
+    MODE_REGISTRY,
     create_handler,
 )
 from .audio_discovery import (
@@ -1779,17 +1778,13 @@ class DynamicSceneManager:
             and companions.get("high_energy")
         )
 
-        # Determine mode flags
-        is_onset_mode = scene.audio_color_advance in (
-            AUDIO_COLOR_ADVANCE_ON_ONSET,
-            AUDIO_COLOR_ADVANCE_ONSET_FLASH,
-            AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
-        )
-        is_energy_mode = scene.audio_color_advance in (
-            AUDIO_COLOR_ADVANCE_CONTINUOUS,
-            AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING,
-            AUDIO_COLOR_ADVANCE_ONSET_FLASH,
-        )
+        # Mode flags — read from the canonical MODE_REGISTRY ModeSpec so a
+        # new mode is one row in audio_mode_handlers.py with no parallel
+        # updates required here. Unknown modes default to onset (matches
+        # create_handler's lenient OnsetHandler fallback).
+        spec = MODE_REGISTRY.get(scene.audio_color_advance)
+        is_onset_mode = spec.is_onset_mode if spec else True
+        is_energy_mode = spec.is_energy_mode if spec else False
 
         # -- Build engine config and consumer --
         engine_config = build_scene_engine_config(scene)

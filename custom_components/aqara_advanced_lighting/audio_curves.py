@@ -56,9 +56,17 @@ BASS_KICK_DEFAULTS: dict[str, float] = {
 # Defaults for the pro-tier FreqToHue scene-side audio mode.
 # Spectral centroid maps to hue; amplitude drives brightness via the scene's
 # configured brightness curve.
+#
+# The centroid sensor on the device publishes a fraction of nyquist (0.0-1.0),
+# not raw Hz, so the bounds below are also fractions. Default range covers
+# roughly the musical sweet spot:
+#   pro tier (44.1 kHz, nyquist 22050 Hz): centroid_min=0.005 -> ~110 Hz,
+#                                          centroid_max=0.4   -> ~8800 Hz
+#   basic tier (22.05 kHz, nyquist 11025 Hz): 0.005 -> ~55 Hz, 0.4 -> ~4400 Hz
+# Tier-agnostic by design — same defaults work on both.
 FREQ_TO_HUE_DEFAULTS: dict[str, float | bool] = {
-    "hz_min": 100.0,
-    "hz_max": 8000.0,
+    "centroid_min": 0.005,         # fraction of nyquist (lower clip)
+    "centroid_max": 0.4,           # fraction of nyquist (upper clip)
     "hue_start": 0.0,              # degrees — red
     "hue_end": 240.0,              # degrees — blue
     "log_scale": True,
