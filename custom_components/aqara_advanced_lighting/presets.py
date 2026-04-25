@@ -27,6 +27,8 @@ from .const import (
     AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
     AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING,
     AUDIO_COLOR_ADVANCE_ONSET_FLASH,
+    AUDIO_COLOR_ADVANCE_BASS_KICK,
+    AUDIO_COLOR_ADVANCE_FREQ_TO_HUE,
     AUDIO_DETECTION_MODE_SPECTRAL_FLUX,
     AUDIO_DETECTION_MODE_BASS_ENERGY,
     AUDIO_DETECTION_MODE_COMPLEX_DOMAIN,
@@ -2137,6 +2139,32 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "audio_prediction_aggressiveness": 75,
         "audio_latency_compensation_ms": 175,
     },
+    "subwoofer": {
+        "name": "Subwoofer",
+        "icon": "mdi:speaker",
+        "colors": [
+            {"x": 0.1500, "y": 0.0600, "brightness_pct": 75},  # Deep electric blue
+            {"x": 0.3700, "y": 0.1700, "brightness_pct": 75},  # Hot magenta
+            {"x": 0.6400, "y": 0.3300, "brightness_pct": 75},  # Blood red
+            {"x": 0.2100, "y": 0.6800, "brightness_pct": 75},  # Neon green
+            {"x": 0.2700, "y": 0.1100, "brightness_pct": 75},  # Deep violet
+        ],
+        "transition_time": 30.0,
+        "hold_time": 45.0,
+        "distribution_mode": DISTRIBUTION_SHUFFLE_ROTATE,
+        "offset_delay": 5.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_BASS_KICK,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_BASS_ENERGY,
+        "audio_sensitivity": 75,
+        "audio_transition_speed": 90,
+        "audio_brightness_curve": None,
+        "audio_brightness_min": 30,
+        "audio_brightness_max": 100,
+        "audio_silence_behavior": "decay_min",
+    },
     # Audio-reactive presets — Ambient
     "lounge": {
         "name": "Lounge",
@@ -2298,6 +2326,33 @@ DYNAMIC_SCENE_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "audio_silence_behavior": "slow_cycle",
         "audio_color_by_frequency": False,
         "audio_rolloff_brightness": True,
+    },
+    "prism": {
+        "name": "Prism",
+        "icon": "mdi:triangle-outline",
+        "colors": [
+            {"x": 0.6400, "y": 0.3300, "brightness_pct": 65},  # Red
+            {"x": 0.5500, "y": 0.4000, "brightness_pct": 65},  # Orange
+            {"x": 0.4200, "y": 0.5100, "brightness_pct": 65},  # Yellow
+            {"x": 0.1700, "y": 0.7000, "brightness_pct": 65},  # Green
+            {"x": 0.1500, "y": 0.0600, "brightness_pct": 65},  # Blue
+            {"x": 0.2700, "y": 0.1100, "brightness_pct": 65},  # Violet
+        ],
+        "transition_time": 30.0,
+        "hold_time": 45.0,
+        "distribution_mode": DISTRIBUTION_SHUFFLE_ROTATE,
+        "offset_delay": 5.0,
+        "random_order": False,
+        "loop_mode": LOOP_MODE_CONTINUOUS,
+        "end_behavior": END_BEHAVIOR_RESTORE,
+        "audio_color_advance": AUDIO_COLOR_ADVANCE_FREQ_TO_HUE,
+        "audio_detection_mode": AUDIO_DETECTION_MODE_SPECTRAL_FLUX,
+        "audio_sensitivity": 50,
+        "audio_transition_speed": 30,
+        "audio_brightness_curve": "logarithmic",
+        "audio_brightness_min": 25,
+        "audio_brightness_max": 90,
+        "audio_silence_behavior": "hold",
     },
     # Audio-reactive presets — Crossover
     "frequency_split": {

@@ -16,11 +16,12 @@ AUDIO_PRESET_IDS = [
     "beat_drop", "neon_pulse", "dance", "concert",
     "lounge", "tidal_flow", "deep_breath", "ember_glow",
     "synesthesia", "spectral_cascade", "frequency_split", "deee_lite",
+    "subwoofer", "prism",
 ]
 
 
 def test_all_audio_presets_exist():
-    """All 12 audio-reactive presets should be in DYNAMIC_SCENE_PRESETS."""
+    """All 14 audio-reactive presets should be in DYNAMIC_SCENE_PRESETS."""
     for preset_id in AUDIO_PRESET_IDS:
         assert preset_id in DYNAMIC_SCENE_PRESETS, f"Missing preset: {preset_id}"
 
@@ -99,39 +100,21 @@ def test_audio_preset_no_hardcoded_audio_entity(preset_id: str):
 
 
 def test_audio_preset_count():
-    """Should have exactly 12 audio-reactive presets."""
+    """Should have exactly 14 audio-reactive presets."""
     audio_presets = [
         k for k, v in DYNAMIC_SCENE_PRESETS.items()
         if "audio_color_advance" in v
     ]
-    assert len(audio_presets) == 12
+    assert len(audio_presets) == 14
 
 
 def test_all_audio_modes_covered():
-    """Every audio mode should be used by at least one preset.
-
-    Exception: the two pro-tier modes added in the audio-reactive pro DSP
-    chunk (`bass_kick`, `freq_to_hue`) ship without bundled presets in the
-    Chunk 7 HA-integration step; their presets land with Chunk 8 (fixtures
-    + presets + docs). Until then we assert coverage of the original mode
-    set only.
-    """
-    from custom_components.aqara_advanced_lighting.const import (
-        AUDIO_COLOR_ADVANCE_BASS_KICK,
-        AUDIO_COLOR_ADVANCE_FREQ_TO_HUE,
-    )
-
-    pending_preset_modes = {
-        AUDIO_COLOR_ADVANCE_BASS_KICK,
-        AUDIO_COLOR_ADVANCE_FREQ_TO_HUE,
-    }
+    """Every audio mode should be used by at least one preset."""
     modes_used = {
         DYNAMIC_SCENE_PRESETS[pid]["audio_color_advance"]
         for pid in AUDIO_PRESET_IDS
     }
     for mode in VALID_AUDIO_COLOR_ADVANCE:
-        if mode in pending_preset_modes:
-            continue
         assert mode in modes_used, f"Audio mode not covered: {mode}"
 
 

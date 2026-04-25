@@ -466,6 +466,8 @@
     "audio_preset_concert": "Concert",
     "audio_preset_chill": "Chill",
     "audio_preset_club": "Club",
+    "audio_preset_kick": "Kick",
+    "audio_preset_spectrum": "Spectrum",
     "audio_preset_custom": "Custom"
   },
   "image_extractor": {

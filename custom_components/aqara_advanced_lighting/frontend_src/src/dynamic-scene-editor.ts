@@ -81,36 +81,56 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
     transition_speed: number; brightness_curve: string | null; brightness_min: number; brightness_max: number; frequency_zone: boolean;
     color_by_frequency: boolean; rolloff_brightness: boolean; silence_behavior: string;
     prediction_aggressiveness: number; latency_compensation_ms: number;
+    requires_pro: boolean;
   }> = {
     beat: {
       color_advance: 'on_onset', detection_mode: 'spectral_flux', sensitivity: 60,
       transition_speed: 80, brightness_curve: 'linear', brightness_min: 30, brightness_max: 100, frequency_zone: false,
       color_by_frequency: false, rolloff_brightness: false, silence_behavior: 'slow_cycle',
       prediction_aggressiveness: 50, latency_compensation_ms: 150,
+      requires_pro: false,
     },
     ambient: {
       color_advance: 'intensity_breathing', detection_mode: 'spectral_flux', sensitivity: 50,
       transition_speed: 20, brightness_curve: 'logarithmic', brightness_min: 20, brightness_max: 80, frequency_zone: false,
       color_by_frequency: false, rolloff_brightness: true, silence_behavior: 'slow_cycle',
       prediction_aggressiveness: 50, latency_compensation_ms: 150,
+      requires_pro: false,
     },
     concert: {
       color_advance: 'beat_predictive', detection_mode: 'complex_domain', sensitivity: 50,
       transition_speed: 50, brightness_curve: 'linear', brightness_min: 30, brightness_max: 100, frequency_zone: true,
       color_by_frequency: true, rolloff_brightness: false, silence_behavior: 'slow_cycle',
       prediction_aggressiveness: 70, latency_compensation_ms: 150,
+      requires_pro: false,
     },
     chill: {
       color_advance: 'continuous', detection_mode: 'spectral_flux', sensitivity: 40,
       transition_speed: 30, brightness_curve: 'logarithmic', brightness_min: 20, brightness_max: 80, frequency_zone: false,
       color_by_frequency: false, rolloff_brightness: false, silence_behavior: 'slow_cycle',
       prediction_aggressiveness: 50, latency_compensation_ms: 150,
+      requires_pro: false,
     },
     club: {
       color_advance: 'onset_flash', detection_mode: 'bass_energy', sensitivity: 70,
       transition_speed: 95, brightness_curve: 'exponential', brightness_min: 10, brightness_max: 100, frequency_zone: false,
       color_by_frequency: false, rolloff_brightness: false, silence_behavior: 'hold',
       prediction_aggressiveness: 50, latency_compensation_ms: 150,
+      requires_pro: false,
+    },
+    kick: {
+      color_advance: 'bass_kick', detection_mode: 'bass_energy', sensitivity: 75,
+      transition_speed: 90, brightness_curve: null, brightness_min: 30, brightness_max: 100, frequency_zone: false,
+      color_by_frequency: false, rolloff_brightness: false, silence_behavior: 'decay_min',
+      prediction_aggressiveness: 50, latency_compensation_ms: 150,
+      requires_pro: true,
+    },
+    spectrum: {
+      color_advance: 'freq_to_hue', detection_mode: 'spectral_flux', sensitivity: 50,
+      transition_speed: 30, brightness_curve: 'logarithmic', brightness_min: 25, brightness_max: 90, frequency_zone: false,
+      color_by_frequency: false, rolloff_brightness: false, silence_behavior: 'hold',
+      prediction_aggressiveness: 50, latency_compensation_ms: 150,
+      requires_pro: true,
     },
   };
 
@@ -136,14 +156,15 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   }
 
   private get _audioPresetOptions() {
-    return [
-      { value: 'beat', label: this._localize('dynamic_scene.audio_preset_beat') || 'Beat' },
-      { value: 'ambient', label: this._localize('dynamic_scene.audio_preset_ambient') || 'Ambient' },
-      { value: 'concert', label: this._localize('dynamic_scene.audio_preset_concert') || 'Concert' },
-      { value: 'chill', label: this._localize('dynamic_scene.audio_preset_chill') || 'Chill' },
-      { value: 'club', label: this._localize('dynamic_scene.audio_preset_club') || 'Club' },
-      { value: 'custom', label: this._localize('dynamic_scene.audio_preset_custom') || 'Custom' },
-    ];
+    const tier = audioDeviceTier(this.hass, this._audioEntity);
+    const proBadge = this._localize('dynamic_scene.audio_mode_pro_badge') || 'pro';
+    const options = Object.entries(DynamicSceneEditor.AUDIO_PRESETS).map(([name, p]) => {
+      const baseLabel = this._localize(`dynamic_scene.audio_preset_${name}`) || name;
+      const needsBadge = p.requires_pro && tier !== 'pro';
+      return { value: name, label: needsBadge ? `${baseLabel} (${proBadge})` : baseLabel };
+    });
+    options.push({ value: 'custom', label: this._localize('dynamic_scene.audio_preset_custom') || 'Custom' });
+    return options;
   }
 
   // Alias for cleaner code
