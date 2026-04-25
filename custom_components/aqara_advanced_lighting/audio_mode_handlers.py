@@ -37,15 +37,27 @@ from .const import AUDIO_EMA_ALPHA as ENERGY_EMA_ALPHA, AUDIO_FLASH_BRIGHTNESS_D
 class ModeSpec:
     """Declarative metadata for a scene-side audio mode.
 
-    Used by MODE_REGISTRY to centralize handler-class lookup and expose
+    Used by MODE_REGISTRY to centralize handler-class lookup, expose
     pro-tier requirements to the frontend (which reads `requires_pro` to
-    render a "(pro)" badge on mode dropdowns).
+    render a "(pro)" badge on mode dropdowns), AND describe which event
+    classes the mode consumes — `is_onset_mode` / `is_energy_mode` /
+    `is_spectral_mode` / `needs_band_attrs`. The dispatcher in
+    `audio_scene_consumer.py` reads these flags to gate engine
+    subscriptions and `needs_apply` decisions, so adding a new mode now
+    only requires adding a `ModeSpec` row here — no parallel updates to
+    a separate frozenset on a different file (which is what produced the
+    bass_kick / freq_to_hue silent-dispatch bug originally).
     """
 
     constant: str               # the AUDIO_COLOR_ADVANCE_* constant string
     handler_class: type         # subclass of AudioModeHandler
     requires_pro: bool = False  # True when pro-tier sensors meaningfully improve quality
     display_label: str = ""     # optional UI override; empty = use constant
+    is_onset_mode: bool = False     # consumes onset events; subscribe_onset + needs_apply on onset
+    is_energy_mode: bool = False    # consumes energy events; subscribe_energy + needs_apply on energy
+    is_spectral_mode: bool = False  # consumes centroid/rolloff; subscribe_spectral
+    needs_band_attrs: bool = False  # needs per-band energies in onset attrs (e.g. BassKick dominance)
+    needs_beat_tracking: bool = False  # subscribe_bpm + subscribe_beat_tracking
 
 class AudioModeHandler(ABC):
     """Abstract base class for audio-reactive mode handlers."""
@@ -264,19 +276,32 @@ class BeatPredictiveHandler(AudioModeHandler):
     TRACKING = "tracking"
     PREDICTIVE = "predictive"
 
+    # The state-machine hysteresis: when in TRACKING/PREDICTIVE, drop back to
+    # REACTIVE only when confidence falls more than this far below the lock
+    # threshold. Same scale as `_confidence_threshold` (0.0–1.0 fraction).
+    _CONFIDENCE_HYSTERESIS = 0.1
+
     def __init__(self, manager: Any) -> None:
         super().__init__(manager)
         self._state = self.REACTIVE
         self._last_onset_time = 0.0
         self._bpm = 0.0
-        self._confidence = 0
+        # Confidence is a 0.0–1.0 fraction — matches what the device publishes
+        # (BTrack `current_confidence_` is clamped to [0, 1]; basic-tier
+        # BeatTracker also publishes 0..1). Earlier this field stored an
+        # integer 0–100 percent; the comparison against `_confidence_threshold`
+        # (also 0–100) was always False at runtime because the actual sensor
+        # value is < 1.0. State machine never left REACTIVE; the predictive
+        # branch was effectively dead. Float scale fixes that.
+        self._confidence: float = 0.0
         self._consecutive_matches = 0
         self._pending_handles: list[asyncio.TimerHandle] = []
         # Prediction tuning — filled on first handle_* call via _ensure_scene_configured().
         self._scene_configured: Any = None
         self._aggressiveness = 50
         self._latency_ms = 150
-        self._confidence_threshold = 60
+        # Range 0.30 (most aggressive) to 0.90 (most conservative).
+        self._confidence_threshold: float = 0.60
 
     def _ensure_scene_configured(self, scene: Any) -> None:
         """Lazy-init scene-derived prediction parameters on first event.
@@ -290,8 +315,8 @@ class BeatPredictiveHandler(AudioModeHandler):
             return
         self._aggressiveness = scene.audio_prediction_aggressiveness
         self._latency_ms = scene.audio_latency_compensation_ms
-        # Map aggressiveness 1-100 to confidence threshold 90-30
-        self._confidence_threshold = int(90 - (self._aggressiveness / 100) * 60)
+        # Map aggressiveness 1–100 to confidence threshold 0.90 → 0.30 (fraction).
+        self._confidence_threshold = 0.9 - (self._aggressiveness / 100.0) * 0.6
         self._scene_configured = scene
 
     def configure(self, scene: Any) -> None:
@@ -310,10 +335,14 @@ class BeatPredictiveHandler(AudioModeHandler):
         self._ensure_scene_configured(scene)
 
     @override
-    def update_bpm(self, bpm: float, confidence: int) -> None:
-        """Update BPM and confidence from sensor data."""
+    def update_bpm(self, bpm: float, confidence: float) -> None:
+        """Update BPM and confidence from sensor data.
+
+        `confidence` is a 0.0–1.0 fraction (matches the device's
+        beat_confidence sensor scale).
+        """
         self._bpm = bpm
-        self._confidence = confidence
+        self._confidence = float(confidence)
         self._update_state()
 
     @override
@@ -358,27 +387,33 @@ class BeatPredictiveHandler(AudioModeHandler):
             self._manager._advance_colors(scene_state)
 
     def _update_state(self) -> None:
-        """Update prediction state machine based on BPM confidence."""
+        """Update prediction state machine based on BPM confidence.
+
+        Confidence and threshold are both 0.0–1.0 fractions. Hysteresis
+        (`_CONFIDENCE_HYSTERESIS = 0.1`) prevents rapid REACTIVE↔TRACKING
+        flapping when confidence hovers near the threshold.
+        """
+        drop_threshold = self._confidence_threshold - self._CONFIDENCE_HYSTERESIS
         if self._state == self.REACTIVE:
             if self._confidence >= self._confidence_threshold:
                 self._state = self.TRACKING
                 self._consecutive_matches = 0
         elif self._state == self.TRACKING:
-            if self._confidence < self._confidence_threshold - 10:
+            if self._confidence < drop_threshold:
                 self._state = self.REACTIVE
             elif self._consecutive_matches >= 4:
                 self._state = self.PREDICTIVE
                 _LOGGER.debug(
-                    "Beat prediction: entering predictive mode (BPM=%.1f, confidence=%d)",
+                    "Beat prediction: entering predictive mode (BPM=%.1f, confidence=%.3f)",
                     self._bpm,
                     self._confidence,
                 )
         elif self._state == self.PREDICTIVE:
-            if self._confidence < self._confidence_threshold - 10:
+            if self._confidence < drop_threshold:
                 self._state = self.REACTIVE
                 self._cancel_mode_timers()
                 _LOGGER.debug(
-                    "Beat prediction: falling back to reactive (confidence=%d)",
+                    "Beat prediction: falling back to reactive (confidence=%.3f)",
                     self._confidence,
                 )
 
@@ -491,23 +526,35 @@ class FreqToHueHandler(AudioModeHandler):
         from .audio_curves import FREQ_TO_HUE_DEFAULTS
         self._defaults = FREQ_TO_HUE_DEFAULTS
         self._last_hue: float = float(self._defaults["hue_start"])
-        self._last_amplitude: float = 0.0
+        # Initialise the amplitude cache ABOVE the silence gate so the first
+        # centroid event (which often arrives before the first energy event
+        # because sensors fire at slightly different cadences) isn't
+        # silently dropped. Once a real energy event arrives, this cache
+        # tracks the music level normally.
+        self._last_amplitude: float = 1.0
 
     @override
     def handle_centroid(self, scene_state: Any, centroid: float) -> None:
+        """Map the spectral centroid (a 0-1 fraction of nyquist published by the
+        device) onto a hue angle.
+
+        Centroid input is tier-agnostic: the device always normalises to its
+        own nyquist before publishing, so this handler can use the same
+        fractional bounds (centroid_min / centroid_max) on both tiers.
+        """
         d = self._defaults
         # Silence gate — hold the last hue.
         if self._last_amplitude < float(d["silence_gate_amplitude"]):
             return
 
-        hz_min = float(d["hz_min"])
-        hz_max = float(d["hz_max"])
-        hz = max(hz_min, min(hz_max, float(centroid)))
+        c_min = float(d["centroid_min"])
+        c_max = float(d["centroid_max"])
+        c = max(c_min, min(c_max, float(centroid)))
 
         if d["log_scale"]:
-            t = (math.log(hz) - math.log(hz_min)) / (math.log(hz_max) - math.log(hz_min))
+            t = (math.log(c) - math.log(c_min)) / (math.log(c_max) - math.log(c_min))
         else:
-            t = (hz - hz_min) / (hz_max - hz_min)
+            t = (c - c_min) / (c_max - c_min)
 
         hue_start = float(d["hue_start"])
         hue_end = float(d["hue_end"])
@@ -540,29 +587,36 @@ class FreqToHueHandler(AudioModeHandler):
 MODE_REGISTRY: dict[str, ModeSpec] = {
     AUDIO_COLOR_ADVANCE_ON_ONSET: ModeSpec(
         AUDIO_COLOR_ADVANCE_ON_ONSET, OnsetHandler, requires_pro=False,
+        is_onset_mode=True,
     ),
     AUDIO_COLOR_ADVANCE_CONTINUOUS: ModeSpec(
         AUDIO_COLOR_ADVANCE_CONTINUOUS, ContinuousHandler, requires_pro=False,
+        is_energy_mode=True,
     ),
     AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING: ModeSpec(
         AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING,
         IntensityBreathingHandler,
         requires_pro=False,
+        is_energy_mode=True,
     ),
     AUDIO_COLOR_ADVANCE_ONSET_FLASH: ModeSpec(
         AUDIO_COLOR_ADVANCE_ONSET_FLASH, OnsetFlashHandler, requires_pro=False,
+        is_onset_mode=True, is_energy_mode=True,
     ),
     AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE: ModeSpec(
         AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
         BeatPredictiveHandler,
         requires_pro=False,
+        is_onset_mode=True, needs_beat_tracking=True,
     ),
     # New in Chunk 7: pro-aware modes.
     AUDIO_COLOR_ADVANCE_BASS_KICK: ModeSpec(
         AUDIO_COLOR_ADVANCE_BASS_KICK, BassKickHandler, requires_pro=True,
+        is_onset_mode=True, is_energy_mode=True, needs_band_attrs=True,
     ),
     AUDIO_COLOR_ADVANCE_FREQ_TO_HUE: ModeSpec(
         AUDIO_COLOR_ADVANCE_FREQ_TO_HUE, FreqToHueHandler, requires_pro=False,
+        is_energy_mode=True, is_spectral_mode=True,
     ),
 }
 

@@ -236,6 +236,9 @@ class TestBeatPredictiveHandler:
 
     def test_configure_sets_threshold(self):
         # Deprecated public shim path — still works (emits DeprecationWarning).
+        # Threshold is a 0.0–1.0 fraction (matches the device's beat_confidence
+        # sensor scale; was integer 30–90 percent which never compared correctly
+        # against the actual 0..1 sensor value).
         import warnings
         handler = BeatPredictiveHandler(MagicMock())
         scene = MagicMock()
@@ -244,7 +247,7 @@ class TestBeatPredictiveHandler:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
             handler.configure(scene)
-        assert handler._confidence_threshold == 30  # 90 - (100/100)*60
+        assert abs(handler._confidence_threshold - 0.30) < 1e-6  # 0.9 - (100/100)*0.6
         assert handler._latency_ms == 200
 
     def test_scene_config_applied_on_first_onset(self):
@@ -254,7 +257,7 @@ class TestBeatPredictiveHandler:
         scene_state.scene.audio_prediction_aggressiveness = 75
         scene_state.scene.audio_latency_compensation_ms = 200
         handler.handle_onset(scene_state, {"strength": 0.5})
-        assert handler._confidence_threshold == 45  # 90 - (75/100)*60
+        assert abs(handler._confidence_threshold - 0.45) < 1e-6  # 0.9 - (75/100)*0.6
         assert handler._latency_ms == 200
         assert handler._scene_configured is scene_state.scene
 
@@ -272,27 +275,38 @@ class TestBeatPredictiveHandler:
         assert handler._scene_configured is scene_ref
 
     def test_state_transitions_to_tracking(self):
+        # Confidence and threshold are 0.0–1.0 fractions matching the device's
+        # beat_confidence sensor. 0.7 ≥ 0.6 → enter TRACKING.
         handler = BeatPredictiveHandler(MagicMock())
-        handler._confidence_threshold = 60
-        handler.update_bpm(120.0, 70)  # confidence above threshold
+        handler._confidence_threshold = 0.6
+        handler.update_bpm(120.0, 0.7)
         assert handler._state == BeatPredictiveHandler.TRACKING
 
     def test_tracking_to_reactive_on_low_confidence(self):
         handler = BeatPredictiveHandler(MagicMock())
-        handler._confidence_threshold = 60
-        handler.update_bpm(120.0, 70)  # → TRACKING
-        handler.update_bpm(120.0, 45)  # below threshold - 10 (50) → REACTIVE
+        handler._confidence_threshold = 0.6
+        handler.update_bpm(120.0, 0.7)   # → TRACKING
+        # below threshold - hysteresis (0.5) → REACTIVE
+        handler.update_bpm(120.0, 0.45)
         assert handler._state == BeatPredictiveHandler.REACTIVE
 
     def test_tracking_to_predictive_after_matches(self):
         handler = BeatPredictiveHandler(MagicMock())
-        handler._confidence_threshold = 60
-        handler.update_bpm(120.0, 70)  # → TRACKING
-        scene_state = _mock_scene_state(brightness_curve=None)
+        handler._confidence_threshold = 0.6
+        handler.update_bpm(120.0, 0.7)  # → TRACKING
+        # handle_onset triggers _ensure_scene_configured, which derives
+        # _confidence_threshold from scene.audio_prediction_aggressiveness.
+        # Pin those explicitly so the threshold stays at 0.6 (matches the
+        # 50% aggressiveness midpoint: 0.9 - 0.5*0.6 = 0.6).
+        scene_state = _mock_scene_state(
+            brightness_curve=None,
+            audio_prediction_aggressiveness=50,
+            audio_latency_compensation_ms=150,
+        )
         # Simulate 4 onset matches while tracking
         for _ in range(4):
             handler.handle_onset(scene_state, {"strength": 0.8})
-        handler.update_bpm(120.0, 75)  # trigger state update
+        handler.update_bpm(120.0, 0.75)  # trigger state update
         assert handler._state == BeatPredictiveHandler.PREDICTIVE
 
     def test_reactive_mode_advances_colors(self):
@@ -559,9 +573,11 @@ class TestBeatPredictivePhase:
         manager._advance_colors = MagicMock()
         handler = BeatPredictiveHandler(manager)
         handler._bpm = bpm
-        handler._confidence = 80
+        # Confidence is a 0.0–1.0 fraction matching the device's
+        # beat_confidence sensor (was 0–100 percent — runtime mismatch).
+        handler._confidence = 0.8
         handler._latency_ms = latency_ms
-        handler._confidence_threshold = 60
+        handler._confidence_threshold = 0.6
         return handler, manager
 
     def test_update_phase_no_op_in_reactive_state(self):
@@ -781,14 +797,17 @@ class TestBassKickHandler:
 class TestFreqToHueHandler:
     """FreqToHueHandler maps spectral centroid to hue with silence gating."""
 
+    # Centroid input is the device-published nyquist fraction (0-1), not Hz.
+    # Defaults clip to [centroid_min=0.005, centroid_max=0.4] for tier-agnostic
+    # behavior across pro (44.1 kHz) and basic (22.05 kHz) sample rates.
     def test_freq_to_hue_low_centroid_maps_to_hue_start(self):
         manager = MagicMock()
         handler = FreqToHueHandler(manager)
         scene_state = _mock_scene_state(brightness_curve=None)
         # Seed amplitude above the silence gate
         handler.handle_energy(scene_state, 0.5)
-        handler.handle_centroid(scene_state, 100.0)
-        # hz_min maps to hue_start (0.0); EMA from 0.0 initial is still ~0.0
+        handler.handle_centroid(scene_state, 0.005)
+        # centroid_min maps to hue_start (0.0); EMA from 0.0 initial stays ~0
         assert abs(handler._last_hue - 0.0) < 1.0
 
     def test_freq_to_hue_high_centroid_maps_to_hue_end(self):
@@ -797,8 +816,8 @@ class TestFreqToHueHandler:
         scene_state = _mock_scene_state(brightness_curve=None)
         handler.handle_energy(scene_state, 0.5)
         for _ in range(60):
-            handler.handle_centroid(scene_state, 8000.0)
-        # hz_max maps to hue_end (240.0); EMA should converge
+            handler.handle_centroid(scene_state, 0.4)
+        # centroid_max maps to hue_end (240.0); EMA should converge
         assert abs(handler._last_hue - 240.0) < 5.0
 
     def test_freq_to_hue_silence_holds_hue(self):
@@ -809,12 +828,12 @@ class TestFreqToHueHandler:
         # Converge to high end
         handler.handle_energy(scene_state, 0.5)
         for _ in range(60):
-            handler.handle_centroid(scene_state, 8000.0)
+            handler.handle_centroid(scene_state, 0.4)
         hue_before_silence = handler._last_hue
         # Drop amplitude below gate
         handler.handle_energy(scene_state, 0.001)
         # Would otherwise pull hue back toward 0, but gate should hold it
-        handler.handle_centroid(scene_state, 100.0)
+        handler.handle_centroid(scene_state, 0.005)
         assert handler._last_hue == hue_before_silence
 
     def test_freq_to_hue_calls_set_hue_on_manager(self):
@@ -823,7 +842,7 @@ class TestFreqToHueHandler:
         handler = FreqToHueHandler(manager)
         scene_state = _mock_scene_state(brightness_curve=None)
         handler.handle_energy(scene_state, 0.5)
-        handler.handle_centroid(scene_state, 1000.0)
+        handler.handle_centroid(scene_state, 0.05)
         manager._set_hue.assert_called()
         call_args = manager._set_hue.call_args
         assert call_args[0][0] is scene_state
