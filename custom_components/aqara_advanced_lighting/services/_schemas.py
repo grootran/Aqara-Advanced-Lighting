@@ -458,6 +458,10 @@ _segment_sequence_schema_dict[vol.Optional(ATTR_SKIP_FIRST_IN_LOOP, default=Fals
     cv.boolean
 )
 _segment_sequence_schema_dict[vol.Optional(ATTR_Z2M_BASE_TOPIC)] = cv.string
+_segment_sequence_schema_dict[vol.Optional(ATTR_BRIGHTNESS)] = vol.All(
+    vol.Coerce(int),
+    vol.Range(min=MIN_BRIGHTNESS_PERCENT, max=MAX_BRIGHTNESS_PERCENT),
+)
 
 SERVICE_START_SEGMENT_SEQUENCE_SCHEMA = vol.Schema(_segment_sequence_schema_dict)
 

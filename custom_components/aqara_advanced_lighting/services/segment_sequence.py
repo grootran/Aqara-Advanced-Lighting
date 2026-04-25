@@ -9,6 +9,7 @@ from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 
 from ..const import (
     ACTIVATION_ALL,
+    ATTR_BRIGHTNESS,
     ATTR_CLEAR_SEGMENTS,
     ATTR_END_BEHAVIOR,
     ATTR_LOOP_COUNT,
@@ -25,6 +26,7 @@ from ..const import (
     LOOP_MODE_ONCE,
     MAX_SEQUENCE_STEPS,
     PRESET_TYPE_SEGMENT_SEQUENCE,
+    brightness_percent_to_device,
 )
 from ..light_capabilities import supports_segment_addressing
 from ..models import RGBColor, SegmentColor, SegmentSequence, SegmentSequenceStep
@@ -32,6 +34,7 @@ from ..presets import SEGMENT_SEQUENCE_PRESETS
 from ..preset_store import get_preset_store
 from ._helpers import (
     _ensure_light_on,
+    _get_context_and_record,
     _get_instance_components_for_entity,
     _normalize_color_to_rgb,
     _resolve_entity_ids,
@@ -50,6 +53,12 @@ async def handle_start_segment_sequence(hass: HomeAssistant, call: ServiceCall) 
     resolved_entity_ids = _resolve_entity_ids(hass, entity_ids)
 
     turn_on: bool = call.data.get(ATTR_TURN_ON, False)
+    brightness_percent: int | None = call.data.get(ATTR_BRIGHTNESS)
+    brightness = (
+        brightness_percent_to_device(brightness_percent)
+        if brightness_percent is not None
+        else None
+    )
     preset: str | None = call.data.get(ATTR_PRESET)
 
     # Handle preset or manual configuration
@@ -332,6 +341,39 @@ async def handle_start_segment_sequence(hass: HomeAssistant, call: ServiceCall) 
                 turn_on_tasks.append(_ensure_light_on(hass, entity_id, True))
         if turn_on_tasks:
             await asyncio.gather(*turn_on_tasks, return_exceptions=True)
+
+    # Both T1M and T1 Strip require brightness via the standard light service;
+    # neither family honors brightness embedded in the segment-pattern payload.
+    if brightness is not None:
+        accepted_entity_ids = [
+            eid
+            for group_data in instance_groups.values()
+            for eid in group_data["entities"]
+        ]
+        brightness_tasks = [
+            hass.services.async_call(
+                "light",
+                "turn_on",
+                {"entity_id": eid, "brightness": brightness},
+                blocking=True,
+                context=_get_context_and_record(hass, eid),
+            )
+            for eid in accepted_entity_ids
+        ]
+        if brightness_tasks:
+            results = await asyncio.gather(
+                *brightness_tasks, return_exceptions=True
+            )
+            for eid, result in zip(accepted_entity_ids, results):
+                if isinstance(result, Exception):
+                    _LOGGER.warning(
+                        "Failed to apply brightness override for %s: %s",
+                        eid,
+                        result,
+                    )
+            # Brief delay so device state propagates before the segment writes
+            # (mirrors the 50ms pause used in the static-pattern T1 Strip path).
+            await asyncio.sleep(0.05)
 
     # Stop all conflicting continuous actions on these entities
     entity_controller = hass.data[DOMAIN].get(DATA_ENTITY_CONTROLLER)

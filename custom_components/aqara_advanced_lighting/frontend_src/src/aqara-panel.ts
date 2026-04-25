@@ -1744,12 +1744,18 @@ export class AqaraPanel extends LitElement {
   private async _activateSegmentSequence(preset: SegmentSequencePreset): Promise<void> {
     if (!this._prefs.state.selectedEntities.length) return;
 
-    await this.hass.callService('aqara_advanced_lighting', 'start_segment_sequence', {
+    const serviceData: Record<string, unknown> = {
       entity_id: this._prefs.state.selectedEntities,
       preset: preset.id,
       turn_on: true,
       sync: true,
-    });
+    };
+
+    if (this._prefs.state.useCustomBrightness) {
+      serviceData.brightness = this._prefs.state.brightness;
+    }
+
+    await this.hass.callService('aqara_advanced_lighting', 'start_segment_sequence', serviceData);
     await this._loadRunningOperations();
   }
 
@@ -2038,6 +2044,10 @@ export class AqaraPanel extends LitElement {
       turn_on: true,
       sync: true,
     };
+
+    if (this._prefs.state.useCustomBrightness) {
+      serviceData.brightness = this._prefs.state.brightness;
+    }
 
     // Add loop_count only if loop_mode is 'count'
     if (preset.loop_mode === 'count' && preset.loop_count !== undefined) {

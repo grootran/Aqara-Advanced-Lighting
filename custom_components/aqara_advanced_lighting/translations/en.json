@@ -598,6 +598,10 @@
           "name": "Synchronized start",
           "description": "Start the sequence on all lights simultaneously (recommended for groups)."
         },
+        "brightness": {
+          "name": "Brightness override",
+          "description": "Override brightness for the entire sequence (1-100%). Applied once at sequence start. Leave blank to keep the current device brightness."
+        },
         "loop_mode": {
           "name": "Loop mode",
           "description": "How the sequence should loop."

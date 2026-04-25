@@ -61,6 +61,7 @@ T1M and T1 Strip lights can now run their built-in color effects (rainbow, flow,
   - Default audio sensor selector moved to Device Config tab for easier discovery
   - `audio_silence_behavior` enum replaces the old boolean toggle: `hold`, `slow_cycle`, `decay_min`, `decay_mid`
   - `audio_brightness_curve` (linear/logarithmic/exponential) with configurable min/max replaces the boolean brightness-response toggle
+  - Brightness override in the Activate tab now applies to segment sequences (built-in and user presets); dispatched once per entity at sequence start via `light.turn_on` so both T1M and T1 Strip honor it
 
 ### Fixes
 
