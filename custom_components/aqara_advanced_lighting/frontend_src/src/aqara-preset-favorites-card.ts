@@ -27,7 +27,13 @@ import {
   getUserPresets,
   getUserPreferences,
   getSupportedEntities,
+  getRunningOperations,
 } from './data-client/aqara-api';
+import {
+  subscribeRunningOperations,
+  fetchRunningOnceOnAction,
+  filterActivePresets,
+} from './card-running-ops';
 
 // ---------------------------------------------------------------------------
 // Config interface
@@ -168,9 +174,33 @@ export class AqaraPresetFavoritesCard extends LitElement {
   /** Maps preset ref.id to operation type for currently running presets. */
   @state() private _activePresets = new Map<string, string>();
 
+  /**
+   * Look up the running operation type for a favorite preset, handling the
+   * preset_id mismatch where dynamic scenes (and other preset variants)
+   * report their name in running_operations rather than their id.
+   *
+   * Tries ref.id first (matches when activator sends preset: preset.id, e.g.
+   * built-in effects), then falls back to preset.name (matches dynamic scenes
+   * where the activator sends scene_name: preset.name, and user variants
+   * where the activator sends preset: preset.name).
+   *
+   * Verifies the operation type matches the favorite type so collisions
+   * across preset types (e.g. an effect and a scene with the same string
+   * key) cannot cross-trigger.
+   */
+  private _findActiveOpType(ref: FavoritePresetRef, preset: AnyPreset): string | undefined {
+    const byId = this._activePresets.get(ref.id);
+    if (byId === ref.type) return byId;
+    const byName = this._activePresets.get(preset.name);
+    if (byName === ref.type) return byName;
+    return undefined;
+  }
+
   private _dataLoaded = false;
-  private _hassConnected = false;
-  private _pollTimer?: ReturnType<typeof setInterval>;
+  private _unsubRunningOps?: () => void;
+  private _subscriptionFailed = false;
+  private _lastHassConnected = true;
+  private _subscribing = false;
 
   // -- Lovelace card API --------------------------------------------------
 
@@ -202,59 +232,89 @@ export class AqaraPresetFavoritesCard extends LitElement {
 
   // -- Lifecycle -----------------------------------------------------------
 
-  protected updated(changedProps: PropertyValues): void {
+  protected async updated(changedProps: PropertyValues): Promise<void> {
     super.updated(changedProps);
+    // Re-entry guard: updated() is async and Lit does not await it. Prevent
+    // overlapping invocations between _loadData and _startSubscription, which
+    // could otherwise leak subscriptions or duplicate work.
+    if (this._subscribing) return;
+
     if (changedProps.has('hass') && this.hass) {
-      const wasConnected = this._hassConnected;
-      this._hassConnected = true;
-      // Load on first hass, or reload if hass was lost and came back
-      if (!this._dataLoaded || !wasConnected) {
-        this._loadData();
-        this._startPolling();
+      this._subscribing = true;
+      try {
+        const isFirstLoad = !this._dataLoaded;
+        if (isFirstLoad) {
+          await this._loadData();
+          await this._startSubscription();
+          this._lastHassConnected = this.hass.connected !== false;
+        } else {
+          // hass.connected transition false -> true triggers a one-shot resync
+          // (spec Section 1.3). HA's WS client automatically re-subscribes
+          // events on reconnect, so we do NOT tear down or recreate the
+          // subscription - we just catch any events missed during the outage.
+          const isConnected = this.hass.connected !== false;
+          if (!this._lastHassConnected && isConnected) {
+            await this._resyncRunningOps();
+          }
+          this._lastHassConnected = isConnected;
+        }
+      } finally {
+        this._subscribing = false;
       }
     }
     if (changedProps.has('hass') && !this.hass) {
-      this._hassConnected = false;
-      this._stopPolling();
+      this._stopSubscription();
     }
   }
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
-    this._stopPolling();
+    this._stopSubscription();
   }
 
-  private _startPolling(): void {
-    this._stopPolling();
-    // Poll running operations every 5 seconds to track active presets
-    this._pollRunningOperations();
-    this._pollTimer = setInterval(() => this._pollRunningOperations(), 5000);
-  }
-
-  private _stopPolling(): void {
-    if (this._pollTimer) {
-      clearInterval(this._pollTimer);
-      this._pollTimer = undefined;
+  /** Subscribe to running-operations events. Tracks degraded-mode flag. */
+  private async _startSubscription(): Promise<void> {
+    this._stopSubscription();
+    if (!this.hass) return;
+    const entityIds = this._getEntityIds();
+    try {
+      const unsub = await subscribeRunningOperations(
+        this.hass,
+        entityIds,
+        (active) => { this._activePresets = active; },
+      );
+      // If the element was disconnected while we were awaiting subscribe,
+      // _stopSubscription has already run with an undefined _unsubRunningOps,
+      // so we must clean up the just-resolved subscription ourselves.
+      if (!this.isConnected) {
+        unsub();
+        return;
+      }
+      this._unsubRunningOps = unsub;
+      this._subscriptionFailed = false;
+    } catch {
+      // subscribeRunningOperations logs once-per-page-load internally; do
+      // not double-log here. Caller checks _subscriptionFailed to decide
+      // whether to use fetchRunningOnceOnAction after user actions.
+      this._subscriptionFailed = true;
     }
   }
 
-  /** Fetch running operations and update _activePresets map. */
-  private async _pollRunningOperations(): Promise<void> {
+  /** One-shot resync after a connection bounce. Silent on failure. */
+  private async _resyncRunningOps(): Promise<void> {
     if (!this.hass) return;
     try {
-      const resp = await this.hass.callApi<{ operations: Array<{ type: string; entity_id: string; preset_id?: string }> }>(
-        'GET', 'aqara_advanced_lighting/running_operations'
-      );
-      const entityIds = new Set(this._getEntityIds());
-      const active = new Map<string, string>();
-      for (const op of resp.operations || []) {
-        if (op.preset_id && entityIds.has(op.entity_id)) {
-          active.set(op.preset_id, op.type);
-        }
-      }
-      this._activePresets = active;
+      const resp = await getRunningOperations(this.hass, { bypassCache: true });
+      this._activePresets = filterActivePresets(resp.operations, this._getEntityIds());
     } catch {
-      // Silently ignore poll failures — card stays functional
+      // Silent - subscription will recover when next event fires.
+    }
+  }
+
+  private _stopSubscription(): void {
+    if (this._unsubRunningOps) {
+      this._unsubRunningOps();
+      this._unsubRunningOps = undefined;
     }
   }
 
@@ -322,9 +382,13 @@ export class AqaraPresetFavoritesCard extends LitElement {
     if (entityIds.length === 0) return;
 
     // Toggle: if this preset is already active, stop it instead
-    const activeType = this._activePresets.get(ref.id);
+    const activeType = this._findActiveOpType(ref, preset);
     if (activeType) {
-      await this._stopPreset(ref.id, activeType);
+      // Use preset.name for stop key when ref.id didn't match (consistency
+      // with the lookup above: stopPreset uses the same key the user sees
+      // as "active" in _activePresets).
+      const activeKey = this._activePresets.has(ref.id) ? ref.id : preset.name;
+      await this._stopPreset(activeKey, activeType);
       return;
     }
 
@@ -336,8 +400,15 @@ export class AqaraPresetFavoritesCard extends LitElement {
       console.error('AqaraFavoritesCard: activation failed', err);
     } finally {
       this._activating = undefined;
-      // Refresh active state immediately after activation
-      this._pollRunningOperations();
+      // If the subscription is healthy, the backend event fires server-side
+      // and the callback updates _activePresets within milliseconds; no
+      // explicit refresh needed. In degraded mode, do a one-shot fetch to
+      // keep the UI in sync without reintroducing periodic polling.
+      if (this._subscriptionFailed) {
+        await fetchRunningOnceOnAction(this.hass, this._getEntityIds(), (active) => {
+          this._activePresets = active;
+        });
+      }
     }
   }
 
@@ -408,7 +479,13 @@ export class AqaraPresetFavoritesCard extends LitElement {
     } finally {
       this._activating = undefined;
       this._activePresets.delete(presetId);
-      this._pollRunningOperations();
+      // Same logic as _activatePreset: subscription drives refresh in normal
+      // mode; degraded mode falls back to a one-shot fetch.
+      if (this._subscriptionFailed) {
+        await fetchRunningOnceOnAction(this.hass, this._getEntityIds(), (active) => {
+          this._activePresets = active;
+        });
+      }
     }
   }
 
@@ -468,7 +545,7 @@ export class AqaraPresetFavoritesCard extends LitElement {
         <div class="preset-grid ${compact ? 'compact' : ''} ${!showNames ? 'no-names' : ''} ${!title ? 'no-title' : ''}" style=${gridStyle || nothing}>
           ${favorites.map(({ ref, preset, isUser }) => {
             const isActivating = this._activating === ref.id;
-            const isActive = this._activePresets.has(ref.id);
+            const isActive = this._findActiveOpType(ref, preset) !== undefined;
             return html`
               <div
                 class="preset-button ${isUser && highlightUser ? 'user-preset' : 'builtin-preset'} ${isActivating ? 'activating' : ''} ${isActive ? 'active' : ''}"

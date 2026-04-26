@@ -31,6 +31,15 @@ export interface HomeAssistant {
       eventType: string,
     ) => Promise<() => void>;
   };
+  /**
+   * Whether the WebSocket connection to HA is currently up. HA core sets
+   * this to false on disconnect and back to true when the auto-reconnect
+   * succeeds; events subscribed via `connection.subscribeEvents` are
+   * automatically re-subscribed by core on reconnect. The card watches a
+   * false -> true transition to fire a one-shot resync that catches any
+   * events missed during the outage.
+   */
+  connected?: boolean;
   entities?: Record<string, { entity_id: string; device_id?: string; platform?: string }>;
   devices?: Record<string, { id: string; name?: string; name_by_user?: string | null }>;
 }
