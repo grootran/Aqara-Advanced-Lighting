@@ -190,6 +190,7 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
             await self.start_sequence(
                 entity_id, sequence, seq_data.get("preset")
             )
+            # Note: snapshot change is announced by the inner start_sequence call (base_sequence_manager).
             return True
         except Exception:
             _LOGGER.warning(
@@ -244,6 +245,9 @@ class CCTSequenceManager(BaseSequenceManager[CCTSequence]):
             entity_id,
             {k: v for k, v in service_data.items() if k != "entity_id"},
         )
+        # No fire: this method only re-applies derived values via light.turn_on; the
+        # snapshot is unchanged. Callers who change the snapshot (e.g. resume_entity)
+        # fire the event themselves.
         return True
 
     # -- BaseSequenceManager hooks --

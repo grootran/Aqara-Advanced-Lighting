@@ -29,6 +29,7 @@ from .const import (
     EVENT_ATTR_STEP_INDEX,
     EVENT_ATTR_TOTAL_STEPS,
 )
+from .events import fire_operations_changed
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -134,6 +135,7 @@ class BaseSequenceManager[SequenceT](ABC):
             entity_id,
             sequence_id,
         )
+        fire_operations_changed(self.hass)
         return sequence_id
 
     async def start_synchronized_group(
@@ -219,6 +221,7 @@ class BaseSequenceManager[SequenceT](ABC):
             group_id,
             len(entity_ids),
         )
+        fire_operations_changed(self.hass)
         return sequence_ids
 
     async def stop_sequence(self, entity_id: str) -> None:
@@ -261,12 +264,15 @@ class BaseSequenceManager[SequenceT](ABC):
         )
 
         _LOGGER.info("Stopped %s sequence for %s", self._sequence_type, entity_id)
+        fire_operations_changed(self.hass)
 
     async def stop_all_sequences(self) -> None:
         """Stop all running sequences."""
         entity_ids = list(self._active_sequences.keys())
         for entity_id in entity_ids:
             await self.stop_sequence(entity_id)
+        # No trailing fire needed: each stop_sequence call above fires individually
+        # (coalescer merges them into one event for subscribers).
 
     # -- Query methods --
 
@@ -328,6 +334,7 @@ class BaseSequenceManager[SequenceT](ABC):
             _LOGGER.info(
                 "Paused %s sequence for %s", self._sequence_type, entity_id
             )
+            fire_operations_changed(self.hass)
             return True
 
         return False
@@ -368,6 +375,7 @@ class BaseSequenceManager[SequenceT](ABC):
             _LOGGER.info(
                 "Resumed %s sequence for %s", self._sequence_type, entity_id
             )
+            fire_operations_changed(self.hass)
             return True
 
         return False
@@ -682,3 +690,8 @@ class BaseSequenceManager[SequenceT](ABC):
                         EVENT_ATTR_PRESET: preset,
                     },
                 )
+
+            # Sequence run ended (naturally, cancelled, or errored). Either
+            # way the running-operations snapshot just changed because
+            # _cleanup_entity removed this entity from the active maps.
+            fire_operations_changed(self.hass)

@@ -422,6 +422,10 @@ EVENT_DYNAMIC_SCENE_STOPPED: Final = f"{DOMAIN}_dynamic_scene_stopped"
 EVENT_DYNAMIC_SCENE_LOOP_COMPLETED: Final = f"{DOMAIN}_dynamic_scene_loop_completed"
 EVENT_DYNAMIC_SCENE_FINISHED: Final = f"{DOMAIN}_dynamic_scene_finished"
 
+# HA event fired when running-operations state mutates.
+# Carries no payload - subscribers refetch via /api/aqara_advanced_lighting/running_operations.
+EVENT_OPERATIONS_CHANGED: Final = f"{DOMAIN}_operations_changed"
+
 # Dynamic scene runtime data key
 DATA_DYNAMIC_SCENE_MANAGER: Final = "dynamic_scene_manager"
 

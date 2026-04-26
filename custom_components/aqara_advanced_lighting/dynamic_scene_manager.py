@@ -54,6 +54,7 @@ from .audio_scene_consumer import (
     DynamicSceneAudioConsumer,
     build_scene_engine_config,
 )
+from .events import fire_operations_changed
 from .audio_mode_handlers import (
     AudioModeHandler,
     MODE_REGISTRY,
@@ -293,6 +294,7 @@ class DynamicSceneManager:
             preset_name,
         )
 
+        fire_operations_changed(self.hass)
         return scene_id
 
     async def apply_static_scene(
@@ -379,6 +381,8 @@ class DynamicSceneManager:
             preset_name,
         )
 
+        fire_operations_changed(self.hass)
+
     async def stop_scene(
         self,
         entity_ids: list[str] | None = None,
@@ -464,6 +468,11 @@ class DynamicSceneManager:
         )
 
         _LOGGER.info("Stopped dynamic scene %s", scene_id)
+        # Notify subscribers that running-operations state changed.
+        # Lives in _stop_single_scene so it covers stop_scene, conflicting-scene
+        # cleanup during start_scene, detach_entity-triggered shutdown, and any
+        # other code path that ends a scene.
+        fire_operations_changed(self.hass)
 
     def pause_scene(self, entity_ids: list[str]) -> bool:
         """Pause scene(s) for the given entities.
@@ -506,6 +515,8 @@ class DynamicSceneManager:
 
                 _LOGGER.info("Paused dynamic scene %s", scene_id)
 
+        if paused_any:
+            fire_operations_changed(self.hass)
         return paused_any
 
     def resume_scene(self, entity_ids: list[str]) -> bool:
@@ -549,6 +560,8 @@ class DynamicSceneManager:
 
                 _LOGGER.info("Resumed dynamic scene %s", scene_id)
 
+        if resumed_any:
+            fire_operations_changed(self.hass)
         return resumed_any
 
     def is_scene_running(self, entity_id: str) -> bool:
@@ -629,6 +642,8 @@ class DynamicSceneManager:
                 self._stop_single_scene(scene_id, reason="all_entities_detached")
             )
 
+        fire_operations_changed(self.hass)
+
     def externally_pause_entity(self, entity_id: str) -> None:
         """Pause a single entity due to external change.
 
@@ -645,6 +660,7 @@ class DynamicSceneManager:
             _LOGGER.info(
                 "Entity %s externally paused in scene %s", entity_id, scene_id
             )
+            fire_operations_changed(self.hass)
 
     def externally_resume_entity(self, entity_id: str) -> None:
         """Resume a single externally paused entity.
@@ -661,6 +677,7 @@ class DynamicSceneManager:
             _LOGGER.info(
                 "Entity %s resumed in scene %s", entity_id, scene_id
             )
+            fire_operations_changed(self.hass)
 
     async def force_apply_current(self, entity_id: str) -> bool:
         """Immediately apply current scene color to an entity.
@@ -731,6 +748,9 @@ class DynamicSceneManager:
             entity_id,
             color_index,
         )
+        # No fire: this method only re-applies derived values via light.turn_on; the
+        # snapshot is unchanged. Callers who change the snapshot (e.g. resume_entity)
+        # fire the event themselves.
         return True
 
     def get_scene_preset(self, entity_id: str) -> str | None:
@@ -809,9 +829,11 @@ class DynamicSceneManager:
 
         clamped = max(MIN_AUDIO_SENSITIVITY, min(MAX_AUDIO_SENSITIVITY, sensitivity))
         state.scene.audio_sensitivity = clamped
+        fire_operations_changed(self.hass)
 
         if state.audio_engine:
-            return await state.audio_engine.update_sensitivity(clamped)
+            result = await state.audio_engine.update_sensitivity(clamped)
+            return result
 
         return False
 
@@ -832,6 +854,8 @@ class DynamicSceneManager:
         self._pause_flags.clear()
         self._scene_states.clear()
         self._entity_to_scene.clear()
+        # No fire: cleanup runs during integration unload; the bus has no live
+        # subscribers and the snapshot is being torn down anyway.
 
     async def _stop_conflicting_scenes(self, entity_ids: list[str]) -> None:
         """Stop any scenes running on the given entities."""

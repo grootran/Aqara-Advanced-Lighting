@@ -32,6 +32,7 @@ from .const import (
     INTEGRATION_CONTEXT_PARENT_ID,
     OverrideAttributes,
 )
+from .events import fire_operations_changed
 
 if TYPE_CHECKING:
     from .backend_protocol import DeviceBackend
@@ -579,6 +580,7 @@ class EntityController:
         )
 
         _LOGGER.info("Resumed entity control for %s", entity_id)
+        fire_operations_changed(self.hass)
         return True
 
     def clear_entity(self, entity_id: str) -> None:
@@ -589,12 +591,17 @@ class EntityController:
         check_and_resume_solar() and stop_all_for_entity() to avoid
         wiping the reference before auto-resume can use it.
         """
+        had_pause = entity_id in self._externally_paused
         self._externally_paused.pop(entity_id, None)
         self._pending_restore.discard(entity_id)
         self._service_pause_times.pop(entity_id, None)
         self._transition_grace_deadlines.pop(entity_id, None)
         if timer := self._auto_resume_timers.pop(entity_id, None):
             timer.cancel()
+        if had_pause:
+            # The pause flag and override attributes are both visible in
+            # running_operations; clearing them changes the snapshot.
+            fire_operations_changed(self.hass)
 
     def is_entity_preset_paused(self, entity_id: str) -> bool:
         """Check if an entity has a solar/schedule CCT paused by a preset."""
@@ -912,6 +919,10 @@ class EntityController:
                     EVENT_ATTR_REASON: "external_change",
                 },
             )
+
+        # _externally_paused or its merged value just changed; running-ops
+        # snapshot exposes both `externally_paused` and `override_attributes`.
+        fire_operations_changed(self.hass)
 
     async def _apply_solar_on_turn_on(self, entity_id: str) -> None:
         """Instantly apply current solar values when a light turns on.
