@@ -22,33 +22,12 @@ import { renderInput } from './editor-constants';
 import { resolveFavorites } from './preset-runtime/preset-resolver';
 import { renderPresetIcon } from './preset-runtime/preset-icon';
 import { activatePreset, type ActivatePresetOptions } from './preset-runtime/preset-activator';
-
-// ---------------------------------------------------------------------------
-// Module-level API cache — shared across all card instances on the dashboard
-// ---------------------------------------------------------------------------
-
-interface CacheEntry<T> {
-  data: T;
-  timestamp: number;
-}
-
-/** TTLs in milliseconds by endpoint category. */
-const CACHE_TTL_STATIC = 60 * 60 * 1000;   // 60 min — built-in presets, supported entities
-const CACHE_TTL_USER   =  2 * 60 * 1000;   //  2 min — user presets, user preferences
-
-const _apiCache = new Map<string, CacheEntry<unknown>>();
-
-/** Return cached data if still fresh, otherwise undefined. */
-function getCached<T>(key: string, ttl: number): T | undefined {
-  const entry = _apiCache.get(key);
-  if (entry && Date.now() - entry.timestamp < ttl) return entry.data as T;
-  return undefined;
-}
-
-/** Store data in the cache. */
-function setCache<T>(key: string, data: T): void {
-  _apiCache.set(key, { data, timestamp: Date.now() });
-}
+import {
+  getPresets,
+  getUserPresets,
+  getUserPreferences,
+  getSupportedEntities,
+} from './data-client/aqara-api';
 
 // ---------------------------------------------------------------------------
 // Config interface
@@ -287,31 +266,12 @@ export class AqaraPresetFavoritesCard extends LitElement {
     this._error = undefined;
 
     try {
-      // Check cache for each endpoint, only fetch what's missing
-      type EntitiesResp = { entities: Array<{ entity_id: string; device_type: string; model_id: string }> };
-
-      const cachedPresets = getCached<PresetsData>('presets', CACHE_TTL_STATIC);
-      const cachedUserPresets = getCached<UserPresetsData>('user_presets', CACHE_TTL_USER);
-      const cachedPrefs = getCached<UserPreferences>('user_preferences', CACHE_TTL_USER);
-      const cachedEntities = getCached<EntitiesResp>('supported_entities', CACHE_TTL_STATIC);
-
-      // Build fetch promises only for stale/missing data
-      const fetches = {
-        presets: cachedPresets ?? this._fetchPresetsData(),
-        userPresets: cachedUserPresets ?? this.hass.callApi<UserPresetsData>('GET', 'aqara_advanced_lighting/user_presets'),
-        prefs: cachedPrefs ?? this.hass.callApi<UserPreferences>('GET', 'aqara_advanced_lighting/user_preferences'),
-        entities: cachedEntities ?? this.hass.callApi<EntitiesResp>('GET', 'aqara_advanced_lighting/supported_entities'),
-      };
-
       const [presetsResp, userPresetsResp, prefsResp, entitiesResp] = await Promise.all([
-        fetches.presets, fetches.userPresets, fetches.prefs, fetches.entities,
+        getPresets(this.hass),
+        getUserPresets(this.hass),
+        getUserPreferences(this.hass),
+        getSupportedEntities(this.hass),
       ]);
-
-      // Update cache for freshly fetched data
-      if (!cachedPresets) setCache('presets', presetsResp);
-      if (!cachedUserPresets) setCache('user_presets', userPresetsResp);
-      if (!cachedPrefs) setCache('user_preferences', prefsResp);
-      if (!cachedEntities) setCache('supported_entities', entitiesResp);
 
       this._presets = presetsResp;
       this._userPresets = userPresetsResp;
@@ -336,16 +296,6 @@ export class AqaraPresetFavoritesCard extends LitElement {
     } finally {
       this._loading = false;
     }
-  }
-
-  /**
-   * Fetch built-in presets data. Uses fetchWithAuth because this endpoint
-   * returns raw JSON (not the callApi wrapper format).
-   */
-  private async _fetchPresetsData(): Promise<PresetsData> {
-    const resp = await this.hass.fetchWithAuth('/api/aqara_advanced_lighting/presets');
-    if (!resp.ok) throw new Error(`Presets fetch failed: ${resp.status}`);
-    return resp.json() as Promise<PresetsData>;
   }
 
   // -- Device type + compatibility -----------------------------------------

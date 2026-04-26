@@ -24,6 +24,11 @@ import { getCapabilityFlags } from './preset-runtime/preset-compatibility';
 import { resolveFavorites } from './preset-runtime/preset-resolver';
 import { renderPresetIcon } from './preset-runtime/preset-icon';
 import {
+  getPresets,
+  getUserPresets,
+  getSupportedEntities,
+} from './data-client/aqara-api';
+import {
   AudioModeEntry,
   audioDeviceTier,
   buildAudioModeOptions,
@@ -346,12 +351,9 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _loadPresets(): Promise<void> {
+    if (!this.hass) return;
     try {
-      const response = await fetch('/api/aqara_advanced_lighting/presets');
-      if (!response.ok) {
-        throw new Error(`HTTP error ${response.status}`);
-      }
-      this._presets = await response.json();
+      this._presets = await getPresets(this.hass);
       this._loading = false;
     } catch (err) {
       this._error = err instanceof Error ? err.message : this._localize('errors.loading_presets_generic');
@@ -374,7 +376,7 @@ export class AqaraPanel extends LitElement {
     if (!this.hass) return;
 
     try {
-      this._userPresets = await this.hass.callApi<UserPresetsData>('GET', 'aqara_advanced_lighting/user_presets');
+      this._userPresets = await getUserPresets(this.hass);
     } catch (err) {
       console.warn('Failed to load user presets:', err);
     }
@@ -571,7 +573,7 @@ export class AqaraPanel extends LitElement {
   private async _loadSupportedEntities(): Promise<void> {
     if (!this.hass) return;
     try {
-      const data = await this.hass.callApi<{ entities?: any[]; light_groups?: any[]; instances?: any[] }>('GET', 'aqara_advanced_lighting/supported_entities');
+      const data = await getSupportedEntities(this.hass);
       // Build a map for fast lookup
       const entityMap = new Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; ieee_address?: string; segment_count?: number; is_group?: boolean; member_count?: number }>();
       for (const entity of data.entities || []) {
