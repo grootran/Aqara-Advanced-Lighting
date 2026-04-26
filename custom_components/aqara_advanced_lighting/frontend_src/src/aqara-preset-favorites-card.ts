@@ -18,10 +18,11 @@ import type {
 } from './types';
 
 import { PANEL_TRANSLATIONS } from './panel-translations';
-import { AqaraFavoritesCardConfig, normalizeCardConfig } from './card-config';
-import { resolveFavorites } from './preset-runtime/preset-resolver';
+import { AqaraFavoritesCardConfig, CardLayout, normalizeCardConfig } from './card-config';
+import { resolveFavorites, type ResolvedFavorite } from './preset-runtime/preset-resolver';
 import { renderPresetIcon } from './preset-runtime/preset-icon';
 import { activatePreset, type ActivatePresetOptions } from './preset-runtime/preset-activator';
+import { applyCuration } from './card-curation';
 import {
   getPresets,
   getUserPresets,
@@ -64,6 +65,12 @@ export class AqaraPresetFavoritesCard extends LitElement {
   @state() private _activating?: string;
   /** Maps preset ref.id to operation type for currently running presets. */
   @state() private _activePresets = new Map<string, string>();
+  /**
+   * Card-instance-local brightness slider value (1-100). In-memory only —
+   * never persisted; resets to 100 on card reload. Sent via
+   * ActivatePresetOptions.brightness when `brightness_override` is enabled.
+   */
+  @state() private _brightnessValue = 100;
 
   /**
    * Look up the running operation type for a favorite preset, handling the
@@ -313,12 +320,12 @@ export class AqaraPresetFavoritesCard extends LitElement {
    *
    * Note: staticSceneMode/distributionModeOverride are panel-only UI features
    * the card does not expose, so they are intentionally left undefined.
-   * Phase 2 will add `brightness` from a slider here.
+   * Phase 2 adds `brightness` from the inline slider when the card config
+   * enables `brightness_override`.
    */
   private _buildActivationOptions(): ActivatePresetOptions {
     const prefs = this._userPrefs;
-    if (!prefs) return {};
-    return {
+    const options: ActivatePresetOptions = prefs ? {
       audioOverrideEntity: prefs.audio_override_entity ?? undefined,
       useAudioReactive: prefs.use_audio_reactive,
       useEffectAudioReactive: prefs.use_effect_audio_reactive,
@@ -336,7 +343,14 @@ export class AqaraPresetFavoritesCard extends LitElement {
       audioOverrideLatencyCompensationMs: prefs.audio_override_latency_compensation_ms,
       audioOverrideColorByFrequency: prefs.audio_override_color_by_frequency,
       audioOverrideRolloffBrightness: prefs.audio_override_rolloff_brightness,
-    };
+    } : {};
+    // Phase 2: card brightness slider. The activator applies it to effects,
+    // patterns, dynamic scenes and segment sequences; CCT sequences ignore
+    // it; per-preset preset.effect_brightness still wins for user effects.
+    if (this._config?.brightness_override) {
+      options.brightness = this._brightnessValue;
+    }
+    return options;
   }
 
   // -- Targeted stop --------------------------------------------------------
@@ -408,9 +422,10 @@ export class AqaraPresetFavoritesCard extends LitElement {
       `;
     }
 
-    const favorites = (this._presets && this._userPresets)
+    const resolved = (this._presets && this._userPresets)
       ? resolveFavorites(this._favoriteRefs, this._presets, this._userPresets, this._getSelectedDeviceTypes())
       : [];
+    const favorites = applyCuration(resolved, this._config?.preset_ids);
 
     if (favorites.length === 0) {
       return html`
@@ -423,39 +438,214 @@ export class AqaraPresetFavoritesCard extends LitElement {
       `;
     }
 
-    const gridStyle = this._config.columns
-      ? `grid-template-columns: repeat(${this._config.columns}, 1fr)`
-      : '';
-
-    const compact = this._config.compact || false;
-    const showNames = this._config.show_names !== false;
-    const highlightUser = this._config.highlight_user_presets !== false;
+    const layout: CardLayout = this._config.layout || 'grid';
+    const showSlider = this._config.brightness_override === true;
+    const sliderPosition = this._config.brightness_override_position || 'header';
 
     return html`
       <ha-card .header=${title}>
-        <div class="preset-grid ${compact ? 'compact' : ''} ${!showNames ? 'no-names' : ''} ${!title ? 'no-title' : ''}" style=${gridStyle || nothing}>
-          ${favorites.map(({ ref, preset, isUser }) => {
-            const isActivating = this._activating === ref.id;
-            const isActive = this._findActiveOpType(ref, preset) !== undefined;
-            return html`
-              <div
-                class="preset-button ${isUser && highlightUser ? 'user-preset' : 'builtin-preset'} ${isActivating ? 'activating' : ''} ${isActive ? 'active' : ''}"
-                role="button"
-                tabindex="0"
-                aria-label="${preset.name}"
-                @click=${() => this._activatePreset(ref, preset, isUser)}
-                @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') this._activatePreset(ref, preset, isUser); }}
-              >
-                <div class="preset-icon">
-                  ${renderPresetIcon(ref, preset, isUser)}
-                </div>
-                ${showNames ? html`<div class="preset-name">${preset.name}</div>` : nothing}
-                ${isActivating ? html`<div class="activating-overlay"><ha-circular-progress indeterminate size="small"></ha-circular-progress></div>` : nothing}
-              </div>
-            `;
-          })}
-        </div>
+        ${showSlider && sliderPosition !== 'footer' ? this._renderBrightnessSlider() : nothing}
+        ${this._renderLayout(layout, favorites, title)}
+        ${showSlider && sliderPosition === 'footer' ? this._renderBrightnessSlider() : nothing}
       </ha-card>
+    `;
+  }
+
+  /**
+   * Dispatch to the layout-specific renderer. Uses an exhaustive switch
+   * with a `never`-typed default so adding a new variant to `CardLayout`
+   * without updating this method is a compile-time error.
+   */
+  private _renderLayout(
+    layout: CardLayout,
+    favorites: ResolvedFavorite[],
+    title: string | undefined,
+  ): TemplateResult {
+    switch (layout) {
+      case 'list': return this._renderListLayout(favorites);
+      case 'hero': return this._renderHeroLayout(favorites);
+      case 'carousel': return this._renderCarouselLayout(favorites);
+      case 'grid':
+      case 'compact-grid':
+        return this._renderGridLayout(favorites, layout, title);
+      default: {
+        const _exhaustive: never = layout;
+        return _exhaustive;
+      }
+    }
+  }
+
+  // -- Layout: grid / compact-grid (existing behavior) --------------------
+
+  /**
+   * Derive shared display flags from `_config`. Both flags default to true
+   * when unset/undefined to preserve v1 behavior. Used by every layout
+   * except `_renderStripTile` (per its own doc comment).
+   */
+  private _getDisplayFlags(): { showNames: boolean; highlightUser: boolean } {
+    return {
+      showNames: this._config?.show_names !== false,
+      highlightUser: this._config?.highlight_user_presets !== false,
+    };
+  }
+
+  private _renderGridLayout(
+    favorites: ResolvedFavorite[],
+    layout: 'grid' | 'compact-grid',
+    title: string | undefined,
+  ): TemplateResult {
+    const compact = layout === 'compact-grid';
+    const { showNames, highlightUser } = this._getDisplayFlags();
+    const gridStyle = this._config?.columns
+      ? `grid-template-columns: repeat(${this._config.columns}, 1fr)`
+      : '';
+
+    return html`
+      <div class="preset-grid ${compact ? 'compact' : ''} ${!showNames ? 'no-names' : ''} ${!title ? 'no-title' : ''}" style=${gridStyle || nothing}>
+        ${favorites.map(({ ref, preset, isUser }) => {
+          const isActivating = this._activating === ref.id;
+          const isActive = this._findActiveOpType(ref, preset) !== undefined;
+          return html`
+            <div
+              class="preset-button ${isUser && highlightUser ? 'user-preset' : 'builtin-preset'} ${isActivating ? 'activating' : ''} ${isActive ? 'active' : ''}"
+              role="button"
+              tabindex="0"
+              aria-label="${preset.name}"
+              @click=${() => this._activatePreset(ref, preset, isUser)}
+              @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') this._activatePreset(ref, preset, isUser); }}
+            >
+              <div class="preset-icon">
+                ${renderPresetIcon(ref, preset, isUser)}
+              </div>
+              ${showNames ? html`<div class="preset-name">${preset.name}</div>` : nothing}
+              ${isActivating ? html`<div class="activating-overlay"><ha-circular-progress indeterminate size="small"></ha-circular-progress></div>` : nothing}
+            </div>
+          `;
+        })}
+      </div>
+    `;
+  }
+
+  // -- Layout: list -------------------------------------------------------
+
+  private _renderListLayout(favorites: ResolvedFavorite[]): TemplateResult {
+    const { showNames, highlightUser } = this._getDisplayFlags();
+    return html`
+      <div class="preset-list">
+        ${favorites.map(({ ref, preset, isUser }) => {
+          const isActivating = this._activating === ref.id;
+          const isActive = this._findActiveOpType(ref, preset) !== undefined;
+          return html`
+            <div
+              class="preset-list-row ${isUser && highlightUser ? 'user-preset' : 'builtin-preset'} ${isActive ? 'active' : ''} ${isActivating ? 'activating' : ''}"
+              role="button"
+              tabindex="0"
+              aria-label="${preset.name}"
+              @click=${() => this._activatePreset(ref, preset, isUser)}
+              @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') this._activatePreset(ref, preset, isUser); }}
+            >
+              <div class="preset-list-icon">${renderPresetIcon(ref, preset, isUser)}</div>
+              ${showNames ? html`<div class="preset-list-name">${preset.name}</div>` : nothing}
+              ${isActive ? html`<ha-icon class="preset-list-active-indicator" icon="mdi:circle-medium"></ha-icon>` : nothing}
+              ${isActivating ? html`<ha-circular-progress indeterminate size="small"></ha-circular-progress>` : nothing}
+            </div>
+          `;
+        })}
+      </div>
+    `;
+  }
+
+  // -- Layout: hero -------------------------------------------------------
+
+  private _renderHeroLayout(favorites: ResolvedFavorite[]): TemplateResult {
+    const hero = favorites[0];
+    if (!hero) return html``;
+    const rest = favorites.slice(1);
+    return html`
+      <div class="preset-hero-wrapper">
+        ${this._renderHeroTile(hero)}
+        ${rest.length > 0 ? html`<div class="preset-hero-strip">${rest.map(f => this._renderStripTile(f))}</div>` : nothing}
+      </div>
+    `;
+  }
+
+  private _renderHeroTile({ ref, preset, isUser }: ResolvedFavorite): TemplateResult {
+    const isActive = this._findActiveOpType(ref, preset) !== undefined;
+    const isActivating = this._activating === ref.id;
+    const { showNames } = this._getDisplayFlags();
+    return html`
+      <div
+        class="preset-hero ${isActive ? 'active' : ''} ${isActivating ? 'activating' : ''}"
+        role="button"
+        tabindex="0"
+        aria-label="${preset.name}"
+        @click=${() => this._activatePreset(ref, preset, isUser)}
+        @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') this._activatePreset(ref, preset, isUser); }}
+      >
+        <div class="preset-hero-icon">${renderPresetIcon(ref, preset, isUser)}</div>
+        ${showNames ? html`<div class="preset-hero-name">${preset.name}</div>` : nothing}
+        ${isActivating ? html`<div class="activating-overlay"><ha-circular-progress indeterminate size="small"></ha-circular-progress></div>` : nothing}
+      </div>
+    `;
+  }
+
+  /**
+   * Render a small circular icon-only tile used by the hero strip and
+   * carousel layouts. Intentionally does NOT honor `highlight_user_presets`
+   * - the tile is too small (40px icon, 56px tile) to visually differentiate
+   * the dashed-border user-preset treatment, and adding it produces visual
+   * noise. The full distinction is preserved in grid, compact-grid, and list
+   * layouts where the row is large enough.
+   */
+  private _renderStripTile({ ref, preset, isUser }: ResolvedFavorite): TemplateResult {
+    const isActive = this._findActiveOpType(ref, preset) !== undefined;
+    const isActivating = this._activating === ref.id;
+    return html`
+      <div
+        class="preset-strip-tile ${isActive ? 'active' : ''} ${isActivating ? 'activating' : ''}"
+        role="button"
+        tabindex="0"
+        aria-label="${preset.name}"
+        @click=${() => this._activatePreset(ref, preset, isUser)}
+        @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') this._activatePreset(ref, preset, isUser); }}
+      >
+        <div class="preset-strip-icon">${renderPresetIcon(ref, preset, isUser)}</div>
+      </div>
+    `;
+  }
+
+  // -- Layout: carousel ---------------------------------------------------
+
+  private _renderCarouselLayout(favorites: ResolvedFavorite[]): TemplateResult {
+    return html`
+      <div class="preset-carousel" tabindex="0">
+        ${favorites.map(f => html`<div class="preset-carousel-item">${this._renderStripTile(f)}</div>`)}
+      </div>
+    `;
+  }
+
+  // -- Brightness slider --------------------------------------------------
+
+  /**
+   * Render the inline brightness override slider. Value is local-only
+   * (never persisted) and resets to 100 on reload. Sent via
+   * `ActivatePresetOptions.brightness` on activation.
+   */
+  private _renderBrightnessSlider(): TemplateResult {
+    return html`
+      <div class="brightness-slider-row">
+        <span class="brightness-slider-label">${this._t.brightness_label}</span>
+        <input
+          type="range"
+          min="1"
+          max="100"
+          .value=${String(this._brightnessValue)}
+          @input=${(e: Event) => {
+            const v = parseInt((e.target as HTMLInputElement).value, 10);
+            if (!isNaN(v)) this._brightnessValue = v;
+          }}
+        />
+      </div>
     `;
   }
 
@@ -610,7 +800,6 @@ export class AqaraPresetFavoritesCard extends LitElement {
       display: flex;
       align-items: center;
       justify-content: center;
-      position: relative;
     }
 
     .preset-icon img,
@@ -627,8 +816,21 @@ export class AqaraPresetFavoritesCard extends LitElement {
       --mdc-icon-size: 56px;
     }
 
-    /* Audio-reactive badge overlay */
-    .preset-icon .audio-badge {
+    /*
+     * Audio-reactive badge overlay.
+     * The badge is rendered as a child of the icon container regardless of
+     * which layout (grid/list/hero/carousel) is in use. To make the absolute
+     * positioning work in every layout, ensure each icon container is a
+     * positioning context, and target the badge with a single shared rule.
+     */
+    .preset-icon,
+    .preset-list-icon,
+    .preset-hero-icon,
+    .preset-strip-icon {
+      position: relative;
+    }
+
+    .audio-badge {
       position: absolute;
       top: 50%;
       left: 50%;
@@ -642,13 +844,26 @@ export class AqaraPresetFavoritesCard extends LitElement {
       justify-content: center;
     }
 
-    .preset-icon .audio-badge ha-icon {
+    .audio-badge ha-icon {
       display: flex;
       align-items: center;
       justify-content: center;
       width: 20px;
       height: 20px;
       --mdc-icon-size: 20px;
+    }
+
+    /* Compact icon containers (40px) get a smaller badge so it isn't oversized. */
+    .preset-list-icon .audio-badge,
+    .preset-strip-icon .audio-badge {
+      width: 18px;
+      height: 18px;
+    }
+    .preset-list-icon .audio-badge ha-icon,
+    .preset-strip-icon .audio-badge ha-icon {
+      width: 16px;
+      height: 16px;
+      --mdc-icon-size: 16px;
     }
 
     /* No names — larger icons fill the space */
@@ -725,6 +940,257 @@ export class AqaraPresetFavoritesCard extends LitElement {
       .preset-name {
         font-size: var(--ha-font-size-xs, 11px);
       }
+    }
+
+    /* ---------- List layout ---------- */
+
+    .preset-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 8px 16px 16px;
+    }
+
+    .preset-list-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 12px;
+      border: 1px solid var(--divider-color);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease-in-out;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .preset-list-row:hover {
+      border-color: var(--primary-color);
+      background: rgba(var(--rgb-primary-color, 3, 169, 244), 0.05);
+    }
+
+    .preset-list-row.active {
+      border-color: var(--primary-color);
+      background: rgba(var(--rgb-primary-color, 3, 169, 244), 0.15);
+    }
+
+    .preset-list-row.user-preset {
+      border-style: dashed;
+    }
+
+    .preset-list-row.user-preset.active {
+      border-style: solid;
+    }
+
+    .preset-list-row.activating {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+
+    .preset-list-icon {
+      width: 40px;
+      height: 40px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .preset-list-icon ha-icon,
+    .preset-list-icon img,
+    .preset-list-icon svg {
+      width: 100%;
+      height: 100%;
+      --mdc-icon-size: 40px;
+      object-fit: contain;
+      border-radius: 50%;
+    }
+
+    .preset-list-name {
+      flex: 1;
+      font-size: var(--ha-font-size-m, 14px);
+    }
+
+    .preset-list-active-indicator {
+      color: var(--primary-color);
+    }
+
+    /* ---------- Hero layout ---------- */
+
+    .preset-hero-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 0 16px 16px;
+    }
+
+    .preset-hero {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 12px;
+      border: 2px solid var(--divider-color);
+      border-radius: var(--ha-card-border-radius, 12px);
+      cursor: pointer;
+      transition: all 0.2s ease-in-out;
+      gap: 12px;
+      position: relative;
+      overflow: hidden;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .preset-hero:hover {
+      border-color: var(--primary-color);
+    }
+
+    .preset-hero.active {
+      border-color: var(--primary-color);
+      background: rgba(var(--rgb-primary-color, 3, 169, 244), 0.15);
+    }
+
+    .preset-hero.activating {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+
+    .preset-hero-icon {
+      width: 96px;
+      height: 96px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .preset-hero-icon ha-icon,
+    .preset-hero-icon img,
+    .preset-hero-icon svg {
+      width: 100%;
+      height: 100%;
+      --mdc-icon-size: 96px;
+      object-fit: contain;
+      border-radius: 50%;
+    }
+
+    .preset-hero-name {
+      font-size: var(--ha-font-size-l, 16px);
+      font-weight: 500;
+      text-align: center;
+    }
+
+    .preset-hero-strip {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+    }
+
+    .preset-strip-tile {
+      flex: 0 0 56px;
+      width: 56px;
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid var(--divider-color);
+      border-radius: 50%;
+      cursor: pointer;
+      transition: all 0.15s ease-in-out;
+      position: relative;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .preset-strip-tile:hover {
+      border-color: var(--primary-color);
+    }
+
+    .preset-strip-tile.active {
+      border-color: var(--primary-color);
+      background: rgba(var(--rgb-primary-color, 3, 169, 244), 0.15);
+    }
+
+    .preset-strip-tile.activating {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+
+    .preset-strip-icon {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .preset-strip-icon ha-icon,
+    .preset-strip-icon img,
+    .preset-strip-icon svg {
+      width: 100%;
+      height: 100%;
+      --mdc-icon-size: 40px;
+      object-fit: contain;
+      border-radius: 50%;
+    }
+
+    /* ---------- Carousel layout ---------- */
+
+    .preset-carousel {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      /* Slightly less bottom padding so the visible scrollbar fits within the card. */
+      padding: 0 16px 12px;
+      scroll-snap-type: x mandatory;
+      outline: none;
+      /* Show a thin scrollbar on desktop so users have a visible scroll
+         affordance. Touch devices ignore these and use native finger-drag. */
+      scrollbar-width: thin;
+      scrollbar-color: var(--divider-color) transparent;
+    }
+
+    .preset-carousel::-webkit-scrollbar {
+      height: 6px;
+    }
+    .preset-carousel::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .preset-carousel::-webkit-scrollbar-thumb {
+      background: var(--divider-color);
+      border-radius: 3px;
+    }
+    .preset-carousel::-webkit-scrollbar-thumb:hover {
+      background: var(--secondary-text-color);
+    }
+
+    .preset-carousel:focus-visible {
+      outline: 2px solid var(--primary-color);
+      outline-offset: -2px;
+    }
+
+    .preset-carousel-item {
+      flex: 0 0 auto;
+      scroll-snap-align: start;
+    }
+
+    /* ---------- Brightness slider ---------- */
+
+    .brightness-slider-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 16px;
+    }
+
+    .brightness-slider-row input[type="range"] {
+      flex: 1;
+      min-width: 0;
+      accent-color: var(--primary-color);
+    }
+
+    .brightness-slider-label {
+      font-size: var(--ha-font-size-m, 14px);
+      color: var(--secondary-text-color);
+      white-space: nowrap;
     }
   `;
 }

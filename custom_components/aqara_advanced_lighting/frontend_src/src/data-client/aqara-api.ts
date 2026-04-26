@@ -9,6 +9,11 @@
  * In-flight deduplication: concurrent calls for the same endpoint share a
  * single underlying network request (Promise) and resolve to the same data.
  *
+ * Cache bypass: every getter accepts an optional `{ bypassCache: true }`
+ * option. Callers that just mutated server state (POST/PUT/DELETE) should
+ * pass it on the subsequent refresh so the cached entry and any in-flight
+ * request are cleared, forcing a guaranteed-fresh fetch.
+ *
  * Phase 1 scope: this client is consumed by the card and the panel's
  * favorites-related call sites only. Other panel call sites continue to
  * use direct hass.callApi / hass.fetchWithAuth.
@@ -19,6 +24,10 @@ import type { PresetsData, UserPresetsData, UserPreferences } from '../types';
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
+}
+
+interface CacheOpts {
+  bypassCache?: boolean;
 }
 
 const CACHE_TTL_STATIC = 60 * 60 * 1000; // 60 min
@@ -35,6 +44,16 @@ function getCached<T>(key: string, ttl: number): T | undefined {
 
 function setCache<T>(key: string, data: T): void {
   cache.set(key, { data, timestamp: Date.now() });
+}
+
+/**
+ * Clear both the cached entry and any in-flight request for `key`. Used by
+ * the `bypassCache` option to guarantee the next fetcher call hits the
+ * network rather than reusing a Promise that started before the bypass.
+ */
+function clearCache(key: string): void {
+  cache.delete(key);
+  inflight.delete(key);
 }
 
 async function cachedFetch<T>(
@@ -60,7 +79,11 @@ async function cachedFetch<T>(
  * Fetch built-in presets data. Uses fetchWithAuth because this endpoint
  * returns raw JSON (not the callApi wrapper format). 60-minute TTL.
  */
-export async function getPresets(hass: HomeAssistant): Promise<PresetsData> {
+export async function getPresets(
+  hass: HomeAssistant,
+  opts: CacheOpts = {},
+): Promise<PresetsData> {
+  if (opts.bypassCache) clearCache('presets');
   return cachedFetch('presets', CACHE_TTL_STATIC, async () => {
     const resp = await hass.fetchWithAuth('/api/aqara_advanced_lighting/presets');
     if (!resp.ok) throw new Error(`Presets fetch failed: ${resp.status}`);
@@ -69,14 +92,22 @@ export async function getPresets(hass: HomeAssistant): Promise<PresetsData> {
 }
 
 /** Fetch the user's custom presets. 2-minute TTL. */
-export async function getUserPresets(hass: HomeAssistant): Promise<UserPresetsData> {
+export async function getUserPresets(
+  hass: HomeAssistant,
+  opts: CacheOpts = {},
+): Promise<UserPresetsData> {
+  if (opts.bypassCache) clearCache('user_presets');
   return cachedFetch('user_presets', CACHE_TTL_USER, () =>
     hass.callApi<UserPresetsData>('GET', 'aqara_advanced_lighting/user_presets'),
   );
 }
 
 /** Fetch the user's preferences (incl. favorite presets). 2-minute TTL. */
-export async function getUserPreferences(hass: HomeAssistant): Promise<UserPreferences> {
+export async function getUserPreferences(
+  hass: HomeAssistant,
+  opts: CacheOpts = {},
+): Promise<UserPreferences> {
+  if (opts.bypassCache) clearCache('user_preferences');
   return cachedFetch('user_preferences', CACHE_TTL_USER, () =>
     hass.callApi<UserPreferences>('GET', 'aqara_advanced_lighting/user_preferences'),
   );
@@ -132,7 +163,9 @@ interface SupportedEntitiesResp {
 /** Fetch the list of supported entities, light groups, and instances. 60-minute TTL. */
 export async function getSupportedEntities(
   hass: HomeAssistant,
+  opts: CacheOpts = {},
 ): Promise<SupportedEntitiesResp> {
+  if (opts.bypassCache) clearCache('supported_entities');
   return cachedFetch('supported_entities', CACHE_TTL_STATIC, () =>
     hass.callApi<SupportedEntitiesResp>('GET', 'aqara_advanced_lighting/supported_entities'),
   );
@@ -155,6 +188,8 @@ interface RunningOpsResp {
  *   exists (no expiration check). Falls back to a fresh fetch only if no
  *   entry exists yet (e.g. on first call).
  * - With `bypassCache: true`, forces a fresh fetch and overwrites the cache.
+ *   Uses the shared `clearCache` helper so any in-flight request is also
+ *   discarded, matching the bypass semantics of the other getters.
  *
  * The subscription mechanism (Chunk 6: subscribeRunningOperations) is the
  * primary freshness driver; this function is invoked only on initial load
@@ -165,9 +200,11 @@ interface RunningOpsResp {
  */
 export async function getRunningOperations(
   hass: HomeAssistant,
-  opts: { bypassCache?: boolean } = {},
+  opts: CacheOpts = {},
 ): Promise<RunningOpsResp> {
-  if (!opts.bypassCache) {
+  if (opts.bypassCache) {
+    clearCache('running_operations');
+  } else {
     const cached = cache.get('running_operations');
     if (cached) return cached.data as RunningOpsResp;
   }

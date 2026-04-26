@@ -133,9 +133,18 @@ function renderUserSegmentSequenceIcon(preset: UserSegmentSequencePreset): Templ
 /** Render a user dynamic scene preset icon. (panel:4552-4567) */
 function renderUserDynamicSceneIcon(preset: UserDynamicScenePreset, showBadge: boolean): TemplateResult {
   const isAudio = showBadge && !!(preset.audio_entity || preset.audio_color_advance);
+  // Precedence: uploaded thumbnail > MDI/file icon > auto-generated SVG.
+  // An uploaded thumbnail is a deliberate visual choice; the icon field is often
+  // a leftover MDI default from preset creation. Always prefer the richer image.
+  if (preset.thumbnail) {
+    const thumb = renderDynamicSceneThumbnail(preset)
+      ?? html`<ha-icon icon="mdi:lamps"></ha-icon>`;
+    return withAudioBadge(thumb, isAudio);
+  }
   if (preset.icon) {
     return withAudioBadge(renderBuiltinIcon(preset.icon, 'mdi:lamps'), isAudio);
   }
+  // No explicit user choice; auto-generate from colors (or fall back to MDI lamps).
   const thumb = renderDynamicSceneThumbnail(preset)
     ?? html`<ha-icon icon="mdi:lamps"></ha-icon>`;
   return withAudioBadge(thumb, isAudio);

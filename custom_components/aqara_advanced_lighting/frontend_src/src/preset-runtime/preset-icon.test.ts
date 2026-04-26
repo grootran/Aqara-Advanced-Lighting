@@ -111,6 +111,19 @@ describe('renderPresetIcon', () => {
     expect(html).toContain('audio-badge');
   });
 
+  it('user dynamic_scene with both thumbnail and icon shows the thumbnail (image)', () => {
+    const ref: FavoritePresetRef = { type: 'dynamic_scene', id: 'u1' };
+    const preset = {
+      name: 'Odeon',
+      thumbnail: 'abc123',
+      icon: 'mdi:music',
+      colors: [{ x: 0.5, y: 0.5, brightness_pct: 50 }],
+    } as any;
+    const html = renderToHTML(renderPresetIcon(ref, preset, true));
+    expect(html).toContain('thumbnails/abc123');
+    expect(html).not.toContain('mdi:music');
+  });
+
   it('falls back to mdi:star for unknown ref type', () => {
     const ref = { type: 'unknown' as FavoritePresetRef['type'], id: 'x' };
     const html = renderToHTML(renderPresetIcon(ref, {} as AnyPreset, false));

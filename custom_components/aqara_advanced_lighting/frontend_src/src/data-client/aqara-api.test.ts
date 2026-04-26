@@ -84,4 +84,90 @@ describe('aqara-api cache semantics', () => {
     await getPresets(hass as any);
     expect(hass.fetchWithAuth).toHaveBeenCalledTimes(1);
   });
+
+  it('getUserPresets({bypassCache: true}) forces a fresh fetch and overwrites cache', async () => {
+    const hass = makeHass();
+    hass.callApi.mockResolvedValueOnce({
+      effect_presets: [{ id: 'a' }],
+      segment_pattern_presets: [],
+      cct_sequence_presets: [],
+      segment_sequence_presets: [],
+      dynamic_scene_presets: [],
+    });
+    await getUserPresets(hass as any);
+    hass.callApi.mockResolvedValueOnce({
+      effect_presets: [{ id: 'b' }],
+      segment_pattern_presets: [],
+      cct_sequence_presets: [],
+      segment_sequence_presets: [],
+      dynamic_scene_presets: [],
+    });
+    const r2 = await getUserPresets(hass as any, { bypassCache: true });
+    expect((r2 as any).effect_presets[0].id).toBe('b');
+    expect(hass.callApi).toHaveBeenCalledTimes(2);
+    // Subsequent call (no bypass) should hit the freshly-written cache.
+    const r3 = await getUserPresets(hass as any);
+    expect((r3 as any).effect_presets[0].id).toBe('b');
+    expect(hass.callApi).toHaveBeenCalledTimes(2);
+  });
+
+  it('getUserPreferences({bypassCache: true}) forces a fresh fetch and overwrites cache', async () => {
+    const hass = makeHass();
+    hass.callApi.mockResolvedValueOnce({
+      color_history: [],
+      sort_preferences: {},
+      favorite_presets: [{ type: 'effect', id: 'a' }],
+    });
+    await getUserPreferences(hass as any);
+    hass.callApi.mockResolvedValueOnce({
+      color_history: [],
+      sort_preferences: {},
+      favorite_presets: [{ type: 'effect', id: 'b' }],
+    });
+    const r2 = await getUserPreferences(hass as any, { bypassCache: true });
+    expect((r2 as any).favorite_presets[0].id).toBe('b');
+    expect(hass.callApi).toHaveBeenCalledTimes(2);
+  });
+
+  it('getPresets({bypassCache: true}) forces a fresh fetch and overwrites cache', async () => {
+    const hass = makeHass();
+    hass.fetchWithAuth.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({
+        dynamic_effects: { t2_bulb: [{ id: 'a' }], t1m: [], t1_strip: [] },
+        segment_patterns: [],
+        cct_sequences: [],
+        segment_sequences: [],
+        dynamic_scenes: [],
+      }),
+    });
+    await getPresets(hass as any);
+    hass.fetchWithAuth.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({
+        dynamic_effects: { t2_bulb: [{ id: 'b' }], t1m: [], t1_strip: [] },
+        segment_patterns: [],
+        cct_sequences: [],
+        segment_sequences: [],
+        dynamic_scenes: [],
+      }),
+    });
+    const r2 = await getPresets(hass as any, { bypassCache: true });
+    expect((r2 as any).dynamic_effects.t2_bulb[0].id).toBe('b');
+    expect(hass.fetchWithAuth).toHaveBeenCalledTimes(2);
+  });
+
+  it('getSupportedEntities({bypassCache: true}) forces a fresh fetch and overwrites cache', async () => {
+    const hass = makeHass();
+    hass.callApi.mockResolvedValueOnce({
+      entities: [{ entity_id: 'light.a', device_type: 't2_bulb', model_id: 'x', z2m_friendly_name: 'A' }],
+    });
+    await getSupportedEntities(hass as any);
+    hass.callApi.mockResolvedValueOnce({
+      entities: [{ entity_id: 'light.b', device_type: 't2_bulb', model_id: 'x', z2m_friendly_name: 'B' }],
+    });
+    const r2 = await getSupportedEntities(hass as any, { bypassCache: true });
+    expect(r2.entities[0].entity_id).toBe('light.b');
+    expect(hass.callApi).toHaveBeenCalledTimes(2);
+  });
 });

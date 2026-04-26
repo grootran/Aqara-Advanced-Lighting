@@ -494,7 +494,7 @@
     "editor": {
       "entities_label": "Entities",
       "title_label": "Title",
-      "columns_label": "Columns (0 = auto)",
+      "columns_label": "Grid columns",
       "compact_label": "Compact mode",
       "show_names_label": "Show preset names",
       "highlight_user_label": "Highlight user presets",

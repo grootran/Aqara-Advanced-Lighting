@@ -372,11 +372,11 @@ export class AqaraPanel extends LitElement {
     }
   }
 
-  private async _loadUserPresets(): Promise<void> {
+  private async _loadUserPresets(opts: { bypassCache?: boolean } = {}): Promise<void> {
     if (!this.hass) return;
 
     try {
-      this._userPresets = await getUserPresets(this.hass);
+      this._userPresets = await getUserPresets(this.hass, opts);
     } catch (err) {
       console.warn('Failed to load user presets:', err);
     }
@@ -817,7 +817,7 @@ export class AqaraPanel extends LitElement {
 
     try {
       await this.hass.callApi('POST', 'aqara_advanced_lighting/user_presets', { type, data });
-      await this._loadUserPresets();
+      await this._loadUserPresets({ bypassCache: true });
     } catch (err) {
       console.error('Failed to save user preset:', err);
     }
@@ -828,7 +828,7 @@ export class AqaraPanel extends LitElement {
 
     try {
       await this.hass.callApi('PUT', `aqara_advanced_lighting/user_presets/${type}/${id}`, data);
-      await this._loadUserPresets();
+      await this._loadUserPresets({ bypassCache: true });
     } catch (err) {
       console.error('Failed to update user preset:', err);
     }
@@ -839,7 +839,7 @@ export class AqaraPanel extends LitElement {
 
     try {
       await this.hass.callApi('DELETE', `aqara_advanced_lighting/user_presets/${type}/${id}`);
-      await this._loadUserPresets();
+      await this._loadUserPresets({ bypassCache: true });
     } catch (err) {
       console.error('Failed to delete user preset:', err);
     }
@@ -3558,7 +3558,7 @@ export class AqaraPanel extends LitElement {
       this._showToast(this._localize('presets.import_success', { count: totalCount.toString() }));
 
       // Refresh presets display
-      await this._loadUserPresets();
+      await this._loadUserPresets({ bypassCache: true });
     } catch (err) {
       let errorMessage = this._localize('presets.import_error_unknown');
 
@@ -4418,6 +4418,17 @@ export class AqaraPanel extends LitElement {
   /** Render a user dynamic scene preset icon: generated thumbnail or MDI icon. */
   private _renderUserDynamicSceneIcon(preset: UserDynamicScenePreset) {
     const isAudio = !!(preset.audio_entity || preset.audio_color_advance);
+    // Precedence: uploaded thumbnail > MDI/file icon > auto-generated SVG.
+    // An uploaded thumbnail is a deliberate visual choice; the icon field is often
+    // a leftover MDI default from preset creation. Mirrors preset-runtime/preset-icon.ts.
+    if (preset.thumbnail) {
+      const thumb = renderDynamicSceneThumbnail(preset)
+        ?? html`<ha-icon icon="mdi:lamps"></ha-icon>`;
+      if (isAudio) {
+        return html`${thumb}<span class="audio-badge"><ha-icon icon="mdi:waveform"></ha-icon></span>`;
+      }
+      return thumb;
+    }
     if (preset.icon) {
       const icon = this._renderPresetIcon(preset.icon, 'mdi:lamps');
       if (isAudio) {

@@ -15,7 +15,7 @@ import type { HomeAssistant } from './types';
 import { type AqaraFavoritesCardConfig, type CardLayout, setCardLayout } from './card-config';
 import { PANEL_TRANSLATIONS } from './panel-translations';
 import { renderInput } from './editor-constants';
-import { getPresets, getUserPresets, getUserPreferences } from './data-client/aqara-api';
+import { getPresets, getUserPresets, getUserPreferences, getSupportedEntities } from './data-client/aqara-api';
 import { resolveFavorites, type ResolvedFavorite } from './preset-runtime/preset-resolver';
 import { renderPresetIcon } from './preset-runtime/preset-icon';
 
@@ -39,6 +39,10 @@ export class AqaraPresetFavoritesCardEditor extends LitElement {
     if (!this._loaded && changed.has('hass') && this.hass) {
       this._loaded = true;
       this._loadFavorites();
+    } else if (this._loaded && changed.has('_config')) {
+      // Configured entities may have changed - re-resolve compatibility so
+      // the curation list reflects only presets compatible with the new set.
+      this._loadFavorites();
     }
   }
 
@@ -56,18 +60,42 @@ export class AqaraPresetFavoritesCardEditor extends LitElement {
     if (!this.hass) return;
     const token = ++this._loadToken;
     try {
-      const [presets, userPresets, prefs] = await Promise.all([
+      // The editor is opened on-demand and freshness matters: a user might
+      // mutate favorites in the panel and immediately open this editor. Bypass
+      // the cache for user-scoped data so the editor never shows stale state.
+      // Static caches (presets, supported entities) are kept warm.
+      const [presets, userPresets, prefs, supportedEntities] = await Promise.all([
         getPresets(this.hass),
-        getUserPresets(this.hass),
-        getUserPreferences(this.hass),
+        getUserPresets(this.hass, { bypassCache: true }),
+        getUserPreferences(this.hass, { bypassCache: true }),
+        getSupportedEntities(this.hass),
       ]);
       if (token !== this._loadToken) return;
+
+      // Resolve the configured entity IDs (supports both the legacy single
+      // `entity` and the new `entities` array) to their device types.
+      const entityIds: string[] =
+        this._config?.entities ?? (this._config?.entity ? [this._config.entity] : []);
+
+      const entityMap = new Map<string, string>();
+      for (const e of supportedEntities.entities || []) {
+        entityMap.set(e.entity_id, e.device_type);
+      }
+      const deviceTypes = Array.from(new Set(
+        entityIds
+          .map(id => entityMap.get(id))
+          .filter((d): d is string => !!d),
+      ));
+
+      // When no entities are configured yet, fall back to skipCompatibility so
+      // the user can pick from all favorites before choosing entities.
+      const skip = entityIds.length === 0;
       this._allFavorites = resolveFavorites(
         prefs.favorite_presets || [],
         presets,
         userPresets,
-        [],
-        { skipCompatibility: true },
+        deviceTypes,
+        skip ? { skipCompatibility: true } : {},
       );
     } catch (err) {
       console.error('AqaraFavoritesCardEditor: failed to load favorites', err);
@@ -97,17 +125,19 @@ export class AqaraPresetFavoritesCardEditor extends LitElement {
           value: this._config.title || '',
           onInput: (e: Event) => this._updateConfig('title', (e.target as HTMLInputElement).value),
         })}
-        ${renderInput({
-          label: this._t.editor.columns_label,
-          type: 'number',
-          min: '0',
-          max: '6',
-          value: String(this._config.columns || 0),
-          onInput: (e: Event) => {
-            const val = parseInt((e.target as HTMLInputElement).value, 10);
-            this._updateConfig('columns', isNaN(val) || val <= 0 ? undefined : val);
-          },
-        })}
+        ${(this._config.layout === undefined || this._config.layout === 'grid' || this._config.layout === 'compact-grid')
+          ? renderInput({
+              label: this._t.editor.columns_label,
+              type: 'number',
+              min: '0',
+              max: '6',
+              value: String(this._config.columns || 0),
+              onInput: (e: Event) => {
+                const val = parseInt((e.target as HTMLInputElement).value, 10);
+                this._updateConfig('columns', isNaN(val) || val <= 0 ? undefined : val);
+              },
+            })
+          : ''}
         <ha-selector
           .hass=${this.hass}
           .label=${this._t.editor.layout_label}
