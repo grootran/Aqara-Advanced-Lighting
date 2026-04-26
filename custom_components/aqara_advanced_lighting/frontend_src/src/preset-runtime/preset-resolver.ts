@@ -38,6 +38,7 @@ export function resolveFavorites(
   presets: PresetsData,
   userPresets: UserPresetsData,
   deviceTypes: string[],
+  options: { skipCompatibility?: boolean } = {},
 ): ResolvedFavorite[] {
   const resolved: ResolvedFavorite[] = [];
 
@@ -104,7 +105,7 @@ export function resolveFavorites(
       }
     }
 
-    if (preset && isPresetCompatible(ref, deviceTypes, deviceType)) {
+    if (preset && (options.skipCompatibility || isPresetCompatible(ref, deviceTypes, deviceType))) {
       resolved.push({ ref, preset, isUser, deviceType });
     }
   }

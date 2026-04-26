@@ -76,12 +76,12 @@ const withAudioBadge = (icon: TemplateResult, isAudio: boolean): TemplateResult 
   isAudio ? html`${icon}${AUDIO_BADGE}` : icon;
 
 /** Render a user effect preset icon. (panel:4512-4522) */
-function renderUserEffectIcon(preset: UserEffectPreset): TemplateResult {
+function renderUserEffectIcon(preset: UserEffectPreset, showBadge: boolean): TemplateResult {
   // Audio indicator for user effects is `audio_config.audio_speed_mode` (matches
   // the activator's user-effect path which checks `audio_config.audio_speed_mode`).
   // Apply the badge in both the icon-set and thumbnail branches, mirroring the
   // panel's My Effects display behavior at aqara-panel.ts:4143-4144.
-  const isAudio = !!preset.audio_config?.audio_speed_mode;
+  const isAudio = showBadge && !!preset.audio_config?.audio_speed_mode;
   if (preset.icon) {
     return withAudioBadge(renderBuiltinIcon(preset.icon, 'mdi:lightbulb-on'), isAudio);
   }
@@ -97,9 +97,10 @@ function renderUserEffectIcon(preset: UserEffectPreset): TemplateResult {
  * which is supplied by the user's audio_override_entity at activation time).
  * Matches the panel's My Effects display behavior at aqara-panel.ts:4143-4144.
  */
-function renderBuiltinEffectIcon(preset: DynamicEffectPreset): TemplateResult {
+function renderBuiltinEffectIcon(preset: DynamicEffectPreset, showBadge: boolean): TemplateResult {
   const icon = renderBuiltinIcon(preset.icon, 'mdi:lightbulb-on');
-  return withAudioBadge(icon, !!preset.audio_speed_mode);
+  const isAudio = showBadge && !!preset.audio_speed_mode;
+  return withAudioBadge(icon, isAudio);
 }
 
 /** Render a user segment pattern preset icon. (panel:4525-4531) */
@@ -130,8 +131,8 @@ function renderUserSegmentSequenceIcon(preset: UserSegmentSequencePreset): Templ
 }
 
 /** Render a user dynamic scene preset icon. (panel:4552-4567) */
-function renderUserDynamicSceneIcon(preset: UserDynamicScenePreset): TemplateResult {
-  const isAudio = !!(preset.audio_entity || preset.audio_color_advance);
+function renderUserDynamicSceneIcon(preset: UserDynamicScenePreset, showBadge: boolean): TemplateResult {
+  const isAudio = showBadge && !!(preset.audio_entity || preset.audio_color_advance);
   if (preset.icon) {
     return withAudioBadge(renderBuiltinIcon(preset.icon, 'mdi:lamps'), isAudio);
   }
@@ -141,10 +142,24 @@ function renderUserDynamicSceneIcon(preset: UserDynamicScenePreset): TemplateRes
 }
 
 /** Render a builtin dynamic scene preset icon. (panel:4570-4577) */
-function renderBuiltinDynamicSceneIcon(preset: DynamicScenePreset): TemplateResult {
+function renderBuiltinDynamicSceneIcon(preset: DynamicScenePreset, showBadge: boolean): TemplateResult {
   const thumb = renderDynamicSceneThumbnail(preset)
     ?? html`<ha-icon icon="mdi:lamps"></ha-icon>`;
-  return withAudioBadge(thumb, !!preset.audio_color_advance);
+  const isAudio = showBadge && !!preset.audio_color_advance;
+  return withAudioBadge(thumb, isAudio);
+}
+
+/**
+ * Options for `renderPresetIcon`.
+ */
+export interface RenderPresetIconOptions {
+  /**
+   * Whether to render the audio-reactive waveform badge overlay for
+   * audio-reactive presets. Default true. Set to false in compact UI
+   * surfaces (e.g. the editor's curation list) where the overlay
+   * disrupts row layout.
+   */
+  showAudioBadge?: boolean;
 }
 
 /**
@@ -155,12 +170,14 @@ export function renderPresetIcon(
   ref: FavoritePresetRef,
   preset: AnyPreset,
   isUser: boolean,
+  options: RenderPresetIconOptions = {},
 ): TemplateResult {
+  const showBadge = options.showAudioBadge !== false;
   switch (ref.type) {
     case 'effect':
       return isUser
-        ? renderUserEffectIcon(preset as UserEffectPreset)
-        : renderBuiltinEffectIcon(preset as DynamicEffectPreset);
+        ? renderUserEffectIcon(preset as UserEffectPreset, showBadge)
+        : renderBuiltinEffectIcon(preset as DynamicEffectPreset, showBadge);
     case 'segment_pattern':
       return isUser
         ? renderUserPatternIcon(preset as UserSegmentPatternPreset)
@@ -175,8 +192,8 @@ export function renderPresetIcon(
         : renderBuiltinIcon((preset as SegmentSequencePreset).icon, 'mdi:animation-play');
     case 'dynamic_scene':
       return isUser
-        ? renderUserDynamicSceneIcon(preset as UserDynamicScenePreset)
-        : renderBuiltinDynamicSceneIcon(preset as DynamicScenePreset);
+        ? renderUserDynamicSceneIcon(preset as UserDynamicScenePreset, showBadge)
+        : renderBuiltinDynamicSceneIcon(preset as DynamicScenePreset, showBadge);
     default:
       return html`<ha-icon icon="mdi:star"></ha-icon>`;
   }

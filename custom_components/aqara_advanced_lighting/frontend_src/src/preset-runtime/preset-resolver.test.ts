@@ -192,4 +192,52 @@ describe('resolveFavorites', () => {
     const resolved = resolveFavorites(refs, presets, emptyUserPresets(), ['t2_bulb']);
     expect(resolved.map(r => r.ref.id)).toEqual(['c1', 'd1']);
   });
+
+  it('with skipCompatibility, returns presets that would normally be filtered out', () => {
+    // An effect ref whose preset lives on t2_bulb but the configured device is t1m only.
+    // Normally this is filtered out by isPresetCompatible. With skipCompatibility it must pass through.
+    const refs: FavoritePresetRef[] = [{ type: 'effect', id: 'rainbow' }];
+    const presets = emptyPresets();
+    presets.dynamic_effects.t2_bulb = [
+      { id: 'rainbow', name: 'Rainbow' } as DynamicEffectPreset,
+    ];
+
+    const filtered = resolveFavorites(refs, presets, emptyUserPresets(), ['t1m']);
+    expect(filtered).toHaveLength(0);
+
+    const all = resolveFavorites(refs, presets, emptyUserPresets(), ['t1m'], {
+      skipCompatibility: true,
+    });
+    expect(all).toHaveLength(1);
+    expect(all[0].ref.id).toBe('rainbow');
+    expect(all[0].deviceType).toBe('t2_bulb');
+  });
+
+  it('with skipCompatibility and empty deviceTypes, returns all matched preset types', () => {
+    const refs: FavoritePresetRef[] = [
+      { type: 'effect', id: 'rainbow' },
+      { type: 'segment_pattern', id: 'p1' },
+      { type: 'cct_sequence', id: 'c1' },
+      { type: 'segment_sequence', id: 's1' },
+      { type: 'dynamic_scene', id: 'd1' },
+    ];
+    const presets = emptyPresets();
+    presets.dynamic_effects.t2_bulb = [{ id: 'rainbow', name: 'Rainbow' } as DynamicEffectPreset];
+    presets.segment_patterns = [{ id: 'p1', name: 'P1' } as SegmentPatternPreset];
+    presets.cct_sequences = [{ id: 'c1', name: 'C1' } as CCTSequencePreset];
+    presets.segment_sequences = [{ id: 's1', name: 'S1' } as SegmentSequencePreset];
+    presets.dynamic_scenes = [{ id: 'd1', name: 'D1' } as DynamicScenePreset];
+
+    // Without skipCompatibility, only universal preset types pass when no device types are present.
+    const filtered = resolveFavorites(refs, presets, emptyUserPresets(), []);
+    const filteredTypes = filtered.map(r => r.ref.type).sort();
+    expect(filteredTypes).toEqual(['cct_sequence', 'dynamic_scene']);
+
+    // With skipCompatibility, every matched preset comes back regardless of deviceTypes.
+    const all = resolveFavorites(refs, presets, emptyUserPresets(), [], {
+      skipCompatibility: true,
+    });
+    expect(all).toHaveLength(5);
+    expect(all.map(r => r.ref.id)).toEqual(['rainbow', 'p1', 'c1', 's1', 'd1']);
+  });
 });

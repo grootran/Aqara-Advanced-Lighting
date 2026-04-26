@@ -116,4 +116,35 @@ describe('renderPresetIcon', () => {
     const html = renderToHTML(renderPresetIcon(ref, {} as AnyPreset, false));
     expect(html).toContain('mdi:star');
   });
+
+  it('user effect with audio_config and showAudioBadge: false hides the badge', () => {
+    const ref: FavoritePresetRef = { type: 'effect', id: 'u1' };
+    const preset = {
+      id: 'u1', name: 'My Audio Effect',
+      effect: 'jitter', effect_speed: 50,
+      effect_colors: [{ x: 0.5, y: 0.5 }],
+      audio_config: { audio_speed_mode: 'volume' },
+    } as unknown as UserEffectPreset;
+    const html = renderToHTML(renderPresetIcon(ref, preset, true, { showAudioBadge: false }));
+    expect(html).not.toContain('audio-badge');
+  });
+
+  it('builtin scene with audio_color_advance and showAudioBadge: false hides the badge', () => {
+    const ref: FavoritePresetRef = { type: 'dynamic_scene', id: 'b1' };
+    const preset = {
+      name: 'Concert', colors: [{ x: 0.5, y: 0.5, brightness_pct: 50 }],
+      audio_color_advance: true,
+    } as any;
+    const html = renderToHTML(renderPresetIcon(ref, preset, false, { showAudioBadge: false }));
+    expect(html).not.toContain('audio-badge');
+  });
+
+  it('builtin effect with audio_speed_mode and showAudioBadge: false hides the badge', () => {
+    const ref: FavoritePresetRef = { type: 'effect', id: 'kick' };
+    const preset = {
+      id: 'kick', name: 'Kick', icon: 'mdi:music-circle', audio_speed_mode: 'tempo',
+    } as unknown as DynamicEffectPreset;
+    const html = renderToHTML(renderPresetIcon(ref, preset, false, { showAudioBadge: false }));
+    expect(html).not.toContain('audio-badge');
+  });
 });
