@@ -16,7 +16,21 @@ If you are using the audio-reactive features, please update your device firmware
 
 ### What's New
 
-Version 1.3.0 introduces audio-reactive effects for Aqara devices, allowing T1M and T1 Strip lights to run their native device effects speed modulated live by music. It also unifies the audio parameter model across scenes and effects for a consistent editing experience, and introduces a central engine registry that eliminates orphaned audio engines. Integration-side support for the ESPHome Audio Reactive v0.4.0 pro DSP tier adds per-musical-band sensors, a tight beat-event binary sensor, and two new scene-side color-advance modes.
+Version 1.3.0 introduces an updated dashboard card, preset favorites custom sorting, drag and drop color swatches in effect and segments editors, and audio-reactive effects for Aqara devices, allowing T1M and T1 Strip lights to run their native device effects speed modulated live by music.
+
+It also unifies the audio parameter model across scenes and effects for a consistent editing experience, and introduces a central engine registry that eliminates orphaned audio engines. Integration-side support for the ESPHome Audio Reactive v0.4.0 pro DSP tier adds per-musical-band sensors, a tight beat-event binary sensor, and two new scene-side color-advance modes.
+
+### **Dashboard Card v2**
+
+The Aqara Preset Favorites card has been redesigned with new layout options and per-card customization.
+
+  - **Pick which favorites appear on each card** — the card editor now has a curation list with checkboxes and drag handles, so each card can show a different subset of your favorites in any order you choose. Leave it untouched on existing cards to keep showing all favorites in their global order.
+  - **Five layout choices** — grid (default), compact grid, list, hero (one large preset with the rest in a strip), and carousel (horizontal scroll). Existing cards using the old "compact" toggle automatically migrate to the new compact-grid layout.
+  - **Optional brightness slider** — turn on a per-card slider above or below the preset display. Tap a preset and the slider's value applies to effects, segment patterns, segment sequences, and dynamic scenes. (CCT sequences keep their own per-step brightness.)
+  - **Drag to reorder favorites in the panel** — favorites now default to a new "Custom" sort order. Hover any favorite tile in custom mode to reveal a drag handle, drop it where you want, and the order persists across browsers and reloads. Switching to "A-Z" or any other sort temporarily reorders the display without losing your custom order.
+  - **Faster live updates** — the card now updates active-preset highlighting in real time when presets start or stop from anywhere (panel, automation, voice, another browser).
+
+**Migration note:** if you previously had your favorites sort set to "Date added (oldest first)", it will switch to "Custom" automatically on next page load. The order stays the same; the rename simply unlocks the drag handles.
 
 ### **Audio-Reactive Effects**
 

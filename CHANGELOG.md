@@ -6,7 +6,28 @@ All notable changes to the Aqara Advanced Lighting integration will be documente
 
 ### What's New
 
-Version 1.3.0 introduces audio-reactive effects for Aqara devices, allowing T1M and T1 Strip lights to run their native device effects speed modulated live by music. It also unifies the audio parameter model across scenes and effects for a consistent editing experience, and introduces a central engine registry that eliminates orphaned audio engines. Integration-side support for the ESPHome Audio Reactive v0.4.0 pro DSP tier adds per-musical-band sensors, a tight beat-event binary sensor, and two new scene-side color-advance modes.
+Version 1.3.0 introduces an updated dashboard card, preset favorites custom sorting, drag and drop color swatches in effect and segments editors, and audio-reactive effects for Aqara devices, allowing T1M and T1 Strip lights to run their native device effects speed modulated live by music.
+
+It also unifies the audio parameter model across scenes and effects for a consistent editing experience, and introduces a central engine registry that eliminates orphaned audio engines. Integration-side support for the ESPHome Audio Reactive v0.4.0 pro DSP tier adds per-musical-band sensors, a tight beat-event binary sensor, and two new scene-side color-advance modes.
+
+### Aqara Preset Favorites Card v2
+
+**Breaking changes:** None. Existing card configs continue to work; the deprecated `compact: true` field migrates to `layout: 'compact-grid'` automatically.
+
+  - Per-card preset curation — the card editor now has a curation list (drag-reorder + checkboxes) that lets each card show a curated subset of favorites in a custom order. Leave it untouched to keep the global favorites order, as before.
+  - Five layouts — grid (default), compact grid, list, hero (first preset large + horizontal strip), and carousel (horizontal scroll-snap).
+  - Inline brightness slider — optional per-card slider above or below the preset display. Slider value applies to effects, segment patterns, segment sequences, and dynamic scenes (CCT sequences carry their own per-step brightness and are excluded by design). For user effects with a saved `effect_brightness`, the per-preset value still wins over the slider.
+  - Drag-reorder for the panel's favorites section — new "Custom" sort option (the new default for favorites) shows drag handles on hover. Reordering writes back to the user-preferences endpoint and persists across reloads.
+
+**Under the hood:**
+
+  - Card and panel favorites now share preset resolution, compatibility filtering, activation, and icon-rendering modules in `src/preset-runtime/`. The card lost roughly 600 lines of duplicated logic in the process.
+  - Card running-state replaced 5-second polling with a WebSocket event subscription on a new `aqara_advanced_lighting_operations_changed` HA event. Active-state updates land in milliseconds instead of seconds.
+  - Shared API client in `src/data-client/aqara-api.ts` consolidates the card's static-data cache with `bypassCache: true` invalidation after mutations, so saved preset edits surface immediately.
+  - Card source split into focused modules: editor element, config + migration shim, running-ops subscription wrapper.
+  - 96 new frontend unit tests (Vitest + happy-dom) cover the extracted modules; the existing 712 pytest backend suite continues to pass.
+
+**Migration:** Existing users with `'date-old'` saved as their favorites sort preference auto-migrate to the new `'custom'` value on first frontend load. Identical underlying behavior; the rename unlocks drag handles and gives a clearer dropdown label.
 
 ### Audio-Reactive Effects
 
@@ -65,6 +86,10 @@ T1M and T1 Strip lights can now run their built-in color effects (rainbow, flow,
   - Dynamic scene preview audio
   - Add ESPHome name-derived unique_id aliases for companion sensor discovery
   - Migrate ha-textfield to ha-input for HA 2026.5+ compatibility
+  - Dashboard Card now propagates user audio-override preferences to activation, so built-in audio-reactive scenes and effects activate correctly from the dashboard card. Previously the card silently dropped the user's audio sensor entity.
+  - Effect favorite icons (built-in and user) now show the audio-reactive waveform badge correctly. The badge previously used `audio_entity` as the indicator, which missed presets relying on the user-prefs audio entity. The corrected indicator is `audio_speed_mode` (built-in) and `audio_config.audio_speed_mode` (user).
+  - User dynamic scenes with both an uploaded image thumbnail and a leftover MDI icon now show the thumbnail (the deliberate user choice; the icon is often a default left over from preset creation).
+  - Dynamic scenes activated from the dashboard card now highlight as active and are stoppable from the card. Previously the card only matched single-entity-id operations; dynamic scenes use a multi-entity-id shape.
 
 ### Code Quality
 
