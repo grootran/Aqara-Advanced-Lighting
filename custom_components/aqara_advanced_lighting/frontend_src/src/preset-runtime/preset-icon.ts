@@ -13,12 +13,18 @@
  *
  * Panel is the source of truth. Non-trivial divergence from the card's
  * single-switch _renderPresetIcon (aqara-preset-favorites-card.ts:823-878):
- *  - Audio-badge for user effect presets: panel renders it on the thumbnail
- *    branch only (panel:4518); when preset.icon is set the panel returns the
- *    icon without a badge. Card omitted the badge entirely. The new module
- *    matches the panel exactly, so card icons gain the waveform badge for
- *    audio-reactive user effects without an explicit icon after Chunk 3
- *    migration.
+ *  - Audio-badge for user effect presets: panel's _renderUserEffectIcon
+ *    (panel:4377-4387) checks `audio_config.audio_entity` which incorrectly
+ *    misses presets relying on the user-prefs audio entity. The corrected
+ *    helper here uses `audio_config.audio_speed_mode` (the actual audio
+ *    indicator) and applies the badge in BOTH the icon and thumbnail
+ *    branches, matching the panel's My Effects display at panel:4143-4144.
+ *
+ *  - Built-in effect icon: panel's favorites dispatcher (was at panel:597)
+ *    never rendered an audio badge for built-in effects. The corrected
+ *    dispatcher here adds the badge when `preset.audio_speed_mode` is set,
+ *    matching the panel's My Effects display.
+ *
  *  - For user dynamic_scene presets where preset.icon is set AND audio is
  *    enabled, the panel still overlays the audio badge on top of the custom
  *    icon (panel:4555-4559); the card did the same. Behavior unchanged.
@@ -71,15 +77,29 @@ const withAudioBadge = (icon: TemplateResult, isAudio: boolean): TemplateResult 
 
 /** Render a user effect preset icon. (panel:4512-4522) */
 function renderUserEffectIcon(preset: UserEffectPreset): TemplateResult {
-  // Panel parity (panel:4513-4515): when preset.icon is set, return the icon
-  // WITHOUT an audio badge. Audio badge applies only to the thumbnail branch.
+  // Audio indicator for user effects is `audio_config.audio_speed_mode` (matches
+  // the activator's user-effect path which checks `audio_config.audio_speed_mode`).
+  // Apply the badge in both the icon-set and thumbnail branches, mirroring the
+  // panel's My Effects display behavior at aqara-panel.ts:4143-4144.
+  const isAudio = !!preset.audio_config?.audio_speed_mode;
   if (preset.icon) {
-    return renderBuiltinIcon(preset.icon, 'mdi:lightbulb-on');
+    return withAudioBadge(renderBuiltinIcon(preset.icon, 'mdi:lightbulb-on'), isAudio);
   }
   const thumb = renderEffectThumbnail(preset)
     ?? html`<ha-icon icon="mdi:lightbulb-on"></ha-icon>`;
-  const isAudio = !!preset.audio_config?.audio_entity;
   return withAudioBadge(thumb, isAudio);
+}
+
+/**
+ * Render a built-in effect preset icon with audio badge if audio-reactive.
+ *
+ * Audio indicator for built-in effects is `audio_speed_mode` (NOT `audio_entity`,
+ * which is supplied by the user's audio_override_entity at activation time).
+ * Matches the panel's My Effects display behavior at aqara-panel.ts:4143-4144.
+ */
+function renderBuiltinEffectIcon(preset: DynamicEffectPreset): TemplateResult {
+  const icon = renderBuiltinIcon(preset.icon, 'mdi:lightbulb-on');
+  return withAudioBadge(icon, !!preset.audio_speed_mode);
 }
 
 /** Render a user segment pattern preset icon. (panel:4525-4531) */
@@ -140,7 +160,7 @@ export function renderPresetIcon(
     case 'effect':
       return isUser
         ? renderUserEffectIcon(preset as UserEffectPreset)
-        : renderBuiltinIcon((preset as DynamicEffectPreset).icon, 'mdi:lightbulb-on');
+        : renderBuiltinEffectIcon(preset as DynamicEffectPreset);
     case 'segment_pattern':
       return isUser
         ? renderUserPatternIcon(preset as UserSegmentPatternPreset)

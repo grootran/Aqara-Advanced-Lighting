@@ -445,6 +445,56 @@ describe('activatePreset', () => {
     expect(payload.audio_rolloff_brightness).toBe(true);
   });
 
+  it('dynamic scene full audio override writes all panel-equivalent audio fields', async () => {
+    const hass = makeHass();
+    const ref: FavoritePresetRef = { type: 'dynamic_scene', id: 's1' };
+    const preset = {
+      id: 's1',
+      name: 'S1',
+      transition_time: 5,
+      hold_time: 2,
+      distribution_mode: 'shuffle_rotate',
+      offset_delay: 0,
+      random_order: false,
+      loop_mode: 'forever',
+      end_behavior: 'hold',
+      colors: [{ x: 0.1, y: 0.2, brightness_pct: 100 }],
+    } as DynamicScenePreset;
+
+    await activatePreset(hass as any, ['light.bulb'], ref, preset, false, {
+      useAudioReactive: true,
+      audioOverrideEntity: 'sensor.mic',
+      audioOverrideSensitivity: 70,
+      audioOverrideColorAdvance: 'continuous',
+      audioOverrideTransitionSpeed: 25,
+      audioOverrideBrightnessCurve: 'logarithmic',
+      audioOverrideBrightnessMin: 5,
+      audioOverrideBrightnessMax: 95,
+      audioOverrideDetectionMode: 'spectral_flux',
+      audioOverrideFrequencyZone: true,
+      audioOverrideSilenceBehavior: 'decay_min',
+      audioOverridePredictionAggressiveness: 80,
+      audioOverrideLatencyCompensationMs: 120,
+      audioOverrideColorByFrequency: true,
+      audioOverrideRolloffBrightness: false,
+    });
+    const payload = hass.callService.mock.calls[0][2];
+    expect(payload.audio_entity).toBe('sensor.mic');
+    expect(payload.audio_sensitivity).toBe(70);
+    expect(payload.audio_color_advance).toBe('continuous');
+    expect(payload.audio_transition_speed).toBe(25);
+    expect(payload.audio_brightness_curve).toBe('logarithmic');
+    expect(payload.audio_brightness_min).toBe(5);
+    expect(payload.audio_brightness_max).toBe(95);
+    expect(payload.audio_detection_mode).toBe('spectral_flux');
+    expect(payload.audio_frequency_zone).toBe(true);
+    expect(payload.audio_silence_behavior).toBe('decay_min');
+    expect(payload.audio_prediction_aggressiveness).toBe(80);
+    expect(payload.audio_latency_compensation_ms).toBe(120);
+    expect(payload.audio_color_by_frequency).toBe(true);
+    expect(payload.audio_rolloff_brightness).toBe(false);
+  });
+
   it('dynamic scene with no override propagates preset audio_entity via _applyPresetAudioFields', async () => {
     const hass = makeHass();
     const ref: FavoritePresetRef = { type: 'dynamic_scene', id: 's1' };

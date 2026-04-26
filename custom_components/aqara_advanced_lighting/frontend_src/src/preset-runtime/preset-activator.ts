@@ -45,22 +45,31 @@ export interface ActivatePresetOptions {
   // (matching aqara-panel.ts:1905-1909).
   brightness?: number;
 
-  // Dynamic-scene-only override fields (panel-specific; card v2 does not pass these)
+  // Dynamic-scene-only override fields
   staticSceneMode?: boolean;
   distributionModeOverride?: string;
   useStaticSceneMode?: boolean;
   useDistributionModeOverride?: boolean;
 
-  // Audio overrides for effects (panel-specific; card v2 does not pass these)
+  // Audio overrides for effects
   useEffectAudioReactive?: boolean;
   audioOverrideEntity?: string | null;
   effectAudioOverrideSensitivity?: number;
 
-  // Audio overrides for dynamic scenes (panel-specific; card v2 does not pass these)
+  // Audio overrides for dynamic scenes
   useAudioReactive?: boolean;
+  audioOverrideSensitivity?: number;
+  audioOverrideColorAdvance?: string | null;
+  audioOverrideTransitionSpeed?: number;
   audioOverrideBrightnessCurve?: string | null;
   audioOverrideBrightnessMin?: number;
   audioOverrideBrightnessMax?: number;
+  audioOverrideDetectionMode?: string;
+  audioOverrideFrequencyZone?: boolean;
+  audioOverrideSilenceBehavior?: string;
+  audioOverridePredictionAggressiveness?: number;
+  audioOverrideLatencyCompensationMs?: number;
+  audioOverrideColorByFrequency?: boolean;
   audioOverrideRolloffBrightness?: boolean;
 }
 
@@ -537,34 +546,27 @@ function applyPresetAudioFields(
   if (preset.audio_rolloff_brightness != null) serviceData.audio_rolloff_brightness = preset.audio_rolloff_brightness;
 }
 
-// Ported from aqara-panel.ts:1833-1850 (_applyAudioOverrides)
-//
-// Note: the panel reads many additional audio override fields from prefs.state
-// (audioOverrideSensitivity, audioOverrideColorAdvance, audioOverrideTransitionSpeed,
-// audioOverrideDetectionMode, audioOverrideFrequencyZone, audioOverrideSilenceBehavior,
-// audioOverridePredictionAggressiveness, audioOverrideLatencyCompensationMs) that
-// are not modeled on ActivatePresetOptions yet. These are wired up as the panel
-// migrates to call activatePreset (panel currently still calls its own methods).
-// Card v2 does not pass any audio override options. The fields modeled on the
-// options interface (audioOverrideEntity, audioOverrideBrightnessCurve,
-// audioOverrideBrightnessMin/Max, audioOverrideRolloffBrightness) are honored.
+// Ported from aqara-panel.ts:1712-1727 (_applyAudioOverrides). Writes the full
+// set of user-level audio override fields the panel writes; callers populate
+// ActivatePresetOptions from the user's stored preferences.
 function applyAudioOverrides(
   serviceData: Record<string, unknown>,
   options: ActivatePresetOptions,
 ): void {
-  if (options.useAudioReactive && options.audioOverrideEntity) {
-    serviceData.audio_entity = options.audioOverrideEntity;
-    if (options.audioOverrideBrightnessCurve !== undefined) {
-      serviceData.audio_brightness_curve = options.audioOverrideBrightnessCurve;
-    }
-    if (options.audioOverrideBrightnessMin !== undefined) {
-      serviceData.audio_brightness_min = options.audioOverrideBrightnessMin;
-    }
-    if (options.audioOverrideBrightnessMax !== undefined) {
-      serviceData.audio_brightness_max = options.audioOverrideBrightnessMax;
-    }
-    if (options.audioOverrideRolloffBrightness !== undefined) {
-      serviceData.audio_rolloff_brightness = options.audioOverrideRolloffBrightness;
-    }
-  }
+  if (!options.useAudioReactive || !options.audioOverrideEntity) return;
+
+  serviceData.audio_entity = options.audioOverrideEntity;
+  if (options.audioOverrideSensitivity !== undefined) serviceData.audio_sensitivity = options.audioOverrideSensitivity;
+  if (options.audioOverrideColorAdvance !== undefined) serviceData.audio_color_advance = options.audioOverrideColorAdvance;
+  if (options.audioOverrideTransitionSpeed !== undefined) serviceData.audio_transition_speed = options.audioOverrideTransitionSpeed;
+  if (options.audioOverrideBrightnessCurve !== undefined) serviceData.audio_brightness_curve = options.audioOverrideBrightnessCurve;
+  if (options.audioOverrideBrightnessMin !== undefined) serviceData.audio_brightness_min = options.audioOverrideBrightnessMin;
+  if (options.audioOverrideBrightnessMax !== undefined) serviceData.audio_brightness_max = options.audioOverrideBrightnessMax;
+  if (options.audioOverrideDetectionMode !== undefined) serviceData.audio_detection_mode = options.audioOverrideDetectionMode;
+  if (options.audioOverrideFrequencyZone !== undefined) serviceData.audio_frequency_zone = options.audioOverrideFrequencyZone;
+  if (options.audioOverrideSilenceBehavior !== undefined) serviceData.audio_silence_behavior = options.audioOverrideSilenceBehavior;
+  if (options.audioOverridePredictionAggressiveness !== undefined) serviceData.audio_prediction_aggressiveness = options.audioOverridePredictionAggressiveness;
+  if (options.audioOverrideLatencyCompensationMs !== undefined) serviceData.audio_latency_compensation_ms = options.audioOverrideLatencyCompensationMs;
+  if (options.audioOverrideColorByFrequency !== undefined) serviceData.audio_color_by_frequency = options.audioOverrideColorByFrequency;
+  if (options.audioOverrideRolloffBrightness !== undefined) serviceData.audio_rolloff_brightness = options.audioOverrideRolloffBrightness;
 }

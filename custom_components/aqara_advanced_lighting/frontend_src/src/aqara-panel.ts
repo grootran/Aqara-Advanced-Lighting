@@ -20,6 +20,9 @@ import {
   renderDynamicSceneThumbnail,
 } from './preset-thumbnails';
 import { PANEL_TRANSLATIONS } from './panel-translations';
+import { getCapabilityFlags } from './preset-runtime/preset-compatibility';
+import { resolveFavorites } from './preset-runtime/preset-resolver';
+import { renderPresetIcon } from './preset-runtime/preset-icon';
 import {
   AudioModeEntry,
   audioDeviceTier,
@@ -473,83 +476,6 @@ export class AqaraPanel extends LitElement {
     `;
   }
 
-  /**
-   * Resolve favorite preset references to actual preset objects.
-   * Tracks source device type for device-specific presets (effects, patterns, sequences).
-   * Filters out references to deleted presets and cleans up stale entries.
-   */
-  private _getResolvedFavoritePresets(): Array<{
-    ref: FavoritePresetRef;
-    preset: AnyPreset;
-    isUser: boolean;
-    deviceType?: string;
-  }> {
-    const resolved: Array<{ ref: FavoritePresetRef; preset: AnyPreset; isUser: boolean; deviceType?: string }> = [];
-
-    for (const ref of this._prefs.state.favoritePresets) {
-      // Skip builtin presets that have been hidden
-      if (this._isBuiltinPresetHidden(ref.type, ref.id)) continue;
-
-      let preset: AnyPreset | null = null;
-      let isUser = false;
-      let deviceType: string | undefined;
-
-      switch (ref.type) {
-        case 'effect': {
-          for (const key of ['t2_bulb', 't1m', 't1_strip'] as const) {
-            const found = this._presets?.dynamic_effects?.[key]?.find(p => p.id === ref.id);
-            if (found) { preset = found; deviceType = key; break; }
-          }
-          if (!preset) {
-            const userPreset = this._userPresets?.effect_presets?.find(p => p.id === ref.id);
-            if (userPreset) { preset = userPreset; isUser = true; deviceType = userPreset.device_type; }
-          }
-          break;
-        }
-        case 'segment_pattern': {
-          preset = this._presets?.segment_patterns?.find(p => p.id === ref.id) || null;
-          if (!preset) {
-            const userPreset = this._userPresets?.segment_pattern_presets?.find(p => p.id === ref.id);
-            if (userPreset) { preset = userPreset; isUser = true; deviceType = userPreset.device_type; }
-          }
-          break;
-        }
-        case 'cct_sequence': {
-          preset = this._presets?.cct_sequences?.find(p => p.id === ref.id) || null;
-          if (!preset) {
-            preset = this._userPresets?.cct_sequence_presets?.find(p => p.id === ref.id) || null;
-            if (preset) isUser = true;
-          }
-          break;
-        }
-        case 'segment_sequence': {
-          preset = this._presets?.segment_sequences?.find(p => p.id === ref.id) || null;
-          if (!preset) {
-            const userPreset = this._userPresets?.segment_sequence_presets?.find(p => p.id === ref.id);
-            if (userPreset) { preset = userPreset; isUser = true; deviceType = userPreset.device_type; }
-          }
-          break;
-        }
-        case 'dynamic_scene': {
-          preset = this._presets?.dynamic_scenes?.find(p => p.id === ref.id) || null;
-          if (!preset) {
-            preset = this._userPresets?.dynamic_scene_presets?.find(p => p.id === ref.id) || null;
-            if (preset) isUser = true;
-          }
-          break;
-        }
-      }
-
-      if (preset) {
-        resolved.push({ ref, preset, isUser, deviceType });
-      }
-    }
-
-    // Stale reference cleanup is handled by _cleanStaleFavoriteRefs() in willUpdate()
-
-    return resolved;
-  }
-
   /** Activate a favorite preset by dispatching to the appropriate activation method. */
   private async _activateFavoritePreset(ref: FavoritePresetRef, preset: AnyPreset, isUser: boolean): Promise<void> {
     switch (ref.type) {
@@ -591,23 +517,6 @@ export class AqaraPanel extends LitElement {
     }
   }
 
-  /** Render the icon/thumbnail for a favorite preset based on its type. */
-  private _renderFavoritePresetIcon(ref: FavoritePresetRef, preset: AnyPreset, isUser: boolean) {
-    switch (ref.type) {
-      case 'effect':
-        return isUser ? this._renderUserEffectIcon(preset as UserEffectPreset) : this._renderPresetIcon(preset.icon, 'mdi:lightbulb-on');
-      case 'segment_pattern':
-        return isUser ? this._renderUserPatternIcon(preset as UserSegmentPatternPreset) : this._renderPresetIcon(preset.icon, 'mdi:palette');
-      case 'cct_sequence':
-        return isUser ? this._renderUserCCTIcon(preset as UserCCTSequencePreset) : this._renderPresetIcon(preset.icon, 'mdi:temperature-kelvin');
-      case 'segment_sequence':
-        return isUser ? this._renderUserSegmentSequenceIcon(preset as UserSegmentSequencePreset) : this._renderPresetIcon(preset.icon, 'mdi:animation-play');
-      case 'dynamic_scene':
-        return isUser ? this._renderUserDynamicSceneIcon(preset as UserDynamicScenePreset) : this._renderBuiltinDynamicSceneIcon(preset as DynamicScenePreset);
-      default:
-        return html`<ha-icon icon="mdi:star"></ha-icon>`;
-    }
-  }
 
   private _getSortPreference(sectionId: string): PresetSortOption {
     return this._prefs.getSortPreference(sectionId);
@@ -1398,42 +1307,12 @@ export class AqaraPanel extends LitElement {
 
   private _filterPresets(): FilteredPresets {
     const deviceTypes = this._getSelectedDeviceTypes();
-    const hasSelection = deviceTypes.length > 0;
-
-    // Determine what sections to show based on selected endpoint capabilities
-    // t1m = T1M RGB endpoint, t1m_white = T1M white/CCT endpoint
-    const hasT2 = deviceTypes.includes('t2_bulb');
-    const hasT2CCT = deviceTypes.includes('t2_cct');
-    const hasT1M = deviceTypes.includes('t1m');
-    const hasT1MWhite = deviceTypes.includes('t1m_white');
-    const hasT1Strip = deviceTypes.includes('t1_strip');
-    const hasGenericRGB = deviceTypes.includes('generic_rgb');
-    const hasGenericCCT = deviceTypes.includes('generic_cct');
-
-    // Effects, segment patterns, segment sequences: Aqara-only (require MQTT)
-    const showDynamicEffects = hasSelection && (hasT2 || hasT1M || hasT1Strip);
-    const showSegmentPatterns = hasSelection && (hasT1M || hasT1Strip);
-    const showSegmentSequences = hasSelection && (hasT1M || hasT1Strip);
-    // CCT sequences: Aqara + generic lights with color_temp support
-    const showCCTSequences = hasSelection && (hasT2 || hasT2CCT || hasT1MWhite || hasT1Strip || hasGenericRGB || hasGenericCCT);
-    // Dynamic scenes: Any light with color capability (RGB or CCT - backend adapts colors)
-    const showDynamicScenes = hasSelection && (hasT2 || hasT2CCT || hasT1M || hasT1MWhite || hasT1Strip || hasGenericRGB || hasGenericCCT);
-    // Music sync: T1 Strip only
-    const showMusicSync = hasSelection && hasT1Strip;
-
+    const flags = getCapabilityFlags(deviceTypes);
     return {
-      showDynamicEffects,
-      showSegmentPatterns,
-      showCCTSequences,
-      showSegmentSequences,
-      showDynamicScenes,
-      showMusicSync,
-      hasT2,
-      hasT1M,
-      hasT1Strip,
-      t2Presets: hasT2 ? (this._presets?.dynamic_effects.t2_bulb || []) : [],
-      t1mPresets: hasT1M ? (this._presets?.dynamic_effects.t1m || []) : [],
-      t1StripPresets: hasT1Strip ? (this._presets?.dynamic_effects.t1_strip || []) : [],
+      ...flags,
+      t2Presets: flags.hasT2 ? (this._presets?.dynamic_effects.t2_bulb || []) : [],
+      t1mPresets: flags.hasT1M ? (this._presets?.dynamic_effects.t1m || []) : [],
+      t1StripPresets: flags.hasT1Strip ? (this._presets?.dynamic_effects.t1_strip || []) : [],
     };
   }
 
@@ -2868,7 +2747,7 @@ export class AqaraPanel extends LitElement {
           `
         : ''}
 
-      ${hasSelection && !this._hasIncompatibleLights ? this._renderFavoritesSection(filtered) : ''}
+      ${hasSelection && !this._hasIncompatibleLights ? this._renderFavoritesSection() : ''}
 
       ${filtered.showDynamicScenes && ((this._presets?.dynamic_scenes?.length ?? 0) > 0 || this._getFilteredUserDynamicScenePresets().length > 0) && !this._hasIncompatibleLights
         ? this._renderDynamicScenesSection()
@@ -4151,38 +4030,24 @@ export class AqaraPanel extends LitElement {
   }
 
   /** Render the Favorite Presets section in the Activate tab. Filtered by device capabilities. */
-  private _renderFavoritesSection(filtered: FilteredPresets) {
-    const resolved = this._getResolvedFavoritePresets();
+  private _renderFavoritesSection() {
+    if (!this._presets || !this._userPresets) return '';
 
-    // Check if a preset's device type is compatible with the selected targets.
-    // Presets with no device type (builtin patterns/sequences, universal user presets) pass.
-    const isDeviceCompatible = (dt: string | undefined): boolean => {
-      if (!dt) return true;
-      switch (dt) {
-        case 't2_bulb': return filtered.hasT2;
-        case 't1m': case 't1': return filtered.hasT1M;
-        case 't1_strip': return filtered.hasT1Strip;
-        default: return true;
-      }
-    };
-
-    // Filter favorites by current device capabilities (same rules as preset sections)
-    const compatible = resolved.filter(({ ref, deviceType }) => {
-      switch (ref.type) {
-        case 'effect': return filtered.showDynamicEffects && isDeviceCompatible(deviceType);
-        case 'segment_pattern': return filtered.showSegmentPatterns && isDeviceCompatible(deviceType);
-        case 'cct_sequence': return filtered.showCCTSequences;
-        case 'segment_sequence': return filtered.showSegmentSequences && isDeviceCompatible(deviceType);
-        case 'dynamic_scene': return filtered.showDynamicScenes;
-        default: return false;
-      }
-    });
-    if (compatible.length === 0) return '';
+    // Filter hidden built-in presets upstream before resolving (the shared
+    // resolveFavorites does not honor _isBuiltinPresetHidden).
+    const visibleRefs = this._prefs.state.favoritePresets.filter(
+      ref => !this._isBuiltinPresetHidden(ref.type, ref.id),
+    );
+    const deviceTypes = this._getSelectedDeviceTypes();
+    // resolveFavorites already filters via isPresetCompatible, which consults
+    // both device-type compat and section-visibility flags via getCapabilityFlags.
+    const resolved = resolveFavorites(visibleRefs, this._presets, this._userPresets, deviceTypes);
+    if (resolved.length === 0) return '';
 
     const sectionId = 'favorite_presets';
     const isExpanded = !this._prefs.state.collapsed[sectionId];
     const sortOption = this._getSortPreference(sectionId);
-    const sortedFavorites = this._sortResolvedFavorites(compatible, sortOption);
+    const sortedFavorites = this._sortResolvedFavorites(resolved, sortOption);
 
     return html`
       <ha-expansion-panel
@@ -4193,7 +4058,7 @@ export class AqaraPanel extends LitElement {
         <div slot="header" class="section-header">
           <div>
             <div class="section-title">${this._localize('sections.favorite_presets')}</div>
-            <div class="section-subtitle">${this._localize('sections.subtitle_favorites', { count: compatible.length.toString() })}</div>
+            <div class="section-subtitle">${this._localize('sections.subtitle_favorites', { count: resolved.length.toString() })}</div>
           </div>
           <div class="section-header-controls" @click=${(e: Event) => e.stopPropagation()}>
             ${this._renderSortDropdown(sectionId)}
@@ -4208,7 +4073,7 @@ export class AqaraPanel extends LitElement {
                 ${this._renderFavoriteStar(ref.type, ref.id)}
               </div>
               <div class="preset-icon">
-                ${this._renderFavoritePresetIcon(ref, preset, isUser)}
+                ${renderPresetIcon(ref, preset, isUser)}
               </div>
               <div class="preset-name">${preset.name}</div>
             </div>

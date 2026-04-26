@@ -3,6 +3,7 @@ import { render, type TemplateResult } from 'lit';
 import { renderPresetIcon } from './preset-icon';
 import type {
   FavoritePresetRef,
+  DynamicEffectPreset,
   UserEffectPreset,
   DynamicScenePreset,
   UserDynamicScenePreset,
@@ -16,7 +17,9 @@ const renderToHTML = (template: TemplateResult): string => {
 };
 
 describe('renderPresetIcon', () => {
-  it('user effect with audio_config.audio_entity AND no icon shows audio badge', () => {
+  it('user effect with audio_config.audio_entity alone (no audio_speed_mode) does NOT show audio badge', () => {
+    // audio_entity alone is not the audio indicator for user effects;
+    // audio_config.audio_speed_mode is. Without it, no badge.
     const ref: FavoritePresetRef = { type: 'effect', id: 'u1' };
     const preset = {
       id: 'u1',
@@ -25,24 +28,52 @@ describe('renderPresetIcon', () => {
       effect_speed: 50,
       effect_colors: [{ x: 0.5, y: 0.5 }],
       audio_config: { audio_entity: 'sensor.audio' },
+    } as unknown as UserEffectPreset;
+    const html = renderToHTML(renderPresetIcon(ref, preset, true));
+    expect(html).not.toContain('audio-badge');
+  });
+
+  it('built-in effect with audio_speed_mode shows audio badge', () => {
+    const ref: FavoritePresetRef = { type: 'effect', id: 'kick' };
+    const preset = {
+      id: 'kick', name: 'Kick', icon: 'mdi:music-circle', audio_speed_mode: 'tempo',
+    } as unknown as DynamicEffectPreset;
+    const html = renderToHTML(renderPresetIcon(ref, preset, false));
+    expect(html).toContain('audio-badge');
+  });
+
+  it('built-in effect WITHOUT audio_speed_mode does not show audio badge', () => {
+    const ref: FavoritePresetRef = { type: 'effect', id: 'rainbow' };
+    const preset = {
+      id: 'rainbow', name: 'Rainbow', icon: 'mdi:looks',
+    } as unknown as DynamicEffectPreset;
+    const html = renderToHTML(renderPresetIcon(ref, preset, false));
+    expect(html).not.toContain('audio-badge');
+  });
+
+  it('user effect with audio_config.audio_speed_mode and custom icon shows audio badge', () => {
+    const ref: FavoritePresetRef = { type: 'effect', id: 'u1' };
+    const preset = {
+      id: 'u1', name: 'My Audio Effect',
+      effect: 'jitter', effect_speed: 50,
+      effect_colors: [{ x: 0.5, y: 0.5 }],
+      icon: 'mdi:speaker',
+      audio_config: { audio_speed_mode: 'volume' },
     } as unknown as UserEffectPreset;
     const html = renderToHTML(renderPresetIcon(ref, preset, true));
     expect(html).toContain('audio-badge');
   });
 
-  it('user effect with audio_config.audio_entity AND custom icon does NOT show audio badge', () => {
+  it('user effect with audio_config.audio_speed_mode and no icon shows audio badge', () => {
     const ref: FavoritePresetRef = { type: 'effect', id: 'u1' };
     const preset = {
-      id: 'u1',
-      name: 'My',
-      effect: 'jitter',
-      effect_speed: 50,
+      id: 'u1', name: 'My Audio Effect',
+      effect: 'jitter', effect_speed: 50,
       effect_colors: [{ x: 0.5, y: 0.5 }],
-      icon: 'mdi:music',
-      audio_config: { audio_entity: 'sensor.audio' },
+      audio_config: { audio_speed_mode: 'tempo' },
     } as unknown as UserEffectPreset;
     const html = renderToHTML(renderPresetIcon(ref, preset, true));
-    expect(html).not.toContain('audio-badge');
+    expect(html).toContain('audio-badge');
   });
 
   it('builtin dynamic scene with audio_color_advance shows audio badge', () => {
