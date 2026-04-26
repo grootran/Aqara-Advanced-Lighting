@@ -53,6 +53,7 @@ export class AqaraPresetFavoritesCardEditor extends LitElement {
     // Clean up any stray pointer listeners (defensive).
     window.removeEventListener('pointermove', this._onCurationDragMove);
     window.removeEventListener('pointerup', this._onCurationDragEnd);
+    window.removeEventListener('pointercancel', this._onCurationDragEnd);
     this._curationDrag = null;
   }
 
@@ -282,6 +283,7 @@ export class AqaraPresetFavoritesCardEditor extends LitElement {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     window.addEventListener('pointermove', this._onCurationDragMove);
     window.addEventListener('pointerup', this._onCurationDragEnd);
+    window.addEventListener('pointercancel', this._onCurationDragEnd);
   };
 
   private _onCurationDragMove = (e: PointerEvent): void => {
@@ -300,6 +302,7 @@ export class AqaraPresetFavoritesCardEditor extends LitElement {
   private _onCurationDragEnd = (): void => {
     window.removeEventListener('pointermove', this._onCurationDragMove);
     window.removeEventListener('pointerup', this._onCurationDragEnd);
+    window.removeEventListener('pointercancel', this._onCurationDragEnd);
     const drag = this._curationDrag;
     this._curationDrag = null;
     if (!drag || drag.fromIdx === drag.toIdx) return;

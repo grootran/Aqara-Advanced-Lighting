@@ -91,6 +91,8 @@ export class AqaraPanel extends LitElement {
   @state() private _renamingFavoriteName = '';
   @state() private _favoriteEditModeId: string | null = null;
   @state() private _presetEditModeId: string | null = null;
+  // Active favorites drag state (panel custom-sort reorder). null when not dragging.
+  @state() private _favoriteDrag: { fromId: string; toId: string | null } | null = null;
   private _longPressTimer: ReturnType<typeof setTimeout> | null = null;
   @state() private _activeTab: PanelTab = 'activate';
   @state() private _userPresets?: UserPresetsData;
@@ -187,6 +189,13 @@ export class AqaraPanel extends LitElement {
       unsub();
     }
     this._eventUnsubscribers = [];
+    // Clean up any in-flight favorite drag so window listeners don't leak.
+    if (this._favoriteDrag) {
+      window.removeEventListener('pointermove', this._onFavoriteDragMove);
+      window.removeEventListener('pointerup', this._onFavoriteDragEnd);
+      window.removeEventListener('pointercancel', this._onFavoriteDragEnd);
+      this._favoriteDrag = null;
+    }
   }
 
   protected willUpdate(changedProps: PropertyValues): void {
@@ -764,12 +773,100 @@ export class AqaraPanel extends LitElement {
     }
   }
 
+  /**
+   * Pointer-down on a favorite card's drag handle. Captures the pointer on the
+   * handle element so subsequent moves/up events fire on the same target even
+   * if the pointer leaves it. stopPropagation prevents the card click handler
+   * (preset activation) from firing on drag-start.
+   */
+  private _onFavoriteDragStart = (e: PointerEvent, fromId: string): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    this._favoriteDrag = { fromId, toId: null };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    window.addEventListener('pointermove', this._onFavoriteDragMove);
+    window.addEventListener('pointerup', this._onFavoriteDragEnd);
+    window.addEventListener('pointercancel', this._onFavoriteDragEnd);
+  };
+
+  /**
+   * Track which card the pointer is currently over by hit-testing the
+   * `.preset-button[data-fav-id]` rects. Updates `_favoriteDrag.toId` on every move.
+   */
+  private _onFavoriteDragMove = (e: PointerEvent): void => {
+    if (!this._favoriteDrag) return;
+    const cards = this.shadowRoot!.querySelectorAll('.preset-button[data-fav-id]');
+    for (const card of Array.from(cards)) {
+      const rect = (card as HTMLElement).getBoundingClientRect();
+      if (
+        e.clientX >= rect.left && e.clientX <= rect.right &&
+        e.clientY >= rect.top && e.clientY <= rect.bottom
+      ) {
+        const id = (card as HTMLElement).dataset.favId!;
+        if (this._favoriteDrag.toId !== id) {
+          this._favoriteDrag = { ...this._favoriteDrag, toId: id };
+        }
+        break;
+      }
+    }
+  };
+
+  /**
+   * Capture-phase click suppressor used to swallow the synthetic click that
+   * the browser fires after a successful pointerup. Without this the preset
+   * card's @click would activate the preset on drop. Registered with
+   * { capture: true, once: true } so it removes itself after one click.
+   */
+  private _suppressClick = (e: Event): void => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  /**
+   * Pointer-up: persist the new order and clean up listeners. Splice/insert
+   * the dragged ref to the drop target's index, then PUT through the existing
+   * preferences-controller update mechanism.
+   */
+  private _onFavoriteDragEnd = (e?: PointerEvent): void => {
+    const isCancel = e?.type === 'pointercancel';
+    window.removeEventListener('pointermove', this._onFavoriteDragMove);
+    window.removeEventListener('pointerup', this._onFavoriteDragEnd);
+    window.removeEventListener('pointercancel', this._onFavoriteDragEnd);
+    const drag = this._favoriteDrag;
+    this._favoriteDrag = null;
+    if (!drag) return;
+
+    // Suppress the synthetic click that follows pointerup. Capture phase + once
+    // so the suppressor catches the click before it reaches the preset-button
+    // handler and removes itself afterward. Skip on pointercancel — no click
+    // follows a cancel.
+    if (!isCancel) {
+      window.addEventListener('click', this._suppressClick, { capture: true, once: true });
+    }
+
+    if (!drag.toId || drag.fromId === drag.toId) return;
+
+    const refs = [...this._prefs.state.favoritePresets];
+    const fromIdx = refs.findIndex(r => r.id === drag.fromId);
+    const toIdx = refs.findIndex(r => r.id === drag.toId);
+    if (fromIdx < 0 || toIdx < 0) return;
+
+    const [moved] = refs.splice(fromIdx, 1);
+    if (!moved) return;
+    refs.splice(toIdx, 0, moved);
+
+    this._prefs.update({ favoritePresets: refs }, this.hass);
+  };
+
   private _sortResolvedFavorites(
     items: Array<{ ref: FavoritePresetRef; preset: any; isUser: boolean }>,
     sortOption: PresetSortOption,
   ): Array<{ ref: FavoritePresetRef; preset: any; isUser: boolean }> {
     const sorted = [...items];
     switch (sortOption) {
+      case 'custom':
+        // User-managed manual order; reflects the favoritePresets array as-is.
+        return sorted;
       case 'name-asc':
         return sorted.sort((a, b) => a.preset.name.localeCompare(b.preset.name));
       case 'name-desc':
@@ -4000,6 +4097,7 @@ export class AqaraPanel extends LitElement {
 
   private get _sortOptions() {
     return [
+      { value: 'custom', label: this._localize('presets.sort_custom') },
       { value: 'name-asc', label: this._localize('presets.sort_name_asc') },
       { value: 'name-desc', label: this._localize('presets.sort_name_desc') },
       { value: 'date-new', label: this._localize('presets.sort_date_new') },
@@ -4050,6 +4148,9 @@ export class AqaraPanel extends LitElement {
     const isExpanded = !this._prefs.state.collapsed[sectionId];
     const sortOption = this._getSortPreference(sectionId);
     const sortedFavorites = this._sortResolvedFavorites(resolved, sortOption);
+    const isCustomSort = sortOption === 'custom';
+    const dragFromId = this._favoriteDrag?.fromId;
+    const dragToId = this._favoriteDrag?.toId;
 
     return html`
       <ha-expansion-panel
@@ -4069,11 +4170,23 @@ export class AqaraPanel extends LitElement {
         <div class="section-content">
           ${sortedFavorites.map(({ ref, preset, isUser }) => {
             const isEditMode = this._presetEditModeId === ref.id;
+            const isDragSource = dragFromId === ref.id;
+            const isDropTarget = dragToId === ref.id && dragFromId !== ref.id;
             return html`
-            <div class="preset-button ${isUser ? 'user-preset' : 'builtin-preset'} ${isEditMode ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (isEditMode) { this._presetEditModeId = null; } else { this._activateFavoritePreset(ref, preset, isUser); } }} @touchstart=${() => this._handlePresetTouchStart(ref.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
+            <div class="preset-button ${isUser ? 'user-preset' : 'builtin-preset'} ${isEditMode ? 'edit-mode' : ''} ${isDragSource ? 'drag-source' : ''} ${isDropTarget ? 'drop-target' : ''}" data-fav-id=${ref.id} role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (isEditMode) { this._presetEditModeId = null; } else { this._activateFavoritePreset(ref, preset, isUser); } }} @touchstart=${() => this._handlePresetTouchStart(ref.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
               <div class="preset-card-actions preset-card-actions-left">
                 ${this._renderFavoriteStar(ref.type, ref.id)}
               </div>
+              ${isCustomSort ? html`
+                <div class="preset-card-actions">
+                  <ha-icon-button
+                    class="favorites-drag-handle"
+                    @pointerdown=${(e: PointerEvent) => this._onFavoriteDragStart(e, ref.id)}
+                  >
+                    <ha-icon icon="mdi:drag"></ha-icon>
+                  </ha-icon-button>
+                </div>
+              ` : ''}
               <div class="preset-icon">
                 ${renderPresetIcon(ref, preset, isUser)}
               </div>

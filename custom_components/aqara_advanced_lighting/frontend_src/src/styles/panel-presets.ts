@@ -333,6 +333,18 @@ export const presetStyles = css`
     border: 1px solid var(--primary-color);
   }
 
+  /* Favorites drag-reorder visual feedback. Use outline (not border) so the
+     indicator does not shift the grid layout. outline-offset: -2px overlays
+     the existing 2px border crisply. */
+  .preset-button.drag-source {
+    opacity: 0.5;
+  }
+
+  .preset-button.drop-target {
+    outline: 3px solid var(--primary-color);
+    outline-offset: -2px;
+  }
+
   /* Responsive presets */
   @media (max-width: 600px) {
     .preset-button {

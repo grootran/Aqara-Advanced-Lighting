@@ -356,7 +356,7 @@ DATA_SEGMENT_ZONE_STORE: Final = "segment_zone_store"
 DATA_SERVICE_SCHEMA_MANAGER: Final = "service_schema_manager"
 
 # Valid sort options for user preferences (validated in backend)
-VALID_SORT_OPTIONS: Final = {"name-asc", "name-desc", "date-new", "date-old"}
+VALID_SORT_OPTIONS: Final = {"custom", "name-asc", "name-desc", "date-new", "date-old"}
 
 # Color history constraints
 MAX_COLOR_HISTORY_SIZE: Final = 8

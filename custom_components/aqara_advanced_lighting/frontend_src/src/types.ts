@@ -389,7 +389,7 @@ export interface DeviceContext {
 export type PanelTab = 'activate' | 'effects' | 'patterns' | 'cct' | 'segments' | 'scenes' | 'presets' | 'config';
 
 // Sort options for presets
-export type PresetSortOption = 'name-asc' | 'name-desc' | 'date-new' | 'date-old';
+export type PresetSortOption = 'custom' | 'name-asc' | 'name-desc' | 'date-new' | 'date-old';
 
 export type PresetSortPreferences = Record<string, PresetSortOption>;
 
