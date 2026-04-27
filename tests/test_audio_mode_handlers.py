@@ -927,3 +927,70 @@ class TestModeRegistry:
         }
         missing = mode_constants - set(MODE_REGISTRY.keys())
         assert not missing, f"Modes missing from MODE_REGISTRY: {missing}"
+
+    # -----------------------------------------------------------------------
+    # `hidden` flag — descope mechanism for in-progress pro features.
+    # See docs/plans/2026-04-27-descope-pro-dsp-features-for-v1.3.0.md.
+    # -----------------------------------------------------------------------
+
+    def test_bass_kick_hidden_in_v1_3_0(self):
+        # bass_kick is hidden from user-facing dropdowns in v1.3.0 while the
+        # pro-tier DSP is stabilised. Handler still dispatches for any
+        # existing scene config that references it.
+        assert MODE_REGISTRY[AUDIO_COLOR_ADVANCE_BASS_KICK].hidden is True
+
+    def test_freq_to_hue_hidden_in_v1_3_0(self):
+        assert MODE_REGISTRY[AUDIO_COLOR_ADVANCE_FREQ_TO_HUE].hidden is True
+
+    def test_beat_predictive_not_hidden(self):
+        # beat_predictive shipped in v1.2.0; hiding it in v1.3.0 would be a
+        # backwards-compat regression. Stays visible.
+        from custom_components.aqara_advanced_lighting.const import (
+            AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
+        )
+        assert MODE_REGISTRY[AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE].hidden is False
+
+    def test_default_modes_not_hidden(self):
+        # The four basic-tier modes that have always shipped should never
+        # be marked hidden.
+        from custom_components.aqara_advanced_lighting.const import (
+            AUDIO_COLOR_ADVANCE_CONTINUOUS,
+            AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING,
+            AUDIO_COLOR_ADVANCE_ON_ONSET,
+            AUDIO_COLOR_ADVANCE_ONSET_FLASH,
+        )
+        for mode in (
+            AUDIO_COLOR_ADVANCE_ON_ONSET,
+            AUDIO_COLOR_ADVANCE_CONTINUOUS,
+            AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING,
+            AUDIO_COLOR_ADVANCE_ONSET_FLASH,
+        ):
+            assert MODE_REGISTRY[mode].hidden is False, (
+                f"{mode} must stay visible — never had a hidden state"
+            )
+
+    def test_hidden_modes_still_dispatched_by_create_handler(self):
+        # Backwards-compat: existing scene configs storing a hidden mode
+        # value still resolve to the correct handler. The hidden flag is a
+        # frontend-display concern, not a dispatcher gate.
+        manager = MagicMock()
+        bass_kick = create_handler(AUDIO_COLOR_ADVANCE_BASS_KICK, manager)
+        assert isinstance(bass_kick, BassKickHandler)
+        freq_to_hue = create_handler(AUDIO_COLOR_ADVANCE_FREQ_TO_HUE, manager)
+        assert isinstance(freq_to_hue, FreqToHueHandler)
+
+    def test_serialise_mode_registry_includes_hidden_field(self):
+        # Frontend's audio-mode-registry.ts reads this field; loss of the
+        # field would silently un-hide the modes in the dropdown.
+        from custom_components.aqara_advanced_lighting.audio_mode_handlers import (
+            serialise_mode_registry,
+        )
+        serialised = serialise_mode_registry()
+        by_constant = {entry["constant"]: entry for entry in serialised}
+        assert by_constant[AUDIO_COLOR_ADVANCE_BASS_KICK]["hidden"] is True
+        assert by_constant[AUDIO_COLOR_ADVANCE_FREQ_TO_HUE]["hidden"] is True
+        # Spot-check a non-hidden mode too.
+        from custom_components.aqara_advanced_lighting.const import (
+            AUDIO_COLOR_ADVANCE_ON_ONSET,
+        )
+        assert by_constant[AUDIO_COLOR_ADVANCE_ON_ONSET]["hidden"] is False

@@ -20,6 +20,7 @@ import {
   audioDeviceTier,
   buildAudioModeOptions,
   fetchAudioModeRegistry,
+  isAudioModeHidden,
 } from './audio-mode-registry';
 
 // Editable color slot with unique ID for drag/drop
@@ -158,11 +159,17 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
   private get _audioPresetOptions() {
     const tier = audioDeviceTier(this.hass, this._audioEntity);
     const proBadge = this._localize('dynamic_scene.audio_mode_pro_badge') || 'pro';
-    const options = Object.entries(DynamicSceneEditor.AUDIO_PRESETS).map(([name, p]) => {
-      const baseLabel = this._localize(`dynamic_scene.audio_preset_${name}`) || name;
-      const needsBadge = p.requires_pro && tier !== 'pro';
-      return { value: name, label: needsBadge ? `${baseLabel} (${proBadge})` : baseLabel };
-    });
+    const options = Object.entries(DynamicSceneEditor.AUDIO_PRESETS)
+      // Skip presets whose color_advance value is currently hidden in the
+      // mode registry — surfacing them as preset choices would let the user
+      // pick a preset that locks them into a mode they can't otherwise
+      // select. See audio_mode_handlers.py MODE_REGISTRY hidden flag.
+      .filter(([_, p]) => !isAudioModeHidden(this._audioModeRegistry, p.color_advance))
+      .map(([name, p]) => {
+        const baseLabel = this._localize(`dynamic_scene.audio_preset_${name}`) || name;
+        const needsBadge = p.requires_pro && tier !== 'pro';
+        return { value: name, label: needsBadge ? `${baseLabel} (${proBadge})` : baseLabel };
+      });
     options.push({ value: 'custom', label: this._localize('dynamic_scene.audio_preset_custom') || 'Custom' });
     return options;
   }
@@ -1376,11 +1383,13 @@ export class DynamicSceneEditor extends ReorderableStepsMixin(LitElement) {
                   .value=${this._audioColorAdvance}
                   @value-changed=${this._handleAudioColorAdvanceChange}
                 ></ha-selector>
-                ${audioDeviceTier(this.hass, this._audioEntity) !== 'pro' ? html`
-                  <div class="audio-mode-help" style="font-size: 0.85em; opacity: 0.75; margin-top: 4px;">
-                    ${this._localize('dynamic_scene.audio_mode_pro_badge_tooltip') || 'Modes labeled (pro) perform best on pro-tier audio devices. Basic-tier devices will fall back to a simplified implementation.'}
-                  </div>
-                ` : ''}
+                <!--
+                  v1.3.0: pro-tier mode tooltip removed because no currently-
+                  visible mode has requires_pro=True (bass_kick and
+                  freq_to_hue are hidden via MODE_REGISTRY's hidden flag).
+                  Restore this block when the hidden modes are re-enabled —
+                  see docs/plans/2026-04-27-descope-pro-dsp-features-for-v1.3.0.md.
+                -->
               </div>
             </div>
 

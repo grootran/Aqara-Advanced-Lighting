@@ -19,10 +19,11 @@ class TestSerialiseModeRegistry:
     def test_each_entry_has_required_fields(self):
         result = serialise_mode_registry()
         for entry in result:
-            assert set(entry.keys()) == {"constant", "requires_pro", "display_label"}
+            assert set(entry.keys()) == {"constant", "requires_pro", "display_label", "hidden"}
             assert isinstance(entry["constant"], str)
             assert isinstance(entry["requires_pro"], bool)
             assert isinstance(entry["display_label"], str)
+            assert isinstance(entry["hidden"], bool)
 
     def test_bass_kick_marked_requires_pro(self):
         result = serialise_mode_registry()

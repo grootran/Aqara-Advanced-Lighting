@@ -58,6 +58,13 @@ class ModeSpec:
     is_spectral_mode: bool = False  # consumes centroid/rolloff; subscribe_spectral
     needs_band_attrs: bool = False  # needs per-band energies in onset attrs (e.g. BassKick dominance)
     needs_beat_tracking: bool = False  # subscribe_bpm + subscribe_beat_tracking
+    # Hidden modes are still dispatched for existing scenes (handler keeps
+    # working, schema validators still accept the value) but the frontend
+    # filters them out of the user-facing dropdown options. Used to descope
+    # in-progress pro-tier features from a release without ripping out the
+    # underlying code; flip back to False once the upstream DSP is stable.
+    # See docs/plans/2026-04-27-descope-pro-dsp-features-for-v1.3.0.md.
+    hidden: bool = False
 
 class AudioModeHandler(ABC):
     """Abstract base class for audio-reactive mode handlers."""
@@ -609,14 +616,19 @@ MODE_REGISTRY: dict[str, ModeSpec] = {
         requires_pro=False,
         is_onset_mode=True, needs_beat_tracking=True,
     ),
-    # New in Chunk 7: pro-aware modes.
+    # Pro-aware modes — hidden from selectors for v1.3.0 release while the
+    # upstream pro-tier DSP (per-band AGC saturation, BTrack tempo ambiguity)
+    # is stabilised. Handlers and dispatch paths are intact; existing scene
+    # configs with these values continue to load and run.
     AUDIO_COLOR_ADVANCE_BASS_KICK: ModeSpec(
         AUDIO_COLOR_ADVANCE_BASS_KICK, BassKickHandler, requires_pro=True,
         is_onset_mode=True, is_energy_mode=True, needs_band_attrs=True,
+        hidden=True,
     ),
     AUDIO_COLOR_ADVANCE_FREQ_TO_HUE: ModeSpec(
         AUDIO_COLOR_ADVANCE_FREQ_TO_HUE, FreqToHueHandler, requires_pro=True,
         is_energy_mode=True, is_spectral_mode=True,
+        hidden=True,
     ),
 }
 
@@ -656,6 +668,8 @@ def serialise_mode_registry() -> list[dict[str, Any]]:
             "requires_pro": bool,       # whether pro-tier hardware gives materially better results
             "display_label": str,       # optional override; empty string means frontend derives
                                         # the label from translation key "audio_mode_<constant>"
+            "hidden": bool,             # True when the mode should be filtered out of user-facing
+                                        # selectors (still dispatched for existing scene configs).
         }
     """
     return [
@@ -663,6 +677,7 @@ def serialise_mode_registry() -> list[dict[str, Any]]:
             "constant": spec.constant,
             "requires_pro": spec.requires_pro,
             "display_label": spec.display_label,
+            "hidden": spec.hidden,
         }
         for spec in MODE_REGISTRY.values()
     ]
