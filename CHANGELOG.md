@@ -8,7 +8,7 @@ All notable changes to the Aqara Advanced Lighting integration will be documente
 
 Version 1.3.0 introduces an updated dashboard card, preset favorites custom sorting, drag and drop color swatches in effect and segments editors, and audio-reactive effects for Aqara devices, allowing T1M and T1 Strip lights to run their native device effects speed modulated live by music.
 
-It also unifies the audio parameter model across scenes and effects for a consistent editing experience, and introduces a central engine registry that eliminates orphaned audio engines. Integration-side support for the ESPHome Audio Reactive v0.4.2 pro DSP tier adds per-musical-band sensors and a tight beat-event binary sensor.
+It also unifies the audio parameter model across scenes and effects for a consistent editing experience, and introduces a central engine registry that eliminates orphaned audio engines. Integration-side support for the ESPHome Audio Reactive v0.4.2 pro DSP tier adds per-musical-band sensors and a beat-event binary sensor.
 
 The BTrack beat tracker has been rewritten from scratch in the firmware (esphome-audio-reactive v0.4.2); existing v1.2.x scenes using `beat_predictive` color-advance now lock onto a wider range of music tempos than they did under v1.2.0.
 
