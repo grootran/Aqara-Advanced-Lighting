@@ -263,7 +263,10 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT],
         "audio_sensitivity": 70,
         "audio_silence_behavior": AUDIO_SILENCE_DECAY_MIN,
-        "audio_speed_mode": AUDIO_EFFECT_MODE_TEMPO,
+        # v1.3.0: audio_speed_mode was AUDIO_EFFECT_MODE_TEMPO; restored to
+        # AUDIO_EFFECT_MODE_VOLUME alongside the descope of tempo/combined
+        # speed modes from the user-facing selectors. See descope plan.
+        "audio_speed_mode": AUDIO_EFFECT_MODE_VOLUME,
         "audio_speed_min": 30,
         "audio_speed_max": 100,
     },
@@ -277,7 +280,8 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT],
         "audio_sensitivity": 35,
         "audio_silence_behavior": AUDIO_SILENCE_HOLD,
-        "audio_speed_mode": AUDIO_EFFECT_MODE_COMBINED,
+        # v1.3.0: was AUDIO_EFFECT_MODE_COMBINED; see descope plan.
+        "audio_speed_mode": AUDIO_EFFECT_MODE_VOLUME,
         "audio_speed_min": 5,
         "audio_speed_max": 50,
     },
@@ -291,7 +295,8 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "device_types": [MODEL_T1M_20_SEGMENT, MODEL_T1M_26_SEGMENT],
         "audio_sensitivity": 75,
         "audio_silence_behavior": AUDIO_SILENCE_DECAY_MIN,
-        "audio_speed_mode": AUDIO_EFFECT_MODE_TEMPO,
+        # v1.3.0: was AUDIO_EFFECT_MODE_TEMPO; see descope plan.
+        "audio_speed_mode": AUDIO_EFFECT_MODE_VOLUME,
         "audio_speed_min": 5,
         "audio_speed_max": 100,
     },
@@ -420,7 +425,8 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "device_types": [MODEL_T1_STRIP],
         "audio_sensitivity": 80,
         "audio_silence_behavior": AUDIO_SILENCE_DECAY_MIN,
-        "audio_speed_mode": AUDIO_EFFECT_MODE_TEMPO,
+        # v1.3.0: was AUDIO_EFFECT_MODE_TEMPO; see descope plan.
+        "audio_speed_mode": AUDIO_EFFECT_MODE_VOLUME,
         "audio_speed_min": 25,
         "audio_speed_max": 100,
     },
@@ -451,7 +457,8 @@ EFFECT_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "device_types": [MODEL_T1_STRIP],
         "audio_sensitivity": 60,
         "audio_silence_behavior": AUDIO_SILENCE_DECAY_MIN,
-        "audio_speed_mode": AUDIO_EFFECT_MODE_COMBINED,
+        # v1.3.0: was AUDIO_EFFECT_MODE_COMBINED; see descope plan.
+        "audio_speed_mode": AUDIO_EFFECT_MODE_VOLUME,
         "audio_speed_min": 5,
         "audio_speed_max": 90,
     },
