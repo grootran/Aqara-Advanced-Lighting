@@ -22,6 +22,18 @@ export interface AudioModeEntry {
   constant: string;
   requires_pro: boolean;
   display_label: string;
+  /**
+   * Hidden modes are filtered out of user-facing dropdowns by
+   * buildAudioModeOptions(). The backend still dispatches the handler if
+   * an existing scene's config references the mode value, so existing
+   * scenes continue to work; users just can't pick the mode for new
+   * scenes. Used to descope in-progress features from a release without
+   * ripping out underlying code.
+   *
+   * Optional in the type so older backends that pre-date the field still
+   * deserialise — undefined is treated as "not hidden".
+   */
+  hidden?: boolean;
 }
 
 /**
@@ -126,13 +138,35 @@ export function buildAudioModeOptions(
 ): Array<{ value: string; label: string }> {
   if (!registry) return [];
   const proBadge = localize('dynamic_scene.audio_mode_pro_badge') || 'pro';
-  return registry.map((mode) => {
-    const translationKey = `dynamic_scene.audio_mode_${mode.constant}`;
-    const baseLabel = localize(translationKey) || mode.display_label || mode.constant;
-    const needsBadge = mode.requires_pro && tier !== 'pro';
-    return {
-      value: mode.constant,
-      label: needsBadge ? `${baseLabel} (${proBadge})` : baseLabel,
-    };
-  });
+  return registry
+    // Filter out hidden modes — see AudioModeEntry.hidden docstring.
+    .filter((mode) => !mode.hidden)
+    .map((mode) => {
+      const translationKey = `dynamic_scene.audio_mode_${mode.constant}`;
+      const baseLabel = localize(translationKey) || mode.display_label || mode.constant;
+      const needsBadge = mode.requires_pro && tier !== 'pro';
+      return {
+        value: mode.constant,
+        label: needsBadge ? `${baseLabel} (${proBadge})` : baseLabel,
+      };
+    });
+}
+
+/**
+ * Test whether a given mode constant is hidden in the current registry.
+ * Used to filter the AUDIO_PRESETS template list (the kick / spectrum
+ * presets reference hidden modes; surfacing them as preset choices would
+ * let the user pick a preset that locks them into a hidden mode).
+ *
+ * Returns false when the registry hasn't loaded yet or doesn't list the
+ * constant — fail-open so the user-facing dropdown isn't accidentally
+ * blank during boot.
+ */
+export function isAudioModeHidden(
+  registry: AudioModeEntry[] | null,
+  constant: string,
+): boolean {
+  if (!registry) return false;
+  const entry = registry.find((m) => m.constant === constant);
+  return entry?.hidden === true;
 }

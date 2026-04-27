@@ -783,8 +783,10 @@ export class EffectEditor extends ReorderableStepsMixin(LitElement) {
                       select: {
                         options: [
                           { value: 'volume', label: this._localize('effect_editor.mode_volume') || 'Volume' },
-                          { value: 'tempo', label: this._localize('effect_editor.mode_tempo') || 'Tempo' },
-                          { value: 'combined', label: this._localize('effect_editor.mode_combined') || 'Combined' },
+                          // 'tempo' and 'combined' are hidden in v1.3.0 — see
+                          // docs/plans/2026-04-27-descope-pro-dsp-features-for-v1.3.0.md
+                          // The type annotation on _audioSpeedMode keeps these
+                          // values valid so existing effects load correctly.
                         ],
                         mode: 'dropdown',
                       },

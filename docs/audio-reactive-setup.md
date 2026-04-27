@@ -74,14 +74,13 @@ From firmware v0.4.0, the `esphome-audio-reactive` component runs one of two DSP
 
 The HA integration auto-discovers the pro-tier sensors when they appear and enables the corresponding features without any user action. If you only have basic-tier devices, everything works exactly as before.
 
-### What pro tier unlocks in dynamic scenes
+### What pro tier unlocks in v1.3.0
 
-Two additional color-advance modes become available on pro-tier devices (with graceful fallback on basic):
+The pro DSP tier exposes per-musical-band sensors (sub_bass, low_mid, upper_mid, air, plus their basic-tier counterparts) and a tight `beat_event` binary sensor to Home Assistant. These are visible in HA for use in custom automations.
 
-- **`bass_kick`** — brightness pulses on bass-kick impacts only, using the `sub_bass` band as the driver (falls back to `bass` on basic). Sharper than generic onset detection for kick-drum-driven genres.
-- **`freq_to_hue`** — spectral centroid drives hue continuously, so different frequency profiles produce different colors naturally. Works on both tiers (centroid is a shared sensor).
+The two scene-side color-advance modes that consume the pro-tier sensors directly — `bass_kick` and `freq_to_hue` — are hidden from the dynamic-scene editor in v1.3.0 while their upstream firmware DSP is stabilised. They will return in a follow-up release; in the meantime existing scenes with those values continue to load and run, and the underlying sensors remain available for user automations.
 
-See [Color advance modes](#color-advance-modes) for the full list.
+See [Color advance modes](#color-advance-modes) for the modes available in v1.3.0.
 
 ### Upgrading existing devices (v0.3.x → v0.4.0)
 
@@ -445,8 +444,8 @@ When `audio_entity` is set, the `transition_time` and `hold_time` values are ign
 | **Beat predictive** (`beat_predictive`) | Learns the tempo and sends light commands early to compensate for Zigbee latency. | Steady-tempo music where tight sync matters |
 | **Intensity breathing** (`intensity_breathing`) | Slow brightness envelope tracks overall loudness. Ignores individual beats. | Background/ambient listening |
 | **Brightness flash** (`onset_flash`) | Slow color drift with brightness spikes on each onset. | Combining ambient flow with reactive punch |
-| **Bass kick** (`bass_kick`) | Brightness pulses on bass-kick impacts only, gated by band dominance. Falls back to bass band on basic-tier devices; sharper on pro (uses sub_bass). | Kick-drum-driven genres (hip-hop, EDM, drum-and-bass) |
-| **Freq to hue** (`freq_to_hue`) | Spectral centroid drives hue continuously via log-scale mapping with EMA smoothing. Silence-gated so hue holds during quiet passages. | Music with varied timbres where you want timbre-to-color mapping |
+
+> **Hidden in v1.3.0:** `bass_kick` (band-dominance-gated kick-drum pulses) and `freq_to_hue` (spectral-centroid hue mapping) ship in the codebase but are filtered out of the dynamic-scene editor while their upstream firmware DSP is stabilised. They will return in a follow-up release. Existing scenes set to these values still load and run.
 
 ### Detection modes
 
@@ -539,8 +538,8 @@ Note: Only speed modulation is supported for hardware effects. Brightness cannot
 | Mode | Description |
 |---|---|
 | **Volume** (`volume`) | Louder music drives faster speed. Maps audio energy directly to the speed range. |
-| **Tempo** (`tempo`) | Faster BPM drives faster speed. Maps detected beats-per-minute to the speed range. Stable — updates as tempo changes. |
-| **Combined** (`combined`) | Tempo sets the baseline speed, volume modulates around it. Best of both — musically grounded with dynamic breathing. |
+
+> **Hidden in v1.3.0:** `tempo` (BPM-driven speed) and `combined` (BPM + volume) modes ship in the codebase but are filtered out of the effect editor while the upstream firmware BPM detection is stabilised. They will return in a follow-up release.
 ### Effect audio from a service call
 
 Call `aqara_advanced_lighting.set_dynamic_effect` with the `audio_entity` parameter to enable audio modulation:
