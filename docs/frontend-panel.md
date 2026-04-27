@@ -154,40 +154,6 @@ The change detection panel controls how the integration responds when your light
   - **Pause changed only**: Pauses only the attribute that was changed, allowing the other to keep adapting. For example, if you manually adjust brightness, brightness pauses but color temperature continues following the schedule
 - **Treat parameterized turn-on as override**: When enabled, turning on a light with specific parameters (e.g., `light.turn_on` with brightness or color_temp) overrides those attributes instead of applying the current adaptive values. When disabled, only a bare `light.turn_on` (with no parameters) applies adaptive values
 
-## Dashboard card
-
-The **Aqara Preset Favorites Card** is a custom Lovelace card that displays your favorited presets on any Home Assistant dashboard. Tap a preset to activate it instantly on the configured light(s).
-
-### Adding the card
-
-1. Open any dashboard and click **Edit**
-2. Click **Add Card**
-3. Search for **Aqara Advanced Lighting Presets** card
-4. Select a light entity and configure the card options
-
-### Card configuration
-
-| Option                  | Default              | Description                                                      |
-| ----------------------- | -------------------- | ---------------------------------------------------------------- |
-| **Entities**            | _(required)_         | One or more light entities -- the card shows presets compatible with the selected device type |
-| **Title**               | Favorite Presets     | Custom card title                                                |
-| **Columns**             | 0 (auto)             | Number of grid columns (0 = responsive auto-layout)              |
-| **Compact mode**        | Off                  | Condensed visual style with smaller preset buttons               |
-| **Show preset names**   | On                   | Display preset name labels below each button                     |
-| **Highlight user presets** | Off               | Visual distinction for custom user presets vs. built-in presets   |
-
-### How it works
-
-- The card fetches your favorited presets and filters them by the configured entity's device type
-- Preset buttons display the thumbnail and optionally the preset name
-- Active presets are highlighted
-
-### Tips
-
-- Favorite presets in the sidebar panel and they automatically appear in the card
-- Use multiple cards on the same dashboard for different lights or rooms
-- Compact mode works well in narrow columns or mobile dashboards
-
 ## Preset management
 
 ![Aqara Advanced Lighting Presets Manager](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/presets.png "Aqara Advanced Lighting Presets Manager")
