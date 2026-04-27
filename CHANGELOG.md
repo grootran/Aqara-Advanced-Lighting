@@ -8,7 +8,9 @@ All notable changes to the Aqara Advanced Lighting integration will be documente
 
 Version 1.3.0 introduces an updated dashboard card, preset favorites custom sorting, drag and drop color swatches in effect and segments editors, and audio-reactive effects for Aqara devices, allowing T1M and T1 Strip lights to run their native device effects speed modulated live by music.
 
-It also unifies the audio parameter model across scenes and effects for a consistent editing experience, and introduces a central engine registry that eliminates orphaned audio engines. Integration-side support for the ESPHome Audio Reactive v0.4.2 pro DSP tier adds per-musical-band sensors, a tight beat-event binary sensor, and two new scene-side color-advance modes.
+It also unifies the audio parameter model across scenes and effects for a consistent editing experience, and introduces a central engine registry that eliminates orphaned audio engines. Integration-side support for the ESPHome Audio Reactive v0.4.2 pro DSP tier adds per-musical-band sensors and a tight beat-event binary sensor.
+
+The BTrack beat tracker has been rewritten from scratch in the firmware (esphome-audio-reactive v0.4.2); existing v1.2.x scenes using `beat_predictive` color-advance now lock onto a wider range of music tempos than they did under v1.2.0.
 
 ### Aqara Preset Favorites Card v2
 
@@ -33,8 +35,7 @@ It also unifies the audio parameter model across scenes and effects for a consis
 
 T1M and T1 Strip lights can now run their built-in color effects (rainbow, flow, breathing, and more) with speed driven live by an ESPHome audio sensor.
 
-  - Speed modulation channel
-  - 3 modulation modes: temp, volume, and combined
+  - Speed modulation channel — amplitude maps to effect speed (`volume` mode)
   - Configurable min/max ranges for modulation
   - Silence behavior: hold last state  or decay toward minimum/mid point
   - Deadband filtering and rate limiting prevent flicker during quiet passages
@@ -51,11 +52,15 @@ T1M and T1 Strip lights can now run their built-in color effects (rainbow, flow,
 
 ### Pro-tier DSP Integration (ESPHome Audio Reactive v0.4.2)
 
-  - Auto-discovery of pro-tier companion sensors on any ESPHome audio device: `sub_bass_energy`, `low_mid_energy`, `upper_mid_energy`, `air_energy`, `beat_event` binary sensor, `calibration_stale` binary sensor, and the optional `fft_task_cycle_mean_us` / `fft_task_cycle_peak_us` diagnostic sensors. Basic-tier devices continue to work unchanged.
-  - Two new scene-side audio color-advance modes:
-    - `bass_kick` — pulses brightness on bass-kick impact using the sub_bass energy band with a cubic-decay envelope. Falls back to `bass_energy` on basic-tier devices; sharper on pro.
-    - `freq_to_hue` — drives hue from spectral centroid with log-scale mapping and EMA smoothing, silence-gated so hue holds during quiet passages. Works on both tiers.
+  - Auto-discovery of pro-tier companion sensors on any ESPHome audio device: `sub_bass_energy`, `low_mid_energy`, `upper_mid_energy`, `air_energy`, `beat_event` binary sensor, `calibration_stale` binary sensor, and the optional `fft_task_cycle_mean_us` / `fft_task_cycle_peak_us` diagnostic sensors. Basic-tier devices continue to work unchanged. The pro-tier sensor entities are exposed in HA for use in custom automations.
   - Calibration-stale warning logged once per device when a pro-tier audio device transitions its `calibration_stale` binary sensor to on, prompting the user to re-run quiet-room and music-level calibration after upgrading from v0.3.x firmware.
+
+### Deferred to a future release
+
+The following pro-tier features were planned for v1.3.0 but are hidden from the user-facing selectors while their upstream firmware DSP is stabilised. Existing scene/effect configs storing these values continue to load and run; only new selection from the UI is gated. They will return in v1.4.x or v1.5.0.
+
+  - `audio_speed_mode` options: `tempo` and `combined` (BPM-driven and BPM+amplitude-driven effect speed). The `volume` mode remains as the production speed-modulation channel.
+  - `audio_color_advance` options: `bass_kick` and `freq_to_hue`. The five other color-advance modes — `on_onset`, `continuous`, `beat_predictive`, `intensity_breathing`, `onset_flash` — remain available.
 
 ### Improvements
 

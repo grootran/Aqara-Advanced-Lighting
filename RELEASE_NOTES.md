@@ -36,8 +36,7 @@ The Aqara Preset Favorites card has been redesigned with new layout options and 
 
 T1M and T1 Strip lights can now run their built-in color effects (rainbow, flow, breathing, and more) with speed driven live by an ESPHome audio sensor.
 
-  - Speed modulation channel
-  - 3 modulation modes: temp, volume, and combined
+  - Speed modulation channel — amplitude maps to effect speed (`volume` mode)
   - Configurable min/max ranges for modulation
   - Silence behavior: hold last state  or decay toward minimum/mid point
   - Deadband filtering and rate limiting prevent flicker during quiet passages
@@ -45,6 +44,10 @@ T1M and T1 Strip lights can now run their built-in color effects (rainbow, flow,
   - Live sensitivity slider in running-operation cards
   - Effect audio reactive override panel with per-entity sensor and sensitivity controls
   - 8 new audio-reactive effects presets for T1M/T1 Strip
+
+### **Better beat tracking for v1.2.x audio scenes**
+
+The BTrack beat tracker has been rewritten in the firmware (esphome-audio-reactive v0.4.2). Existing audio scenes you set up in v1.2.0 using `beat_predictive` color advance now lock onto a wider range of music tempos than they did under v1.2.0. No config changes required — flash the new firmware and existing scenes track better.
 
 ### Audio Engine Reliability
 
@@ -54,11 +57,15 @@ T1M and T1 Strip lights can now run their built-in color effects (rainbow, flow,
 
   ### Pro-tier DSP Integration (ESPHome Audio Reactive v0.4.2)
 
-  - Auto-discovery of pro-tier companion sensors on any ESPHome audio device: `sub_bass_energy`, `low_mid_energy`, `upper_mid_energy`, `air_energy`, `beat_event` binary sensor, `calibration_stale` binary sensor, and the optional `fft_task_cycle_mean_us` / `fft_task_cycle_peak_us` diagnostic sensors. Basic-tier devices continue to work unchanged.
-  - Two new scene-side audio color-advance modes:
-    - `bass_kick` — pulses brightness on bass-kick impact using the sub_bass energy band with a cubic-decay envelope. Falls back to `bass_energy` on basic-tier devices; sharper on pro.
-    - `freq_to_hue` — drives hue from spectral centroid with log-scale mapping and EMA smoothing, silence-gated so hue holds during quiet passages. Works on both tiers.
+  - Auto-discovery of pro-tier companion sensors on any ESPHome audio device: `sub_bass_energy`, `low_mid_energy`, `upper_mid_energy`, `air_energy`, `beat_event` binary sensor, `calibration_stale` binary sensor, and the optional `fft_task_cycle_mean_us` / `fft_task_cycle_peak_us` diagnostic sensors. Basic-tier devices continue to work unchanged. The pro-tier sensors are exposed in HA for use in custom automations.
   - Calibration-stale warning logged once per device when a pro-tier audio device transitions its `calibration_stale` binary sensor to on, prompting the user to re-run quiet-room and music-level calibration after upgrading from v0.3.x firmware.
+
+### Deferred to a future release
+
+The following pro-tier features were planned for v1.3.0 but are temporarily hidden from the selectors while their upstream firmware DSP is stabilised. Existing scenes/effects with these values continue to load and run; you just can't pick them in new scenes/effects until a follow-up release.
+
+  - **Effect speed modes** — `tempo` (BPM-driven) and `combined` (BPM + amplitude). The `volume` mode is the production speed-modulation channel for v1.3.0.
+  - **Color-advance modes** — `bass_kick` (low-bass-band pulse) and `freq_to_hue` (spectral-centroid hue). The five other color-advance modes — `on_onset`, `continuous`, `beat_predictive`, `intensity_breathing`, `onset_flash` — are unaffected.
 
 ### Improvements
 
