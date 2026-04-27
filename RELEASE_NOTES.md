@@ -18,7 +18,7 @@ If you are using the audio-reactive features, please update your device firmware
 
 Version 1.3.0 introduces an updated dashboard card, preset favorites custom sorting, drag and drop color swatches in effect and segments editors, and audio-reactive effects for Aqara devices, allowing T1M and T1 Strip lights to run their native device effects speed modulated live by music.
 
-It also unifies the audio parameter model across scenes and effects for a consistent editing experience, and introduces a central engine registry that eliminates orphaned audio engines. Integration-side support for the ESPHome Audio Reactive v0.4.2 pro DSP tier adds per-musical-band sensors, a tight beat-event binary sensor, and two new scene-side color-advance modes.
+It also unifies the audio parameter model across scenes and effects for a consistent editing experience, and introduces a central engine registry that eliminates orphaned audio engines. Integration-side support for the ESPHome Audio Reactive v0.4.2 pro DSP tier adds per-musical-band sensors, and a beat-event binary sensor.
 
 ### **Dashboard Card v2**
 
