@@ -8,7 +8,7 @@ All notable changes to the Aqara Advanced Lighting integration will be documente
 
 Version 1.3.0 introduces an updated dashboard card, preset favorites custom sorting, drag and drop color swatches in effect and segments editors, and audio-reactive effects for Aqara devices, allowing T1M and T1 Strip lights to run their native device effects speed modulated live by music.
 
-It also unifies the audio parameter model across scenes and effects for a consistent editing experience, and introduces a central engine registry that eliminates orphaned audio engines. Integration-side support for the ESPHome Audio Reactive v0.4.0 pro DSP tier adds per-musical-band sensors, a tight beat-event binary sensor, and two new scene-side color-advance modes.
+It also unifies the audio parameter model across scenes and effects for a consistent editing experience, and introduces a central engine registry that eliminates orphaned audio engines. Integration-side support for the ESPHome Audio Reactive v0.4.2 pro DSP tier adds per-musical-band sensors, a tight beat-event binary sensor, and two new scene-side color-advance modes.
 
 ### Aqara Preset Favorites Card v2
 
@@ -49,7 +49,7 @@ T1M and T1 Strip lights can now run their built-in color effects (rainbow, flow,
   - `AudioEngine` shared class now powers both scenes and effects, replacing ~430 lines of inline subscription/queue/silence code in the scene manager
   - Sensor unavailability warning in running-operation cards when the audio entity goes offline
 
-### Pro-tier DSP Integration (ESPHome Audio Reactive v0.4.0)
+### Pro-tier DSP Integration (ESPHome Audio Reactive v0.4.2)
 
   - Auto-discovery of pro-tier companion sensors on any ESPHome audio device: `sub_bass_energy`, `low_mid_energy`, `upper_mid_energy`, `air_energy`, `beat_event` binary sensor, `calibration_stale` binary sensor, and the optional `fft_task_cycle_mean_us` / `fft_task_cycle_peak_us` diagnostic sensors. Basic-tier devices continue to work unchanged.
   - Two new scene-side audio color-advance modes:
@@ -67,12 +67,13 @@ T1M and T1 Strip lights can now run their built-in color effects (rainbow, flow,
   - EMA filter extracted to shared `EMAFilter` class; alpha and decay constants centralised in `const.py`
   - Implement spectral features, beat-phase prediction
   - Implement decay_min/decay_mid silence behaviors for audio scenes
-  - Add drag-and-drop reordering for effect editor color swatches
-  - Add drag-and-drop reordering for segment-selector gradient/blocks swatches
+  - Drag-and-drop reordering for effect editor color swatches
+  - Drag-and-drop reordering for segment-selector gradient/blocks swatches
   - Default audio sensor selector moved to Device Config tab for easier discovery
   - `audio_silence_behavior` enum replaces the old boolean toggle: `hold`, `slow_cycle`, `decay_min`, `decay_mid`
   - `audio_brightness_curve` (linear/logarithmic/exponential) with configurable min/max replaces the boolean brightness-response toggle
   - Brightness override in the Activate tab now applies to segment sequences (built-in and user presets); dispatched once per entity at sequence start via `light.turn_on` so both T1M and T1 Strip honor it
+  - Drag and drop sorting for favorite presets in frontend panel
 
 ### Fixes
 
@@ -2013,3 +2014,4 @@ One click HACS cutton
 [1.0.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v1.0.0
 [1.1.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v1.1.0
 [1.2.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v1.2.0
+[1.3.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v1.3.0

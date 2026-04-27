@@ -52,7 +52,7 @@ T1M and T1 Strip lights can now run their built-in color effects (rainbow, flow,
   - `AudioEngine` shared class now powers both scenes and effects, replacing ~430 lines of inline subscription/queue/silence code in the scene manager
   - Sensor unavailability warning in running-operation cards when the audio entity goes offline
 
-  ### Pro-tier DSP Integration (ESPHome Audio Reactive v0.4.0)
+  ### Pro-tier DSP Integration (ESPHome Audio Reactive v0.4.2)
 
   - Auto-discovery of pro-tier companion sensors on any ESPHome audio device: `sub_bass_energy`, `low_mid_energy`, `upper_mid_energy`, `air_energy`, `beat_event` binary sensor, `calibration_stale` binary sensor, and the optional `fft_task_cycle_mean_us` / `fft_task_cycle_peak_us` diagnostic sensors. Basic-tier devices continue to work unchanged.
   - Two new scene-side audio color-advance modes:
@@ -70,12 +70,13 @@ T1M and T1 Strip lights can now run their built-in color effects (rainbow, flow,
   - EMA filter extracted to shared `EMAFilter` class; alpha and decay constants centralised in `const.py`
   - Implement spectral features, beat-phase prediction
   - Implement decay_min/decay_mid silence behaviors for audio scenes
-  - Add drag-and-drop reordering for effect editor color swatches
-  - Add drag-and-drop reordering for segment-selector gradient/blocks swatches
+  - Drag-and-drop reordering for effect editor color swatches
+  - Drag-and-drop reordering for segment-selector gradient/blocks swatches
   - Default audio sensor selector moved to Device Config tab for easier discovery
   - `audio_silence_behavior` enum replaces the old boolean toggle: `hold`, `slow_cycle`, `decay_min`, `decay_mid`
   - `audio_brightness_curve` (linear/logarithmic/exponential) with configurable min/max replaces the boolean brightness-response toggle
   - Brightness override in the Activate tab now applies to segment sequences (built-in and user presets); dispatched once per entity at sequence start via `light.turn_on` so both T1M and T1 Strip honor it
+  - Drag and drop sorting for favorite presets in frontend panel
 
 ### Fixes
 
@@ -89,6 +90,10 @@ T1M and T1 Strip lights can now run their built-in color effects (rainbow, flow,
   - Dynamic scene preview audio
   - Add ESPHome name-derived unique_id aliases for companion sensor discovery
   - Migrate ha-textfield to ha-input for HA 2026.5+ compatibility
+  - Dashboard Card now propagates user audio-override preferences to activation
+  - Effect favorite icons (built-in and user) now show the audio-reactive waveform badge correctly
+  - User dynamic scenes with both an uploaded image thumbnail and a leftover MDI icon now show the thumbnail
+  - Dynamic scenes activated from the dashboard card now highlight as active and are stoppable from the card
 
 ### Code Quality
 
