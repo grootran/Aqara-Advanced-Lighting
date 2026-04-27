@@ -699,6 +699,13 @@
     outline-offset: -2px;
   }
 
+  /* Disable native touch gestures (scroll, pinch) on the favorites drag
+     handle so vertical-scroll on touch devices does not compete with
+     pointer-based drag-reorder. Mirrors the editor's curation-drag-handle. */
+  .favorites-drag-handle {
+    touch-action: none;
+  }
+
   /* Responsive presets */
   @media (max-width: 600px) {
     .preset-button {

@@ -249,7 +249,9 @@ export class AqaraPresetFavoritesCardEditor extends LitElement {
           <div class=${classes.join(' ')} data-id=${fav.ref.id} data-idx=${idx}>
             <div
               class=${handleClasses.join(' ')}
-              @pointerdown=${isChecked ? (e: PointerEvent) => this._onCurationDragStart(e, idx) : undefined}
+              @pointerdown=${isChecked
+                ? (e: PointerEvent) => this._onCurationDragStart(e, idx)
+                : undefined}
             >
               <ha-icon icon="mdi:drag"></ha-icon>
             </div>

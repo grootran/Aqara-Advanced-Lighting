@@ -14,7 +14,6 @@ import type {
   AnyPreset,
   PresetsData,
   UserPresetsData,
-  UserPreferences,
 } from './types';
 
 import { PANEL_TRANSLATIONS } from './panel-translations';
@@ -58,7 +57,6 @@ export class AqaraPresetFavoritesCard extends LitElement {
   @state() private _presets?: PresetsData;
   @state() private _userPresets?: UserPresetsData;
   @state() private _favoriteRefs: FavoritePresetRef[] = [];
-  @state() private _userPrefs?: UserPreferences;
   @state() private _supportedEntities = new Map<string, SupportedEntityInfo>();
   @state() private _loading = true;
   @state() private _error?: string;
@@ -99,6 +97,13 @@ export class AqaraPresetFavoritesCard extends LitElement {
   private _subscriptionFailed = false;
   private _lastHassConnected = true;
   private _subscribing = false;
+  /**
+   * Entity IDs the current running-ops subscription is filtered on. Used in
+   * `updated()` to detect when Lovelace mutates `_config.entities` on the same
+   * card element instance and rebind the subscription so the filter doesn't
+   * go stale.
+   */
+  private _subscribedEntityIds: string[] = [];
 
   // -- Lovelace card API --------------------------------------------------
 
@@ -163,6 +168,26 @@ export class AqaraPresetFavoritesCard extends LitElement {
     if (changedProps.has('hass') && !this.hass) {
       this._stopSubscription();
     }
+
+    // Rebind the running-ops subscription when the configured entity set
+    // changes on the same element instance. Lovelace can mutate `_config`
+    // via setConfig without recreating the card, in which case the existing
+    // subscription's filter list goes stale. Compare the current resolved
+    // entity IDs against the last-subscribed set and re-subscribe on diff.
+    if (changedProps.has('_config') && this._dataLoaded && this.hass && !this._subscribing) {
+      const currentIds = this._getEntityIds();
+      const sameSet =
+        currentIds.length === this._subscribedEntityIds.length &&
+        currentIds.every(id => this._subscribedEntityIds.includes(id));
+      if (!sameSet) {
+        this._subscribing = true;
+        try {
+          await this._startSubscription();
+        } finally {
+          this._subscribing = false;
+        }
+      }
+    }
   }
 
   disconnectedCallback(): void {
@@ -190,11 +215,15 @@ export class AqaraPresetFavoritesCard extends LitElement {
       }
       this._unsubRunningOps = unsub;
       this._subscriptionFailed = false;
+      // Track the subscribed entity IDs so updated() can detect later
+      // mutations to _config.entities and rebind the subscription.
+      this._subscribedEntityIds = [...entityIds];
     } catch {
       // subscribeRunningOperations logs once-per-page-load internally; do
       // not double-log here. Caller checks _subscriptionFailed to decide
       // whether to use fetchRunningOnceOnAction after user actions.
       this._subscriptionFailed = true;
+      this._subscribedEntityIds = [];
     }
   }
 
@@ -214,6 +243,7 @@ export class AqaraPresetFavoritesCard extends LitElement {
       this._unsubRunningOps();
       this._unsubRunningOps = undefined;
     }
+    this._subscribedEntityIds = [];
   }
 
   // -- Data loading --------------------------------------------------------
@@ -234,10 +264,10 @@ export class AqaraPresetFavoritesCard extends LitElement {
       this._presets = presetsResp;
       this._userPresets = userPresetsResp;
       this._favoriteRefs = prefsResp.favorite_presets || [];
-      // Cache the user's audio preferences so card activation can match panel behavior.
-      // The activator uses these to populate audio_entity for built-in audio-reactive
-      // presets (e.g. Concert) and to apply user-level audio overrides when enabled.
-      this._userPrefs = prefsResp;
+      // Note: user audio preferences are no longer cached on the element. They
+      // are re-fetched per-activation via getUserPreferences() so that panel
+      // mutations to audio overrides take effect on the next card activation
+      // (the shared API client invalidates its cache on those mutations).
 
       const entityMap = new Map<string, SupportedEntityInfo>();
       for (const entity of entitiesResp.entities || []) {
@@ -292,7 +322,7 @@ export class AqaraPresetFavoritesCard extends LitElement {
 
     this._activating = ref.id;
     try {
-      const options = this._buildActivationOptions();
+      const options = await this._buildActivationOptions();
       await activatePreset(this.hass, entityIds, ref, preset, isUser, options);
     } catch (err) {
       console.error('AqaraFavoritesCard: activation failed', err);
@@ -311,20 +341,33 @@ export class AqaraPresetFavoritesCard extends LitElement {
   }
 
   /**
-   * Map the cached user preferences to ActivatePresetOptions so the card
-   * matches panel activation behavior. The audioOverrideEntity is the most
-   * important field here: built-in audio-reactive presets (e.g. Concert) carry
+   * Map the user preferences to ActivatePresetOptions so the card matches
+   * panel activation behavior. The audioOverrideEntity is the most important
+   * field here: built-in audio-reactive presets (e.g. Concert) carry
    * audio_color_advance but no audio_entity of their own, and rely on this
-   * fallback. When the user has enabled `useAudioReactive`, the activator also
-   * applies the full set of user-level audio overrides.
+   * fallback. When the user has enabled `useAudioReactive`, the activator
+   * also applies the full set of user-level audio overrides.
+   *
+   * Prefs are fetched per-activation (not cached on the element) so that
+   * panel mutations to audio overrides take effect immediately on the next
+   * card activation. The shared API client uses a 2-min TTL cache that is
+   * invalidated on mutation, so the typical cost is a memory read.
    *
    * Note: staticSceneMode/distributionModeOverride are panel-only UI features
    * the card does not expose, so they are intentionally left undefined.
    * Phase 2 adds `brightness` from the inline slider when the card config
    * enables `brightness_override`.
    */
-  private _buildActivationOptions(): ActivatePresetOptions {
-    const prefs = this._userPrefs;
+  private async _buildActivationOptions(): Promise<ActivatePresetOptions> {
+    let prefs;
+    try {
+      prefs = await getUserPreferences(this.hass);
+    } catch {
+      // Treat as no prefs available - fall through to brightness-only options.
+      // The activator will activate without audio overrides; activation still
+      // succeeds for non-audio presets and for built-ins that carry their own
+      // audio configuration.
+    }
     const options: ActivatePresetOptions = prefs ? {
       audioOverrideEntity: prefs.audio_override_entity ?? undefined,
       useAudioReactive: prefs.use_audio_reactive,
@@ -645,6 +688,7 @@ export class AqaraPresetFavoritesCard extends LitElement {
             if (!isNaN(v)) this._brightnessValue = v;
           }}
         />
+        <span class="brightness-slider-value">${this._brightnessValue}%</span>
       </div>
     `;
   }
@@ -1191,6 +1235,14 @@ export class AqaraPresetFavoritesCard extends LitElement {
       font-size: var(--ha-font-size-m, 14px);
       color: var(--secondary-text-color);
       white-space: nowrap;
+    }
+
+    .brightness-slider-value {
+      font-size: var(--ha-font-size-m, 14px);
+      color: var(--secondary-text-color);
+      min-width: 36px;
+      text-align: right;
+      flex-shrink: 0;
     }
   `;
 }
