@@ -2,6 +2,121 @@
 
 All notable changes to the Aqara Advanced Lighting integration will be documented in this file.
 
+## [1.3.0] - 2026-04-27
+
+### What's New
+
+Version 1.3.0 introduces an updated dashboard card, preset favorites custom sorting, drag and drop color swatches in effect and segments editors, and audio-reactive effects for Aqara devices, allowing T1M and T1 Strip lights to run their native device effects speed modulated live by music.
+
+It also unifies the audio parameter model across scenes and effects for a consistent editing experience, and introduces a central engine registry that eliminates orphaned audio engines. Integration-side support for the ESPHome Audio Reactive v0.4.2 pro DSP tier adds per-musical-band sensors and a tight beat-event binary sensor.
+
+The BTrack beat tracker has been rewritten from scratch in the firmware (esphome-audio-reactive v0.4.2); existing v1.2.x scenes using `beat_predictive` color-advance now lock onto a wider range of music tempos than they did under v1.2.0.
+
+### Aqara Preset Favorites Card v2
+
+**Breaking changes:** None. Existing card configs continue to work; the deprecated `compact: true` field migrates to `layout: 'compact-grid'` automatically.
+
+  - Per-card preset curation — the card editor now has a curation list (drag-reorder + checkboxes) that lets each card show a curated subset of favorites in a custom order. Leave it untouched to keep the global favorites order, as before.
+  - Five layouts — grid (default), compact grid, list, hero (first preset large + horizontal strip), and carousel (horizontal scroll-snap).
+  - Inline brightness slider — optional per-card slider above or below the preset display. Slider value applies to effects, segment patterns, segment sequences, and dynamic scenes (CCT sequences carry their own per-step brightness and are excluded by design). For user effects with a saved `effect_brightness`, the per-preset value still wins over the slider.
+  - Drag-reorder for the panel's favorites section — new "Custom" sort option (the new default for favorites) shows drag handles on hover. Reordering writes back to the user-preferences endpoint and persists across reloads.
+
+**Under the hood:**
+
+  - Card and panel favorites now share preset resolution, compatibility filtering, activation, and icon-rendering modules in `src/preset-runtime/`. The card lost roughly 600 lines of duplicated logic in the process.
+  - Card running-state replaced 5-second polling with a WebSocket event subscription on a new `aqara_advanced_lighting_operations_changed` HA event. Active-state updates land in milliseconds instead of seconds.
+  - Shared API client in `src/data-client/aqara-api.ts` consolidates the card's static-data cache with `bypassCache: true` invalidation after mutations, so saved preset edits surface immediately.
+  - Card source split into focused modules: editor element, config + migration shim, running-ops subscription wrapper.
+  - 96 new frontend unit tests (Vitest + happy-dom) cover the extracted modules; the existing 712 pytest backend suite continues to pass.
+
+**Migration:** Existing users with `'date-old'` saved as their favorites sort preference auto-migrate to the new `'custom'` value on first frontend load. Identical underlying behavior; the rename unlocks drag handles and gives a clearer dropdown label.
+
+### Audio-Reactive Effects
+
+T1M and T1 Strip lights can now run their built-in color effects (rainbow, flow, breathing, and more) with speed driven live by an ESPHome audio sensor.
+
+  - Speed modulation channel — amplitude maps to effect speed (`volume` mode)
+  - Configurable min/max ranges for modulation
+  - Silence behavior: hold last state  or decay toward minimum/mid point
+  - Deadband filtering and rate limiting prevent flicker during quiet passages
+  - Waveform badge on preset icons when audio-reactive is enabled
+  - Live sensitivity slider in running-operation cards
+  - Effect audio reactive override panel with per-entity sensor and sensitivity controls
+  - 8 new audio-reactive effects presets for T1M/T1 Strip
+
+### Audio Engine Reliability
+
+  - Central `AudioEngineRegistry` tracks all active engines and resolves conflicts before starting new ones, eliminating the orphaned-engine bug where two effects on different lights sharing the same sensor would silently strand the first engine
+  - `AudioEngine` shared class now powers both scenes and effects, replacing ~430 lines of inline subscription/queue/silence code in the scene manager
+  - Sensor unavailability warning in running-operation cards when the audio entity goes offline
+
+### Pro-tier DSP Integration (ESPHome Audio Reactive v0.4.2)
+
+  - Auto-discovery of pro-tier companion sensors on any ESPHome audio device: `sub_bass_energy`, `low_mid_energy`, `upper_mid_energy`, `air_energy`, `beat_event` binary sensor, `calibration_stale` binary sensor, and the optional `fft_task_cycle_mean_us` / `fft_task_cycle_peak_us` diagnostic sensors. Basic-tier devices continue to work unchanged. The pro-tier sensor entities are exposed in HA for use in custom automations.
+  - Calibration-stale warning logged once per device when a pro-tier audio device transitions its `calibration_stale` binary sensor to on, prompting the user to re-run quiet-room and music-level calibration after upgrading from v0.3.x firmware.
+
+### Deferred to a future release
+
+The following pro-tier features were planned for v1.3.0 but are hidden from the user-facing selectors while their upstream firmware DSP is stabilised. Existing scene/effect configs storing these values continue to load and run; only new selection from the UI is gated. They will return in v1.4.x or v1.5.0.
+
+  - `audio_speed_mode` options: `tempo` and `combined` (BPM-driven and BPM+amplitude-driven effect speed). The `volume` mode remains as the production speed-modulation channel.
+  - `audio_color_advance` options: `bass_kick` and `freq_to_hue`. The five other color-advance modes — `on_onset`, `continuous`, `beat_predictive`, `intensity_breathing`, `onset_flash` — remain available.
+
+### Improvements
+
+  - Stale devices automatically removed from the HA device registry when Z2M drops them from its device list or ZHA no longer reports them at startup
+  - Repair issues raised in Settings → System → Repairs when the configured backend is unreachable (Z2M: bridge not responding after 2 minutes; ZHA: integration not installed); auto-clear when resolved
+  - Auto-populate audio sensor in both scene editor and effect editor when the default sensor preference is set
+  - Activation overrides panel reordered: all toggles at top, parameters below
+  - Panel section descriptions updated throughout
+  - EMA filter extracted to shared `EMAFilter` class; alpha and decay constants centralised in `const.py`
+  - Implement spectral features, beat-phase prediction
+  - Implement decay_min/decay_mid silence behaviors for audio scenes
+  - Drag-and-drop reordering for effect editor color swatches
+  - Drag-and-drop reordering for segment-selector gradient/blocks swatches
+  - Default audio sensor selector moved to Device Config tab for easier discovery
+  - `audio_silence_behavior` enum replaces the old boolean toggle: `hold`, `slow_cycle`, `decay_min`, `decay_mid`
+  - `audio_brightness_curve` (linear/logarithmic/exponential) with configurable min/max replaces the boolean brightness-response toggle
+  - Brightness override in the Activate tab now applies to segment sequences (built-in and user presets); dispatched once per entity at sequence start via `light.turn_on` so both T1M and T1 Strip honor it
+  - Drag and drop sorting for favorite presets in frontend panel
+
+### Fixes
+
+  - Preserve original light state when switching between dynamic scene presets — preset B no longer restores to preset A's captured state baseline
+  - On-device audio modes (T1 Strip music sync, generic on-device) now correctly cleaned up when a scene is detached, not left running
+  - Stop orphaned audio engine and modulator when a new effect replaces a running audio-reactive effect
+  - Audio modulator brightness writes now tagged with integration context, eliminating false pause-detection log spam
+  - Apply audio waveform badge to scene presets with custom icons
+  - Prevent false external change detection during scene transitions
+  - Add missing audio fields to dynamic scene preset store whitelist
+  - Dynamic scene preview audio
+  - Add ESPHome name-derived unique_id aliases for companion sensor discovery
+  - Migrate ha-textfield to ha-input for HA 2026.5+ compatibility
+  - Dashboard Card now propagates user audio-override preferences to activation, so built-in audio-reactive scenes and effects activate correctly from the dashboard card. Previously the card silently dropped the user's audio sensor entity.
+  - Effect favorite icons (built-in and user) now show the audio-reactive waveform badge correctly. The badge previously used `audio_entity` as the indicator, which missed presets relying on the user-prefs audio entity. The corrected indicator is `audio_speed_mode` (built-in) and `audio_config.audio_speed_mode` (user).
+  - User dynamic scenes with both an uploaded image thumbnail and a leftover MDI icon now show the thumbnail (the deliberate user choice; the icon is often a default left over from preset creation).
+  - Dynamic scenes activated from the dashboard card now highlight as active and are stoppable from the card. Previously the card only matched single-entity-id operations; dynamic scenes use a multi-entity-id shape.
+
+### Code Quality
+
+  - Shared `AudioEngine` class used by both `DynamicSceneManager` and `AudioEffectModulator`
+  - `AudioEngineRegistry` singleton initialized in `async_setup()`
+  - `AudioEffectConfig` dataclass with full preset storage support
+  - `audio_curves.py`: response curve functions and `EMAFilter` class
+  - `async_write_effect_speed()` in both MQTT and ZHA backends for live speed adjustment without effect restart
+  - `BeatPredictiveHandler` constructor unified to `(manager)` — the previous `(manager, hass)` signature was redundant; scene configuration now resolves lazily on the first event instead of via a separate `configure()` call. Public `configure()` retained as a deprecation shim.
+  - `MODE_REGISTRY` in `audio_mode_handlers.py` becomes the single source of truth for scene-side mode → handler mapping; `create_handler()` factory replaces the scene manager's former `match`/`case` dispatcher. A new dispatcher-consistency test guards against drift.
+  - `services.yaml` enum for `audio_detection_mode` now includes `complex_domain` (previously missing — firmware has always supported it).
+  - 45 new tests covering engine activation, conflict resolution, consumer routing, and config mapping; +20 additional tests for the pro-tier mode handlers, dispatcher, and lazy-init path (619 tests total).
+  - Removed legacy preset-storage migration code introduced around 2026-02 (past the 3-month retention window):
+    - RGB-to-XY color format migration for effect and segment-sequence presets (`_migrate_rgb_colors_to_xy`, `_migrate_effect_preset`, `_migrate_segment_sequence_preset`)
+    - `loop_mode: "loop"` → `"count"` rename migration (`_migrate_loop_mode`)
+    - Associated `MIGRATION_FLAG_KEY` and `LOOP_MODE_MIGRATION_FLAG` constants and their call sites in `PresetStore.async_load()`
+    - Orphaned `XYColor.from_rgb()` classmethod in `models.py` (no remaining callers)
+    - Net: −157 lines across `preset_store.py` and `models.py`. `_validate_preset_structure()` continues to enforce XY color format on import; JSON schemas continue to enforce `loop_mode ∈ {once, count, continuous}` at service invocation.
+
+---
+
 ## [1.2.0] - 2026-03-24
 
 ### Breaking Changes
@@ -1904,3 +2019,4 @@ One click HACS cutton
 [1.0.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v1.0.0
 [1.1.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v1.1.0
 [1.2.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v1.2.0
+[1.3.0]: https://github.com/absent42/Aqara-Advanced-Lighting/releases/tag/v1.3.0

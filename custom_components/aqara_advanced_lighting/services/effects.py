@@ -9,6 +9,12 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError
 
 from ..const import (
+    ATTR_AUDIO_ENTITY,
+    ATTR_AUDIO_SENSITIVITY,
+    ATTR_AUDIO_SILENCE_BEHAVIOR,
+    ATTR_AUDIO_SPEED_MAX,
+    ATTR_AUDIO_SPEED_MIN,
+    ATTR_AUDIO_SPEED_MODE,
     ATTR_BRIGHTNESS,
     ATTR_COLOR_1,
     ATTR_COLOR_2,
@@ -25,8 +31,14 @@ from ..const import (
     ATTR_SPEED,
     ATTR_SYNC,
     ATTR_TURN_ON,
+    AUDIO_EFFECT_MODE_COMBINED,
+    AUDIO_EFFECT_MODE_TEMPO,
+    AUDIO_EFFECT_MODE_VOLUME,
     DATA_ACTIVE_MUSIC_SYNC,
     DATA_ENTITY_CONTROLLER,
+    DATA_USER_PREFERENCES_STORE,
+    DEFAULT_AUDIO_SENSITIVITY,
+    DEFAULT_AUDIO_SILENCE_BEHAVIOR,
     DOMAIN,
     EVENT_ATTR_EFFECT_TYPE,
     EVENT_ATTR_ENTITY_ID,
@@ -34,6 +46,7 @@ from ..const import (
     EVENT_EFFECT_ACTIVATED,
     EVENT_EFFECT_STOPPED,
     PRESET_TYPE_EFFECT,
+    T2_RGB_MODELS,
     brightness_percent_to_device,
 )
 from ..light_capabilities import (
@@ -41,6 +54,7 @@ from ..light_capabilities import (
     validate_effect_for_model,
 )
 from ..models import (
+    AudioEffectConfig,
     DynamicEffect,
     EffectType,
     RGBColor,
@@ -60,6 +74,34 @@ from ._helpers import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _resolve_preset_audio_entity(
+    preset_data: dict[str, Any],
+    call_audio_entity: str | None,
+    hass_data: dict[str, Any],
+    user_id: str,
+) -> str | None:
+    """Resolve the audio entity for a built-in audio-reactive effect preset.
+
+    Precedence: call override → user preference default → None.
+    Returns None if the preset has no audio_speed_mode (not audio-reactive).
+    Uses the same entity-resolution approach as dynamic_scene (different signature:
+    takes raw hass_data and user_id to resolve prefs internally).
+    """
+    if "audio_speed_mode" not in preset_data:
+        return None
+
+    if call_audio_entity:
+        return call_audio_entity
+
+    prefs_store = hass_data.get(DATA_USER_PREFERENCES_STORE)
+    if prefs_store:
+        prefs = prefs_store.get_preferences(user_id)
+        return prefs.get("audio_override_entity") or None
+
+    return None
+
 
 async def handle_set_dynamic_effect(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle set_dynamic_effect service call."""
@@ -228,6 +270,59 @@ async def handle_set_dynamic_effect(hass: HomeAssistant, call: ServiceCall) -> N
 
     # Colors are already RGBColor objects from _normalize_color_to_rgb
 
+    # Build audio config if audio_entity is provided
+    audio_config: AudioEffectConfig | None = None
+    audio_entity = call.data.get(ATTR_AUDIO_ENTITY)
+
+    if audio_entity is None and is_user_preset and user_preset.get("audio_config"):
+        # Load from preset
+        audio_config = AudioEffectConfig.from_dict(user_preset["audio_config"])
+        audio_entity = audio_config.audio_entity
+    elif preset_data and "audio_speed_mode" in preset_data and audio_entity is None:
+        # Built-in audio-reactive preset with no explicit audio_entity:
+        # resolve entity from user prefs
+        user_id = call.context.user_id or "default"
+        resolved_entity = _resolve_preset_audio_entity(
+            preset_data,
+            audio_entity,  # from call — may be None
+            hass.data.get(DOMAIN, {}),
+            user_id,
+        )
+        if resolved_entity:
+            audio_config = AudioEffectConfig(
+                audio_entity=resolved_entity,
+                audio_sensitivity=preset_data.get("audio_sensitivity", DEFAULT_AUDIO_SENSITIVITY),
+                audio_silence_behavior=preset_data.get("audio_silence_behavior", DEFAULT_AUDIO_SILENCE_BEHAVIOR),
+                audio_speed_mode=preset_data.get("audio_speed_mode"),
+                audio_speed_min=preset_data.get("audio_speed_min", 1),
+                audio_speed_max=preset_data.get("audio_speed_max", 100),
+            )
+    elif audio_entity is not None:
+        # Build from service call params, using preset data as defaults when a
+        # built-in preset is specified (frontend may only send audio_entity
+        # without the preset's audio params).
+        raw_speed = call.data.get(ATTR_AUDIO_SPEED_MODE)
+        speed_mode = raw_speed if raw_speed else None
+
+        # When a built-in preset is active, use its audio params as defaults
+        pd = preset_data if preset_data and "audio_speed_mode" in preset_data else None
+
+        # Default speed to "volume" if not explicitly provided
+        if speed_mode is None:
+            if pd:
+                speed_mode = pd.get("audio_speed_mode")
+            if speed_mode is None:
+                speed_mode = "volume"
+
+        audio_config = AudioEffectConfig(
+            audio_entity=audio_entity,
+            audio_sensitivity=call.data.get(ATTR_AUDIO_SENSITIVITY, pd.get("audio_sensitivity", 50) if pd else 50),
+            audio_silence_behavior=call.data.get(ATTR_AUDIO_SILENCE_BEHAVIOR, pd.get("audio_silence_behavior", "decay_min") if pd else "decay_min"),
+            audio_speed_mode=speed_mode,
+            audio_speed_min=call.data.get(ATTR_AUDIO_SPEED_MIN, pd.get("audio_speed_min", 1) if pd else 1),
+            audio_speed_max=call.data.get(ATTR_AUDIO_SPEED_MAX, pd.get("audio_speed_max", 100) if pd else 100),
+        )
+
     # Prepare effects for all entities, grouped by instance for multi-Z2M support
     # Structure: {entry_id: {"backend": client, "state_manager": mgr, "entities": [...]}}
     instance_groups: dict[str, dict] = {}
@@ -312,6 +407,18 @@ async def handle_set_dynamic_effect(hass: HomeAssistant, call: ServiceCall) -> N
             )
         )
 
+    # Validate T2 exclusion for audio-reactive effects
+    if audio_config is not None:
+        for entity_id, _, aqara_device, _, _, _ in validated_entities:
+            if aqara_device.model_id in T2_RGB_MODELS:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="audio_effect_t2_not_supported",
+                    translation_placeholders={
+                        "device": aqara_device.name,
+                    },
+                )
+
     # Second pass: process each validated entity
     for (
         entity_id,
@@ -341,6 +448,13 @@ async def handle_set_dynamic_effect(hass: HomeAssistant, call: ServiceCall) -> N
             except Exception:
                 _LOGGER.exception("Failed to stop music sync on %s", entity_id)
             active_music_sync.pop(entity_id, None)
+
+        # Clear local DeviceState audio references before capture_state replaces it.
+        # Cross-entity conflicts are handled by the registry (see audio engine creation below).
+        existing_state = entity_state_manager.get_device_state(entity_id)
+        if existing_state and getattr(existing_state, "audio_engine", None):
+            existing_state.audio_engine = None
+            existing_state.audio_modulator = None
 
         # Capture current state before applying effect
         entity_state_manager.capture_state(entity_id, aqara_device.name)
@@ -444,6 +558,66 @@ async def handle_set_dynamic_effect(hass: HomeAssistant, call: ServiceCall) -> N
                         "Failed to set brightness for %s: %s", entity_id, result
                     )
 
+    # Start audio-reactive modulation if configured
+    if audio_config is not None:
+        from ..audio_effect_modulator import AudioEffectModulator
+        from ..audio_engine import AudioEngine, AudioEngineConfig
+
+        # Determine subscription needs based on speed mode
+        needs_energy = audio_config.audio_speed_mode in (
+            AUDIO_EFFECT_MODE_VOLUME, AUDIO_EFFECT_MODE_COMBINED,
+        )
+        needs_bpm = audio_config.audio_speed_mode in (
+            AUDIO_EFFECT_MODE_TEMPO, AUDIO_EFFECT_MODE_COMBINED,
+        )
+
+        engine_config = AudioEngineConfig(
+            audio_entity=audio_config.audio_entity,
+            consumer_type="effect",
+            sensitivity=audio_config.audio_sensitivity,
+            subscribe_onset=False,
+            subscribe_energy=needs_energy,
+            subscribe_bpm=needs_bpm,
+            subscribe_silence=True,
+        )
+
+        # Build speed write function that dispatches to correct backend
+        # Both MQTT and ZHA backends accept entity_id and resolve internally
+        async def write_speed(entity_id: str, speed_val: int) -> None:
+            backend, _, _ = _get_instance_components_for_entity(hass, entity_id)
+            await backend.async_write_effect_speed(entity_id, speed_val)
+
+        effect_entity_ids = [eid for eid, _, _ in all_entities_published]
+        modulator = AudioEffectModulator(
+            hass=hass,
+            entity_ids=effect_entity_ids,
+            audio_config=audio_config,
+            backend_write_speed=write_speed,
+        )
+
+        # Stop any existing audio engines using the same sensor
+        # (prevents orphaned engines when different lights share a sensor)
+        from ..const import DATA_AUDIO_ENGINE_REGISTRY
+        registry = hass.data.get(DOMAIN, {}).get(DATA_AUDIO_ENGINE_REGISTRY)
+        if registry:
+            await registry.stop_engines_for_sensor(
+                audio_config.audio_entity, "effect"
+            )
+
+        engine = AudioEngine(hass, engine_config, modulator, registry=registry)
+        await modulator.start(engine)
+        await engine.start()
+
+        # Store modulator reference for cleanup in stop_effect
+        for eid in effect_entity_ids:
+            for pub_eid, _, mgr in all_entities_published:
+                if pub_eid == eid:
+                    state = mgr.get_device_state(eid)
+                    if state:
+                        state.audio_modulator = modulator
+                        state.audio_engine = engine
+                    break
+
 async def handle_stop_effect(hass: HomeAssistant, call: ServiceCall) -> None:
     """Handle stop_effect service call."""
     entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
@@ -470,6 +644,19 @@ async def handle_stop_effect(hass: HomeAssistant, call: ServiceCall) -> None:
                 "Entity %s not mapped to any Aqara device, skipping", entity_id
             )
             continue
+
+        # Stop audio modulator if active
+        device_state = entity_state_manager.get_device_state(entity_id)
+        if device_state and hasattr(device_state, "audio_engine") and device_state.audio_engine:
+            stopped_engine = device_state.audio_engine
+            stopped_modulator = device_state.audio_modulator
+            await stopped_engine.stop()
+            await stopped_modulator.stop()
+            # Clear reference from ALL entities sharing this engine
+            for eid, state in entity_state_manager.iter_device_states():
+                if state.audio_engine is stopped_engine:
+                    state.audio_engine = None
+                    state.audio_modulator = None
 
         # Stop the effect by restoring previous state using HA light service
         try:

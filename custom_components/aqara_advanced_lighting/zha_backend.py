@@ -206,6 +206,10 @@ class ZHABackend:
 
         gateway = get_zha_gateway(self.hass)
 
+        # Clear previous scan results so stale entries don't accumulate
+        # if async_setup is called multiple times (e.g. on integration reload).
+        self.entry.runtime_data.aqara_devices.clear()
+
         for ieee, device in gateway.devices.items():
             ieee_str = str(ieee)
 
@@ -259,6 +263,11 @@ class ZHABackend:
             len(self.entry.runtime_data.aqara_devices),
         )
 
+        # Remove any devices that were previously registered but are no longer
+        # present in the ZHA gateway (e.g. removed between HA restarts).
+        seen_ieee = set(self.entry.runtime_data.aqara_devices.keys())
+        self._remove_stale_devices(seen_ieee)
+
         self._update_entity_mapping()
 
         # After a ZHA reload, the gateway has devices but ZHA's entity
@@ -271,6 +280,23 @@ class ZHABackend:
                 len(self.entry.runtime_data.aqara_devices),
             )
             self.hass.async_create_task(self._async_retry_entity_mapping())
+
+    def _remove_stale_devices(self, seen_ieee: set[str]) -> None:
+        """Remove devices no longer present in ZHA from the HA device registry."""
+        device_reg = dr.async_get(self.hass)
+        for device in list(dr.async_entries_for_config_entry(device_reg, self.entry.entry_id)):
+            for identifier_domain, identifier_value in device.identifiers:
+                if identifier_domain == DOMAIN:
+                    if identifier_value not in seen_ieee:
+                        if len(device.config_entries) > 1:
+                            device_reg.async_update_device(
+                                device.id,
+                                remove_config_entry_id=self.entry.entry_id,
+                            )
+                        else:
+                            device_reg.async_remove_device(device.id)
+                        self.entry.runtime_data.aqara_devices.pop(identifier_value, None)
+                    break
 
     def _update_entity_mapping(self) -> None:
         """Map HA light entities to ZHA Aqara devices via the device registry."""
@@ -548,6 +574,37 @@ class ZHABackend:
                 )
         except Exception:
             _LOGGER.exception("Failed to write effect attributes to %s", ieee_str)
+
+    async def async_write_effect_speed(
+        self,
+        entity_id: str,
+        speed: int,
+    ) -> None:
+        """Write effect_speed independently without restarting the effect.
+
+        Writes only ATTR_EFFECT_SPEED (0x0520) — no type or colors.
+        Safe for T1M and T1 Strip (live adjustment, no restart).
+        NOT safe for T2 (restarts effect and wipes colors).
+
+        Args:
+            entity_id: The HA entity ID
+            speed: Speed value 1-100
+        """
+        speed = max(1, min(100, speed))
+        ieee_str = self._entity_to_ieee.get(entity_id)
+        if not ieee_str:
+            _LOGGER.warning("No IEEE address for entity %s", entity_id)
+            return
+
+        cluster = self._get_aqara_cluster(ieee_str)
+        if not cluster:
+            _LOGGER.error("Aqara cluster not found for speed write: %s", ieee_str)
+            return
+
+        try:
+            await cluster.write_attributes({ATTR_EFFECT_SPEED: speed})
+        except Exception:
+            _LOGGER.exception("Failed to write effect speed to %s", ieee_str)
 
     # --- Effects ---
 

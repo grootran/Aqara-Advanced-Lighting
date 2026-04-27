@@ -255,6 +255,65 @@ def test_discover_companion_sensors_select_type():
     assert result["detection_mode"] == "select.esphome_detection_mode"
 
 
+def test_pro_tier_sensor_suffixes_registered():
+    """All pro-tier musical-band suffixes should map to their role names."""
+    from custom_components.aqara_advanced_lighting.audio_discovery import (
+        COMPANION_BINARY_SENSOR_SUFFIXES,
+        COMPANION_SENSOR_SUFFIXES,
+    )
+    for suffix, role in (
+        ("-sub_bass_energy", "sub_bass_energy"),
+        ("-low_mid_energy", "low_mid_energy"),
+        ("-upper_mid_energy", "upper_mid_energy"),
+        ("-air_energy", "air_energy"),
+    ):
+        assert COMPANION_SENSOR_SUFFIXES.get(suffix) == role
+    for suffix, role in (
+        ("-beat_event", "beat_event"),
+        ("-calibration_stale", "calibration_stale"),
+    ):
+        assert COMPANION_BINARY_SENSOR_SUFFIXES.get(suffix) == role
+
+
+def test_pro_tier_sensors_discovered_from_device_registry():
+    """discover_companion_sensors should surface pro-tier bands by role."""
+    hass = MagicMock()
+    audio_entry = MagicMock()
+    audio_entry.device_id = "device-123"
+
+    def _entry(uid: str, eid: str) -> MagicMock:
+        e = MagicMock()
+        e.unique_id = uid
+        e.entity_id = eid
+        return e
+
+    entries = [
+        _entry("aabbccddeeff-sub_bass_energy", "sensor.esphome_sub_bass"),
+        _entry("aabbccddeeff-low_mid_energy", "sensor.esphome_low_mid"),
+        _entry("aabbccddeeff-upper_mid_energy", "sensor.esphome_upper_mid"),
+        _entry("aabbccddeeff-air_energy", "sensor.esphome_air"),
+        _entry("aabbccddeeff-calibration_stale", "binary_sensor.esphome_calib"),
+    ]
+
+    with patch(
+        "custom_components.aqara_advanced_lighting.audio_discovery.er"
+    ) as mock_er:
+        mock_reg = MagicMock()
+        mock_er.async_get.return_value = mock_reg
+        mock_reg.async_get.return_value = audio_entry
+        mock_er.async_entries_for_device.return_value = entries
+
+        result = discover_companion_sensors(
+            hass, "binary_sensor.esphome_onset_detected"
+        )
+
+    assert result["sub_bass_energy"] == "sensor.esphome_sub_bass"
+    assert result["low_mid_energy"] == "sensor.esphome_low_mid"
+    assert result["upper_mid_energy"] == "sensor.esphome_upper_mid"
+    assert result["air_energy"] == "sensor.esphome_air"
+    assert result["calibration_stale"] == "binary_sensor.esphome_calib"
+
+
 def _make_scene(
     audio_color_advance: str = "on_onset",
     audio_sensitivity: int = 50,

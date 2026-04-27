@@ -32,6 +32,7 @@ from .const import (
     INTEGRATION_CONTEXT_PARENT_ID,
     OverrideAttributes,
 )
+from .events import fire_operations_changed
 
 if TYPE_CHECKING:
     from .backend_protocol import DeviceBackend
@@ -125,6 +126,7 @@ def _detect_service_call_attributes(service_data: dict[str, Any]) -> OverrideAtt
 NON_HA_BRIGHTNESS_THRESHOLD = 25   # ~10% of 0-255 range
 NON_HA_COLOR_TEMP_THRESHOLD = 100  # 100K
 RESTORE_GRACE_PERIOD: float = 15.0  # seconds to suppress external change detection after solar restore
+TRANSITION_GRACE_BUFFER: float = 2.0  # extra seconds after a transition to allow for device state reports
 
 def detect_drift(
     expected_ct: int,
@@ -212,6 +214,7 @@ class EntityController:
         self._auto_resume_timers: dict[str, AutoResumeTimer] = {}
         self._service_pause_times: dict[str, float] = {}
         self._restore_grace_times: dict[str, float] = {}
+        self._transition_grace_deadlines: dict[str, float] = {}
         self._preset_paused_solar: dict[str, CCTSequenceManager] = {}
         self._state_listener_remove: Any | None = None
         self._service_listener_remove: Any | None = None
@@ -252,6 +255,21 @@ class EntityController:
             # INTEGRATION_CONTEXT_PARENT_ID via create_context().
             if event.context.parent_id == INTEGRATION_CONTEXT_PARENT_ID:
                 return
+
+            # Transition grace: suppress device state reports that arrive
+            # during or shortly after a hardware transition we initiated.
+            # The service call listener still catches real user actions.
+            grace_deadline = self._transition_grace_deadlines.get(entity_id)
+            if grace_deadline is not None:
+                if time.monotonic() < grace_deadline:
+                    _LOGGER.debug(
+                        "Ignoring state change on %s during transition "
+                        "grace (%.1fs remaining)",
+                        entity_id,
+                        grace_deadline - time.monotonic(),
+                    )
+                    return
+                self._transition_grace_deadlines.pop(entity_id, None)
 
             # External off/unavailable always stops the controlling action,
             # regardless of the ignore_external_changes toggle.
@@ -442,9 +460,20 @@ class EntityController:
             timer.cancel()
 
         for instance_data in self.hass.data[DOMAIN].get("entries", {}).values():
-            # Clear effect/pattern active flag in state manager
+            # Stop audio engine/modulator and clear effect active flag
             state_mgr = instance_data.get(DATA_STATE_MANAGER)
             if state_mgr and state_mgr.is_effect_active(entity_id):
+                device_state = state_mgr.get_device_state(entity_id)
+                if device_state and getattr(device_state, "audio_engine", None):
+                    stopped_engine = device_state.audio_engine
+                    stopped_modulator = device_state.audio_modulator
+                    await stopped_engine.stop()
+                    await stopped_modulator.stop()
+                    # Clear from ALL entities sharing this engine
+                    for eid, state in state_mgr.iter_device_states():
+                        if state.audio_engine is stopped_engine:
+                            state.audio_engine = None
+                            state.audio_modulator = None
                 state_mgr.mark_effect_inactive(entity_id)
 
             # Detach from dynamic scene (scene continues for other entities)
@@ -452,7 +481,7 @@ class EntityController:
                 DATA_DYNAMIC_SCENE_MANAGER
             )
             if dsm and dsm.is_scene_running(entity_id):
-                dsm.detach_entity(entity_id)
+                await dsm.detach_entity(entity_id)
 
             # Stop or pause CCT sequence
             cct: CCTSequenceManager | None = instance_data.get(
@@ -551,6 +580,7 @@ class EntityController:
         )
 
         _LOGGER.info("Resumed entity control for %s", entity_id)
+        fire_operations_changed(self.hass)
         return True
 
     def clear_entity(self, entity_id: str) -> None:
@@ -561,11 +591,17 @@ class EntityController:
         check_and_resume_solar() and stop_all_for_entity() to avoid
         wiping the reference before auto-resume can use it.
         """
+        had_pause = entity_id in self._externally_paused
         self._externally_paused.pop(entity_id, None)
         self._pending_restore.discard(entity_id)
         self._service_pause_times.pop(entity_id, None)
+        self._transition_grace_deadlines.pop(entity_id, None)
         if timer := self._auto_resume_timers.pop(entity_id, None):
             timer.cancel()
+        if had_pause:
+            # The pause flag and override attributes are both visible in
+            # running_operations; clearing them changes the snapshot.
+            fire_operations_changed(self.hass)
 
     def is_entity_preset_paused(self, entity_id: str) -> bool:
         """Check if an entity has a solar/schedule CCT paused by a preset."""
@@ -711,6 +747,23 @@ class EntityController:
         for manual overrides.
         """
         self._restore_grace_times[entity_id] = time.monotonic()
+
+    def set_transition_grace(
+        self, entity_id: str, transition_time: float
+    ) -> None:
+        """Suppress state-change detection during a hardware transition.
+
+        Sets a deadline of *transition_time* + TRANSITION_GRACE_BUFFER from
+        now.  Device state reports arriving before the deadline are ignored
+        by the state listener (the service-call listener is unaffected, so
+        real user actions are still caught).
+        """
+        deadline = time.monotonic() + transition_time + TRANSITION_GRACE_BUFFER
+        self._transition_grace_deadlines[entity_id] = deadline
+
+    def clear_transition_grace(self, entity_id: str) -> None:
+        """Remove transition grace for an entity (e.g. when scene stops)."""
+        self._transition_grace_deadlines.pop(entity_id, None)
 
     def get_auto_resume_remaining(self, entity_id: str) -> float | None:
         """Get remaining seconds on the auto-resume timer for an entity.
@@ -867,6 +920,10 @@ class EntityController:
                 },
             )
 
+        # _externally_paused or its merged value just changed; running-ops
+        # snapshot exposes both `externally_paused` and `override_attributes`.
+        fire_operations_changed(self.hass)
+
     async def _apply_solar_on_turn_on(self, entity_id: str) -> None:
         """Instantly apply current solar values when a light turns on.
 
@@ -924,7 +981,7 @@ class EntityController:
                 DATA_DYNAMIC_SCENE_MANAGER
             )
             if dsm and dsm.is_scene_running(entity_id):
-                dsm.detach_entity(entity_id)
+                await dsm.detach_entity(entity_id)
 
             cct: CCTSequenceManager | None = instance_data.get(
                 DATA_CCT_SEQUENCE_MANAGER

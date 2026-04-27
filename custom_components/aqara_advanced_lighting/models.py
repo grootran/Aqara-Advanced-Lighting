@@ -12,8 +12,10 @@ from .const import (
     DEFAULT_AUDIO_DETECTION_MODE,
     DEFAULT_AUDIO_FREQUENCY_ZONE,
     DEFAULT_AUDIO_PREDICTION_AGGRESSIVENESS,
+    DEFAULT_AUDIO_RESPONSE_CURVE,
     DEFAULT_AUDIO_SENSITIVITY,
-    DEFAULT_AUDIO_SILENCE_DEGRADATION,
+    DEFAULT_AUDIO_SILENCE_BEHAVIOR,
+    AUDIO_SILENCE_SLOW_CYCLE,
     DEFAULT_AUDIO_TRANSITION_SPEED,
     DEFAULT_LATENCY_COMPENSATION_MS,
     MAX_AUDIO_PREDICTION_AGGRESSIVENESS,
@@ -24,6 +26,9 @@ from .const import (
     MIN_AUDIO_TRANSITION_SPEED,
     VALID_AUDIO_COLOR_ADVANCE,
     VALID_AUDIO_DETECTION_MODES,
+    VALID_AUDIO_EFFECT_MODES,
+    VALID_AUDIO_RESPONSE_CURVES,
+    VALID_AUDIO_SILENCE_BEHAVIORS,
     brightness_percent_to_device,
 )
 from .sun_utils import ScheduleStep, SolarStep
@@ -203,16 +208,6 @@ class XYColor:
             b=max(0, min(255, round(b_srgb * 255))),
         )
 
-    @classmethod
-    def from_rgb(cls, rgb: RGBColor) -> Self:
-        """Convert RGB to XY using Home Assistant's built-in utilities."""
-        from homeassistant.util.color import color_RGB_to_xy
-
-        x, y = color_RGB_to_xy(rgb.r, rgb.g, rgb.b)
-        # Calculate brightness from RGB (max channel value)
-        brightness = max(rgb.r, rgb.g, rgb.b)
-        return cls(x=round_xy(x), y=round_xy(y), brightness=brightness)
-
     def __post_init__(self) -> None:
         """Validate XY values."""
         if not (0.0 <= self.x <= 1.0):
@@ -290,6 +285,84 @@ class SegmentColor:
             raise ValueError(msg)
 
 @dataclass(frozen=True, slots=True)
+class AudioEffectConfig:
+    """Audio-reactive configuration for dynamic effects.
+
+    Encapsulates all audio parameters for effect speed modulation.
+    Brightness modulation is not supported for hardware effects —
+    the T1M restarts the effect on every brightness change.
+    Frozen — new instances are created for overrides, not mutated.
+    """
+
+    audio_entity: str
+    audio_sensitivity: int = DEFAULT_AUDIO_SENSITIVITY
+    audio_silence_behavior: str = DEFAULT_AUDIO_SILENCE_BEHAVIOR
+
+    # Speed modulation channel
+    audio_speed_mode: str | None = None
+    audio_speed_min: int = 1
+    audio_speed_max: int = 100
+
+    def __post_init__(self) -> None:
+        """Validate and clamp audio configuration."""
+        # Clamp sensitivity
+        object.__setattr__(
+            self, "audio_sensitivity",
+            max(MIN_AUDIO_SENSITIVITY, min(MAX_AUDIO_SENSITIVITY, self.audio_sensitivity)),
+        )
+
+        # Validate silence behavior
+        if self.audio_silence_behavior not in VALID_AUDIO_SILENCE_BEHAVIORS:
+            msg = f"Invalid audio_silence_behavior: {self.audio_silence_behavior}"
+            raise ValueError(msg)
+
+        # Speed mode must be enabled
+        if self.audio_speed_mode is None:
+            msg = "AudioEffectConfig requires audio_speed_mode"
+            raise ValueError(msg)
+
+        # Validate speed mode
+        if self.audio_speed_mode not in VALID_AUDIO_EFFECT_MODES:
+            msg = f"Invalid audio_speed_mode: {self.audio_speed_mode}"
+            raise ValueError(msg)
+
+        # Clamp min/max ranges
+        object.__setattr__(self, "audio_speed_min", max(1, min(100, self.audio_speed_min)))
+        object.__setattr__(self, "audio_speed_max", max(1, min(100, self.audio_speed_max)))
+
+        # Validate min < max
+        if self.audio_speed_min >= self.audio_speed_max:
+            msg = f"audio_speed_min ({self.audio_speed_min}) must be less than audio_speed_max ({self.audio_speed_max})"
+            raise ValueError(msg)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to dictionary for preset storage."""
+        return {
+            "audio_entity": self.audio_entity,
+            "audio_sensitivity": self.audio_sensitivity,
+            "audio_silence_behavior": self.audio_silence_behavior,
+            "audio_speed_mode": self.audio_speed_mode,
+            "audio_speed_min": self.audio_speed_min,
+            "audio_speed_max": self.audio_speed_max,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """Deserialize from dictionary.
+
+        Ignores legacy fields (audio_speed_curve, audio_detection_mode,
+        audio_brightness_*) from older presets.
+        """
+        return cls(
+            audio_entity=data["audio_entity"],
+            audio_sensitivity=data.get("audio_sensitivity", DEFAULT_AUDIO_SENSITIVITY),
+            audio_silence_behavior=data.get("audio_silence_behavior", DEFAULT_AUDIO_SILENCE_BEHAVIOR),
+            audio_speed_mode=data.get("audio_speed_mode"),
+            audio_speed_min=data.get("audio_speed_min", 1),
+            audio_speed_max=data.get("audio_speed_max", 100),
+        )
+
+@dataclass(frozen=True, slots=True)
 class DynamicEffect:
     """Dynamic effect configuration."""
 
@@ -297,6 +370,7 @@ class DynamicEffect:
     effect_speed: int  # 1-100
     effect_colors: list[RGBColor]
     effect_segments: str | None = None  # T1 Strip only, e.g., "1-10", "odd"
+    audio_config: AudioEffectConfig | None = None  # Audio-reactive modulation config
 
     def to_mqtt_payload(self, device_model: str | None = None) -> dict[str, Any]:
         """Convert to MQTT payload dictionary.
@@ -361,6 +435,9 @@ class DeviceState:
     current_effect: DynamicEffect | None = None
     current_preset: str | None = None  # Preset name for event tracking
     device_identifier: str = ""  # Backend-agnostic device identifier
+    # Runtime-only: not persisted, not included in to_dict()
+    audio_modulator: Any = None  # AudioEffectModulator reference
+    audio_engine: Any = None  # AudioEngine reference
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for storage."""
@@ -557,12 +634,14 @@ class DynamicScene:
     end_behavior: str = "maintain"  # "maintain", "turn_off", or "restore"
     audio_entity: str | None = None
     audio_sensitivity: int = DEFAULT_AUDIO_SENSITIVITY
-    audio_brightness_response: bool = True
+    audio_brightness_curve: str | None = DEFAULT_AUDIO_RESPONSE_CURVE  # None = disabled
+    audio_brightness_min: int = 30  # Percent (matches old 0.3 floor)
+    audio_brightness_max: int = 100  # Percent (matches old 1.0 ceiling)
     audio_color_advance: str = AUDIO_COLOR_ADVANCE_ON_ONSET
     audio_transition_speed: int = DEFAULT_AUDIO_TRANSITION_SPEED
     audio_detection_mode: str = DEFAULT_AUDIO_DETECTION_MODE
     audio_frequency_zone: bool = DEFAULT_AUDIO_FREQUENCY_ZONE
-    audio_silence_degradation: bool = DEFAULT_AUDIO_SILENCE_DEGRADATION
+    audio_silence_behavior: str = AUDIO_SILENCE_SLOW_CYCLE
     audio_prediction_aggressiveness: int = DEFAULT_AUDIO_PREDICTION_AGGRESSIVENESS
     audio_latency_compensation_ms: int = DEFAULT_LATENCY_COMPENSATION_MS
     audio_color_by_frequency: bool = False
@@ -625,6 +704,32 @@ class DynamicScene:
 
         if self.audio_detection_mode not in VALID_AUDIO_DETECTION_MODES:
             self.audio_detection_mode = DEFAULT_AUDIO_DETECTION_MODE
+
+        # Brightness curve validation
+        if self.audio_brightness_curve is not None:
+            if self.audio_brightness_curve not in VALID_AUDIO_RESPONSE_CURVES:
+                msg = (
+                    f"Invalid audio_brightness_curve: {self.audio_brightness_curve}. "
+                    f"Must be one of {VALID_AUDIO_RESPONSE_CURVES} or None"
+                )
+                raise ValueError(msg)
+        self.audio_brightness_min = max(1, min(100, self.audio_brightness_min))
+        self.audio_brightness_max = max(1, min(100, self.audio_brightness_max))
+        if (self.audio_brightness_curve is not None
+                and self.audio_brightness_min >= self.audio_brightness_max):
+            msg = (
+                f"audio_brightness_min ({self.audio_brightness_min}) must be less than "
+                f"audio_brightness_max ({self.audio_brightness_max})"
+            )
+            raise ValueError(msg)
+
+        # Silence behavior validation
+        if self.audio_silence_behavior not in VALID_AUDIO_SILENCE_BEHAVIORS:
+            msg = (
+                f"Invalid audio_silence_behavior: {self.audio_silence_behavior}. "
+                f"Must be one of {VALID_AUDIO_SILENCE_BEHAVIORS}"
+            )
+            raise ValueError(msg)
 
         self.audio_prediction_aggressiveness = max(
             MIN_AUDIO_PREDICTION_AGGRESSIVENESS,

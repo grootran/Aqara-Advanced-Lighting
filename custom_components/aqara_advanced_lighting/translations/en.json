@@ -133,6 +133,9 @@
     "effect_not_supported": {
       "message": "The effect {effect} is not supported by device {device}. {reason}"
     },
+    "audio_effect_t2_not_supported": {
+      "message": "Audio-reactive effects are not supported on T2 devices ({device}). Only T1M and T1 Strip devices support audio-reactive effect modulation because T2 restarts the effect when speed is changed."
+    },
     "segment_addressing_not_supported": {
       "message": "Device {device} does not support segment addressing. Only T1M ceiling lights and T1 LED strips support this feature."
     },
@@ -228,6 +231,16 @@
     },
     "invalid_solar_preset": {
       "message": "Preset `{preset}` is not a valid solar preset."
+    }
+  },
+  "issues": {
+    "z2m_bridge_not_responding": {
+      "title": "Zigbee2MQTT bridge not responding",
+      "description": "The Zigbee2MQTT bridge has not responded after 2 minutes. Check that Zigbee2MQTT is running and that the configured base topic (`{base_topic}`) matches your Z2M setup. You can update the base topic by selecting Reconfigure in Settings > Devices & Services > Aqara Advanced Lighting."
+    },
+    "zha_not_installed": {
+      "title": "ZHA integration not available",
+      "description": "Aqara Advanced Lighting is configured to use the ZHA backend, but the ZHA integration could not be found. Install the ZHA integration or reconfigure this integration to use the Zigbee2MQTT backend via Settings > Devices & Services > Aqara Advanced Lighting > Reconfigure."
     }
   },
   "services": {
@@ -585,6 +598,10 @@
           "name": "Synchronized start",
           "description": "Start the sequence on all lights simultaneously (recommended for groups)."
         },
+        "brightness": {
+          "name": "Brightness override",
+          "description": "Override brightness for the entire sequence (1-100%). Applied once at sequence start. Leave blank to keep the current device brightness."
+        },
         "loop_mode": {
           "name": "Loop mode",
           "description": "How the sequence should loop."
@@ -753,9 +770,17 @@
           "name": "Audio transition speed",
           "description": "Speed of color transitions when driven by audio (1-100%)."
         },
-        "audio_brightness_response": {
-          "name": "Brightness response",
-          "description": "Modulate light brightness based on audio intensity."
+        "audio_brightness_curve": {
+          "name": "Brightness response curve",
+          "description": "How energy maps to brightness (linear/logarithmic/exponential, or null to disable)."
+        },
+        "audio_brightness_min": {
+          "name": "Brightness minimum",
+          "description": "Minimum brightness percent when audio is quiet (1-100)."
+        },
+        "audio_brightness_max": {
+          "name": "Brightness maximum",
+          "description": "Maximum brightness percent when audio is loud (1-100)."
         },
         "audio_detection_mode": {
           "name": "Detection mode",
@@ -765,9 +790,9 @@
           "name": "Frequency zone distribution",
           "description": "Assign different frequency bands to different lights. Requires 3 or more lights."
         },
-        "audio_silence_degradation": {
-          "name": "Silence degradation",
-          "description": "Gradually dim lights during periods of silence."
+        "audio_silence_behavior": {
+          "name": "Silence behavior",
+          "description": "Behavior when silence is detected: slow_cycle (gradual palette cycling), hold (freeze), decay_min (fade to minimum), decay_mid (fade to midpoint)."
         },
         "audio_prediction_aggressiveness": {
           "name": "Prediction aggressiveness",

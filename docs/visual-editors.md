@@ -33,6 +33,36 @@ Create custom effects and patterns with interactive builders accessible from the
 - Preview the scene before saving to see how it looks on your lights
 - Save scenes as custom presets with color history for quick reuse
 
+### Audio-reactive options
+
+The dynamic scene editor includes an **Audio reactive** section that replaces fixed transition and hold timing with live audio-driven updates. Toggle **Enable audio** to expand the audio controls:
+
+- **Audio preset**: Select a pre-configured audio profile (Beat, Ambient, Concert, Chill, Club) that auto-fills all parameters. Changing any individual parameter switches to Custom
+- **Audio sensor entity**: Select the `binary_sensor` entity from your ESPHome audio-reactive device
+- **Detection mode**: Algorithm for detecting musical events
+  - Spectral flux (all genres)
+  - Bass energy (rhythmic music)
+  - Complex domain (phase + magnitude)
+- **Color advance**: How scene colors change in response to audio
+  - Color cycle — advance to next color on each onset
+  - Continuous — smoothly blend based on audio intensity
+  - Beat predictive — anticipate beats for tighter sync
+  - Intensity breathing — pulse brightness with intensity
+  - Brightness flash — flash brightness on each onset
+- **Sensitivity** (1–100%): How responsive to sound. Higher values react to quieter sounds
+- **Transition speed** (1–100%): How fast lights fade between colors. Disabled for Continuous and Intensity breathing modes
+- **Prediction aggressiveness** (1–100%): How far ahead to predict beats. Only available in Beat predictive mode
+- **Latency compensation** (0–500 ms): Offset for network and hardware delay. Only available in Beat predictive mode
+- **Brightness response** dropdown: Modulate brightness with audio intensity (Linear, Logarithmic, Exponential, or Disabled). Available for Color cycle, Continuous, and Beat predictive modes
+  - **Brightness min** (1–100%): Minimum brightness when audio is quiet
+  - **Brightness max** (1–100%): Maximum brightness when audio is loud
+- **Silence behavior**: What happens during silence (Hold last color, Slow cycle, Decay to min, Decay to mid)
+- **Frequency zone distribution** toggle: Assign different lights to different frequency bands (requires 3+ lights)
+- **Color by frequency** toggle: Map spectral centroid to palette position (low frequency = warm colors, high = cool)
+- **Rolloff brightness** toggle: Scale brightness by timbral brightness
+
+See [Audio-reactive lighting setup](audio-reactive-setup.md) for hardware setup, calibration, and detailed parameter descriptions.
+
 ## Effect editor
 
 ![Aqara Advanced Lighting Effects Editor](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/refs/heads/main/images/effects.png "Aqara Advanced Lighting Effects Editor")
@@ -43,10 +73,32 @@ Create custom effects and patterns with interactive builders accessible from the
   - **T1 / T1M**: Flow 1, flow 2, fading, hopping, breathing, rolling
   - **T1 Strip**: Breathing, rainbow 1, chasing, flash, hopping, rainbow 2, flicker, dash
 - Add up to 8 colors using color pickers with color history for quick reuse
-- Adjust speed (1-100) and brightness (1-100%) with sliders
+- Adjust speed (1-100) with a slider, and set initial brightness (1-100%)
 - For T1 Strip: specify which segments to light using the segment selector
 - Preview the effect before saving to see how it looks on your lights
 - Save as custom preset for reuse
+
+### Audio-reactive options
+
+The effect editor includes an **Audio reactive** section for T1M and T1 Strip devices that modulates the effect's speed based on live audio data. Toggle **Audio reactive** to expand the controls:
+
+- **Audio sensor entity**: Select the `binary_sensor` or `sensor` entity from your ESPHome audio-reactive device
+- **Sensitivity** (1–100): Beat detection sensitivity on the ESP32 device
+- **Silence behavior**: What happens when music stops
+  - Hold last values
+  - Decay to minimum
+  - Decay to midpoint
+- **Speed modulation**: Controls how audio drives the effect speed
+  - **Mode**: Volume, Tempo, or Combined (defaults to Volume)
+    - Volume: Louder music drives faster speed, mapped directly to the speed range
+    - Tempo: Detected BPM drives speed, stable and musically grounded
+    - Combined: Tempo sets the baseline, volume modulates around it
+  - **Range min** (1–99): Minimum speed in the modulation range
+  - **Range max** (2–100): Maximum speed in the modulation range
+
+Note: Only speed modulation is supported for hardware effects. Brightness cannot be modulated in real time because the T1M restarts the effect on every brightness change.
+
+Audio-reactive effects are not available for T2 bulbs. See [Audio-reactive lighting setup](audio-reactive-setup.md) for hardware setup and calibration.
 
 ## Segment pattern editor
 

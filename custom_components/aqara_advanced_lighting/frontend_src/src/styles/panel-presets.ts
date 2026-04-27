@@ -333,6 +333,25 @@ export const presetStyles = css`
     border: 1px solid var(--primary-color);
   }
 
+  /* Favorites drag-reorder visual feedback. Use outline (not border) so the
+     indicator does not shift the grid layout. outline-offset: -2px overlays
+     the existing 2px border crisply. */
+  .preset-button.drag-source {
+    opacity: 0.5;
+  }
+
+  .preset-button.drop-target {
+    outline: 3px solid var(--primary-color);
+    outline-offset: -2px;
+  }
+
+  /* Disable native touch gestures (scroll, pinch) on the favorites drag
+     handle so vertical-scroll on touch devices does not compete with
+     pointer-based drag-reorder. Mirrors the editor's curation-drag-handle. */
+  .favorites-drag-handle {
+    touch-action: none;
+  }
+
   /* Responsive presets */
   @media (max-width: 600px) {
     .preset-button {

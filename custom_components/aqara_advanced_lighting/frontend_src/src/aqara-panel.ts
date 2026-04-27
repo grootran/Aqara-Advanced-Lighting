@@ -20,6 +20,20 @@ import {
   renderDynamicSceneThumbnail,
 } from './preset-thumbnails';
 import { PANEL_TRANSLATIONS } from './panel-translations';
+import { getCapabilityFlags } from './preset-runtime/preset-compatibility';
+import { resolveFavorites } from './preset-runtime/preset-resolver';
+import { renderPresetIcon } from './preset-runtime/preset-icon';
+import {
+  getPresets,
+  getUserPresets,
+  getSupportedEntities,
+} from './data-client/aqara-api';
+import {
+  AudioModeEntry,
+  audioDeviceTier,
+  buildAudioModeOptions,
+  fetchAudioModeRegistry,
+} from './audio-mode-registry';
 import {
   HomeAssistant,
   PresetsData,
@@ -77,6 +91,8 @@ export class AqaraPanel extends LitElement {
   @state() private _renamingFavoriteName = '';
   @state() private _favoriteEditModeId: string | null = null;
   @state() private _presetEditModeId: string | null = null;
+  // Active favorites drag state (panel custom-sort reorder). null when not dragging.
+  @state() private _favoriteDrag: { fromId: string; toId: string | null } | null = null;
   private _longPressTimer: ReturnType<typeof setTimeout> | null = null;
   @state() private _activeTab: PanelTab = 'activate';
   @state() private _userPresets?: UserPresetsData;
@@ -84,6 +100,7 @@ export class AqaraPanel extends LitElement {
   @state() private _effectPreviewActive = false;
   @state() private _patternPreviewActive = false;
   @state() private _cctPreviewActive = false;
+  @state() private _audioModeRegistry: AudioModeEntry[] | null = null;
   @state() private _segmentSequencePreviewActive = false;
   @state() private _scenePreviewActive = false;
   @state() private _backendVersion?: string;
@@ -144,6 +161,12 @@ export class AqaraPanel extends LitElement {
     });
     this._loadRunningOperations();
     this._subscribeToOperationEvents();
+    void fetchAudioModeRegistry(this.hass).then((modes) => {
+      if (modes !== null) {
+        this._audioModeRegistry = modes;
+        this.requestUpdate();
+      }
+    });
 
     // Listen for color history events from child editors (bubbles through shadow DOM)
     this.addEventListener('color-history-changed', this._handleColorHistoryChanged as EventListener);
@@ -166,6 +189,13 @@ export class AqaraPanel extends LitElement {
       unsub();
     }
     this._eventUnsubscribers = [];
+    // Clean up any in-flight favorite drag so window listeners don't leak.
+    if (this._favoriteDrag) {
+      window.removeEventListener('pointermove', this._onFavoriteDragMove);
+      window.removeEventListener('pointerup', this._onFavoriteDragEnd);
+      window.removeEventListener('pointercancel', this._onFavoriteDragEnd);
+      this._favoriteDrag = null;
+    }
   }
 
   protected willUpdate(changedProps: PropertyValues): void {
@@ -330,12 +360,9 @@ export class AqaraPanel extends LitElement {
   }
 
   private async _loadPresets(): Promise<void> {
+    if (!this.hass) return;
     try {
-      const response = await fetch('/api/aqara_advanced_lighting/presets');
-      if (!response.ok) {
-        throw new Error(`HTTP error ${response.status}`);
-      }
-      this._presets = await response.json();
+      this._presets = await getPresets(this.hass);
       this._loading = false;
     } catch (err) {
       this._error = err instanceof Error ? err.message : this._localize('errors.loading_presets_generic');
@@ -354,11 +381,11 @@ export class AqaraPanel extends LitElement {
     }
   }
 
-  private async _loadUserPresets(): Promise<void> {
+  private async _loadUserPresets(opts: { bypassCache?: boolean } = {}): Promise<void> {
     if (!this.hass) return;
 
     try {
-      this._userPresets = await this.hass.callApi<UserPresetsData>('GET', 'aqara_advanced_lighting/user_presets');
+      this._userPresets = await getUserPresets(this.hass, opts);
     } catch (err) {
       console.warn('Failed to load user presets:', err);
     }
@@ -460,83 +487,6 @@ export class AqaraPanel extends LitElement {
     `;
   }
 
-  /**
-   * Resolve favorite preset references to actual preset objects.
-   * Tracks source device type for device-specific presets (effects, patterns, sequences).
-   * Filters out references to deleted presets and cleans up stale entries.
-   */
-  private _getResolvedFavoritePresets(): Array<{
-    ref: FavoritePresetRef;
-    preset: AnyPreset;
-    isUser: boolean;
-    deviceType?: string;
-  }> {
-    const resolved: Array<{ ref: FavoritePresetRef; preset: AnyPreset; isUser: boolean; deviceType?: string }> = [];
-
-    for (const ref of this._prefs.state.favoritePresets) {
-      // Skip builtin presets that have been hidden
-      if (this._isBuiltinPresetHidden(ref.type, ref.id)) continue;
-
-      let preset: AnyPreset | null = null;
-      let isUser = false;
-      let deviceType: string | undefined;
-
-      switch (ref.type) {
-        case 'effect': {
-          for (const key of ['t2_bulb', 't1m', 't1_strip'] as const) {
-            const found = this._presets?.dynamic_effects?.[key]?.find(p => p.id === ref.id);
-            if (found) { preset = found; deviceType = key; break; }
-          }
-          if (!preset) {
-            const userPreset = this._userPresets?.effect_presets?.find(p => p.id === ref.id);
-            if (userPreset) { preset = userPreset; isUser = true; deviceType = userPreset.device_type; }
-          }
-          break;
-        }
-        case 'segment_pattern': {
-          preset = this._presets?.segment_patterns?.find(p => p.id === ref.id) || null;
-          if (!preset) {
-            const userPreset = this._userPresets?.segment_pattern_presets?.find(p => p.id === ref.id);
-            if (userPreset) { preset = userPreset; isUser = true; deviceType = userPreset.device_type; }
-          }
-          break;
-        }
-        case 'cct_sequence': {
-          preset = this._presets?.cct_sequences?.find(p => p.id === ref.id) || null;
-          if (!preset) {
-            preset = this._userPresets?.cct_sequence_presets?.find(p => p.id === ref.id) || null;
-            if (preset) isUser = true;
-          }
-          break;
-        }
-        case 'segment_sequence': {
-          preset = this._presets?.segment_sequences?.find(p => p.id === ref.id) || null;
-          if (!preset) {
-            const userPreset = this._userPresets?.segment_sequence_presets?.find(p => p.id === ref.id);
-            if (userPreset) { preset = userPreset; isUser = true; deviceType = userPreset.device_type; }
-          }
-          break;
-        }
-        case 'dynamic_scene': {
-          preset = this._presets?.dynamic_scenes?.find(p => p.id === ref.id) || null;
-          if (!preset) {
-            preset = this._userPresets?.dynamic_scene_presets?.find(p => p.id === ref.id) || null;
-            if (preset) isUser = true;
-          }
-          break;
-        }
-      }
-
-      if (preset) {
-        resolved.push({ ref, preset, isUser, deviceType });
-      }
-    }
-
-    // Stale reference cleanup is handled by _cleanStaleFavoriteRefs() in willUpdate()
-
-    return resolved;
-  }
-
   /** Activate a favorite preset by dispatching to the appropriate activation method. */
   private async _activateFavoritePreset(ref: FavoritePresetRef, preset: AnyPreset, isUser: boolean): Promise<void> {
     switch (ref.type) {
@@ -578,23 +528,6 @@ export class AqaraPanel extends LitElement {
     }
   }
 
-  /** Render the icon/thumbnail for a favorite preset based on its type. */
-  private _renderFavoritePresetIcon(ref: FavoritePresetRef, preset: AnyPreset, isUser: boolean) {
-    switch (ref.type) {
-      case 'effect':
-        return isUser ? this._renderUserEffectIcon(preset as UserEffectPreset) : this._renderPresetIcon(preset.icon, 'mdi:lightbulb-on');
-      case 'segment_pattern':
-        return isUser ? this._renderUserPatternIcon(preset as UserSegmentPatternPreset) : this._renderPresetIcon(preset.icon, 'mdi:palette');
-      case 'cct_sequence':
-        return isUser ? this._renderUserCCTIcon(preset as UserCCTSequencePreset) : this._renderPresetIcon(preset.icon, 'mdi:temperature-kelvin');
-      case 'segment_sequence':
-        return isUser ? this._renderUserSegmentSequenceIcon(preset as UserSegmentSequencePreset) : this._renderPresetIcon(preset.icon, 'mdi:animation-play');
-      case 'dynamic_scene':
-        return isUser ? this._renderUserDynamicSceneIcon(preset as UserDynamicScenePreset) : this._renderBuiltinDynamicSceneIcon(preset as DynamicScenePreset);
-      default:
-        return html`<ha-icon icon="mdi:star"></ha-icon>`;
-    }
-  }
 
   private _getSortPreference(sectionId: string): PresetSortOption {
     return this._prefs.getSortPreference(sectionId);
@@ -649,7 +582,7 @@ export class AqaraPanel extends LitElement {
   private async _loadSupportedEntities(): Promise<void> {
     if (!this.hass) return;
     try {
-      const data = await this.hass.callApi<{ entities?: any[]; light_groups?: any[]; instances?: any[] }>('GET', 'aqara_advanced_lighting/supported_entities');
+      const data = await getSupportedEntities(this.hass);
       // Build a map for fast lookup
       const entityMap = new Map<string, { device_type: string; model_id: string; z2m_friendly_name: string; ieee_address?: string; segment_count?: number; is_group?: boolean; member_count?: number }>();
       for (const entity of data.entities || []) {
@@ -840,12 +773,100 @@ export class AqaraPanel extends LitElement {
     }
   }
 
+  /**
+   * Pointer-down on a favorite card's drag handle. Captures the pointer on the
+   * handle element so subsequent moves/up events fire on the same target even
+   * if the pointer leaves it. stopPropagation prevents the card click handler
+   * (preset activation) from firing on drag-start.
+   */
+  private _onFavoriteDragStart = (e: PointerEvent, fromId: string): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    this._favoriteDrag = { fromId, toId: null };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    window.addEventListener('pointermove', this._onFavoriteDragMove);
+    window.addEventListener('pointerup', this._onFavoriteDragEnd);
+    window.addEventListener('pointercancel', this._onFavoriteDragEnd);
+  };
+
+  /**
+   * Track which card the pointer is currently over by hit-testing the
+   * `.preset-button[data-fav-id]` rects. Updates `_favoriteDrag.toId` on every move.
+   */
+  private _onFavoriteDragMove = (e: PointerEvent): void => {
+    if (!this._favoriteDrag) return;
+    const cards = this.shadowRoot!.querySelectorAll('.preset-button[data-fav-id]');
+    for (const card of Array.from(cards)) {
+      const rect = (card as HTMLElement).getBoundingClientRect();
+      if (
+        e.clientX >= rect.left && e.clientX <= rect.right &&
+        e.clientY >= rect.top && e.clientY <= rect.bottom
+      ) {
+        const id = (card as HTMLElement).dataset.favId!;
+        if (this._favoriteDrag.toId !== id) {
+          this._favoriteDrag = { ...this._favoriteDrag, toId: id };
+        }
+        break;
+      }
+    }
+  };
+
+  /**
+   * Capture-phase click suppressor used to swallow the synthetic click that
+   * the browser fires after a successful pointerup. Without this the preset
+   * card's @click would activate the preset on drop. Registered with
+   * { capture: true, once: true } so it removes itself after one click.
+   */
+  private _suppressClick = (e: Event): void => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  /**
+   * Pointer-up: persist the new order and clean up listeners. Splice/insert
+   * the dragged ref to the drop target's index, then PUT through the existing
+   * preferences-controller update mechanism.
+   */
+  private _onFavoriteDragEnd = (e?: PointerEvent): void => {
+    const isCancel = e?.type === 'pointercancel';
+    window.removeEventListener('pointermove', this._onFavoriteDragMove);
+    window.removeEventListener('pointerup', this._onFavoriteDragEnd);
+    window.removeEventListener('pointercancel', this._onFavoriteDragEnd);
+    const drag = this._favoriteDrag;
+    this._favoriteDrag = null;
+    if (!drag) return;
+
+    // Suppress the synthetic click that follows pointerup. Capture phase + once
+    // so the suppressor catches the click before it reaches the preset-button
+    // handler and removes itself afterward. Skip on pointercancel — no click
+    // follows a cancel.
+    if (!isCancel) {
+      window.addEventListener('click', this._suppressClick, { capture: true, once: true });
+    }
+
+    if (!drag.toId || drag.fromId === drag.toId) return;
+
+    const refs = [...this._prefs.state.favoritePresets];
+    const fromIdx = refs.findIndex(r => r.id === drag.fromId);
+    const toIdx = refs.findIndex(r => r.id === drag.toId);
+    if (fromIdx < 0 || toIdx < 0) return;
+
+    const [moved] = refs.splice(fromIdx, 1);
+    if (!moved) return;
+    refs.splice(toIdx, 0, moved);
+
+    this._prefs.update({ favoritePresets: refs }, this.hass);
+  };
+
   private _sortResolvedFavorites(
     items: Array<{ ref: FavoritePresetRef; preset: any; isUser: boolean }>,
     sortOption: PresetSortOption,
   ): Array<{ ref: FavoritePresetRef; preset: any; isUser: boolean }> {
     const sorted = [...items];
     switch (sortOption) {
+      case 'custom':
+        // User-managed manual order; reflects the favoritePresets array as-is.
+        return sorted;
       case 'name-asc':
         return sorted.sort((a, b) => a.preset.name.localeCompare(b.preset.name));
       case 'name-desc':
@@ -893,7 +914,7 @@ export class AqaraPanel extends LitElement {
 
     try {
       await this.hass.callApi('POST', 'aqara_advanced_lighting/user_presets', { type, data });
-      await this._loadUserPresets();
+      await this._loadUserPresets({ bypassCache: true });
     } catch (err) {
       console.error('Failed to save user preset:', err);
     }
@@ -904,7 +925,7 @@ export class AqaraPanel extends LitElement {
 
     try {
       await this.hass.callApi('PUT', `aqara_advanced_lighting/user_presets/${type}/${id}`, data);
-      await this._loadUserPresets();
+      await this._loadUserPresets({ bypassCache: true });
     } catch (err) {
       console.error('Failed to update user preset:', err);
     }
@@ -915,7 +936,7 @@ export class AqaraPanel extends LitElement {
 
     try {
       await this.hass.callApi('DELETE', `aqara_advanced_lighting/user_presets/${type}/${id}`);
-      await this._loadUserPresets();
+      await this._loadUserPresets({ bypassCache: true });
     } catch (err) {
       console.error('Failed to delete user preset:', err);
     }
@@ -1385,42 +1406,12 @@ export class AqaraPanel extends LitElement {
 
   private _filterPresets(): FilteredPresets {
     const deviceTypes = this._getSelectedDeviceTypes();
-    const hasSelection = deviceTypes.length > 0;
-
-    // Determine what sections to show based on selected endpoint capabilities
-    // t1m = T1M RGB endpoint, t1m_white = T1M white/CCT endpoint
-    const hasT2 = deviceTypes.includes('t2_bulb');
-    const hasT2CCT = deviceTypes.includes('t2_cct');
-    const hasT1M = deviceTypes.includes('t1m');
-    const hasT1MWhite = deviceTypes.includes('t1m_white');
-    const hasT1Strip = deviceTypes.includes('t1_strip');
-    const hasGenericRGB = deviceTypes.includes('generic_rgb');
-    const hasGenericCCT = deviceTypes.includes('generic_cct');
-
-    // Effects, segment patterns, segment sequences: Aqara-only (require MQTT)
-    const showDynamicEffects = hasSelection && (hasT2 || hasT1M || hasT1Strip);
-    const showSegmentPatterns = hasSelection && (hasT1M || hasT1Strip);
-    const showSegmentSequences = hasSelection && (hasT1M || hasT1Strip);
-    // CCT sequences: Aqara + generic lights with color_temp support
-    const showCCTSequences = hasSelection && (hasT2 || hasT2CCT || hasT1MWhite || hasT1Strip || hasGenericRGB || hasGenericCCT);
-    // Dynamic scenes: Any light with color capability (RGB or CCT - backend adapts colors)
-    const showDynamicScenes = hasSelection && (hasT2 || hasT2CCT || hasT1M || hasT1MWhite || hasT1Strip || hasGenericRGB || hasGenericCCT);
-    // Music sync: T1 Strip only
-    const showMusicSync = hasSelection && hasT1Strip;
-
+    const flags = getCapabilityFlags(deviceTypes);
     return {
-      showDynamicEffects,
-      showSegmentPatterns,
-      showCCTSequences,
-      showSegmentSequences,
-      showDynamicScenes,
-      showMusicSync,
-      hasT2,
-      hasT1M,
-      hasT1Strip,
-      t2Presets: hasT2 ? (this._presets?.dynamic_effects.t2_bulb || []) : [],
-      t1mPresets: hasT1M ? (this._presets?.dynamic_effects.t1m || []) : [],
-      t1StripPresets: hasT1Strip ? (this._presets?.dynamic_effects.t1_strip || []) : [],
+      ...flags,
+      t2Presets: flags.hasT2 ? (this._presets?.dynamic_effects.t2_bulb || []) : [],
+      t1mPresets: flags.hasT1M ? (this._presets?.dynamic_effects.t1m || []) : [],
+      t1StripPresets: flags.hasT1Strip ? (this._presets?.dynamic_effects.t1_strip || []) : [],
     };
   }
 
@@ -1519,6 +1510,18 @@ export class AqaraPanel extends LitElement {
     }
   }
 
+  private _handleEffectAudioReactiveToggle(e: Event): void {
+    const checked = (e.target as HTMLInputElement).checked;
+    if (checked) {
+      this._prefs.update({
+        useEffectAudioReactive: true,
+        useCustomBrightness: false,
+      }, this.hass);
+    } else {
+      this._prefs.update({ useEffectAudioReactive: false }, this.hass);
+    }
+  }
+
   private _handleAudioOverrideEntityChange(e: CustomEvent): void {
     this._prefs.update({ audioOverrideEntity: e.detail.value || '' }, this.hass);
   }
@@ -1550,15 +1553,15 @@ export class AqaraPanel extends LitElement {
   // Audio presets (UI-only, same definitions as scene editor)
   private static readonly AUDIO_PRESETS: Record<string, {
     color_advance: string; detection_mode: string; sensitivity: number;
-    transition_speed: number; brightness_response: boolean; frequency_zone: boolean;
-    color_by_frequency: boolean; rolloff_brightness: boolean; silence_degradation: boolean;
+    transition_speed: number; brightness_curve: string | null; brightness_min: number; brightness_max: number; frequency_zone: boolean;
+    color_by_frequency: boolean; rolloff_brightness: boolean; silence_behavior: string;
     prediction_aggressiveness: number; latency_compensation_ms: number;
   }> = {
-    beat: { color_advance: 'on_onset', detection_mode: 'spectral_flux', sensitivity: 60, transition_speed: 80, brightness_response: true, frequency_zone: false, color_by_frequency: false, rolloff_brightness: false, silence_degradation: true, prediction_aggressiveness: 50, latency_compensation_ms: 150 },
-    ambient: { color_advance: 'intensity_breathing', detection_mode: 'spectral_flux', sensitivity: 50, transition_speed: 20, brightness_response: true, frequency_zone: false, color_by_frequency: false, rolloff_brightness: true, silence_degradation: true, prediction_aggressiveness: 50, latency_compensation_ms: 150 },
-    concert: { color_advance: 'beat_predictive', detection_mode: 'complex_domain', sensitivity: 50, transition_speed: 50, brightness_response: true, frequency_zone: true, color_by_frequency: true, rolloff_brightness: false, silence_degradation: true, prediction_aggressiveness: 70, latency_compensation_ms: 150 },
-    chill: { color_advance: 'continuous', detection_mode: 'spectral_flux', sensitivity: 40, transition_speed: 30, brightness_response: true, frequency_zone: false, color_by_frequency: false, rolloff_brightness: false, silence_degradation: true, prediction_aggressiveness: 50, latency_compensation_ms: 150 },
-    club: { color_advance: 'onset_flash', detection_mode: 'bass_energy', sensitivity: 70, transition_speed: 95, brightness_response: true, frequency_zone: false, color_by_frequency: false, rolloff_brightness: false, silence_degradation: false, prediction_aggressiveness: 50, latency_compensation_ms: 150 },
+    beat: { color_advance: 'on_onset', detection_mode: 'spectral_flux', sensitivity: 60, transition_speed: 80, brightness_curve: 'linear', brightness_min: 30, brightness_max: 100, frequency_zone: false, color_by_frequency: false, rolloff_brightness: false, silence_behavior: 'slow_cycle', prediction_aggressiveness: 50, latency_compensation_ms: 150 },
+    ambient: { color_advance: 'intensity_breathing', detection_mode: 'spectral_flux', sensitivity: 50, transition_speed: 20, brightness_curve: 'logarithmic', brightness_min: 20, brightness_max: 80, frequency_zone: false, color_by_frequency: false, rolloff_brightness: true, silence_behavior: 'slow_cycle', prediction_aggressiveness: 50, latency_compensation_ms: 150 },
+    concert: { color_advance: 'beat_predictive', detection_mode: 'complex_domain', sensitivity: 50, transition_speed: 50, brightness_curve: 'linear', brightness_min: 30, brightness_max: 100, frequency_zone: true, color_by_frequency: true, rolloff_brightness: false, silence_behavior: 'slow_cycle', prediction_aggressiveness: 70, latency_compensation_ms: 150 },
+    chill: { color_advance: 'continuous', detection_mode: 'spectral_flux', sensitivity: 40, transition_speed: 30, brightness_curve: 'logarithmic', brightness_min: 20, brightness_max: 80, frequency_zone: false, color_by_frequency: false, rolloff_brightness: false, silence_behavior: 'slow_cycle', prediction_aggressiveness: 50, latency_compensation_ms: 150 },
+    club: { color_advance: 'onset_flash', detection_mode: 'bass_energy', sensitivity: 70, transition_speed: 95, brightness_curve: 'exponential', brightness_min: 10, brightness_max: 100, frequency_zone: false, color_by_frequency: false, rolloff_brightness: false, silence_behavior: 'hold', prediction_aggressiveness: 50, latency_compensation_ms: 150 },
   };
 
   private get _currentAudioOverridePreset(): string {
@@ -1567,11 +1570,13 @@ export class AqaraPanel extends LitElement {
           this._prefs.state.audioOverrideDetectionMode === p.detection_mode &&
           this._prefs.state.audioOverrideSensitivity === p.sensitivity &&
           this._prefs.state.audioOverrideTransitionSpeed === p.transition_speed &&
-          this._prefs.state.audioOverrideBrightnessResponse === p.brightness_response &&
+          this._prefs.state.audioOverrideBrightnessCurve === p.brightness_curve &&
+          this._prefs.state.audioOverrideBrightnessMin === p.brightness_min &&
+          this._prefs.state.audioOverrideBrightnessMax === p.brightness_max &&
           this._prefs.state.audioOverrideFrequencyZone === p.frequency_zone &&
           this._prefs.state.audioOverrideColorByFrequency === p.color_by_frequency &&
           this._prefs.state.audioOverrideRolloffBrightness === p.rolloff_brightness &&
-          this._prefs.state.audioOverrideSilenceDegradation === p.silence_degradation &&
+          this._prefs.state.audioOverrideSilenceBehavior === p.silence_behavior &&
           this._prefs.state.audioOverridePredictionAggressiveness === p.prediction_aggressiveness &&
           this._prefs.state.audioOverrideLatencyCompensationMs === p.latency_compensation_ms) {
         return name;
@@ -1601,11 +1606,13 @@ export class AqaraPanel extends LitElement {
       audioOverrideDetectionMode: p.detection_mode,
       audioOverrideSensitivity: p.sensitivity,
       audioOverrideTransitionSpeed: p.transition_speed,
-      audioOverrideBrightnessResponse: p.brightness_response,
+      audioOverrideBrightnessCurve: p.brightness_curve,
+      audioOverrideBrightnessMin: p.brightness_min,
+      audioOverrideBrightnessMax: p.brightness_max,
       audioOverrideFrequencyZone: p.frequency_zone,
       audioOverrideColorByFrequency: p.color_by_frequency,
       audioOverrideRolloffBrightness: p.rolloff_brightness,
-      audioOverrideSilenceDegradation: p.silence_degradation,
+      audioOverrideSilenceBehavior: p.silence_behavior,
       audioOverridePredictionAggressiveness: p.prediction_aggressiveness,
       audioOverrideLatencyCompensationMs: p.latency_compensation_ms,
     }, this.hass);
@@ -1653,6 +1660,29 @@ export class AqaraPanel extends LitElement {
       serviceData.brightness = this._prefs.state.brightness;
     }
 
+    // Effect audio override
+    if (this._prefs.state.useEffectAudioReactive) {
+      if (this._prefs.state.audioOverrideEntity) {
+        serviceData.audio_entity = this._prefs.state.audioOverrideEntity;
+        serviceData.audio_sensitivity = preset.audio_sensitivity ?? this._prefs.state.effectAudioOverrideSensitivity;
+        serviceData.audio_silence_behavior = preset.audio_silence_behavior ?? 'decay_min';
+        // Use preset's configured speed mode, fall back to 'volume' for non-audio presets
+        serviceData.audio_speed_mode = preset.audio_speed_mode || 'volume';
+        // Pass through preset's speed min/max when available
+        if (preset.audio_speed_min !== undefined) serviceData.audio_speed_min = preset.audio_speed_min;
+        if (preset.audio_speed_max !== undefined) serviceData.audio_speed_max = preset.audio_speed_max;
+      } else {
+        console.warn('Effect audio reactive override is enabled but no audio sensor entity is configured');
+      }
+    } else if (preset.audio_speed_mode) {
+      // Built-in audio-reactive preset — inject user's default entity when configured.
+      // Backend also resolves from user prefs, but passing it explicitly keeps both in sync.
+      const fallbackEntity = this._prefs.state.audioOverrideEntity;
+      if (fallbackEntity) {
+        serviceData.audio_entity = fallbackEntity;
+      }
+    }
+
     await this.hass.callService('aqara_advanced_lighting', 'set_dynamic_effect', serviceData);
     await this._loadRunningOperations();
   }
@@ -1692,12 +1722,18 @@ export class AqaraPanel extends LitElement {
   private async _activateSegmentSequence(preset: SegmentSequencePreset): Promise<void> {
     if (!this._prefs.state.selectedEntities.length) return;
 
-    await this.hass.callService('aqara_advanced_lighting', 'start_segment_sequence', {
+    const serviceData: Record<string, unknown> = {
       entity_id: this._prefs.state.selectedEntities,
       preset: preset.id,
       turn_on: true,
       sync: true,
-    });
+    };
+
+    if (this._prefs.state.useCustomBrightness) {
+      serviceData.brightness = this._prefs.state.brightness;
+    }
+
+    await this.hass.callService('aqara_advanced_lighting', 'start_segment_sequence', serviceData);
     await this._loadRunningOperations();
   }
 
@@ -1759,13 +1795,17 @@ export class AqaraPanel extends LitElement {
     serviceData.audio_entity = audioEntity;
     serviceData.audio_color_advance = preset.audio_color_advance;
     if (preset.audio_sensitivity != null) serviceData.audio_sensitivity = preset.audio_sensitivity;
-    if (preset.audio_brightness_response != null) serviceData.audio_brightness_response = preset.audio_brightness_response;
+    if (preset.audio_brightness_curve !== undefined) serviceData.audio_brightness_curve = preset.audio_brightness_curve;
+    if (preset.audio_brightness_min != null) serviceData.audio_brightness_min = preset.audio_brightness_min;
+    if (preset.audio_brightness_max != null) serviceData.audio_brightness_max = preset.audio_brightness_max;
     if (preset.audio_transition_speed != null) serviceData.audio_transition_speed = preset.audio_transition_speed;
     if (preset.audio_detection_mode != null) serviceData.audio_detection_mode = preset.audio_detection_mode;
     if (preset.audio_frequency_zone != null) serviceData.audio_frequency_zone = preset.audio_frequency_zone;
-    if (preset.audio_silence_degradation != null) serviceData.audio_silence_degradation = preset.audio_silence_degradation;
+    if (preset.audio_silence_behavior != null) serviceData.audio_silence_behavior = preset.audio_silence_behavior;
     if (preset.audio_prediction_aggressiveness != null) serviceData.audio_prediction_aggressiveness = preset.audio_prediction_aggressiveness;
     if (preset.audio_latency_compensation_ms != null) serviceData.audio_latency_compensation_ms = preset.audio_latency_compensation_ms;
+    if (preset.audio_color_by_frequency != null) serviceData.audio_color_by_frequency = preset.audio_color_by_frequency;
+    if (preset.audio_rolloff_brightness != null) serviceData.audio_rolloff_brightness = preset.audio_rolloff_brightness;
   }
 
   private _applyAudioOverrides(serviceData: Record<string, unknown>): void {
@@ -1774,10 +1814,12 @@ export class AqaraPanel extends LitElement {
       serviceData.audio_sensitivity = this._prefs.state.audioOverrideSensitivity;
       serviceData.audio_color_advance = this._prefs.state.audioOverrideColorAdvance;
       serviceData.audio_transition_speed = this._prefs.state.audioOverrideTransitionSpeed;
-      serviceData.audio_brightness_response = this._prefs.state.audioOverrideBrightnessResponse;
+      serviceData.audio_brightness_curve = this._prefs.state.audioOverrideBrightnessCurve;
+      serviceData.audio_brightness_min = this._prefs.state.audioOverrideBrightnessMin;
+      serviceData.audio_brightness_max = this._prefs.state.audioOverrideBrightnessMax;
       serviceData.audio_detection_mode = this._prefs.state.audioOverrideDetectionMode;
       serviceData.audio_frequency_zone = this._prefs.state.audioOverrideFrequencyZone;
-      serviceData.audio_silence_degradation = this._prefs.state.audioOverrideSilenceDegradation;
+      serviceData.audio_silence_behavior = this._prefs.state.audioOverrideSilenceBehavior;
       serviceData.audio_prediction_aggressiveness = this._prefs.state.audioOverridePredictionAggressiveness;
       serviceData.audio_latency_compensation_ms = this._prefs.state.audioOverrideLatencyCompensationMs;
     }
@@ -1846,6 +1888,37 @@ export class AqaraPanel extends LitElement {
 
     if (preset.effect_segments) {
       serviceData.segments = preset.effect_segments;
+    }
+
+    // Effect audio override takes precedence, but merge with preset's audio config
+    if (this._prefs.state.useEffectAudioReactive) {
+      if (this._prefs.state.audioOverrideEntity) {
+        const ac = preset.audio_config;
+        serviceData.audio_entity = this._prefs.state.audioOverrideEntity;
+        serviceData.audio_sensitivity = ac?.audio_sensitivity ?? this._prefs.state.effectAudioOverrideSensitivity;
+        serviceData.audio_silence_behavior = ac?.audio_silence_behavior ?? 'decay_min';
+        // Use preset's configured speed mode, fall back to 'volume' for non-audio presets
+        serviceData.audio_speed_mode = ac?.audio_speed_mode || 'volume';
+        // Pass through preset's speed min/max when available
+        if (ac?.audio_speed_min !== undefined) serviceData.audio_speed_min = ac.audio_speed_min;
+        if (ac?.audio_speed_max !== undefined) serviceData.audio_speed_max = ac.audio_speed_max;
+      } else {
+        console.warn('Effect audio reactive override is enabled but no audio sensor entity is configured');
+      }
+    } else if (preset.audio_config?.audio_entity) {
+      // Fall back to preset's saved audio config (only when override is OFF)
+      const ac = preset.audio_config;
+      const fallbackEntity = ac.audio_entity || this._prefs.state.audioOverrideEntity;
+      if (fallbackEntity) {
+        serviceData.audio_entity = fallbackEntity;
+        serviceData.audio_sensitivity = ac.audio_sensitivity ?? 50;
+        serviceData.audio_silence_behavior = ac.audio_silence_behavior ?? 'decay_min';
+        if (ac.audio_speed_mode) {
+          serviceData.audio_speed_mode = ac.audio_speed_mode;
+          serviceData.audio_speed_min = ac.audio_speed_min ?? 1;
+          serviceData.audio_speed_max = ac.audio_speed_max ?? 100;
+        }
+      }
     }
 
     await this.hass.callService('aqara_advanced_lighting', 'set_dynamic_effect', serviceData);
@@ -1949,6 +2022,10 @@ export class AqaraPanel extends LitElement {
       turn_on: true,
       sync: true,
     };
+
+    if (this._prefs.state.useCustomBrightness) {
+      serviceData.brightness = this._prefs.state.brightness;
+    }
 
     // Add loop_count only if loop_mode is 'count'
     if (preset.loop_mode === 'count' && preset.loop_count !== undefined) {
@@ -2161,7 +2238,9 @@ export class AqaraPanel extends LitElement {
             .z2mInstances=${this._z2mInstances}
             .softwareTransitionEntities=${this._prefs.state.softwareTransitionEntities}
             .entityAudioConfig=${this._prefs.state.entityAudioConfig}
+            .audioOverrideEntity=${this._prefs.state.audioOverrideEntity}
             @collapsed-changed=${(e: CustomEvent) => this._prefs.setCollapsed(e.detail.sectionId, e.detail.collapsed, this.hass)}
+            @audio-override-entity-changed=${(e: CustomEvent) => this._handleAudioOverrideEntityChange(e)}
             @global-preferences-changed=${(e: CustomEvent) => this._applyGlobalPreferencesFromConfigTab(e.detail)}
             @toast=${(e: CustomEvent) => this._showToast(e.detail.message)}
           ></aqara-config-tab>
@@ -2379,6 +2458,7 @@ export class AqaraPanel extends LitElement {
                 </div>
               </div>
               <div class="section-content controls-content">
+                <!-- All toggles at the top -->
                 <div class="overrides-grid">
                   <div class="override-item" style="opacity: ${this._prefs.state.useAudioReactive ? '0.5' : '1'}">
                     <span class="form-label">${this._localize('target.custom_brightness_label')}</span>
@@ -2414,7 +2494,56 @@ export class AqaraPanel extends LitElement {
                       @change=${this._handleAudioReactiveToggle}
                     ></ha-switch>
                   </div>
+
+                  <div class="override-item">
+                    <span class="form-label">${this._localize('target.effect_audio_reactive_label') || 'Effect audio reactive'}</span>
+                    <ha-switch
+                      .checked=${this._prefs.state.useEffectAudioReactive}
+                      @change=${this._handleEffectAudioReactiveToggle}
+                    ></ha-switch>
+                  </div>
                 </div>
+
+                <!-- Parameters below all toggles -->
+                ${this._prefs.state.useCustomBrightness
+                  ? html`
+                      <div class="brightness-slider" style="padding-top: 8px;">
+                        <span class="form-label">${this._localize('target.brightness_override_label') || 'Brightness'}</span>
+                        <ha-selector
+                          .hass=${this.hass}
+                          .selector=${{
+                            number: {
+                              min: 1,
+                              max: 100,
+                              mode: 'slider',
+                              unit_of_measurement: '%',
+                            },
+                          }}
+                          .value=${this._prefs.state.brightness}
+                          @value-changed=${this._handleBrightnessChange}
+                        ></ha-selector>
+                      </div>
+                    `
+                  : ''}
+
+                ${this._prefs.state.useDistributionModeOverride
+                  ? html`
+                      <div class="brightness-slider" style="padding-top: 8px;">
+                        <span class="form-label">${this._localize('target.distribution_mode_override_label') || 'Color assignment'}</span>
+                        <ha-selector
+                          .hass=${this.hass}
+                          .selector=${{
+                            select: {
+                              options: this._distributionModeOverrideOptions,
+                              mode: 'dropdown',
+                            },
+                          }}
+                          .value=${this._prefs.state.distributionModeOverride}
+                          @value-changed=${this._handleDistributionModeOverrideChange}
+                        ></ha-selector>
+                      </div>
+                    `
+                  : ''}
 
                 ${this._prefs.state.useAudioReactive
                   ? html`
@@ -2458,13 +2587,11 @@ export class AqaraPanel extends LitElement {
                           <span class="form-label">${this._localize('dynamic_scene.audio_color_advance_label') || 'Color advance'}</span>
                           <ha-selector
                             .hass=${this.hass}
-                            .selector=${{ select: { options: [
-                              { value: 'on_onset', label: this._localize('dynamic_scene.audio_mode_on_onset') || 'Color cycle' },
-                              { value: 'continuous', label: this._localize('dynamic_scene.audio_mode_continuous') || 'Continuous' },
-                              { value: 'beat_predictive', label: this._localize('dynamic_scene.audio_mode_beat_predictive') || 'Beat predictive' },
-                              { value: 'intensity_breathing', label: this._localize('dynamic_scene.audio_mode_intensity_breathing') || 'Intensity breathing' },
-                              { value: 'onset_flash', label: this._localize('dynamic_scene.audio_mode_onset_flash') || 'Brightness flash' },
-                            ], mode: 'dropdown' } }}
+                            .selector=${{ select: { options: buildAudioModeOptions(
+                              this._audioModeRegistry,
+                              audioDeviceTier(this.hass, this._prefs.state.audioOverrideEntity),
+                              (k) => this._localize(k),
+                            ), mode: 'dropdown' } }}
                             .value=${this._prefs.state.audioOverrideColorAdvance}
                             @value-changed=${this._handleAudioOverrideColorAdvanceChange}
                           ></ha-selector>
@@ -2515,28 +2642,74 @@ export class AqaraPanel extends LitElement {
                           ></ha-selector>
                         </div>
                       </div>
+                      <!-- Dropdowns: brightness curve and silence behavior -->
+                      <div class="audio-dropdowns-grid">
+                        <div class="override-item">
+                          <span class="form-label">${this._localize('dynamic_scene.audio_brightness_curve_label') || 'Brightness curve'}</span>
+                          <ha-selector
+                            .hass=${this.hass}
+                            .disabled=${!(this._prefs.state.audioOverrideColorAdvance === 'on_onset' || this._prefs.state.audioOverrideColorAdvance === 'continuous' || this._prefs.state.audioOverrideColorAdvance === 'beat_predictive')}
+                            .selector=${{ select: { options: [
+                              { value: 'disabled', label: this._localize('dynamic_scene.audio_brightness_curve_disabled') || 'Disabled' },
+                              { value: 'linear', label: this._localize('dynamic_scene.audio_brightness_curve_linear') || 'Linear' },
+                              { value: 'logarithmic', label: this._localize('dynamic_scene.audio_brightness_curve_logarithmic') || 'Logarithmic' },
+                              { value: 'exponential', label: this._localize('dynamic_scene.audio_brightness_curve_exponential') || 'Exponential' },
+                            ], mode: 'dropdown' } }}
+                            .value=${this._prefs.state.audioOverrideBrightnessCurve ?? 'disabled'}
+                            @value-changed=${(e: CustomEvent) => {
+                              const val = e.detail.value;
+                              this._prefs.update({
+                                audioOverrideBrightnessCurve: val === 'disabled' ? null : (val || 'linear'),
+                              }, this.hass);
+                            }}
+                          ></ha-selector>
+                        </div>
+                        <div class="override-item">
+                          <span class="form-label">${this._localize('dynamic_scene.audio_silence_behavior_label') || 'Silence behavior'}</span>
+                          <ha-selector
+                            .hass=${this.hass}
+                            .selector=${{ select: { options: [
+                              { value: 'hold', label: this._localize('dynamic_scene.audio_silence_hold') || 'Hold last color' },
+                              { value: 'slow_cycle', label: this._localize('dynamic_scene.audio_silence_slow_cycle') || 'Slow cycle' },
+                              { value: 'decay_min', label: this._localize('dynamic_scene.audio_silence_decay_min') || 'Decay to min' },
+                              { value: 'decay_mid', label: this._localize('dynamic_scene.audio_silence_decay_mid') || 'Decay to mid' },
+                            ], mode: 'dropdown' } }}
+                            .value=${this._prefs.state.audioOverrideSilenceBehavior}
+                            @value-changed=${(e: CustomEvent) => { this._prefs.update({ audioOverrideSilenceBehavior: e.detail.value || 'slow_cycle' }, this.hass); }}
+                          ></ha-selector>
+                        </div>
+                      </div>
+
+                      ${this._prefs.state.audioOverrideBrightnessCurve ? html`
+                      <div class="audio-sliders-row">
+                        <div class="override-item">
+                          <span class="form-label">${this._localize('dynamic_scene.audio_brightness_min_label') || 'Brightness min'}</span>
+                          <ha-selector
+                            .hass=${this.hass}
+                            .selector=${{ number: { min: 0, max: 100, mode: 'slider', unit_of_measurement: '%' } }}
+                            .value=${this._prefs.state.audioOverrideBrightnessMin}
+                            @value-changed=${(e: CustomEvent) => { this._prefs.update({ audioOverrideBrightnessMin: e.detail.value ?? 30 }, this.hass); }}
+                          ></ha-selector>
+                        </div>
+                        <div class="override-item">
+                          <span class="form-label">${this._localize('dynamic_scene.audio_brightness_max_label') || 'Brightness max'}</span>
+                          <ha-selector
+                            .hass=${this.hass}
+                            .selector=${{ number: { min: 0, max: 100, mode: 'slider', unit_of_measurement: '%' } }}
+                            .value=${this._prefs.state.audioOverrideBrightnessMax}
+                            @value-changed=${(e: CustomEvent) => { this._prefs.update({ audioOverrideBrightnessMax: e.detail.value ?? 100 }, this.hass); }}
+                          ></ha-selector>
+                        </div>
+                      </div>
+                      ` : ''}
+
                       <!-- Toggles: 4-per-row desktop, 2-per-row mobile -->
                       <div class="audio-toggles-grid">
-                        <div class="override-item">
-                          <span class="form-label">${this._localize('dynamic_scene.audio_brightness_response_label') || 'Brightness response'}</span>
-                          <ha-switch
-                            .checked=${this._prefs.state.audioOverrideBrightnessResponse}
-                            .disabled=${!(this._prefs.state.audioOverrideColorAdvance === 'on_onset' || this._prefs.state.audioOverrideColorAdvance === 'continuous' || this._prefs.state.audioOverrideColorAdvance === 'beat_predictive')}
-                            @change=${(e: Event) => { this._prefs.update({ audioOverrideBrightnessResponse: (e.target as HTMLInputElement).checked }, this.hass); }}
-                          ></ha-switch>
-                        </div>
                         <div class="override-item">
                           <span class="form-label">${this._localize('dynamic_scene.audio_frequency_zone_label') || 'Frequency zone'}</span>
                           <ha-switch
                             .checked=${this._prefs.state.audioOverrideFrequencyZone}
                             @change=${(e: Event) => { this._prefs.update({ audioOverrideFrequencyZone: (e.target as HTMLInputElement).checked }, this.hass); }}
-                          ></ha-switch>
-                        </div>
-                        <div class="override-item">
-                          <span class="form-label">${this._localize('dynamic_scene.audio_silence_degradation_label') || 'Silence degradation'}</span>
-                          <ha-switch
-                            .checked=${this._prefs.state.audioOverrideSilenceDegradation}
-                            @change=${(e: Event) => { this._prefs.update({ audioOverrideSilenceDegradation: (e.target as HTMLInputElement).checked }, this.hass); }}
                           ></ha-switch>
                         </div>
                         <div class="override-item">
@@ -2557,42 +2730,42 @@ export class AqaraPanel extends LitElement {
                     `
                   : ''}
 
-                ${this._prefs.state.useDistributionModeOverride
+                ${this._prefs.state.useEffectAudioReactive
                   ? html`
-                      <div class="brightness-slider">
-                        <span class="form-label">${this._localize('target.distribution_mode_override_label') || 'Color assignment'}</span>
-                        <ha-selector
-                          .hass=${this.hass}
-                          .selector=${{
-                            select: {
-                              options: this._distributionModeOverrideOptions,
-                              mode: 'dropdown',
-                            },
-                          }}
-                          .value=${this._prefs.state.distributionModeOverride}
-                          @value-changed=${this._handleDistributionModeOverrideChange}
-                        ></ha-selector>
+                      <div class="audio-override-row" style="padding-top: 8px;">
+                        <div>
+                          <span class="form-label">${this._localize('target.audio_entity_label') || 'Audio sensor entity'}</span>
+                          <ha-selector
+                            .hass=${this.hass}
+                            .selector=${{ entity: { domain: 'binary_sensor' } }}
+                            .value=${this._prefs.state.audioOverrideEntity}
+                            @value-changed=${this._handleAudioOverrideEntityChange}
+                          ></ha-selector>
+                        </div>
+                        <div>
+                          <span class="form-label">${this._localize('target.effect_sensitivity_label') || 'Sensitivity'}</span>
+                          <ha-selector
+                            .hass=${this.hass}
+                            .selector=${{ number: { min: 1, max: 100, mode: 'slider', unit_of_measurement: '%' } }}
+                            .value=${this._prefs.state.effectAudioOverrideSensitivity}
+                            @value-changed=${(e: CustomEvent) => { this._prefs.update({ effectAudioOverrideSensitivity: e.detail.value ?? 50 }, this.hass); }}
+                          ></ha-selector>
+                        </div>
                       </div>
-                    `
-                  : ''}
-
-                ${this._prefs.state.useCustomBrightness
-                  ? html`
-                      <div class="brightness-slider">
-                        <span class="form-label">${this._localize('target.brightness_override_label') || 'Brightness'}</span>
-                        <ha-selector
-                          .hass=${this.hass}
-                          .selector=${{
-                            number: {
-                              min: 1,
-                              max: 100,
-                              mode: 'slider',
-                              unit_of_measurement: '%',
-                            },
-                          }}
-                          .value=${this._prefs.state.brightness}
-                          @value-changed=${this._handleBrightnessChange}
-                        ></ha-selector>
+                      <div class="audio-override-row">
+                        <div>
+                          <span class="form-label">${this._localize('target.effect_silence_behavior_label') || 'Silence behavior'}</span>
+                          <ha-selector
+                            .hass=${this.hass}
+                            .selector=${{ select: { options: [
+                              { value: 'hold', label: this._localize('effect_editor.silence_hold') || 'Hold last values' },
+                              { value: 'decay_min', label: this._localize('effect_editor.silence_decay_min') || 'Decay to minimum' },
+                              { value: 'decay_mid', label: this._localize('effect_editor.silence_decay_mid') || 'Decay to midpoint' },
+                            ], mode: 'dropdown' } }}
+                            .value=${this._prefs.state.effectAudioOverrideSilenceBehavior}
+                            @value-changed=${(e: CustomEvent) => { this._prefs.update({ effectAudioOverrideSilenceBehavior: e.detail.value || 'decay_min' }, this.hass); }}
+                          ></ha-selector>
+                        </div>
                       </div>
                     `
                   : ''}
@@ -2673,7 +2846,7 @@ export class AqaraPanel extends LitElement {
           `
         : ''}
 
-      ${hasSelection && !this._hasIncompatibleLights ? this._renderFavoritesSection(filtered) : ''}
+      ${hasSelection && !this._hasIncompatibleLights ? this._renderFavoritesSection() : ''}
 
       ${filtered.showDynamicScenes && ((this._presets?.dynamic_scenes?.length ?? 0) > 0 || this._getFilteredUserDynamicScenePresets().length > 0) && !this._hasIncompatibleLights
         ? this._renderDynamicScenesSection()
@@ -2753,6 +2926,7 @@ export class AqaraPanel extends LitElement {
           .stripSegmentCount=${this._getT1StripSegmentCount()}
           .deviceContext=${this._getDeviceContextForEditor('effect')}
           .colorHistory=${this._prefs.state.colorHistory}
+          .defaultAudioEntity=${this._prefs.state.audioOverrideEntity}
           @save=${this._handleEffectSave}
           @preview=${this._handleEffectPreview}
           @stop-preview=${this._handleEffectStopPreview}
@@ -2863,6 +3037,16 @@ export class AqaraPanel extends LitElement {
 
     if (data.effect_segments) {
       serviceData.segments = data.effect_segments;
+    }
+
+    // Pass audio-reactive config if configured in the editor
+    if (data.audio_config?.audio_entity && data.audio_config?.audio_speed_mode) {
+      serviceData.audio_entity = data.audio_config.audio_entity;
+      serviceData.audio_sensitivity = data.audio_config.audio_sensitivity;
+      serviceData.audio_silence_behavior = data.audio_config.audio_silence_behavior;
+      serviceData.audio_speed_mode = data.audio_config.audio_speed_mode;
+      if (data.audio_config.audio_speed_min !== undefined) serviceData.audio_speed_min = data.audio_config.audio_speed_min;
+      if (data.audio_config.audio_speed_max !== undefined) serviceData.audio_speed_max = data.audio_config.audio_speed_max;
     }
 
     await this.hass.callService('aqara_advanced_lighting', 'set_dynamic_effect', serviceData);
@@ -3243,6 +3427,7 @@ export class AqaraPanel extends LitElement {
           .selectedEntities=${this._prefs.state.selectedEntities}
           .previewActive=${this._scenePreviewActive}
           .colorHistory=${this._prefs.state.colorHistory}
+          .defaultAudioEntity=${this._prefs.state.audioOverrideEntity}
           @save=${this._handleSceneSave}
           @preview=${this._handleScenePreview}
           @stop-preview=${this._handleSceneStopPreview}
@@ -3300,6 +3485,24 @@ export class AqaraPanel extends LitElement {
         y: color.y,
         brightness_pct: color.brightness_pct,
       }));
+    }
+
+    // Pass through audio fields from editor (included when audio enabled + entity selected)
+    if (data.audio_entity) {
+      serviceData.audio_entity = data.audio_entity;
+      if (data.audio_color_advance) serviceData.audio_color_advance = data.audio_color_advance;
+      if (data.audio_sensitivity != null) serviceData.audio_sensitivity = data.audio_sensitivity;
+      if (data.audio_brightness_curve !== undefined) serviceData.audio_brightness_curve = data.audio_brightness_curve;
+      if (data.audio_brightness_min != null) serviceData.audio_brightness_min = data.audio_brightness_min;
+      if (data.audio_brightness_max != null) serviceData.audio_brightness_max = data.audio_brightness_max;
+      if (data.audio_transition_speed != null) serviceData.audio_transition_speed = data.audio_transition_speed;
+      if (data.audio_detection_mode != null) serviceData.audio_detection_mode = data.audio_detection_mode;
+      if (data.audio_frequency_zone != null) serviceData.audio_frequency_zone = data.audio_frequency_zone;
+      if (data.audio_silence_behavior != null) serviceData.audio_silence_behavior = data.audio_silence_behavior;
+      if (data.audio_prediction_aggressiveness != null) serviceData.audio_prediction_aggressiveness = data.audio_prediction_aggressiveness;
+      if (data.audio_latency_compensation_ms != null) serviceData.audio_latency_compensation_ms = data.audio_latency_compensation_ms;
+      if (data.audio_color_by_frequency != null) serviceData.audio_color_by_frequency = data.audio_color_by_frequency;
+      if (data.audio_rolloff_brightness != null) serviceData.audio_rolloff_brightness = data.audio_rolloff_brightness;
     }
 
     await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
@@ -3452,7 +3655,7 @@ export class AqaraPanel extends LitElement {
       this._showToast(this._localize('presets.import_success', { count: totalCount.toString() }));
 
       // Refresh presets display
-      await this._loadUserPresets();
+      await this._loadUserPresets({ bypassCache: true });
     } catch (err) {
       let errorMessage = this._localize('presets.import_error_unknown');
 
@@ -3577,18 +3780,6 @@ export class AqaraPanel extends LitElement {
                 </ha-button>
               </div>
             `}
-          <div class="audio-default-selector" style="padding: 8px 16px; border-top: 1px solid var(--divider-color);">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-              <ha-icon icon="mdi:microphone" style="color: var(--secondary-text-color);"></ha-icon>
-              <span style="font-size: 0.9em; font-weight: 500;">${this._localize('presets.default_audio_sensor')}</span>
-            </div>
-            <ha-selector
-              .hass=${this.hass}
-              .selector=${{ entity: { domain: 'binary_sensor' } }}
-              .value=${this._prefs.state.audioOverrideEntity}
-              @value-changed=${this._handleAudioOverrideEntityChange}
-            ></ha-selector>
-          </div>
         </div>
       </ha-expansion-panel>
 
@@ -3906,6 +4097,7 @@ export class AqaraPanel extends LitElement {
 
   private get _sortOptions() {
     return [
+      { value: 'custom', label: this._localize('presets.sort_custom') },
       { value: 'name-asc', label: this._localize('presets.sort_name_asc') },
       { value: 'name-desc', label: this._localize('presets.sort_name_desc') },
       { value: 'date-new', label: this._localize('presets.sort_date_new') },
@@ -3938,38 +4130,27 @@ export class AqaraPanel extends LitElement {
   }
 
   /** Render the Favorite Presets section in the Activate tab. Filtered by device capabilities. */
-  private _renderFavoritesSection(filtered: FilteredPresets) {
-    const resolved = this._getResolvedFavoritePresets();
+  private _renderFavoritesSection() {
+    if (!this._presets || !this._userPresets) return '';
 
-    // Check if a preset's device type is compatible with the selected targets.
-    // Presets with no device type (builtin patterns/sequences, universal user presets) pass.
-    const isDeviceCompatible = (dt: string | undefined): boolean => {
-      if (!dt) return true;
-      switch (dt) {
-        case 't2_bulb': return filtered.hasT2;
-        case 't1m': case 't1': return filtered.hasT1M;
-        case 't1_strip': return filtered.hasT1Strip;
-        default: return true;
-      }
-    };
-
-    // Filter favorites by current device capabilities (same rules as preset sections)
-    const compatible = resolved.filter(({ ref, deviceType }) => {
-      switch (ref.type) {
-        case 'effect': return filtered.showDynamicEffects && isDeviceCompatible(deviceType);
-        case 'segment_pattern': return filtered.showSegmentPatterns && isDeviceCompatible(deviceType);
-        case 'cct_sequence': return filtered.showCCTSequences;
-        case 'segment_sequence': return filtered.showSegmentSequences && isDeviceCompatible(deviceType);
-        case 'dynamic_scene': return filtered.showDynamicScenes;
-        default: return false;
-      }
-    });
-    if (compatible.length === 0) return '';
+    // Filter hidden built-in presets upstream before resolving (the shared
+    // resolveFavorites does not honor _isBuiltinPresetHidden).
+    const visibleRefs = this._prefs.state.favoritePresets.filter(
+      ref => !this._isBuiltinPresetHidden(ref.type, ref.id),
+    );
+    const deviceTypes = this._getSelectedDeviceTypes();
+    // resolveFavorites already filters via isPresetCompatible, which consults
+    // both device-type compat and section-visibility flags via getCapabilityFlags.
+    const resolved = resolveFavorites(visibleRefs, this._presets, this._userPresets, deviceTypes);
+    if (resolved.length === 0) return '';
 
     const sectionId = 'favorite_presets';
     const isExpanded = !this._prefs.state.collapsed[sectionId];
     const sortOption = this._getSortPreference(sectionId);
-    const sortedFavorites = this._sortResolvedFavorites(compatible, sortOption);
+    const sortedFavorites = this._sortResolvedFavorites(resolved, sortOption);
+    const isCustomSort = sortOption === 'custom';
+    const dragFromId = this._favoriteDrag?.fromId;
+    const dragToId = this._favoriteDrag?.toId;
 
     return html`
       <ha-expansion-panel
@@ -3980,7 +4161,7 @@ export class AqaraPanel extends LitElement {
         <div slot="header" class="section-header">
           <div>
             <div class="section-title">${this._localize('sections.favorite_presets')}</div>
-            <div class="section-subtitle">${this._localize('sections.subtitle_favorites', { count: compatible.length.toString() })}</div>
+            <div class="section-subtitle">${this._localize('sections.subtitle_favorites', { count: resolved.length.toString() })}</div>
           </div>
           <div class="section-header-controls" @click=${(e: Event) => e.stopPropagation()}>
             ${this._renderSortDropdown(sectionId)}
@@ -3989,13 +4170,25 @@ export class AqaraPanel extends LitElement {
         <div class="section-content">
           ${sortedFavorites.map(({ ref, preset, isUser }) => {
             const isEditMode = this._presetEditModeId === ref.id;
+            const isDragSource = dragFromId === ref.id;
+            const isDropTarget = dragToId === ref.id && dragFromId !== ref.id;
             return html`
-            <div class="preset-button ${isUser ? 'user-preset' : 'builtin-preset'} ${isEditMode ? 'edit-mode' : ''}" role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (isEditMode) { this._presetEditModeId = null; } else { this._activateFavoritePreset(ref, preset, isUser); } }} @touchstart=${() => this._handlePresetTouchStart(ref.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
+            <div class="preset-button ${isUser ? 'user-preset' : 'builtin-preset'} ${isEditMode ? 'edit-mode' : ''} ${isDragSource ? 'drag-source' : ''} ${isDropTarget ? 'drop-target' : ''}" data-fav-id=${ref.id} role="button" tabindex="0" aria-label="${preset.name}" @click=${() => { if (isEditMode) { this._presetEditModeId = null; } else { this._activateFavoritePreset(ref, preset, isUser); } }} @touchstart=${() => this._handlePresetTouchStart(ref.id)} @touchend=${(e: TouchEvent) => this._handlePresetTouchEnd(e)} @touchmove=${this._handlePresetTouchMove}>
               <div class="preset-card-actions preset-card-actions-left">
                 ${this._renderFavoriteStar(ref.type, ref.id)}
               </div>
+              ${isCustomSort ? html`
+                <div class="preset-card-actions">
+                  <ha-icon-button
+                    class="favorites-drag-handle"
+                    @pointerdown=${(e: PointerEvent) => this._onFavoriteDragStart(e, ref.id)}
+                  >
+                    <ha-icon icon="mdi:drag"></ha-icon>
+                  </ha-icon-button>
+                </div>
+              ` : ''}
               <div class="preset-icon">
-                ${this._renderFavoritePresetIcon(ref, preset, isUser)}
+                ${renderPresetIcon(ref, preset, isUser)}
               </div>
               <div class="preset-name">${preset.name}</div>
             </div>
@@ -4062,7 +4255,9 @@ export class AqaraPanel extends LitElement {
                 </div>
                 ${this._renderHideButton('effect', preset.id)}
                 <div class="preset-icon">
-                  ${this._renderPresetIcon(preset.icon, 'mdi:lightbulb-on')}
+                  ${preset.audio_speed_mode
+                    ? html`${this._renderPresetIcon(preset.icon, 'mdi:lightbulb-on')}<span class="audio-badge"><ha-icon icon="mdi:waveform"></ha-icon></span>`
+                    : this._renderPresetIcon(preset.icon, 'mdi:lightbulb-on')}
                 </div>
                 <div class="preset-name">${preset.name}</div>
               </div>
@@ -4298,8 +4493,12 @@ export class AqaraPanel extends LitElement {
     if (preset.icon) {
       return this._renderPresetIcon(preset.icon, 'mdi:lightbulb-on');
     }
-    return renderEffectThumbnail(preset)
+    const thumb = renderEffectThumbnail(preset)
       ?? html`<ha-icon icon="mdi:lightbulb-on"></ha-icon>`;
+    if (preset.audio_config?.audio_entity) {
+      return html`${thumb}<span class="audio-badge"><ha-icon icon="mdi:waveform"></ha-icon></span>`;
+    }
+    return thumb;
   }
 
   /** Render a user segment pattern preset icon: pie thumbnail or MDI fallback. */
@@ -4331,12 +4530,28 @@ export class AqaraPanel extends LitElement {
 
   /** Render a user dynamic scene preset icon: generated thumbnail or MDI icon. */
   private _renderUserDynamicSceneIcon(preset: UserDynamicScenePreset) {
+    const isAudio = !!(preset.audio_entity || preset.audio_color_advance);
+    // Precedence: uploaded thumbnail > MDI/file icon > auto-generated SVG.
+    // An uploaded thumbnail is a deliberate visual choice; the icon field is often
+    // a leftover MDI default from preset creation. Mirrors preset-runtime/preset-icon.ts.
+    if (preset.thumbnail) {
+      const thumb = renderDynamicSceneThumbnail(preset)
+        ?? html`<ha-icon icon="mdi:lamps"></ha-icon>`;
+      if (isAudio) {
+        return html`${thumb}<span class="audio-badge"><ha-icon icon="mdi:waveform"></ha-icon></span>`;
+      }
+      return thumb;
+    }
     if (preset.icon) {
-      return this._renderPresetIcon(preset.icon, 'mdi:lamps');
+      const icon = this._renderPresetIcon(preset.icon, 'mdi:lamps');
+      if (isAudio) {
+        return html`${icon}<span class="audio-badge"><ha-icon icon="mdi:waveform"></ha-icon></span>`;
+      }
+      return icon;
     }
     const thumb = renderDynamicSceneThumbnail(preset)
       ?? html`<ha-icon icon="mdi:lamps"></ha-icon>`;
-    if (preset.audio_entity || preset.audio_color_advance) {
+    if (isAudio) {
       return html`${thumb}<span class="audio-badge"><ha-icon icon="mdi:waveform"></ha-icon></span>`;
     }
     return thumb;

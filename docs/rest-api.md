@@ -18,6 +18,9 @@ The integration provides a REST API for triggering presets, managing saved prese
 - [User presets](#user-presets)
 - [Favorites](#favorites)
 - [Segment zones](#segment-zones)
+- [Audio-reactive runtime controls](#audio-reactive-runtime-controls)
+- [Audio mode registry](#audio-mode-registry)
+- [Operations-changed event](#operations-changed-event)
 - [Integration examples](#integration-examples)
 
 ---
@@ -139,7 +142,10 @@ Returns all currently active effects, sequences, scenes, and music sync across a
       "entity_id": "light.living_room",
       "preset_id": "t1m_sunset",
       "paused": false,
-      "externally_paused": false
+      "externally_paused": false,
+      "audio_entity": "sensor.atom_echo_audio_envelope",
+      "audio_sensitivity": 65,
+      "audio_waiting": false
     },
     {
       "type": "cct_sequence",
@@ -156,7 +162,12 @@ Returns all currently active effects, sequences, scenes, and music sync across a
       "entity_ids": ["light.living_room", "light.kitchen"],
       "preset_id": "sunset_glow",
       "paused": false,
-      "externally_paused_entities": []
+      "externally_paused_entities": [],
+      "audio_tier": "pro",
+      "audio_entity": "sensor.atom_echo_audio_envelope",
+      "audio_waiting": false,
+      "audio_bpm": 118,
+      "audio_sensitivity": 70
     },
     {
       "type": "music_sync",
@@ -170,7 +181,14 @@ Returns all currently active effects, sequences, scenes, and music sync across a
 }
 ```
 
-**Operation types:** `effect`, `cct_sequence`, `segment_sequence`, `dynamic_scene`, `music_sync`
+**Operation types:** `effect`, `cct_sequence`, `segment_sequence`, `dynamic_scene`, `music_sync`, `circadian`
+
+**Audio fields (added in v1.2.0 / v1.3.0):**
+
+- Effects with audio-reactive speed modulation include `audio_entity`, `audio_sensitivity`, and `audio_waiting` (added in v1.3.0).
+- Dynamic scenes with audio-reactive color advance include `audio_tier` (`basic` or `pro`), `audio_entity`, `audio_waiting`, `audio_bpm`, and `audio_sensitivity` (added in v1.2.0; `audio_tier` extended in v1.3.0 for ESPHome Audio Reactive v0.4.0 pro-tier sensors).
+
+These fields are omitted when the operation is not audio-reactive.
 
 ---
 
@@ -427,6 +445,128 @@ Replace the full set of zones for a device.
 `DELETE /api/aqara_advanced_lighting/segment_zones/{ieee_address}/{zone_name}`
 
 Delete a single zone by name. Returns 204 on success, 404 if zone not found.
+
+---
+
+## Audio-reactive runtime controls
+
+Adjust audio parameters on running scenes and effects without restarting them. Useful for live tuning from external dashboards or hardware controllers (sliders, knobs).
+
+### Update scene audio sensitivity
+
+`POST /api/aqara_advanced_lighting/scene_audio_sensitivity` *(added in v1.2.0)*
+
+Update beat sensitivity on a running audio-reactive dynamic scene.
+
+**Request body:**
+
+```json
+{
+  "scene_id": "abc123",
+  "sensitivity": 65
+}
+```
+
+| Field         | Required | Description                                                                       |
+| ------------- | -------- | --------------------------------------------------------------------------------- |
+| `scene_id`    | Yes      | ID of an active scene from [running operations](#running-operations)              |
+| `sensitivity` | Yes      | Integer 1-100. Lower values respond to quieter audio; higher values require louder peaks |
+
+**Response:** `{"success": true}` on success. Returns 404 if the scene is not active, 400 for invalid input.
+
+### Update scene audio squelch
+
+`POST /api/aqara_advanced_lighting/scene_audio_squelch` *(added in v1.2.0)*
+
+Update the noise gate (squelch) level on a running audio-reactive dynamic scene. The squelch suppresses scene reactions when the audio companion sensor is below the threshold, preventing flicker during quiet passages.
+
+**Request body:**
+
+```json
+{
+  "scene_id": "abc123",
+  "squelch": 15
+}
+```
+
+| Field      | Required | Description                                                                  |
+| ---------- | -------- | ---------------------------------------------------------------------------- |
+| `scene_id` | Yes      | ID of an active scene                                                        |
+| `squelch`  | Yes      | Integer 0-100. Internally written to the scene's squelch companion `number` entity |
+
+**Response:** `{"success": true}` on success. Returns 404 if the scene is not active or has no squelch companion entity, 400 for invalid input.
+
+### Update effect audio sensitivity
+
+`POST /api/aqara_advanced_lighting/effect_audio_sensitivity` *(added in v1.3.0)*
+
+Update beat sensitivity on a running audio-reactive effect (T1M and T1 Strip lights running native device effects with audio-driven speed modulation).
+
+**Request body:**
+
+```json
+{
+  "entity_id": "light.living_room",
+  "sensitivity": 65
+}
+```
+
+| Field         | Required | Description                                            |
+| ------------- | -------- | ------------------------------------------------------ |
+| `entity_id`   | Yes      | Light entity currently running an audio-reactive effect |
+| `sensitivity` | Yes      | Integer 1-100                                          |
+
+**Response:** `{"success": true}` on success. Returns 404 if no audio-reactive effect is active on the entity, 400 for invalid input.
+
+---
+
+## Audio mode registry
+
+`GET /api/aqara_advanced_lighting/audio_mode_registry` *(added in v1.3.0)*
+
+Returns metadata for all scene-side audio color-advance modes (`bass_energy`, `bass_kick`, `freq_to_hue`, etc.) including display names, descriptions, required tier (`basic` or `pro`), and required companion sensors. The frontend editor uses this as the single source of truth for the mode selector.
+
+**Example response:**
+
+```json
+{
+  "modes": {
+    "bass_energy": {
+      "label": "Bass energy",
+      "description": "Advances scene colors with bass-frequency energy",
+      "tier": "basic",
+      "required_sensors": ["bass_energy"]
+    },
+    "bass_kick": {
+      "label": "Bass kick",
+      "description": "Pulses brightness on bass-kick impact (cubic decay)",
+      "tier": "pro",
+      "required_sensors": ["sub_bass_energy"],
+      "fallback_mode": "bass_energy"
+    }
+  }
+}
+```
+
+---
+
+## Operations-changed event
+
+The integration fires the `aqara_advanced_lighting_operations_changed` event on the Home Assistant event bus whenever any running operation changes (started, stopped, paused, resumed). *(Added in v1.3.0.)*
+
+This event is **not** a REST endpoint — subscribe to it via Home Assistant's [WebSocket API](https://developers.home-assistant.io/docs/api/websocket/#subscribe-to-events) using `subscribe_events`. The event carries no payload; subscribers should refetch the [running operations](#running-operations) endpoint to pick up the new state.
+
+**Example WebSocket subscription:**
+
+```json
+{
+  "id": 18,
+  "type": "subscribe_events",
+  "event_type": "aqara_advanced_lighting_operations_changed"
+}
+```
+
+This replaces the prior pattern of polling `/running_operations` on a fixed interval. External dashboards and the Aqara Preset Favorites Lovelace card both use this event to update active-state highlighting in milliseconds instead of seconds.
 
 ---
 

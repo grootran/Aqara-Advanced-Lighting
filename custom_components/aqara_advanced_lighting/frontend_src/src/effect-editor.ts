@@ -5,8 +5,12 @@ import { xyToHex, rgbToXy, getComplementaryColor } from './color-utils';
 import { colorPickerStyles } from './styles/color-picker';
 import { addColorToHistory } from './color-history';
 import { ALL_DEVICE_LABELS, editorFormStyles, localize, dialogActions } from './editor-constants';
+import { ReorderableStepsMixin, reorderableStepStyles, ReorderableStepItem } from './reorderable-steps-mixin';
 import './xy-color-picker';
 import './color-history-swatches';
+
+// Wrapper for XYColor with unique ID required by ReorderableStepsMixin
+interface DraggableColor extends XYColor, ReorderableStepItem {}
 
 // Effect types available for each device
 const EFFECT_TYPES: Record<string, string[]> = {
@@ -17,7 +21,7 @@ const EFFECT_TYPES: Record<string, string[]> = {
 };
 
 @customElement('effect-editor')
-export class EffectEditor extends LitElement {
+export class EffectEditor extends ReorderableStepsMixin(LitElement) {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @property({ type: Object }) public preset?: UserEffectPreset;
   @property({ type: Object }) public translations: Translations = {};
@@ -29,6 +33,19 @@ export class EffectEditor extends LitElement {
   @property({ type: Object }) public deviceContext?: DeviceContext;
   @property({ type: Array }) public colorHistory: XYColor[] = [];
   @property({ type: Object }) public draft?: EffectEditorDraft;
+  @property({ type: String }) public defaultAudioEntity = '';
+
+  protected override _reorderLayout: 'list' | 'grid' = 'grid';
+  private _colorIdCounter = 0;
+
+  private _generateColorId(): string {
+    return `color-${++this._colorIdCounter}-${Date.now()}`;
+  }
+
+  /** Wrap plain XYColor values as DraggableColor with unique IDs. */
+  private _toColors(colors: XYColor[]): DraggableColor[] {
+    return colors.map(c => ({ x: c.x, y: c.y, id: this._generateColorId() }));
+  }
 
   @state() private _name = '';
   @state() private _icon = '';
@@ -36,7 +53,16 @@ export class EffectEditor extends LitElement {
   @state() private _effect = '';
   @state() private _speed = 50;
   @state() private _brightness = 100;
-  @state() private _colors: XYColor[] = [{ x: 0.6800, y: 0.3100 }];  // Red in XY space
+  // _steps is used by ReorderableStepsMixin; alias as _colors for clarity
+  @state() protected _steps: DraggableColor[] = [{ x: 0.6800, y: 0.3100, id: 'initial-0' }];
+
+  private get _colors(): DraggableColor[] {
+    return this._steps;
+  }
+
+  private set _colors(value: DraggableColor[]) {
+    this._steps = value;
+  }
   @state() private _segments = '';
   @state() private _saving = false;
   @state() private _previewing = false;
@@ -44,9 +70,19 @@ export class EffectEditor extends LitElement {
   @state() private _editingColor: XYColor | null = null;
   @state() private _hasUserInteraction = false;
 
+  // Audio-reactive state
+  @state() private _audioEnabled = false;
+  @state() private _audioEntity = '';
+  @state() private _audioSensitivity = 50;
+  @state() private _audioSilenceBehavior: 'hold' | 'decay_min' | 'decay_mid' = 'decay_min';
+  @state() private _audioSpeedMode: 'volume' | 'tempo' | 'combined' = 'volume';
+  @state() private _audioSpeedMin = 1;
+  @state() private _audioSpeedMax = 100;
+
   static styles = [
     colorPickerStyles,
     editorFormStyles,
+    reorderableStepStyles,
     css`
     /* Effect icon grid selector */
     .effect-grid {
@@ -104,6 +140,11 @@ export class EffectEditor extends LitElement {
     }
 
     /* .color-remove and .add-color-btn inherited from colorPickerStyles (styles.ts) */
+
+    .boolean-left ha-selector {
+      display: flex;
+      justify-content: flex-start;
+    }
   `];
 
   protected updated(changedProps: PropertyValues): void {
@@ -144,7 +185,7 @@ export class EffectEditor extends LitElement {
     this._speed = preset.effect_speed;
     this._brightness = preset.effect_brightness || 100;
     // Handle both XY (new) and RGB (legacy) color formats
-    this._colors = preset.effect_colors.map((c: XYColor | RGBColor) => {
+    this._colors = this._toColors(preset.effect_colors.map((c: XYColor | RGBColor) => {
       if ('x' in c && 'y' in c) {
         // Already XY format
         return { x: c.x, y: c.y };
@@ -154,8 +195,22 @@ export class EffectEditor extends LitElement {
       }
       // Fallback to red
       return { x: 0.6800, y: 0.3100 };
-    });
+    }));
     this._segments = preset.effect_segments || '';
+
+    // Load audio config
+    if (preset.audio_config) {
+      this._audioEnabled = true;
+      this._audioEntity = preset.audio_config.audio_entity || '';
+      this._audioSensitivity = preset.audio_config.audio_sensitivity ?? 50;
+      this._audioSilenceBehavior = preset.audio_config.audio_silence_behavior ?? 'decay_min';
+      this._audioSpeedMode = (preset.audio_config.audio_speed_mode as typeof this._audioSpeedMode) || 'volume';
+      this._audioSpeedMin = preset.audio_config.audio_speed_min ?? 1;
+      this._audioSpeedMax = preset.audio_config.audio_speed_max ?? 100;
+    } else {
+      this._audioEnabled = false;
+      this._audioEntity = '';
+    }
   }
 
   public getDraftState(): EffectEditorDraft {
@@ -166,9 +221,17 @@ export class EffectEditor extends LitElement {
       effect: this._effect,
       speed: this._speed,
       brightness: this._brightness,
-      colors: [...this._colors],
+      colors: this._colors.map(c => ({ x: c.x, y: c.y })),
       segments: this._segments,
       hasUserInteraction: this._hasUserInteraction,
+      audioConfig: this._audioEnabled ? {
+        audio_entity: this._audioEntity,
+        audio_sensitivity: this._audioSensitivity,
+        audio_silence_behavior: this._audioSilenceBehavior,
+        audio_speed_mode: this._audioSpeedMode,
+        audio_speed_min: this._audioSpeedMin,
+        audio_speed_max: this._audioSpeedMax,
+      } : undefined,
     };
   }
 
@@ -179,9 +242,16 @@ export class EffectEditor extends LitElement {
     this._effect = '';
     this._speed = 50;
     this._brightness = 100;
-    this._colors = [{ x: 0.6800, y: 0.3100 }];
+    this._colors = this._toColors([{ x: 0.6800, y: 0.3100 }]);
     this._segments = '';
     this._hasUserInteraction = false;
+    this._audioEnabled = false;
+    this._audioEntity = '';
+    this._audioSensitivity = 50;
+    this._audioSilenceBehavior = 'decay_min';
+    this._audioSpeedMode = 'volume';
+    this._audioSpeedMin = 1;
+    this._audioSpeedMax = 100;
   }
 
   private _restoreDraft(draft: EffectEditorDraft): void {
@@ -191,9 +261,20 @@ export class EffectEditor extends LitElement {
     this._effect = draft.effect;
     this._speed = draft.speed;
     this._brightness = draft.brightness;
-    this._colors = [...draft.colors];
+    this._colors = this._toColors(draft.colors);
     this._segments = draft.segments;
     this._hasUserInteraction = draft.hasUserInteraction ?? false;
+    if (draft.audioConfig) {
+      this._audioEnabled = true;
+      this._audioEntity = draft.audioConfig.audio_entity || '';
+      this._audioSensitivity = draft.audioConfig.audio_sensitivity ?? 50;
+      this._audioSilenceBehavior = draft.audioConfig.audio_silence_behavior ?? 'decay_min';
+      this._audioSpeedMode = (draft.audioConfig.audio_speed_mode as typeof this._audioSpeedMode) || 'volume';
+      this._audioSpeedMin = draft.audioConfig.audio_speed_min ?? 1;
+      this._audioSpeedMax = draft.audioConfig.audio_speed_max ?? 100;
+    } else {
+      this._audioEnabled = false;
+    }
   }
 
   private _handleNameChange(e: CustomEvent): void {
@@ -253,7 +334,7 @@ export class EffectEditor extends LitElement {
         composed: true,
       }));
       this._colors = this._colors.map((c, i) =>
-        i === this._editingColorIndex ? this._editingColor! : c
+        i === this._editingColorIndex ? { ...this._editingColor!, id: c.id } : c
       );
       this._hasUserInteraction = true;
     }
@@ -275,7 +356,7 @@ export class EffectEditor extends LitElement {
       // Get the last color and calculate its complementary color
       const lastColor = this._colors[this._colors.length - 1] || { x: 0.6800, y: 0.3100 }; // Default to red if undefined
       const newColor = getComplementaryColor(lastColor);
-      this._colors = [...this._colors, newColor];
+      this._colors = [...this._colors, { ...newColor, id: this._generateColorId() }];
       this._hasUserInteraction = true;
     }
   }
@@ -285,6 +366,52 @@ export class EffectEditor extends LitElement {
       this._colors = this._colors.filter((_, i) => i !== index);
       this._hasUserInteraction = true;
     }
+  }
+
+  protected override _reorderStep(fromIndex: number, toIndex: number): void {
+    super._reorderStep(fromIndex, toIndex);
+    this._hasUserInteraction = true;
+  }
+
+  // Audio reactive handlers
+  private _handleAudioEnabledChange(e: CustomEvent): void {
+    this._audioEnabled = e.detail.value ?? false;
+    // Auto-fill audio entity from user's default when toggling on
+    if (this._audioEnabled && !this._audioEntity && this.defaultAudioEntity) {
+      this._audioEntity = this.defaultAudioEntity;
+    }
+    this._hasUserInteraction = true;
+  }
+
+  private _handleAudioEntityChange(e: CustomEvent): void {
+    this._audioEntity = e.detail.value || '';
+    this._hasUserInteraction = true;
+  }
+
+  private _handleAudioSensitivityChange(e: CustomEvent): void {
+    this._audioSensitivity = e.detail.value ?? 50;
+    this._hasUserInteraction = true;
+  }
+
+
+  private _handleAudioSilenceBehaviorChange(e: CustomEvent): void {
+    this._audioSilenceBehavior = e.detail.value || 'decay_min';
+    this._hasUserInteraction = true;
+  }
+
+  private _handleAudioSpeedModeChange(e: CustomEvent): void {
+    this._audioSpeedMode = e.detail.value || 'volume';
+    this._hasUserInteraction = true;
+  }
+
+  private _handleAudioSpeedMinChange(e: CustomEvent): void {
+    this._audioSpeedMin = e.detail.value ?? 1;
+    this._hasUserInteraction = true;
+  }
+
+  private _handleAudioSpeedMaxChange(e: CustomEvent): void {
+    this._audioSpeedMax = e.detail.value ?? 100;
+    this._hasUserInteraction = true;
   }
 
 
@@ -306,11 +433,22 @@ export class EffectEditor extends LitElement {
       effect: this._effect,
       effect_speed: this._speed,
       effect_brightness: this._brightness,
-      effect_colors: this._colors,
+      effect_colors: this._colors.map(c => ({ x: c.x, y: c.y })),
     };
 
     if (this._deviceType === 't1_strip' && this._segments) {
       data.effect_segments = this._segments;
+    }
+
+    if (this._audioEnabled && this._audioEntity) {
+      data.audio_config = {
+        audio_entity: this._audioEntity,
+        audio_sensitivity: this._audioSensitivity,
+        audio_silence_behavior: this._audioSilenceBehavior,
+        audio_speed_mode: this._audioSpeedMode,
+        audio_speed_min: this._audioSpeedMin,
+        audio_speed_max: this._audioSpeedMax,
+      };
     }
 
     return data;
@@ -511,10 +649,19 @@ export class EffectEditor extends LitElement {
 
         <div class="form-section">
           <span class="form-label">${this._localize('editors.colors_label')}</span>
-          <div class="color-picker-grid">
+          <div class="color-picker-grid step-list" style="position: relative;">
+            ${this._renderGridDropIndicator()}
             ${this._colors.map(
               (color, index) => html`
-                <div class="color-item">
+                <div class="color-item step-item ${this._dragState.draggingIndex === index ? 'dragging' : ''}">
+                  <div
+                    class="color-drag-handle"
+                    role="button"
+                    aria-label="Reorder color ${index + 1}"
+                    @pointerdown=${(e: PointerEvent) => this._onDragHandlePointerDown(e, index)}
+                  >
+                    <ha-icon icon="mdi:drag"></ha-icon>
+                  </div>
                   <div
                     class="color-swatch"
                     role="button"
@@ -540,6 +687,7 @@ export class EffectEditor extends LitElement {
               `
             )}
             <div class="add-color-btn ${this._colors.length >= 8 ? 'disabled' : ''}">
+              <div class="color-drag-handle-spacer"></div>
               <div
                 class="add-color-icon"
                 @click=${this._addColor}
@@ -551,6 +699,131 @@ export class EffectEditor extends LitElement {
             </div>
           </div>
         </div>
+
+        ${this._deviceType !== 't2_bulb' && this._deviceType !== 't2_cct' ? html`
+        <!-- Audio Reactive Section -->
+        <div class="form-section">
+          <div class="form-section boolean-left">
+            <span class="form-label">${this._localize('effect_editor.audio_reactive_label') || 'Audio reactive'}</span>
+            <ha-selector
+              .hass=${this.hass}
+              .selector=${{ boolean: {} }}
+              .value=${this._audioEnabled}
+              @value-changed=${this._handleAudioEnabledChange}
+            ></ha-selector>
+          </div>
+
+          ${this._audioEnabled ? html`
+            <!-- Audio entity + Sensitivity -->
+            <div class="form-row-pair">
+              <div class="form-field">
+                <span class="form-label">${this._localize('effect_editor.audio_entity_label') || 'Audio sensor entity'}</span>
+                <ha-selector
+                  .hass=${this.hass}
+                  .selector=${{
+                    entity: {
+                      domain: ['binary_sensor', 'sensor'],
+                    },
+                  }}
+                  .value=${this._audioEntity}
+                  @value-changed=${this._handleAudioEntityChange}
+                ></ha-selector>
+              </div>
+              <div class="form-field">
+                <span class="form-label">${this._localize('effect_editor.audio_sensitivity_label') || 'Sensitivity'}</span>
+                <ha-selector
+                  .hass=${this.hass}
+                  .disabled=${!this._audioEntity}
+                  .selector=${{
+                    number: {
+                      min: 1,
+                      max: 100,
+                      mode: 'slider',
+                    },
+                  }}
+                  .value=${this._audioSensitivity}
+                  @value-changed=${this._handleAudioSensitivityChange}
+                ></ha-selector>
+              </div>
+            </div>
+
+            <!-- Silence behavior -->
+            <div class="form-row-pair">
+              <div class="form-field">
+                <span class="form-label">${this._localize('effect_editor.audio_silence_behavior_label') || 'Silence behavior'}</span>
+                <ha-selector
+                  .hass=${this.hass}
+                  .disabled=${!this._audioEntity}
+                  .selector=${{
+                    select: {
+                      options: [
+                        { value: 'hold', label: this._localize('effect_editor.silence_hold') || 'Hold last values' },
+                        { value: 'decay_min', label: this._localize('effect_editor.silence_decay_min') || 'Decay to minimum' },
+                        { value: 'decay_mid', label: this._localize('effect_editor.silence_decay_mid') || 'Decay to midpoint' },
+                      ],
+                      mode: 'dropdown',
+                    },
+                  }}
+                  .value=${this._audioSilenceBehavior}
+                  @value-changed=${this._handleAudioSilenceBehaviorChange}
+                ></ha-selector>
+              </div>
+            </div>
+
+            <!-- Speed Modulation -->
+            <div>
+              <span class="form-label" style="font-weight: 500;">${this._localize('effect_editor.speed_modulation_label') || 'Speed modulation'}</span>
+              <div class="form-row-pair">
+                <div class="form-field">
+                  <span class="form-label">${this._localize('effect_editor.audio_mode_label') || 'Mode'}</span>
+                  <ha-selector
+                    .hass=${this.hass}
+                    .disabled=${!this._audioEntity}
+                    .selector=${{
+                      select: {
+                        options: [
+                          { value: 'volume', label: this._localize('effect_editor.mode_volume') || 'Volume' },
+                          // 'tempo' and 'combined' are hidden in v1.3.0 — see
+                          // docs/plans/2026-04-27-descope-pro-dsp-features-for-v1.3.0.md
+                          // The type annotation on _audioSpeedMode keeps these
+                          // values valid so existing effects load correctly.
+                        ],
+                        mode: 'dropdown',
+                      },
+                    }}
+                    .value=${this._audioSpeedMode}
+                    @value-changed=${this._handleAudioSpeedModeChange}
+                  ></ha-selector>
+                </div>
+              </div>
+              <div class="form-row-pair">
+                <div class="form-field">
+                  <span class="form-label">${this._localize('effect_editor.range_min_label') || 'Range min'}</span>
+                  <ha-selector
+                    .hass=${this.hass}
+                    .disabled=${!this._audioEntity}
+                    .selector=${{ number: { min: 1, max: 99, mode: 'slider' } }}
+                    .value=${this._audioSpeedMin}
+                    @value-changed=${this._handleAudioSpeedMinChange}
+                  ></ha-selector>
+                </div>
+                <div class="form-field">
+                  <span class="form-label">${this._localize('effect_editor.range_max_label') || 'Range max'}</span>
+                  <ha-selector
+                    .hass=${this.hass}
+                    .disabled=${!this._audioEntity}
+                    .selector=${{ number: { min: 2, max: 100, mode: 'slider' } }}
+                    .value=${this._audioSpeedMax}
+                    @value-changed=${this._handleAudioSpeedMaxChange}
+                  ></ha-selector>
+                </div>
+              </div>
+            </div>
+
+            <!-- Brightness Modulation -->
+          ` : ''}
+        </div>
+        ` : ''}
 
         <ha-dialog
           .open=${this._editingColorIndex !== null && this._editingColor !== null}
@@ -596,6 +869,7 @@ export class EffectEditor extends LitElement {
               </div>
             `
           : ''}
+
 
         <div class="form-actions">
           <div class="form-actions-left">

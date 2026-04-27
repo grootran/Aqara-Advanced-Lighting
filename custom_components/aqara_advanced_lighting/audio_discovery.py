@@ -35,19 +35,31 @@ COMPANION_SENSOR_SUFFIXES: dict[str, str] = {
     "-amplitude": "amplitude",
     "-bpm": "bpm",
     "-centroid": "centroid",
+    "-spectral_centroid": "centroid",
     "-rolloff": "rolloff",
+    "-spectral_rolloff": "rolloff",
     "-beat_confidence": "beat_confidence",
     "-beat_phase": "beat_phase",
     "-onset_strength": "onset_strength",
+    # Pro-tier musical-band energy sensors (audio-reactive pro DSP).
+    "-sub_bass_energy": "sub_bass_energy",
+    "-low_mid_energy": "low_mid_energy",
+    "-upper_mid_energy": "upper_mid_energy",
+    "-air_energy": "air_energy",
 }
 
 COMPANION_BINARY_SENSOR_SUFFIXES: dict[str, str] = {
     "-onset_detected": "onset_detected",
+    "-audio_sensor": "onset_detected",
     "-silence": "silence",
+    # Pro-tier: explicit beat event and calibration health signal.
+    "-beat_event": "beat_event",
+    "-calibration_stale": "calibration_stale",
 }
 
 COMPANION_NUMBER_SUFFIXES: dict[str, str] = {
     "-sensitivity": "sensitivity",
+    "-beat_sensitivity": "sensitivity",
     "-squelch": "squelch",
 }
 

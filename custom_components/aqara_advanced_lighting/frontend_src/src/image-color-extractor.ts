@@ -7,7 +7,7 @@
 import { LitElement, html, css, TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, DynamicSceneColor, Translations } from './types';
-import { localize } from './editor-constants';
+import { localize, renderInput } from './editor-constants';
 
 const API_BASE = '/api/aqara_advanced_lighting';
 
@@ -69,12 +69,12 @@ export class ImageColorExtractor extends LitElement {
         ` : html`
           <!-- URL mode -->
           <div class="url-input-row">
-            <ha-textfield
-              .value=${this._url}
-              .label=${this._localize('image_extractor.url_label')}
-              @input=${this._handleUrlInput}
-              style="flex:1"
-            ></ha-textfield>
+            ${renderInput({
+              value: this._url,
+              label: this._localize('image_extractor.url_label'),
+              onInput: this._handleUrlInput,
+              style: 'flex:1',
+            })}
           </div>
         `}
 
@@ -327,6 +327,7 @@ export class ImageColorExtractor extends LitElement {
       display: flex;
     }
 
+    .url-input-row ha-input,
     .url-input-row ha-textfield {
       width: 100%;
     }

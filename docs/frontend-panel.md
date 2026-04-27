@@ -125,6 +125,22 @@ When audio reactive mode is enabled, the following controls appear:
 
 All audio-reactive settings are persisted as user preferences and restored across sessions.
 
+### Effect audio-reactive controls
+
+A separate **Effect audio reactive** toggle enables audio modulation for hardware RGB effects (T1M and T1 Strip only). Unlike scene audio-reactive mode which controls color timing, effect audio modulates the effect's speed based on live audio analysis.
+
+When effect audio reactive mode is enabled, the following controls appear:
+
+- **Audio sensor entity**: Select the `binary_sensor` entity from your ESPHome audio-reactive device (shared with scene audio if both are configured)
+- **Sensitivity** (1–100%): Beat detection sensitivity on the ESP32 device
+- **Detection mode**: Algorithm for detecting musical events
+  - Spectral flux (all genres)
+  - Bass energy (rhythmic music)
+  - Complex domain (phase + magnitude)
+- **Silence behavior**: What happens when music stops (Hold last values, Decay to minimum, or Decay to midpoint)
+
+The effect audio override applies to any effect preset activated from the panel. When enabled, the audio entity, sensitivity, and detection mode are sent alongside the effect's normal parameters, activating speed modulation. For finer control over speed mode, response curves, and ranges, configure them in the [effect editor](visual-editors.md#audio-reactive-options-1) or via the [service call](services.md#1-set-dynamic-effect).
+
 These overrides apply when activating presets from the panel and provide quick ways to adjust preset behavior without editing the preset itself.
 
 ## Change detection
@@ -137,40 +153,6 @@ The change detection panel controls how the integration responds when your light
   - **Pause all**: Pauses the entire sequence for that light when any attribute changes
   - **Pause changed only**: Pauses only the attribute that was changed, allowing the other to keep adapting. For example, if you manually adjust brightness, brightness pauses but color temperature continues following the schedule
 - **Treat parameterized turn-on as override**: When enabled, turning on a light with specific parameters (e.g., `light.turn_on` with brightness or color_temp) overrides those attributes instead of applying the current adaptive values. When disabled, only a bare `light.turn_on` (with no parameters) applies adaptive values
-
-## Dashboard card
-
-The **Aqara Preset Favorites Card** is a custom Lovelace card that displays your favorited presets on any Home Assistant dashboard. Tap a preset to activate it instantly on the configured light(s).
-
-### Adding the card
-
-1. Open any dashboard and click **Edit**
-2. Click **Add Card**
-3. Search for **Aqara Advanced Lighting Presets** card
-4. Select a light entity and configure the card options
-
-### Card configuration
-
-| Option                  | Default              | Description                                                      |
-| ----------------------- | -------------------- | ---------------------------------------------------------------- |
-| **Entities**            | _(required)_         | One or more light entities -- the card shows presets compatible with the selected device type |
-| **Title**               | Favorite Presets     | Custom card title                                                |
-| **Columns**             | 0 (auto)             | Number of grid columns (0 = responsive auto-layout)              |
-| **Compact mode**        | Off                  | Condensed visual style with smaller preset buttons               |
-| **Show preset names**   | On                   | Display preset name labels below each button                     |
-| **Highlight user presets** | Off               | Visual distinction for custom user presets vs. built-in presets   |
-
-### How it works
-
-- The card fetches your favorited presets and filters them by the configured entity's device type
-- Preset buttons display the thumbnail and optionally the preset name
-- Active presets are highlighted
-
-### Tips
-
-- Favorite presets in the sidebar panel and they automatically appear in the card
-- Use multiple cards on the same dashboard for different lights or rooms
-- Compact mode works well in narrow columns or mobile dashboards
 
 ## Preset management
 

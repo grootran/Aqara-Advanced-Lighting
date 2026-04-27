@@ -8,7 +8,7 @@
 
 ![Aqara Advanced Lighting](https://raw.githubusercontent.com/absent42/Aqara-Advanced-Lighting/main/images/aqara-advanced-lighting.png "Aqara Advanced Lighting")
 
-**Aqara Advanced Lighting** is a [Home Assistant](https://www.home-assistant.io/) integration that unlocks the full potential of **Aqara T1M Ceiling Light**, **Aqara T1 LED Strip**, and **Aqara T2 RGB & CCT bulbs** -- dynamic RGB effects, per-segment colors and gradients, animated sequences, multi-step color temperature transitions, dynamic scenes with music sync, circadian adaptive lighting, and more. All the features of the Aqara Home app and more, without an Aqara Hub.
+**Aqara Advanced Lighting** is a [Home Assistant](https://www.home-assistant.io/) integration that unlocks the full potential of **Aqara Ceiling Light T1M**, **Aqara LED Strip T1**, and **Aqara RGB & CCT bulbs T2** -- dynamic RGB effects, per-segment colors and gradients, animated sequences, multi-step color temperature transitions, dynamic scenes with music sync, circadian adaptive lighting, and more. All the features of the Aqara Home app and more, without an Aqara Hub.
 
 Works with both **Zigbee2MQTT** and **ZHA** (Zigbee Home Automation).
 
@@ -40,9 +40,9 @@ _If you want to show your support please_
 
 **Frontend panel** -- Sidebar-accessible UI with visual editors for every feature type, favorite lights, active presets monitoring with per-attribute override status, activation overrides, change detection settings, generic light configuration, T1 Strip music sync control, and per-device configuration.
 
-**Dashboard card** -- A custom Lovelace card that puts your favorite presets on any dashboard. Configure one or more light entities, and the card displays compatible favorited presets as tappable buttons with thumbnails. Supports compact mode, configurable grid columns, preset name labels, user-preset highlighting, and real-time activation status. Add it from any dashboard via "Add Card" > search "Aqara Advanced Lighting Presets".
+**Dashboard card** -- A custom Lovelace card that puts your favorite presets on any dashboard. Five layouts (grid, compact grid, list, hero, carousel), per-card preset curation with drag-reorder, an optional inline brightness slider with header/footer placement, live active-state highlighting via WebSocket events, and tap-to-toggle activation across multiple entities. Add it from any dashboard via "Add Card" > search "Aqara Advanced Lighting Presets". See the [Dashboard card guide](docs/dashboard-card.md).
 
-**Music sync mode** -- Dynamic lighting scenes can respond to music via an ESP32 microphone running on-device FFT analysis and beat detection. Colors advance on beats or flow continuously with amplitude. Adjustable sensitivity, transition speed, and brightness response. Runtime sensitivity slider for tuning while a scene is running. Works alongside T1 Strip on-device audio sync. See the [audio-reactive setup guide](docs/audio-reactive-setup.md).
+**Music sync mode** -- Dynamic lighting scenes and effects can respond to music via an ESP32 microphone running on-device FFT analysis and beat detection. Scene colors advance on beats or flow continuously with amplitude, effect speed can be synced to music. Adjustable sensitivity, transition speed, and brightness response. Runtime sensitivity slider for tuning while a scene is running. Can work alongside T1 Strip on-device audio sync. See the [audio-reactive setup guide](docs/audio-reactive-setup.md).
 
 **Automations** -- 21 service actions, 22 device triggers, 8 device conditions, REST API trigger endpoint, light group support with automatic entity expansion, and multi-instance routing.
 
@@ -77,7 +77,8 @@ See the [Getting started guide](docs/getting-started.md) for detailed installati
 | Guide                                                | Description                                                                                        |
 | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
 | [Getting started](docs/getting-started.md)           | Installation, updating, backend configuration (Z2M and ZHA), multi-instance setup, removal         |
-| [Frontend panel](docs/frontend-panel.md)             | Sidebar panel, favorites, light selection, active presets, activation overrides, preset management, dashboard card |
+| [Frontend panel](docs/frontend-panel.md)             | Sidebar panel, favorites, light selection, active presets, activation overrides, preset management |
+| [Dashboard card](docs/dashboard-card.md)             | Lovelace card layouts (grid, list, hero, carousel), per-card preset curation, inline brightness slider, drag-reorder |
 | [Visual editors](docs/visual-editors.md)             | Dynamic scene, effect, segment pattern, CCT sequence (standard, schedule, solar), and RGB segment sequence editors |
 | [Device configuration](docs/device-configuration.md) | T2 transition curves, initial brightness, dimming settings, segment zones, strip length, generic light configuration |
 | [Services reference](docs/services.md)               | All 21 backend service actions with parameters, examples, and light group support                  |

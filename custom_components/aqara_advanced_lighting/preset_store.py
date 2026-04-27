@@ -22,8 +22,6 @@ from .const import (
     THUMBNAIL_STORAGE_DIR,
     VALID_PRESET_TYPES,
 )
-from .models import RGBColor, XYColor
-
 _LOGGER = logging.getLogger(__name__)
 
 def get_preset_store(hass: HomeAssistant) -> PresetStore | None:
@@ -45,8 +43,6 @@ def get_preset_store(hass: HomeAssistant) -> PresetStore | None:
 
 STORAGE_KEY = f"{DOMAIN}.presets"
 STORAGE_VERSION = 1
-MIGRATION_FLAG_KEY = "_migrated_to_xy_v1"
-LOOP_MODE_MIGRATION_FLAG = "_migrated_loop_mode_v1"
 MAX_PRESETS_PER_TYPE = 250
 MAX_PRESET_NAME_LENGTH = 200
 
@@ -62,6 +58,7 @@ _ALLOWED_FIELDS: dict[str, set[str]] = {
         "effect_colors",
         "effect_segments",
         "thumbnail",
+        "audio_config",
     },
     PRESET_TYPE_SEGMENT_PATTERN: {
         "name",
@@ -108,123 +105,72 @@ _ALLOWED_FIELDS: dict[str, set[str]] = {
         "thumbnail",
         "audio_entity",
         "audio_sensitivity",
-        "audio_brightness_response",
+        "audio_brightness_curve",
+        "audio_brightness_min",
+        "audio_brightness_max",
         "audio_color_advance",
         "audio_transition_speed",
+        "audio_detection_mode",
+        "audio_frequency_zone",
+        "audio_silence_behavior",
+        "audio_prediction_aggressiveness",
+        "audio_latency_compensation_ms",
+        "audio_color_by_frequency",
+        "audio_rolloff_brightness",
     },
 }
 
-def _migrate_rgb_colors_to_xy(colors: list[dict[str, Any]]) -> list[dict[str, float]]:
-    """Migrate RGB color format to XY format.
+SILENCE_MIGRATION_FLAG = "_migrated_silence_v1"
 
-    Args:
-        colors: List of color dicts in RGB format {"r": int, "g": int, "b": int}
 
-    Returns:
-        List of color dicts in XY format {"x": float, "y": float}
+def _migrate_silence_degradation_to_behavior(preset: dict[str, Any]) -> dict[str, Any]:
+    """Migrate audio_silence_degradation (bool) to audio_silence_behavior (str).
+
+    Rewrites the stored preset in-place, removing the old key.
+    Skips presets that already have the new key or the migration flag.
     """
-    xy_colors = []
-
-    for color in colors:
-        # Check if already in XY format
-        if "x" in color and "y" in color:
-            xy_colors.append(color)
-            continue
-
-        # Convert from RGB to XY
-        if "r" in color and "g" in color and "b" in color:
-            try:
-                rgb = RGBColor(r=color["r"], g=color["g"], b=color["b"])
-                xy = XYColor.from_rgb(rgb)
-                xy_colors.append(xy.to_dict())
-            except (ValueError, KeyError) as ex:
-                _LOGGER.warning("Failed to migrate color %s: %s", color, ex)
-                # Keep original if migration fails
-                xy_colors.append(color)
-        else:
-            # Unknown format, keep as-is
-            xy_colors.append(color)
-
-    return xy_colors
-
-def _migrate_effect_preset(preset: dict[str, Any]) -> dict[str, Any]:
-    """Migrate effect preset colors from RGB to XY.
-
-    Args:
-        preset: Effect preset dictionary
-
-    Returns:
-        Migrated preset with XY colors
-    """
-    # Check if already migrated
-    if preset.get(MIGRATION_FLAG_KEY):
+    if preset.get(SILENCE_MIGRATION_FLAG):
         return preset
 
-    # Migrate effect_colors if present
-    if "effect_colors" in preset and preset["effect_colors"]:
-        preset["effect_colors"] = _migrate_rgb_colors_to_xy(preset["effect_colors"])
-        preset[MIGRATION_FLAG_KEY] = True
-        _LOGGER.debug(
-            "Migrated effect preset '%s' to XY color space",
-            preset.get("name", "unknown"),
-        )
-
-    return preset
-
-def _migrate_segment_sequence_preset(preset: dict[str, Any]) -> dict[str, Any]:
-    """Migrate segment sequence preset colors from RGB to XY.
-
-    Args:
-        preset: Segment sequence preset dictionary
-
-    Returns:
-        Migrated preset with XY colors
-    """
-    # Check if already migrated
-    if preset.get(MIGRATION_FLAG_KEY):
+    if "audio_silence_degradation" not in preset:
         return preset
 
-    # Migrate colors in each step
-    if "steps" in preset and preset["steps"]:
-        for step in preset["steps"]:
-            if "colors" in step and step["colors"]:
-                # Convert [[r,g,b], ...] format to [{"x":x, "y":y}, ...] format
-                if isinstance(step["colors"][0], list):
-                    # Old format: [[r, g, b], [r, g, b]]
-                    rgb_dicts = [
-                        {"r": c[0], "g": c[1], "b": c[2]} for c in step["colors"]
-                    ]
-                    step["colors"] = _migrate_rgb_colors_to_xy(rgb_dicts)
-                elif isinstance(step["colors"][0], dict):
-                    # Already dict format, migrate if needed
-                    step["colors"] = _migrate_rgb_colors_to_xy(step["colors"])
-
-        preset[MIGRATION_FLAG_KEY] = True
-        _LOGGER.debug(
-            "Migrated segment sequence preset '%s' to XY color space",
-            preset.get("name", "unknown"),
-        )
-
+    old_val = preset.pop("audio_silence_degradation")
+    preset["audio_silence_behavior"] = "slow_cycle" if old_val else "hold"
+    preset[SILENCE_MIGRATION_FLAG] = True
+    _LOGGER.debug(
+        "Migrated preset '%s' audio_silence_degradation=%s to audio_silence_behavior='%s'",
+        preset.get("name", "unknown"),
+        old_val,
+        preset["audio_silence_behavior"],
+    )
     return preset
 
-def _migrate_loop_mode(preset: dict[str, Any]) -> dict[str, Any]:
-    """Migrate loop_mode value from 'loop' to 'count'.
 
-    Earlier frontend versions used 'loop' as the dropdown value for counted
-    loop mode, but the backend schema expects 'count'.
-    """
-    if preset.get(LOOP_MODE_MIGRATION_FLAG):
+BRIGHTNESS_RESPONSE_MIGRATION_FLAG = "_migrated_brightness_response_v1"
+
+
+def _migrate_brightness_response_to_curve(preset: dict[str, Any]) -> dict[str, Any]:
+    """Migrate audio_brightness_response (bool) to curve + min/max."""
+    if preset.get(BRIGHTNESS_RESPONSE_MIGRATION_FLAG):
+        return preset
+    if "audio_brightness_response" not in preset:
         return preset
 
-    if preset.get("loop_mode") == "loop":
-        preset["loop_mode"] = "count"
-        preset[LOOP_MODE_MIGRATION_FLAG] = True
-        _LOGGER.debug(
-            "Migrated preset '%s' loop_mode from 'loop' to 'count'",
-            preset.get("name", "unknown"),
-        )
-
+    old_val = preset.pop("audio_brightness_response")
+    if old_val:
+        preset["audio_brightness_curve"] = "linear"
+        preset["audio_brightness_min"] = 30
+        preset["audio_brightness_max"] = 100
+    else:
+        preset["audio_brightness_curve"] = None
+    preset[BRIGHTNESS_RESPONSE_MIGRATION_FLAG] = True
+    _LOGGER.debug(
+        "Migrated preset '%s' audio_brightness_response=%s to curve params",
+        preset.get("name", "unknown"), old_val,
+    )
     return preset
+
 
 class UserEffectPreset(TypedDict):
     """User-defined effect preset."""
@@ -238,6 +184,7 @@ class UserEffectPreset(TypedDict):
     effect_brightness: int | None
     effect_colors: list[dict[str, int]]
     effect_segments: str | None
+    audio_config: NotRequired[dict[str, Any]]
     created_at: str
     modified_at: str
 
@@ -299,9 +246,18 @@ class UserDynamicScenePreset(TypedDict):
     modified_at: str
     audio_entity: NotRequired[str | None]
     audio_sensitivity: NotRequired[int]
-    audio_brightness_response: NotRequired[bool]
+    audio_brightness_curve: NotRequired[str | None]
+    audio_brightness_min: NotRequired[int]
+    audio_brightness_max: NotRequired[int]
+    audio_silence_behavior: NotRequired[str]
     audio_color_advance: NotRequired[str]
     audio_transition_speed: NotRequired[int]
+    audio_detection_mode: NotRequired[str]
+    audio_frequency_zone: NotRequired[bool]
+    audio_prediction_aggressiveness: NotRequired[int]
+    audio_latency_compensation_ms: NotRequired[int]
+    audio_color_by_frequency: NotRequired[bool]
+    audio_rolloff_brightness: NotRequired[bool]
 
 class PresetsData(TypedDict):
     """Storage data structure for all user presets."""
@@ -371,37 +327,23 @@ class PresetStore(BaseStore[PresetsData]):
                 "dynamic_scene_presets": data.get("dynamic_scene_presets", []),
             }
 
-            # Migrate RGB colors to XY format
             needs_save = False
 
-            # Migrate effect presets
-            if self._data["effect_presets"]:
-                for i, preset in enumerate(self._data["effect_presets"]):
-                    migrated = _migrate_effect_preset(preset)
-                    if migrated.get(MIGRATION_FLAG_KEY):
-                        self._data["effect_presets"][i] = migrated
+            # Migrate audio_silence_degradation -> audio_silence_behavior
+            if self._data["dynamic_scene_presets"]:
+                for i, preset in enumerate(self._data["dynamic_scene_presets"]):
+                    migrated = _migrate_silence_degradation_to_behavior(preset)
+                    if migrated.get(SILENCE_MIGRATION_FLAG):
+                        self._data["dynamic_scene_presets"][i] = migrated
                         needs_save = True
 
-            # Migrate segment sequence presets
-            if self._data["segment_sequence_presets"]:
-                for i, preset in enumerate(self._data["segment_sequence_presets"]):
-                    migrated = _migrate_segment_sequence_preset(preset)
-                    if migrated.get(MIGRATION_FLAG_KEY):
-                        self._data["segment_sequence_presets"][i] = migrated
+            # Migrate audio_brightness_response -> audio_brightness_curve/min/max
+            if self._data["dynamic_scene_presets"]:
+                for i, preset in enumerate(self._data["dynamic_scene_presets"]):
+                    migrated = _migrate_brightness_response_to_curve(preset)
+                    if migrated.get(BRIGHTNESS_RESPONSE_MIGRATION_FLAG):
+                        self._data["dynamic_scene_presets"][i] = migrated
                         needs_save = True
-
-            # Migrate loop_mode 'loop' -> 'count' in preset types that have it
-            for key in (
-                "cct_sequence_presets",
-                "segment_sequence_presets",
-                "dynamic_scene_presets",
-            ):
-                if self._data[key]:
-                    for i, preset in enumerate(self._data[key]):
-                        migrated = _migrate_loop_mode(preset)
-                        if migrated.get(LOOP_MODE_MIGRATION_FLAG):
-                            self._data[key][i] = migrated
-                            needs_save = True
 
             # Save migrated presets
             if needs_save:
@@ -1188,9 +1130,18 @@ class PresetStore(BaseStore[PresetsData]):
                         "end_behavior": preset["end_behavior"],
                         "audio_entity": preset.get("audio_entity"),
                         "audio_sensitivity": preset.get("audio_sensitivity"),
-                        "audio_brightness_response": preset.get("audio_brightness_response"),
+                        "audio_brightness_curve": preset.get("audio_brightness_curve"),
+                        "audio_brightness_min": preset.get("audio_brightness_min"),
+                        "audio_brightness_max": preset.get("audio_brightness_max"),
+                        "audio_silence_behavior": preset.get("audio_silence_behavior"),
                         "audio_color_advance": preset.get("audio_color_advance"),
                         "audio_transition_speed": preset.get("audio_transition_speed"),
+                        "audio_detection_mode": preset.get("audio_detection_mode"),
+                        "audio_frequency_zone": preset.get("audio_frequency_zone"),
+                        "audio_prediction_aggressiveness": preset.get("audio_prediction_aggressiveness"),
+                        "audio_latency_compensation_ms": preset.get("audio_latency_compensation_ms"),
+                        "audio_color_by_frequency": preset.get("audio_color_by_frequency"),
+                        "audio_rolloff_brightness": preset.get("audio_rolloff_brightness"),
                     }
 
                     await self.add_preset(PRESET_TYPE_DYNAMIC_SCENE, new_preset_data)

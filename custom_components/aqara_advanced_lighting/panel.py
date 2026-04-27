@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from .segment_zone_store import SegmentZoneStore
     from .user_preferences_store import UserPreferencesStore
 
+from .audio_mode_handlers import serialise_mode_registry
 from .preset_store import get_preset_store
 from .user_preferences_store import _UNSET
 
@@ -140,6 +141,9 @@ async def async_register_panel(hass: HomeAssistant) -> None:
     # Register the presets data endpoint
     hass.http.register_view(PresetsDataView)
 
+    # Register the audio mode registry endpoint (source of truth for frontend mode selector)
+    hass.http.register_view(AudioModeRegistryView)
+
     # Register the icon files endpoint
     hass.http.register_view(IconView)
 
@@ -175,6 +179,7 @@ async def async_register_panel(hass: HomeAssistant) -> None:
     hass.http.register_view(RunningOperationsView)
     hass.http.register_view(SceneAudioSensitivityView)
     hass.http.register_view(SceneAudioSquelchView)
+    hass.http.register_view(EffectAudioSensitivityView)
 
     # Register image color extraction and thumbnail endpoints
     hass.http.register_view(ColorExtractView)
@@ -261,6 +266,22 @@ class PresetsDataView(HomeAssistantView):
         """Serve presets data as JSON."""
         presets_data = _build_presets_data()
         return web.json_response(presets_data)
+
+class AudioModeRegistryView(HomeAssistantView):
+    """Expose scene-side audio mode metadata (MODE_REGISTRY) to the frontend.
+
+    The frontend fetches this on editor mount and uses it to populate the
+    mode selector. Making this the sole source of mode metadata eliminates
+    Python-to-TypeScript drift.
+    """
+
+    url = f"/api/{DOMAIN}/audio_mode_registry"
+    name = f"api:{DOMAIN}:audio_mode_registry"
+    requires_auth = True
+
+    async def get(self, request: web.Request) -> web.Response:
+        """Serve MODE_REGISTRY as JSON."""
+        return web.json_response({"modes": serialise_mode_registry()})
 
 class IconView(HomeAssistantView):
     """View to serve preset icon files."""
@@ -368,6 +389,11 @@ def _build_presets_data() -> dict[str, Any]:
                 "brightness": preset_data.get("brightness"),
                 "colors": preset_data["colors"],
                 "device_types": device_types,
+                "audio_sensitivity": preset_data.get("audio_sensitivity"),
+                "audio_silence_behavior": preset_data.get("audio_silence_behavior"),
+                "audio_speed_mode": preset_data.get("audio_speed_mode"),
+                "audio_speed_min": preset_data.get("audio_speed_min"),
+                "audio_speed_max": preset_data.get("audio_speed_max"),
             }
         )
 
@@ -450,12 +476,14 @@ def _build_presets_data() -> dict[str, Any]:
             scene_entry.update({
                 "audio_entity": preset_data.get("audio_entity"),
                 "audio_sensitivity": preset_data.get("audio_sensitivity"),
-                "audio_brightness_response": preset_data.get("audio_brightness_response"),
+                "audio_brightness_curve": preset_data.get("audio_brightness_curve"),
+                "audio_brightness_min": preset_data.get("audio_brightness_min"),
+                "audio_brightness_max": preset_data.get("audio_brightness_max"),
                 "audio_color_advance": preset_data.get("audio_color_advance"),
                 "audio_transition_speed": preset_data.get("audio_transition_speed"),
                 "audio_detection_mode": preset_data.get("audio_detection_mode"),
                 "audio_frequency_zone": preset_data.get("audio_frequency_zone"),
-                "audio_silence_degradation": preset_data.get("audio_silence_degradation"),
+                "audio_silence_behavior": preset_data.get("audio_silence_behavior"),
                 "audio_prediction_aggressiveness": preset_data.get("audio_prediction_aggressiveness"),
                 "audio_latency_compensation_ms": preset_data.get("audio_latency_compensation_ms"),
                 "audio_color_by_frequency": preset_data.get("audio_color_by_frequency"),
@@ -896,14 +924,21 @@ class UserPreferencesView(HomeAssistantView):
         audio_override_sensitivity = _UNSET
         audio_override_color_advance = _UNSET
         audio_override_transition_speed = _UNSET
-        audio_override_brightness_response = _UNSET
+        audio_override_brightness_curve = _UNSET
+        audio_override_brightness_min = _UNSET
+        audio_override_brightness_max = _UNSET
         audio_override_detection_mode = _UNSET
         audio_override_frequency_zone = _UNSET
-        audio_override_silence_degradation = _UNSET
+        audio_override_silence_behavior = _UNSET
         audio_override_prediction_aggressiveness = _UNSET
         audio_override_latency_compensation_ms = _UNSET
         audio_override_color_by_frequency = _UNSET
         audio_override_rolloff_brightness = _UNSET
+        use_effect_audio_reactive = _UNSET
+        effect_audio_override_sensitivity = _UNSET
+        effect_audio_override_speed_enabled = _UNSET
+        effect_audio_override_brightness_enabled = _UNSET
+        effect_audio_override_silence_behavior = _UNSET
         selected_entities = None
         active_favorite_id = _UNSET
 
@@ -1016,12 +1051,29 @@ class UserPreferencesView(HomeAssistantView):
                 )
             audio_override_transition_speed = int(value)
 
-        if "audio_override_brightness_response" in data:
-            if not isinstance(data["audio_override_brightness_response"], bool):
+        if "audio_override_brightness_curve" in data:
+            val = data["audio_override_brightness_curve"]
+            if val is not None and not isinstance(val, str):
                 return web.Response(
-                    status=400, text="audio_override_brightness_response must be a boolean"
+                    status=400, text="audio_override_brightness_curve must be a string or null"
                 )
-            audio_override_brightness_response = data["audio_override_brightness_response"]
+            audio_override_brightness_curve = val
+
+        if "audio_override_brightness_min" in data:
+            val = data["audio_override_brightness_min"]
+            if not isinstance(val, (int, float)) or val < 1 or val > 100:
+                return web.Response(
+                    status=400, text="audio_override_brightness_min must be 1-100"
+                )
+            audio_override_brightness_min = int(val)
+
+        if "audio_override_brightness_max" in data:
+            val = data["audio_override_brightness_max"]
+            if not isinstance(val, (int, float)) or val < 1 or val > 100:
+                return web.Response(
+                    status=400, text="audio_override_brightness_max must be 1-100"
+                )
+            audio_override_brightness_max = int(val)
 
         if "audio_override_detection_mode" in data:
             if not isinstance(data["audio_override_detection_mode"], str):
@@ -1037,12 +1089,12 @@ class UserPreferencesView(HomeAssistantView):
                 )
             audio_override_frequency_zone = data["audio_override_frequency_zone"]
 
-        if "audio_override_silence_degradation" in data:
-            if not isinstance(data["audio_override_silence_degradation"], bool):
+        if "audio_override_silence_behavior" in data:
+            if not isinstance(data["audio_override_silence_behavior"], str):
                 return web.Response(
-                    status=400, text="audio_override_silence_degradation must be a boolean"
+                    status=400, text="audio_override_silence_behavior must be a string"
                 )
-            audio_override_silence_degradation = data["audio_override_silence_degradation"]
+            audio_override_silence_behavior = data["audio_override_silence_behavior"]
 
         if "audio_override_prediction_aggressiveness" in data:
             value = data["audio_override_prediction_aggressiveness"]
@@ -1074,6 +1126,42 @@ class UserPreferencesView(HomeAssistantView):
                     status=400, text="audio_override_rolloff_brightness must be a boolean"
                 )
             audio_override_rolloff_brightness = data["audio_override_rolloff_brightness"]
+
+        if "use_effect_audio_reactive" in data:
+            if not isinstance(data["use_effect_audio_reactive"], bool):
+                return web.Response(
+                    status=400, text="use_effect_audio_reactive must be a boolean"
+                )
+            use_effect_audio_reactive = data["use_effect_audio_reactive"]
+
+        if "effect_audio_override_sensitivity" in data:
+            value = data["effect_audio_override_sensitivity"]
+            if not isinstance(value, (int, float)) or value < 1 or value > 100:
+                return web.Response(
+                    status=400, text="effect_audio_override_sensitivity must be a number between 1 and 100"
+                )
+            effect_audio_override_sensitivity = int(value)
+
+        if "effect_audio_override_speed_enabled" in data:
+            if not isinstance(data["effect_audio_override_speed_enabled"], bool):
+                return web.Response(
+                    status=400, text="effect_audio_override_speed_enabled must be a boolean"
+                )
+            effect_audio_override_speed_enabled = data["effect_audio_override_speed_enabled"]
+
+        if "effect_audio_override_brightness_enabled" in data:
+            if not isinstance(data["effect_audio_override_brightness_enabled"], bool):
+                return web.Response(
+                    status=400, text="effect_audio_override_brightness_enabled must be a boolean"
+                )
+            effect_audio_override_brightness_enabled = data["effect_audio_override_brightness_enabled"]
+
+        if "effect_audio_override_silence_behavior" in data:
+            if not isinstance(data["effect_audio_override_silence_behavior"], str):
+                return web.Response(
+                    status=400, text="effect_audio_override_silence_behavior must be a string"
+                )
+            effect_audio_override_silence_behavior = data["effect_audio_override_silence_behavior"]
 
         if "selected_entities" in data:
             value = data["selected_entities"]
@@ -1110,14 +1198,21 @@ class UserPreferencesView(HomeAssistantView):
             and audio_override_sensitivity is _UNSET
             and audio_override_color_advance is _UNSET
             and audio_override_transition_speed is _UNSET
-            and audio_override_brightness_response is _UNSET
+            and audio_override_brightness_curve is _UNSET
+            and audio_override_brightness_min is _UNSET
+            and audio_override_brightness_max is _UNSET
             and audio_override_detection_mode is _UNSET
             and audio_override_frequency_zone is _UNSET
-            and audio_override_silence_degradation is _UNSET
+            and audio_override_silence_behavior is _UNSET
             and audio_override_prediction_aggressiveness is _UNSET
             and audio_override_latency_compensation_ms is _UNSET
             and audio_override_color_by_frequency is _UNSET
             and audio_override_rolloff_brightness is _UNSET
+            and use_effect_audio_reactive is _UNSET
+            and effect_audio_override_sensitivity is _UNSET
+            and effect_audio_override_speed_enabled is _UNSET
+            and effect_audio_override_brightness_enabled is _UNSET
+            and effect_audio_override_silence_behavior is _UNSET
             and selected_entities is None
             and active_favorite_id is _UNSET
         ):
@@ -1141,14 +1236,21 @@ class UserPreferencesView(HomeAssistantView):
             audio_override_sensitivity=audio_override_sensitivity,
             audio_override_color_advance=audio_override_color_advance,
             audio_override_transition_speed=audio_override_transition_speed,
-            audio_override_brightness_response=audio_override_brightness_response,
+            audio_override_brightness_curve=audio_override_brightness_curve,
+            audio_override_brightness_min=audio_override_brightness_min,
+            audio_override_brightness_max=audio_override_brightness_max,
             audio_override_detection_mode=audio_override_detection_mode,
             audio_override_frequency_zone=audio_override_frequency_zone,
-            audio_override_silence_degradation=audio_override_silence_degradation,
+            audio_override_silence_behavior=audio_override_silence_behavior,
             audio_override_prediction_aggressiveness=audio_override_prediction_aggressiveness,
             audio_override_latency_compensation_ms=audio_override_latency_compensation_ms,
             audio_override_color_by_frequency=audio_override_color_by_frequency,
             audio_override_rolloff_brightness=audio_override_rolloff_brightness,
+            use_effect_audio_reactive=use_effect_audio_reactive,
+            effect_audio_override_sensitivity=effect_audio_override_sensitivity,
+            effect_audio_override_speed_enabled=effect_audio_override_speed_enabled,
+            effect_audio_override_brightness_enabled=effect_audio_override_brightness_enabled,
+            effect_audio_override_silence_behavior=effect_audio_override_silence_behavior,
             selected_entities=selected_entities,
             active_favorite_id=active_favorite_id,
         )
@@ -1939,15 +2041,26 @@ class RunningOperationsView(HomeAssistantView):
                     entity_id,
                     device_state,
                 ) in state_manager.get_all_active_effects().items():
-                    operations.append(
-                        {
-                            "type": "effect",
-                            "entity_id": entity_id,
-                            "preset_id": device_state.current_preset,
-                            "paused": False,
-                            "externally_paused": False,
-                        }
-                    )
+                    op_data: dict[str, Any] = {
+                        "type": "effect",
+                        "entity_id": entity_id,
+                        "preset_id": device_state.current_preset,
+                        "paused": False,
+                        "externally_paused": False,
+                    }
+                    modulator = device_state.audio_modulator
+                    if modulator is not None:
+                        engine = device_state.audio_engine
+                        op_data["audio_entity"] = (
+                            modulator._audio_config.audio_entity
+                        )
+                        op_data["audio_sensitivity"] = (
+                            engine.config.sensitivity
+                            if engine
+                            else modulator._audio_config.audio_sensitivity
+                        )
+                        op_data["audio_waiting"] = modulator.audio_waiting
+                    operations.append(op_data)
 
             # CCT sequences
             cct_mgr = instance_data.get(DATA_CCT_SEQUENCE_MANAGER)
@@ -2235,6 +2348,74 @@ class SceneAudioSquelchView(HomeAssistantView):
             text="Scene not found",
             content_type="text/plain",
         )
+
+class EffectAudioSensitivityView(HomeAssistantView):
+    """Handle audio sensitivity runtime updates for running effects."""
+
+    url = f"/api/{DOMAIN}/effect_audio_sensitivity"
+    name = f"api:{DOMAIN}:effect_audio_sensitivity"
+    requires_auth = True
+
+    async def post(self, request: web.Request) -> web.Response:
+        """Update beat sensitivity for a running audio-reactive effect."""
+        hass: HomeAssistant = request.app["hass"]
+        try:
+            data = await request.json()
+        except ValueError:
+            return web.Response(
+                status=400, text="Invalid JSON", content_type="text/plain"
+            )
+
+        entity_id = data.get("entity_id")
+        sensitivity = data.get("sensitivity")
+        if not entity_id or sensitivity is None:
+            return web.Response(
+                status=400,
+                text="Missing entity_id or sensitivity",
+                content_type="text/plain",
+            )
+
+        try:
+            sensitivity = int(sensitivity)
+        except (ValueError, TypeError):
+            return web.Response(
+                status=400,
+                text="sensitivity must be an integer",
+                content_type="text/plain",
+            )
+
+        if not (1 <= sensitivity <= 100):
+            return web.Response(
+                status=400,
+                text="sensitivity must be between 1 and 100",
+                content_type="text/plain",
+            )
+
+        for instance_data in hass.data.get(DOMAIN, {}).get("entries", {}).values():
+            if not isinstance(instance_data, dict):
+                continue
+            state_manager = instance_data.get(DATA_STATE_MANAGER)
+            if not state_manager:
+                continue
+            device_state = state_manager.get_device_state(entity_id)
+            if device_state and device_state.audio_engine:
+                success = await device_state.audio_engine.update_sensitivity(
+                    sensitivity
+                )
+                if success:
+                    return self.json({"success": True})
+                return web.Response(
+                    status=404,
+                    text="No sensitivity companion entity found",
+                    content_type="text/plain",
+                )
+
+        return web.Response(
+            status=404,
+            text="Effect not found",
+            content_type="text/plain",
+        )
+
 
 def _get_thumbnail_dir(hass: HomeAssistant) -> Path:
     """Get the thumbnail storage directory, creating it if needed."""

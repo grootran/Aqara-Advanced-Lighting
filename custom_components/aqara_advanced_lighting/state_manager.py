@@ -19,6 +19,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
+from .events import fire_operations_changed
 from .models import DeviceState, DynamicEffect
 
 _LOGGER = logging.getLogger(__name__)
@@ -279,6 +280,9 @@ class StateManager:
             preset,
         )
 
+        # Snapshot mutation: effect newly active for this entity_id.
+        fire_operations_changed(self.hass)
+
     def mark_effect_inactive(self, entity_id: str) -> str | None:
         """Mark effect as inactive for an entity.
 
@@ -292,11 +296,17 @@ class StateManager:
             self._states[entity_id].current_effect = None
             self._states[entity_id].current_preset = None
             _LOGGER.debug("Marked effect inactive for %s (was preset=%s)", entity_id, preset)
+            # Snapshot mutation: effect transitioned to inactive for this entity_id.
+            fire_operations_changed(self.hass)
         return preset
 
     def get_device_state(self, entity_id: str) -> DeviceState | None:
         """Get stored device state."""
         return self._states.get(entity_id)
+
+    def iter_device_states(self):
+        """Iterate all stored device states as (entity_id, state) pairs."""
+        yield from self._states.items()
 
     def has_stored_state(self, entity_id: str) -> bool:
         """Check if there is a stored state for an entity."""
@@ -444,6 +454,8 @@ class StateManager:
             _LOGGER.debug("Cleared stored state for %s", entity_id)
             # Schedule save to persistent storage
             self._schedule_save()
+            # Snapshot mutation: stored state for this entity_id removed.
+            fire_operations_changed(self.hass)
 
     def clear_all_states(self) -> None:
         """Clear all stored states."""
@@ -451,6 +463,8 @@ class StateManager:
         _LOGGER.debug("Cleared all stored states")
         # Schedule save to persistent storage
         self._schedule_save()
+        # Snapshot mutation: all stored entity states cleared.
+        fire_operations_changed(self.hass)
 
     def get_all_active_effects(self) -> dict[str, DeviceState]:
         """Get all entities with active effects."""

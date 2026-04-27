@@ -81,7 +81,22 @@ data:
 - `brightness` (optional): Brightness level (1-100%)
 - `turn_on` (optional): Turn light on before applying effect (default: false)
 
-**Note:** When using `preset`, manual `effect`, `speed`, and `color` parameters are ignored. Custom presets created in the frontend panel can be used by typing their name exactly as you saved it (case doesn't matter).
+**Audio-reactive parameters** (T1M and T1 Strip only):
+
+- `audio_entity` (optional): ESPHome audio sensor entity (`binary_sensor` or `sensor`). Setting this enables audio-reactive modulation
+- `audio_sensitivity` (optional): Beat detection sensitivity (1-100, default: 50)
+- `audio_detection_mode` (optional): Detection algorithm -- `spectral_flux` (default), `bass_energy`, or `complex_domain`
+- `audio_silence_behavior` (optional): Behavior when music stops -- `hold`, `decay_min` (default), or `decay_mid`
+- `audio_speed_mode` (optional): How audio drives effect speed -- `on_onset`, `continuous` (default), `intensity_breathing`, or `onset_flash`. Omit to disable speed modulation
+- `audio_speed_min` (optional): Minimum speed in modulation range (1-100, default: 1)
+- `audio_speed_max` (optional): Maximum speed in modulation range (1-100, default: 100)
+- `audio_speed_curve` (optional): Response curve for speed -- `linear` (default), `logarithmic`, or `exponential`
+- `audio_brightness_mode` (optional): How audio drives brightness -- `on_onset`, `continuous`, `intensity_breathing`, or `onset_flash`. Omit to disable brightness modulation
+- `audio_brightness_min` (optional): Minimum brightness in modulation range (1-100%, default: 1)
+- `audio_brightness_max` (optional): Maximum brightness in modulation range (1-100%, default: 100)
+- `audio_brightness_curve` (optional): Response curve for brightness -- `linear` (default), `logarithmic`, or `exponential`
+
+**Note:** When using `preset`, manual `effect`, `speed`, and `color` parameters are ignored. Audio parameters can be combined with presets to add audio modulation to any saved effect. Custom presets created in the frontend panel can be used by typing their name exactly as you saved it (case doesn't matter). Audio-reactive effects are not available for T2 bulbs.
 
 ---
 
@@ -241,7 +256,7 @@ Create and run dynamic CCT (color temperature) sequences with up to 20 customiza
 
 **Service:** `aqara_advanced_lighting.start_cct_sequence`
 
-**Usage:** Choose a preset from the dropdown, or use the Home Assistant UI to configure each step individually. For standard mode, step 1 is required, steps 2-20 are optional and collapsed by default (click "Show advanced fields" to access them). For solar mode, provide `solar_steps` as an object.
+**Usage:** Choose a preset from the dropdown, or use the Home Assistant UI to configure each step individually. For standard mode, step 1 is required, steps 2-20 are optional and collapsed by default (click "Show advanced fields" to access them). For schedule mode, provide `schedule_steps` as an object. For solar mode, provide `solar_steps` as an object.
 
 **Available presets:**
 
@@ -288,6 +303,40 @@ data:
   end_behavior: "maintain"
 ```
 
+**Example YAML (schedule mode):**
+
+```yaml
+service: aqara_advanced_lighting.start_cct_sequence
+target:
+  entity_id:
+    - light.aqara_ceiling_light
+    - light.hue_bulb
+data:
+  mode: "schedule"
+  turn_on: true
+  schedule_steps:
+    - time: "sunrise-30"
+      color_temp: 2700
+      brightness: 100
+      label: "Dawn"
+    - time: "09:00"
+      color_temp: 4500
+      brightness: 200
+      label: "Morning"
+    - time: "12:00"
+      color_temp: 5500
+      brightness: 255
+      label: "Midday"
+    - time: "sunset+0"
+      color_temp: 3000
+      brightness: 150
+      label: "Evening"
+    - time: "sunset+90"
+      color_temp: 2700
+      brightness: 100
+      label: "Night"
+```
+
 **Example YAML (solar mode):**
 
 ```yaml
@@ -325,7 +374,13 @@ data:
 - `turn_on` (optional): Turn light on before starting sequence (default: false)
 - `mode` (optional): Sequence execution mode (default: "standard")
   - `"standard"`: Timed step-by-step sequence with transition and hold timing
+  - `"schedule"`: Adapts color temperature based on the time of day, interpolating between time-based steps on a 24-hour cycle
   - `"solar"`: Adapts color temperature based on the sun's elevation angle, polling every 60 seconds
+- `schedule_steps` (optional, required for schedule mode): List of time-of-day steps. Each step is an object with:
+  - `time` (required): A fixed time (e.g., `"12:00"`) or a sun-relative offset (e.g., `"sunrise+30"`, `"sunset-60"`)
+  - `color_temp` (required): Color temperature in kelvin (2700-6500)
+  - `brightness` (required): Brightness level (1-255)
+  - `label` (optional): Friendly name for the step (e.g., "Morning", "Midday")
 - `solar_steps` (optional, required for solar mode): List of solar elevation steps. Each step is an object with:
   - `sun_elevation` (required): Sun angle in degrees (-90 to 90)
   - `color_temp` (required): Color temperature in kelvin (1000-10000)
@@ -347,7 +402,7 @@ data:
   - `"turn_off"`: Turn off the light
   - `"restore"`: Restore light to its pre-sequence state
 
-**Note:** In standard mode, each step consists of a transition period followed by a hold period. For example, if transition is 2s and hold is 10s, the light will fade for 2s then remain at those settings for 10s before the next step starts. In solar mode, the integration continuously interpolates between the two nearest steps based on the current sun elevation and updates your lights every 60 seconds. Solar and schedule sequences persist across Home Assistant restarts.
+**Note:** In standard mode, each step consists of a transition period followed by a hold period. For example, if transition is 2s and hold is 10s, the light will fade for 2s then remain at those settings for 10s before the next step starts. In schedule mode, the integration interpolates between time-based steps on a 24-hour cycle. Sun-relative times (e.g., `sunrise+30`, `sunset-60`) are resolved dynamically using your Home Assistant location. In solar mode, the integration continuously interpolates between the two nearest steps based on the current sun elevation. Both schedule and solar modes poll every 60 seconds and persist across Home Assistant restarts.
 
 ---
 
@@ -637,6 +692,25 @@ data:
 - `static` (optional): Apply colors once without starting transitions (default: false)
 - `scene_name` (optional, advanced): Display name for tracking the running scene
 
+**Audio-reactive parameters** (replaces fixed transition/hold timing with live audio):
+
+- `audio_entity` (optional): Binary sensor from the ESPHome audio-reactive component. When set, scene timing is driven by audio events. The integration auto-discovers companion sensors (bass energy, amplitude, BPM) on the same device
+- `audio_sensitivity` (optional): How responsive to sound (1-100, default: 50). Higher values react to quieter sounds
+- `audio_color_advance` (optional): How colors advance -- `on_onset` (default), `continuous`, `beat_predictive`, `intensity_breathing`, or `onset_flash`
+- `audio_detection_mode` (optional): Detection algorithm -- `spectral_flux` (default), `bass_energy`, or `complex_domain`
+- `audio_transition_speed` (optional): Speed of color transitions on beat (1-100, default: 50). 1 = slow fade, 100 = instant snap
+- `audio_brightness_curve` (optional): How energy maps to brightness -- `linear` (default), `logarithmic`, `exponential`, or `null` to disable
+- `audio_brightness_min` (optional): Minimum brightness when audio is quiet (1-100%, default: 30)
+- `audio_brightness_max` (optional): Maximum brightness when audio is loud (1-100%, default: 100)
+- `audio_frequency_zone` (optional): Auto-distribute lights across bass/mid/high frequency bands (default: false, requires 3+ lights)
+- `audio_silence_behavior` (optional): Behavior during silence -- `slow_cycle` (default), `hold`, `decay_min`, or `decay_mid`
+- `audio_color_by_frequency` (optional): Map spectral centroid to palette position (default: false)
+- `audio_rolloff_brightness` (optional): Scale brightness based on spectral rolloff (default: false)
+- `audio_prediction_aggressiveness` (optional): How aggressively to predict beats, 1-100 (default: 50, beat_predictive mode only)
+- `audio_latency_compensation_ms` (optional): Milliseconds to send commands early, 0-500 (default: 150, beat_predictive mode only)
+
+See [Audio-reactive lighting setup](audio-reactive-setup.md) for hardware setup and detailed parameter descriptions.
+
 ---
 
 ## 15. Stop dynamic scene
@@ -768,7 +842,10 @@ data:
 
 ## 20. Start circadian mode
 
-Start a passive circadian overlay on target lights. Automatically applies sun-appropriate color temperature and brightness when a light turns on, without needing a continuously running sequence.
+Start a passive circadian overlay on target lights. Supports two modes:
+
+- **Solar mode** (default): Automatically applies sun-appropriate color temperature and brightness when a light turns on, based on the sun's elevation angle. This is a passive overlay — it applies values on turn-on events and polls periodically, without running a continuous sequence.
+- **Schedule mode**: Runs a continuous time-of-day schedule through the CCT sequence manager, interpolating between time-based steps on a 24-hour cycle. Schedule presets (Circadian, Warm Day, Productive Day) use this mode.
 
 **Service:** `aqara_advanced_lighting.start_circadian_mode`
 
@@ -803,11 +880,35 @@ data:
       brightness: 255
 ```
 
+**Example (schedule preset with auto-resume):**
+
+Schedule mode presets run a continuous time-of-day schedule. The built-in schedule presets are Circadian Rhythm, Warm Day, and Productive Day — all three use sun-relative times that adapt to seasonal changes:
+
+```yaml
+service: aqara_advanced_lighting.start_circadian_mode
+target:
+  entity_id:
+    - light.living_room
+    - light.kitchen
+data:
+  preset: "circadian"
+```
+
+You can also create custom schedule presets in the [CCT sequence editor](visual-editors.md#schedule-mode) (using schedule mode) and use them by name:
+
+```yaml
+service: aqara_advanced_lighting.start_circadian_mode
+target:
+  entity_id: light.bedroom_ceiling
+data:
+  preset: "my custom schedule"
+```
+
 **Parameters:**
 
 - `entity_id` (required): Light entity or entities to apply circadian mode to
-- `preset` (optional): Use a built-in preset ("circadian", "solar_warm", "solar_productive") -- dropdown selector. You can also type the name of a custom preset (case-insensitive). When preset is selected, solar_steps are ignored
-- `solar_steps` (optional): Custom solar elevation steps (alternative to preset). Same format as the [start CCT sequence](#6-start-cct-sequence) solar_steps parameter. Requires at least 2 steps
+- `preset` (optional): Use a built-in preset ("circadian", "solar_warm", "solar_productive") -- dropdown selector. You can also type the name of a custom CCT sequence preset (case-insensitive). Schedule-mode presets (Circadian Rhythm, Warm Day, Productive Day) are routed through the CCT sequence manager and run continuously, interpolating between time-based steps. Solar-mode presets and custom solar presets use the passive overlay. When preset is selected, manual step parameters are ignored
+- `solar_steps` (optional): Custom solar elevation steps for solar mode. Same format as the [start CCT sequence](#6-start-cct-sequence) solar_steps parameter. Requires at least 2 steps
 
 ---
 

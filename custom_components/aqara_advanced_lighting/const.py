@@ -232,6 +232,9 @@ AUDIO_COLOR_ADVANCE_CONTINUOUS: Final = "continuous"
 AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE: Final = "beat_predictive"
 AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING: Final = "intensity_breathing"
 AUDIO_COLOR_ADVANCE_ONSET_FLASH: Final = "onset_flash"
+# Pro-tier audio modes (audio-reactive pro DSP).
+AUDIO_COLOR_ADVANCE_BASS_KICK: Final = "bass_kick"
+AUDIO_COLOR_ADVANCE_FREQ_TO_HUE: Final = "freq_to_hue"
 
 VALID_AUDIO_COLOR_ADVANCE: Final = [
     AUDIO_COLOR_ADVANCE_ON_ONSET,
@@ -239,6 +242,8 @@ VALID_AUDIO_COLOR_ADVANCE: Final = [
     AUDIO_COLOR_ADVANCE_BEAT_PREDICTIVE,
     AUDIO_COLOR_ADVANCE_INTENSITY_BREATHING,
     AUDIO_COLOR_ADVANCE_ONSET_FLASH,
+    AUDIO_COLOR_ADVANCE_BASS_KICK,
+    AUDIO_COLOR_ADVANCE_FREQ_TO_HUE,
 ]
 
 # Audio detection mode constants
@@ -258,11 +263,15 @@ MAX_AUDIO_PREDICTION_AGGRESSIVENESS: Final = 100
 DEFAULT_AUDIO_PREDICTION_AGGRESSIVENESS: Final = 50
 DEFAULT_LATENCY_COMPENSATION_MS: Final = 150
 
-DEFAULT_AUDIO_SILENCE_DEGRADATION: Final = True
 DEFAULT_AUDIO_FREQUENCY_ZONE: Final = False
+
+# Shared audio signal processing parameters
+AUDIO_EMA_ALPHA: Final = 0.05  # EMA smoothing factor (~2-4s window at 20Hz)
+AUDIO_FLASH_BRIGHTNESS_DECAY: Final = 0.02  # Per-tick flash brightness decay
 
 SILENCE_DEGRADATION_BLEND_SECONDS: Final = 5.0
 SILENCE_DEGRADATION_STEP_SECONDS: Final = 12.0
+AUDIO_SCENE_SILENCE_DECAY_SECONDS: Final = 3.0  # matches effect modulator decay duration
 
 # Audio parameter constraints
 MIN_AUDIO_SENSITIVITY: Final = 1
@@ -281,10 +290,62 @@ T1_STRIP_AUDIO_SENSITIVITY_CUTOFF: Final = 50
 # Runtime data key for active music sync tracking
 DATA_ACTIVE_MUSIC_SYNC: Final = "active_music_sync"
 
+# Audio-reactive effect modulation modes
+AUDIO_EFFECT_MODE_VOLUME: Final = "volume"
+AUDIO_EFFECT_MODE_TEMPO: Final = "tempo"
+AUDIO_EFFECT_MODE_COMBINED: Final = "combined"
+VALID_AUDIO_EFFECT_MODES: Final = [
+    AUDIO_EFFECT_MODE_VOLUME,
+    AUDIO_EFFECT_MODE_TEMPO,
+    AUDIO_EFFECT_MODE_COMBINED,
+]
+
+# Audio-reactive response curves
+AUDIO_RESPONSE_CURVE_LINEAR: Final = "linear"
+AUDIO_RESPONSE_CURVE_LOGARITHMIC: Final = "logarithmic"
+AUDIO_RESPONSE_CURVE_EXPONENTIAL: Final = "exponential"
+VALID_AUDIO_RESPONSE_CURVES: Final = [
+    AUDIO_RESPONSE_CURVE_LINEAR,
+    AUDIO_RESPONSE_CURVE_LOGARITHMIC,
+    AUDIO_RESPONSE_CURVE_EXPONENTIAL,
+]
+DEFAULT_AUDIO_RESPONSE_CURVE: Final = AUDIO_RESPONSE_CURVE_LINEAR
+
+# Audio-reactive silence behaviors
+AUDIO_SILENCE_HOLD: Final = "hold"
+AUDIO_SILENCE_DECAY_MIN: Final = "decay_min"
+AUDIO_SILENCE_DECAY_MID: Final = "decay_mid"
+AUDIO_SILENCE_SLOW_CYCLE: Final = "slow_cycle"
+VALID_AUDIO_SILENCE_BEHAVIORS: Final = [
+    AUDIO_SILENCE_HOLD,
+    AUDIO_SILENCE_DECAY_MIN,
+    AUDIO_SILENCE_DECAY_MID,
+    AUDIO_SILENCE_SLOW_CYCLE,
+]
+DEFAULT_AUDIO_SILENCE_BEHAVIOR: Final = AUDIO_SILENCE_DECAY_MIN
+
+# Deadband thresholds to prevent redundant Zigbee writes
+SPEED_DEADBAND: Final = 4
+BRIGHTNESS_DEADBAND: Final = 5
+
+# Audio effect silence decay duration (seconds)
+AUDIO_EFFECT_SILENCE_DECAY_SECONDS: Final = 3.0
+
+# Audio effect service data attribute keys
+ATTR_AUDIO_ENTITY: Final = "audio_entity"
+ATTR_AUDIO_SENSITIVITY: Final = "audio_sensitivity"
+ATTR_AUDIO_DETECTION_MODE: Final = "audio_detection_mode"
+ATTR_AUDIO_SILENCE_BEHAVIOR: Final = "audio_silence_behavior"
+ATTR_AUDIO_SPEED_MODE: Final = "audio_speed_mode"
+ATTR_AUDIO_SPEED_MIN: Final = "audio_speed_min"
+ATTR_AUDIO_SPEED_MAX: Final = "audio_speed_max"
+ATTR_AUDIO_SPEED_CURVE: Final = "audio_speed_curve"
+
 MIN_DURATION: Final = 0.0
 MAX_DURATION: Final = 3600.0  # 1 hour
 
 # Runtime data storage keys
+DATA_AUDIO_ENGINE_REGISTRY: Final = "audio_engine_registry"
 DATA_STATE_MANAGER: Final = "state_manager"
 DATA_CCT_SEQUENCE_MANAGER: Final = "cct_sequence_manager"
 DATA_SEGMENT_SEQUENCE_MANAGER: Final = "segment_sequence_manager"
@@ -295,7 +356,7 @@ DATA_SEGMENT_ZONE_STORE: Final = "segment_zone_store"
 DATA_SERVICE_SCHEMA_MANAGER: Final = "service_schema_manager"
 
 # Valid sort options for user preferences (validated in backend)
-VALID_SORT_OPTIONS: Final = {"name-asc", "name-desc", "date-new", "date-old"}
+VALID_SORT_OPTIONS: Final = {"custom", "name-asc", "name-desc", "date-new", "date-old"}
 
 # Color history constraints
 MAX_COLOR_HISTORY_SIZE: Final = 8
@@ -360,6 +421,10 @@ EVENT_DYNAMIC_SCENE_RESUMED: Final = f"{DOMAIN}_dynamic_scene_resumed"
 EVENT_DYNAMIC_SCENE_STOPPED: Final = f"{DOMAIN}_dynamic_scene_stopped"
 EVENT_DYNAMIC_SCENE_LOOP_COMPLETED: Final = f"{DOMAIN}_dynamic_scene_loop_completed"
 EVENT_DYNAMIC_SCENE_FINISHED: Final = f"{DOMAIN}_dynamic_scene_finished"
+
+# HA event fired when running-operations state mutates.
+# Carries no payload - subscribers refetch via /api/aqara_advanced_lighting/running_operations.
+EVENT_OPERATIONS_CHANGED: Final = f"{DOMAIN}_operations_changed"
 
 # Dynamic scene runtime data key
 DATA_DYNAMIC_SCENE_MANAGER: Final = "dynamic_scene_manager"
@@ -595,6 +660,17 @@ PRESET_T1_STRIP_SEA_OF_FLOWERS: Final = "t1_strip_sea_of_flowers"
 PRESET_T1_STRIP_RHYTHMIC: Final = "t1_strip_rhythmic"
 PRESET_T1_STRIP_EXCITING: Final = "t1_strip_exciting"
 PRESET_T1_STRIP_COLORFUL: Final = "t1_strip_colorful"
+
+# Audio-reactive built-in effect presets
+PRESET_T1M_LITTLE_FLUFFY_CLOUDS: Final = "t1m_little_fluffy_clouds"
+PRESET_T1M_WAREHOUSE: Final = "t1m_warehouse"
+PRESET_T1M_TANGERINE_DREAM: Final = "t1m_tangerine_dream"
+PRESET_T1M_RIDE_THE_LIGHTNING: Final = "t1m_ride_the_lightning"
+
+PRESET_T1_STRIP_THUNDERSTRUCK: Final = "t1_strip_thunderstruck"
+PRESET_T1_STRIP_LUCY_IN_THE_SKY: Final = "t1_strip_lucy_in_the_sky"
+PRESET_T1_STRIP_RUNNING_UP_THAT_HILL: Final = "t1_strip_running_up_that_hill"
+PRESET_T1_STRIP_NEON: Final = "t1_strip_neon"
 
 # CCT sequence presets
 PRESET_CCT_GOODNIGHT: Final = "goodnight"

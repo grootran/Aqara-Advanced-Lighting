@@ -7,6 +7,7 @@ Audio-reactive mode makes your lights respond to music and sound in real time. C
 ## Table of contents
 
 - [How it works](#how-it-works)
+- [DSP tiers (basic vs pro)](#dsp-tiers-basic-vs-pro)
 - [Recommended hardware](#recommended-hardware)
 - [Setting up the sensor](#setting-up-the-sensor)
   - [One-click install (recommended)](#one-click-install-recommended)
@@ -28,9 +29,14 @@ Audio-reactive mode makes your lights respond to music and sound in real time. C
   - [Beat prediction](#beat-prediction)
   - [Color by frequency](#color-by-frequency)
   - [Rolloff brightness](#rolloff-brightness)
+- [Audio-reactive effects](#audio-reactive-effects)
+  - [Effect audio parameters](#effect-audio-parameters)
+  - [Speed modulation modes](#speed-modulation-modes)
+  - [Effect audio from a service call](#effect-audio-from-a-service-call)
 - [How audio detection works](#how-audio-detection-works)
 - [T1 Strip on-device audio sync](#t1-strip-on-device-audio-sync)
 - [On-device audio for other lights](#on-device-audio-for-other-lights)
+- [Sharing a sensor between scenes and effects](#sharing-a-sensor-between-scenes-and-effects)
 - [Sensor placement tips](#sensor-placement-tips)
 - [Troubleshooting](#troubleshooting)
 
@@ -52,74 +58,112 @@ You need an ESP32 device with a microphone running ESPHome and the [esphome-audi
 
 ---
 
+## DSP tiers (basic vs pro)
+
+From firmware v0.4.0, the `esphome-audio-reactive` component runs one of two DSP pipelines depending on the hardware. The tier auto-detects: any ESP32-S3 board with PSRAM boots into the **pro** pipeline; classic ESP32 boards run the **basic** pipeline. No user configuration is required — tier is transparent to the HA integration, which picks up extra sensors automatically when they're present.
+
+| | Basic | Pro |
+|---|---|---|
+| **Hardware** | ESP32 / ESP32-PICO (Atom Echo, M5StickC Plus2) | ESP32-S3 + PSRAM (Atom Echo S3R, Waveshare ESP32-S3 Audio) |
+| **FFT** | 512-pt @ 22.05 kHz | 2048-pt @ 44.1 kHz |
+| **Beat tracker** | Autocorrelation | BTrack (comb filterbank + Viterbi tempo induction + DP beat prediction) |
+| **Onset detector** | Complex-domain (Dixon 2006) | SuperFlux (Böck & Widmer 2013, max-filter vibrato suppression) |
+| **Frequency bands** | 3 (bass / mid / high) | 7 musical (sub_bass / bass / low_mid / mid / upper_mid / high / air) |
+| **Extra sensors** | — | `beat_event` binary sensor (tight beat boundary pulses), `calibration_stale` diagnostic |
+| **Debug** | `fft_task_cycle_mean_us` / `fft_task_cycle_peak_us` (opt-in) | Same, plus richer internals |
+
+The HA integration auto-discovers the pro-tier sensors when they appear and enables the corresponding features without any user action. If you only have basic-tier devices, everything works exactly as before.
+
+### What pro tier unlocks in v1.3.0
+
+The pro DSP tier exposes per-musical-band sensors (sub_bass, low_mid, upper_mid, air, plus their basic-tier counterparts) and a tight `beat_event` binary sensor to Home Assistant. These are visible in HA for use in custom automations.
+
+The two scene-side color-advance modes that consume the pro-tier sensors directly — `bass_kick` and `freq_to_hue` — are hidden from the dynamic-scene editor in v1.3.0 while their upstream firmware DSP is stabilised. They will return in a follow-up release; in the meantime existing scenes with those values continue to load and run, and the underlying sensors remain available for user automations.
+
+See [Color advance modes](#color-advance-modes) for the modes available in v1.3.0.
+
+### Upgrading existing devices (v0.3.x → v0.4.0)
+
+Re-flashing an S3R or Waveshare board to v0.4.0 auto-promotes it to the pro tier. The firmware migrates existing V1 calibration to the new 7-band V2 format via linear interpolation and sets a `calibration_stale` binary sensor to `on`. The HA integration logs a warning when it first sees that state; re-run quiet-room and music-level calibration to dismiss it and get best results. Basic-tier devices (Atom Echo, M5StickC Plus2) are unchanged by the upgrade.
+
+---
+
 ## Recommended hardware
 
 You need an ESP32 device with a microphone. Four options are listed below:
 
 ### M5Stack ATOM Echo
 
-The best starting point for most users, readily available.
+The best starting point for most users, readily available. Runs the **basic** DSP tier (3 bands, 22 kHz / 512-pt FFT).
 
 ![M5Stack ATOM Echo](https://raw.githubusercontent.com/absent42/esphome-audio-reactive/refs/heads/main/static/images/atom-echo.jpg)
 
 | | |
 |---|---|
 | **Price** | ~$13 |
+| **DSP tier** | Basic |
 | **Chipset** | ESP32-PICO-D4 |
 | **Microphone** | Built-in SPM1423 PDM |
 | **Feedback** | LED |
 | **Power** | USB-C |
 | **Size** | 24 x 24 x 17mm |
+| **Features** | Basic trier |
 | **Where to buy** | [M5Stack store](https://shop.m5stack.com/products/atom-echo-smart-speaker-dev-kit), [Pi Hut](https://thepihut.com/products/atom-echo-smart-speaker-dev-kit), [Amazon US](https://amzn.to/4dnA7GH), [Amazon UK](https://amzn.to/4bdYJQM), [Amazon DE](https://amzn.to/47lapii), [Amazon FR](https://amzn.to/4rU1Ja6), [Amazon IT](https://amzn.to/4rSoJWO), [AliExpress](https://s.click.aliexpress.com/e/_c3ULpt9b) |
 
 ### M5Stack ATOM Echo S3R
 
-Higher-quality audio with an ES8311 codec and speaker feedback for on-device status tones.
+Higher-quality audio with an ES8311 codec and speaker feedback for on-device status tones. Runs the **pro** DSP tier (7 musical bands, 44.1 kHz / 2048-pt FFT, BTrack beat tracker, SuperFlux onsets).
 
 ![M5Stack ATOM Echo S3R](https://raw.githubusercontent.com/absent42/esphome-audio-reactive/refs/heads/main/static/images/atom-echo-s3r.jpg)
 
 | | |
 |---|---|
 | **Price** | ~$15 |
-| **Chipset** | ESP32-S3 |
+| **DSP tier** | Pro |
+| **Chipset** | ESP32-S3 (with PSRAM) |
 | **Microphone** | MEMS via ES8311 ADC (I2S, 44.1kHz) |
 | **Audio codec** | ES8311 (mic ADC + speaker DAC) |
 | **Feedback** | Speaker tones (no LED) |
 | **Power** | USB-C |
 | **Size** | 24 x 24 x 17mm |
+| **Features** | Pro trier |
 | **Where to buy** | [M5Stack store](https://shop.m5stack.com/products/atom-echos3r-smart-speaker-dev-kit?variant=46751279710465), [Pi Hut](https://thepihut.com/products/atom-echos3r-smart-speaker-dev-kit), [AliExpress](https://s.click.aliexpress.com/e/_c4oQ7XMD) |
 
 ### Waveshare ESP32-S3 Audio Board
 
-Feature-rich board with dual MEMS microphones, 7-LED ring, and optional battery power.
+Feature-rich board with dual MEMS microphones, 7-LED ring, and optional battery power. Runs the **pro** DSP tier (7 musical bands, 44.1 kHz / 2048-pt FFT, BTrack beat tracker, SuperFlux onsets).
 
 ![Waveshare ESP32-S3](https://raw.githubusercontent.com/absent42/esphome-audio-reactive/refs/heads/main/static/images/waveshare-esp32-s3.jpg)
 
 | | |
 |---|---|
 | **Price** | ~$16 |
+| **DSP tier** | Pro |
 | **Chipset** | ESP32-S3R8 (8MB PSRAM) |
 | **Microphone** | Dual MEMS via ES7210 ADC (I2S, 44.1kHz) |
 | **Audio codec** | ES7210 (mic) + ES8311 (speaker) |
 | **Feedback** | LED ring |
 | **Power** | USB-C, optional battery |
 | **Size** | 58 x 58 x 49mm |
+| **Features** | Pro trier |
 | **Where to buy** | [Waveshare store](https://www.waveshare.com/esp32-s3-audio-board.htm), [Amazon US](https://amzn.to/4lqAoKU), [Amazon UK](https://amzn.to/414SkRU), [Amazon DE](https://amzn.to/4bvKK9b), [Amazon FR](https://amzn.to/4uQIu3U), [AliExpress](https://s.click.aliexpress.com/e/_c3nj7nSd) |
 
 ### M5StickC Plus2
 
-A compact development kit with a built-in screen, battery, and PDM microphone.
+A compact development kit with a built-in screen, battery, and PDM microphone. Runs the **basic** DSP tier (3 bands, 22 kHz / 512-pt FFT) — its ESP32-PICO-V3-02 is a classic ESP32 (not an S3).
 
 ![M5StickC Plus2](https://raw.githubusercontent.com/absent42/esphome-audio-reactive/refs/heads/main/static/images/m5stack-stick2.jpg)
 
 | | |
 |---|---|
 | **Price** | ~$20 |
+| **DSP tier** | Basic |
 | **Chipset** | ESP32-PICO-V3-02 |
 | **Microphone** | Built-in SPM1423 PDM |
 | **Feedback** | Screen |
 | **Power** | USB-C, built-in battery |
 | **Size** | 54 x 25 x 16mm |
+| **Features** | Basic trier |
 | **Where to buy** | [M5Stack store](https://shop.m5stack.com/products/m5stickc-plus2-esp32-mini-iot-development-kit), [Pi Hut](https://thepihut.com/products/m5stickc-plus2-esp32-mini-iot-development-kit), [Amazon US](https://amzn.to/470ydYE), [Amazon UK](https://amzn.to/4brZ0i4), [Amazon DE](https://amzn.to/3PZFwde), [Amazon FR](https://amzn.to/4uM3Dwh), [Amazon IT](https://amzn.to/4c3nJdU), [AliExpress](https://s.click.aliexpress.com/e/_c3liKXJr) |
 
 ---
@@ -195,6 +239,10 @@ Teaches the device what typical music levels look like in your setup, so the sen
 
 **Run quiet room calibration first, then music calibration.** If you change rooms, speaker setup, or device placement, re-run both calibrations.
 
+### Calibration Stale (pro tier)
+
+On ESP32-S3 boards upgraded from v0.3.x firmware, the `Audio Calibration Stale` binary sensor is automatically set to `on` — the old V1 calibration has been linearly interpolated into the new 7-band V2 format as a stopgap, but re-running both calibrations produces sharper results. The HA integration logs a one-time warning per device to prompt this. Run quiet-room + music-level calibration once and the sensor clears.
+
 ### Button actions
 
 **ATOM Echo / ATOM Echo S3R** — single button, click pattern:
@@ -234,6 +282,8 @@ After flashing and calibrating, the device should auto-discover in Home Assistan
 3. Click **Configure** if prompted
 4. Go to **Settings > Devices & services > Entities** and search for "audio sensor" or "bass energy"
 5. You should see the Audio Sensor binary sensor, five measurement sensors (Bass Energy, Mid Energy, High Energy, Amplitude, BPM), a Silence binary sensor, and control entities (Beat Sensitivity, Squelch, Detection Mode, Microphone Mute)
+
+**Pro tier devices** (Atom Echo S3R, Waveshare) additionally expose four musical-band sensors (Sub Bass, Low Mid, Upper Mid, Air energies), a Beat Event binary sensor that pulses tightly on each detected beat, and a Calibration Stale diagnostic binary sensor. Optional `FFT Task Cycle Mean/Peak` diagnostic sensors can be enabled in the device YAML for performance measurement on either tier.
 
 ### Testing the sensor
 
@@ -355,9 +405,11 @@ data:
   audio_color_advance: on_onset
   audio_detection_mode: spectral_flux
   audio_transition_speed: 70
-  audio_brightness_response: true
+  audio_brightness_curve: linear
+  audio_brightness_min: 30
+  audio_brightness_max: 100
   audio_frequency_zone: false
-  audio_silence_degradation: true
+  audio_silence_behavior: slow_cycle
   audio_color_by_frequency: false
   audio_rolloff_brightness: false
 ```
@@ -373,9 +425,11 @@ When `audio_entity` is set, the `transition_time` and `hold_time` values are ign
 | `audio_color_advance` | string | `on_onset` | How colors advance through the palette (see color advance modes below). |
 | `audio_detection_mode` | string | `spectral_flux` | Detection algorithm: `spectral_flux` (all genres), `bass_energy` (rhythmic music), or `complex_domain` (phase+magnitude, soft onsets). |
 | `audio_transition_speed` | 1-100 | 50 | How fast colors fade between changes. Higher = faster. |
-| `audio_brightness_response` | boolean | true | When enabled, brightness pulses with the music's volume. |
+| `audio_brightness_curve` | string/null | `linear` | Response curve for brightness modulation: `linear`, `logarithmic`, `exponential`, or `null` to disable. |
+| `audio_brightness_min` | 1-100 | 30 | Minimum brightness percent when audio is quiet. |
+| `audio_brightness_max` | 1-100 | 100 | Maximum brightness percent when audio is loud. |
 | `audio_frequency_zone` | boolean | false | Auto-distribute lights across bass/mid/high frequency bands. Requires 3+ lights. |
-| `audio_silence_degradation` | boolean | true | Gradually transition to slow palette cycling during silence. |
+| `audio_silence_behavior` | string | `slow_cycle` | Behavior during silence: `slow_cycle` (gradual palette cycling), `hold` (freeze), `decay_min` (fade to minimum), `decay_mid` (fade to midpoint). |
 | `audio_prediction_aggressiveness` | 1-100 | 50 | How aggressively to predict beats (beat_predictive mode only). |
 | `audio_latency_compensation_ms` | 0-500 | 150 | Milliseconds to send commands early to compensate for Zigbee latency (beat_predictive mode only). |
 | `audio_color_by_frequency` | boolean | false | Map spectral centroid to palette position. Low frequencies select warm colors, high frequencies select cool. |
@@ -390,6 +444,8 @@ When `audio_entity` is set, the `transition_time` and `hold_time` values are ign
 | **Beat predictive** (`beat_predictive`) | Learns the tempo and sends light commands early to compensate for Zigbee latency. | Steady-tempo music where tight sync matters |
 | **Intensity breathing** (`intensity_breathing`) | Slow brightness envelope tracks overall loudness. Ignores individual beats. | Background/ambient listening |
 | **Brightness flash** (`onset_flash`) | Slow color drift with brightness spikes on each onset. | Combining ambient flow with reactive punch |
+
+> **Hidden in v1.3.0:** `bass_kick` (band-dominance-gated kick-drum pulses) and `freq_to_hue` (spectral-centroid hue mapping) ship in the codebase but are filtered out of the dynamic-scene editor while their upstream firmware DSP is stabilised. They will return in a follow-up release. Existing scenes set to these values still load and run.
 
 ### Detection modes
 
@@ -460,22 +516,88 @@ The rolloff maps to a 0.5-1.0 brightness multiplier, so lights never go below 50
 
 ---
 
+## Audio-reactive effects
+
+In addition to dynamic scenes, hardware RGB effects on T1M and T1 Strip devices can be modulated by audio data. Audio-reactive effects modulate the effect's **speed** based on live audio analysis, rather than replacing the scene's color timing like audio-reactive scenes do.
+
+Note: Only speed modulation is supported for hardware effects. Brightness cannot be modulated in real time because the T1M restarts the effect on every brightness change.
+
+### Effect audio parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `audio_entity` | entity_id | none | ESPHome audio sensor entity (`binary_sensor` or `sensor`). Setting this enables audio modulation. Only supported on T1M and T1 Strip devices. |
+| `audio_sensitivity` | 1-100 | 50 | Beat detection sensitivity on the ESP32 device. |
+| `audio_silence_behavior` | string | `decay_min` | What happens when music stops: `hold` (keep last values), `decay_min` (fade to minimum), `decay_mid` (fade to midpoint). |
+| `audio_speed_mode` | string | `volume` | How audio drives effect speed (see speed modulation modes below). Set to `null` to disable. |
+| `audio_speed_min` | 1-100 | 1 | Minimum speed in the modulation range. |
+| `audio_speed_max` | 1-100 | 100 | Maximum speed in the modulation range. |
+
+### Speed modulation modes
+
+| Mode | Description |
+|---|---|
+| **Volume** (`volume`) | Louder music drives faster speed. Maps audio energy directly to the speed range. |
+
+> **Hidden in v1.3.0:** `tempo` (BPM-driven speed) and `combined` (BPM + volume) modes ship in the codebase but are filtered out of the effect editor while the upstream firmware BPM detection is stabilised. They will return in a follow-up release.
+### Effect audio from a service call
+
+Call `aqara_advanced_lighting.set_dynamic_effect` with the `audio_entity` parameter to enable audio modulation:
+
+```yaml
+service: aqara_advanced_lighting.set_dynamic_effect
+target:
+  entity_id: light.aqara_ceiling_light
+data:
+  effect: "breathing"
+  speed: 50
+  color_1: [255, 0, 0]
+  color_2: [0, 0, 255]
+  audio_entity: binary_sensor.audio_reactive_audio_sensor
+  audio_sensitivity: 60
+  audio_silence_behavior: decay_min
+  audio_speed_mode: volume
+  audio_speed_min: 10
+  audio_speed_max: 100
+```
+
+**Note:** Audio-reactive effects are not available for T2 bulbs. T2 devices do not support the required MQTT attributes for audio modulation.
+
+---
+
 ## How audio detection works
 
-The `esphome-audio-reactive` component performs on-device audio analysis using a dedicated FreeRTOS processing task:
+The `esphome-audio-reactive` component performs on-device audio analysis using a dedicated FreeRTOS processing task. The pipeline differs between the two DSP tiers.
 
-1. Audio is captured at the device's configured sample rate (22,050 Hz for ATOM Echo, 44,100 Hz for S3R and Waveshare)
-2. A ring buffer feeds samples to the FFT task running on ESP32 core 0
-3. Configurable FFT window (256 or 512 samples; default 512) with 75% overlap produces frequency magnitudes
-4. 16 frequency bands are computed with pink noise correction
-5. Spectral descriptors are computed: centroid (spectral brightness) and rolloff (energy concentration)
+### Basic tier (ESP32 / ESP32-PICO)
+
+1. Audio is captured at 22,050 Hz
+2. A ring buffer feeds samples to the FFT task on ESP32 core 0
+3. 512-sample FFT window with 75% overlap produces frequency magnitudes
+4. 16 frequency bands are computed with pink noise correction (aggregated to 3: bass/mid/high)
+5. Spectral descriptors: centroid (spectral brightness) and rolloff (85%-energy frequency)
 6. Adaptive spectral whitening is applied for onset detection
-7. Three onset detection modes: spectral flux (all-band), bass energy (bass-focused), and complex domain (phase+magnitude)
+7. Three onset detection modes: spectral flux, bass energy, and complex domain (phase+magnitude, Dixon 2006)
 8. Autocorrelation beat tracker estimates BPM with confidence scoring and beat phase tracking
-9. PI-controller automatic gain control normalizes values to 0-1 range
+9. PI-controller AGC normalizes values to 0-1 range
 10. Dynamics limiter and asymmetric smoothing produce clean, stable sensor output
 
-The device publishes the following sensors to Home Assistant:
+### Pro tier (ESP32-S3 + PSRAM)
+
+1. Audio is captured at 44,100 Hz
+2. A 4096-sample ring buffer feeds samples to the FFT task
+3. 2048-sample FFT window with 75% overlap (~86 Hz frame rate) produces frequency magnitudes
+4. 32-band log-mel filterbank (40 Hz – 16 kHz, sparse storage) aggregated to 7 perceptual musical bands: sub_bass, bass, low_mid, mid, upper_mid, high, air
+5. Per-band AGC with asymmetric EMA smoothing replaces the basic tier's 3-band aggregation
+6. Spectral centroid and rolloff unchanged (still computed from the full 2048-pt magnitudes)
+7. **SuperFlux** onset detector (Böck & Widmer 2013) — max-filter vibrato suppression + adaptive peak-picker on log-mel magnitudes; replaces complex-domain onset on this tier
+8. **BTrack** beat tracker (Stark, Davies, Plumbley 2009 — full port of [adamstark/BTrack](https://github.com/adamstark/BTrack)) — comb filterbank tempo induction + Viterbi tempo transitions + dynamic-programming beat-phase prediction; replaces the autocorrelation tracker on this tier. Emits a tight `beat_event` binary pulse on each beat boundary.
+9. Calibration is stored in a 7-band V2 format; existing V1 data is migrated via linear interpolation on first boot from v0.4.0 firmware (raises `calibration_stale` until the user re-runs calibration)
+10. All pro-tier DSP shares the same double-buffered atomic-publish pattern as basic — main loop reads are always consistent
+
+### Sensors published to Home Assistant
+
+Shared sensors (both tiers):
 
 | Sensor | Type | Description |
 |---|---|---|
@@ -491,6 +613,19 @@ The device publishes the following sensors to Home Assistant:
 | Spectral Rolloff | sensor (0-1) | Frequency below which 85% of energy is concentrated |
 | Onset Strength | sensor (0-1) | Magnitude of the most recent onset |
 | Silence | binary_sensor | On when room is quiet (noise gate active) |
+| FFT Task Cycle Mean (µs) | sensor *(opt-in)* | Rolling 1 s mean of FFT+DSP processing time per frame |
+| FFT Task Cycle Peak (µs) | sensor *(opt-in)* | Rolling 1 s peak of FFT+DSP processing time per frame |
+
+Pro-tier only:
+
+| Sensor | Type | Description |
+|---|---|---|
+| Sub Bass Energy | sensor (0-1) | 40–80 Hz band — kick-drum fundamentals |
+| Low Mid Energy | sensor (0-1) | 250–500 Hz band — bass guitar, male vocal lows |
+| Upper Mid Energy | sensor (0-1) | 2–4 kHz band — vocal presence, snare-drum body |
+| Air Energy | sensor (0-1) | 8–16 kHz band — cymbals, sibilance, "sparkle" |
+| Audio Beat | binary_sensor | 30 ms pulse on each detected beat boundary (BTrack output) |
+| Audio Calibration Stale | binary_sensor | On when calibration was migrated from v0.3.x firmware or never set — prompt to re-run calibration |
 
 You select the `Audio Sensor` binary sensor as your `audio_entity`. The integration automatically discovers all companion sensors on the same device by looking up sibling entities in the HA device registry. No manual configuration is needed beyond selecting the binary sensor.
 
@@ -520,7 +655,7 @@ The Aqara T1 Strip (`lumi.light.acn132`) has a built-in microphone and firmware-
 
 - The T1 Strip uses its own built-in microphone, while software-driven lights react to the external ESPHome sensor. They may not be perfectly in sync.
 - The T1 Strip's built-in effects (random, blink, rainbow, wave) do not use your scene's color palette. The palette only applies to software-driven lights.
-- The `audio_brightness_response` and `audio_transition_speed` parameters are not supported by the T1 Strip hardware and are ignored for on-device entities.
+- The `audio_brightness_curve` and `audio_transition_speed` parameters are not supported by the T1 Strip hardware and are ignored for on-device entities.
 
 ---
 
@@ -532,6 +667,16 @@ Lights with native audio-reactive modes (beyond the T1 Strip) can be configured 
 2. Under **On-device audio mode**, select the light entity
 3. Enter the service call to activate and deactivate the device's native audio mode
 4. When the light is part of an audio-reactive scene, the integration activates native mode instead of driving it via software
+
+---
+
+## Sharing a sensor between scenes and effects
+
+You can run an audio-reactive dynamic scene and an audio-reactive effect simultaneously using the same ESP32 sensor. The scene drives color transitions on software-controlled lights while the effect modulator adjusts speed on Aqara hardware effects — they control different aspects of your lights and work independently.
+
+**ESP32 configuration:** Each feature can specify its own detection mode and sensitivity. However, the ESP32 device has a single DSP pipeline, so it can only run one detection mode and one sensitivity at a time. When both are active, the **most recently activated** feature's settings take effect on the device. The other feature continues to operate but receives audio data processed with the newer settings.
+
+For the most predictable experience, use the same detection mode and sensitivity for both your scene presets and effect audio overrides when you plan to run them simultaneously.
 
 ---
 

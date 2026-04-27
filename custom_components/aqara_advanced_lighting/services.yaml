@@ -152,6 +152,71 @@ set_dynamic_effect:
       default: true
       selector:
         boolean:
+    audio_entity:
+      name: Audio entity
+      description: ESPHome audio sensor entity for audio-reactive modulation. Only supported on T1M and T1 Strip devices.
+      required: false
+      selector:
+        entity:
+          domain:
+            - binary_sensor
+            - sensor
+    audio_sensitivity:
+      name: Audio sensitivity
+      description: Beat detection sensitivity on the ESP32 device (1-100).
+      required: false
+      default: 50
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: slider
+    audio_silence_behavior:
+      name: Silence behavior
+      description: What happens to speed/brightness when music stops.
+      required: false
+      default: "decay_min"
+      selector:
+        select:
+          options:
+            - label: "Hold last values"
+              value: "hold"
+            - label: "Decay to minimum"
+              value: "decay_min"
+            - label: "Decay to midpoint"
+              value: "decay_mid"
+          mode: dropdown
+    audio_speed_mode:
+      name: Speed modulation mode
+      description: How audio drives the effect speed. "volume" maps amplitude to effect speed.
+      required: false
+      default: "volume"
+      selector:
+        select:
+          options:
+            - label: "Volume"
+              value: "volume"
+          mode: dropdown
+    audio_speed_min:
+      name: Speed minimum
+      description: Minimum speed in the modulation range (1-100).
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: slider
+    audio_speed_max:
+      name: Speed maximum
+      description: Maximum speed in the modulation range (1-100).
+      required: false
+      default: 100
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: slider
     z2m_base_topic:
       name: Z2M base topic (deprecated)
       description: "Deprecated: this field is no longer used. The correct backend topic is determined automatically from your integration configuration."
@@ -1083,6 +1148,16 @@ start_segment_sequence:
       default: true
       selector:
         boolean:
+    brightness:
+      name: Brightness override
+      description: Override brightness for the entire sequence (1-100%). Applied once at sequence start via the standard light.turn_on service. Leave blank to keep the current device brightness.
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 100
+          unit_of_measurement: "%"
+          mode: slider
     step_1:
       name: "Step 1 (Required)"
       collapsed: false
@@ -2410,12 +2485,37 @@ start_dynamic_scene:
           min: 1
           max: 100
           mode: slider
-    audio_brightness_response:
-      name: Audio brightness response
-      description: When enabled, louder sounds increase brightness.
-      default: true
+    audio_brightness_curve:
+      name: Brightness Response Curve
+      description: How energy maps to brightness (linear/logarithmic/exponential, or null to disable)
+      default: linear
+      required: false
       selector:
-        boolean:
+        select:
+          options:
+            - "linear"
+            - "logarithmic"
+            - "exponential"
+    audio_brightness_min:
+      name: Brightness Minimum
+      description: Minimum brightness percent when audio is quiet (1-100)
+      default: 30
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: slider
+    audio_brightness_max:
+      name: Brightness Maximum
+      description: Maximum brightness percent when audio is loud (1-100)
+      default: 100
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: slider
     audio_color_advance:
       name: Audio color advance
       description: >-
@@ -2428,11 +2528,18 @@ start_dynamic_scene:
       selector:
         select:
           options:
+            # NOTE: bass_kick and freq_to_hue are kept in this allow-list (and
+            # described in the schema validators) so existing scene configs
+            # storing those values still validate when loaded. The frontend's
+            # mode dropdown filters them out via MODE_REGISTRY's hidden flag —
+            # see audio_mode_handlers.py and the descope plan in docs/plans/.
             - "on_onset"
             - "continuous"
             - "beat_predictive"
             - "intensity_breathing"
             - "onset_flash"
+            - "bass_kick"
+            - "freq_to_hue"
     audio_detection_mode:
       name: Audio Detection Mode
       description: Algorithm for detecting musical events
@@ -2443,6 +2550,7 @@ start_dynamic_scene:
           options:
             - "spectral_flux"
             - "bass_energy"
+            - "complex_domain"
     audio_frequency_zone:
       name: Audio Frequency Zone
       description: Auto-distribute lights across bass/mid/high frequency bands
@@ -2450,13 +2558,18 @@ start_dynamic_scene:
       required: false
       selector:
         boolean:
-    audio_silence_degradation:
-      name: Audio Silence Degradation
-      description: Gradually transition to slow palette cycling during silence
-      default: true
+    audio_silence_behavior:
+      name: Silence Behavior
+      description: What to do when silence is detected (slow_cycle = gradual palette cycling, hold = freeze, decay_min/decay_mid = fade toward min/mid brightness)
+      default: slow_cycle
       required: false
       selector:
-        boolean:
+        select:
+          options:
+            - "hold"
+            - "slow_cycle"
+            - "decay_min"
+            - "decay_mid"
     audio_color_by_frequency:
       name: Color by Frequency
       description: Map spectral centroid to palette position (low frequency = warm, high = cool)

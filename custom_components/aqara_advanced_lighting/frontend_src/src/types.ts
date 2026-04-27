@@ -31,7 +31,17 @@ export interface HomeAssistant {
       eventType: string,
     ) => Promise<() => void>;
   };
+  /**
+   * Whether the WebSocket connection to HA is currently up. HA core sets
+   * this to false on disconnect and back to true when the auto-reconnect
+   * succeeds; events subscribed via `connection.subscribeEvents` are
+   * automatically re-subscribed by core on reconnect. The card watches a
+   * false -> true transition to fire a one-shot resync that catches any
+   * events missed during the outage.
+   */
+  connected?: boolean;
   entities?: Record<string, { entity_id: string; device_id?: string; platform?: string }>;
+  devices?: Record<string, { id: string; name?: string; name_by_user?: string | null }>;
 }
 
 export interface HassEntity {
@@ -61,6 +71,11 @@ export interface DynamicEffectPreset {
   brightness?: number;
   colors: number[][];
   device_types: string[];
+  audio_sensitivity?: number;
+  audio_silence_behavior?: string;
+  audio_speed_mode?: string | null;
+  audio_speed_min?: number;
+  audio_speed_max?: number;
 }
 
 export interface SegmentPatternPreset {
@@ -158,12 +173,14 @@ export interface DynamicScenePreset {
   end_behavior: string;
   audio_entity?: string;
   audio_sensitivity?: number;
-  audio_brightness_response?: boolean;
+  audio_brightness_curve?: 'linear' | 'logarithmic' | 'exponential' | null;
+  audio_brightness_min?: number;
+  audio_brightness_max?: number;
   audio_color_advance?: 'on_onset' | 'continuous' | 'beat_predictive' | 'intensity_breathing' | 'onset_flash';
   audio_transition_speed?: number;
   audio_detection_mode?: 'spectral_flux' | 'bass_energy' | 'complex_domain';
   audio_frequency_zone?: boolean;
-  audio_silence_degradation?: boolean;
+  audio_silence_behavior?: 'hold' | 'slow_cycle' | 'decay_min' | 'decay_mid';
   audio_prediction_aggressiveness?: number;
   audio_latency_compensation_ms?: number;
   audio_color_by_frequency?: boolean;
@@ -236,6 +253,15 @@ export interface SegmentColorEntry {
 }
 
 // User preset interfaces
+export interface AudioEffectConfig {
+  audio_entity: string;
+  audio_sensitivity?: number;
+  audio_silence_behavior?: 'hold' | 'decay_min' | 'decay_mid';
+  audio_speed_mode?: 'volume' | 'tempo' | 'combined' | null;
+  audio_speed_min?: number;
+  audio_speed_max?: number;
+}
+
 export interface UserEffectPreset {
   id: string;
   name: string;
@@ -246,6 +272,7 @@ export interface UserEffectPreset {
   effect_brightness?: number;
   effect_colors: XYColor[];  // Changed to XYColor for accurate color representation
   effect_segments?: string;
+  audio_config?: AudioEffectConfig;
   created_at: string;
   modified_at: string;
 }
@@ -308,12 +335,14 @@ export interface UserDynamicScenePreset {
   end_behavior: string;
   audio_entity?: string;
   audio_sensitivity?: number;
-  audio_brightness_response?: boolean;
+  audio_brightness_curve?: 'linear' | 'logarithmic' | 'exponential' | null;
+  audio_brightness_min?: number;
+  audio_brightness_max?: number;
   audio_color_advance?: 'on_onset' | 'continuous' | 'beat_predictive' | 'intensity_breathing' | 'onset_flash';
   audio_transition_speed?: number;
   audio_detection_mode?: 'spectral_flux' | 'bass_energy' | 'complex_domain';
   audio_frequency_zone?: boolean;
-  audio_silence_degradation?: boolean;
+  audio_silence_behavior?: 'hold' | 'slow_cycle' | 'decay_min' | 'decay_mid';
   audio_prediction_aggressiveness?: number;
   audio_latency_compensation_ms?: number;
   audio_color_by_frequency?: boolean;
@@ -360,7 +389,7 @@ export interface DeviceContext {
 export type PanelTab = 'activate' | 'effects' | 'patterns' | 'cct' | 'segments' | 'scenes' | 'presets' | 'config';
 
 // Sort options for presets
-export type PresetSortOption = 'name-asc' | 'name-desc' | 'date-new' | 'date-old';
+export type PresetSortOption = 'custom' | 'name-asc' | 'name-desc' | 'date-new' | 'date-old';
 
 export type PresetSortPreferences = Record<string, PresetSortOption>;
 
@@ -388,14 +417,22 @@ export interface UserPreferences {
   audio_override_sensitivity?: number;
   audio_override_color_advance?: 'on_onset' | 'continuous' | 'beat_predictive' | 'intensity_breathing' | 'onset_flash';
   audio_override_transition_speed?: number;
-  audio_override_brightness_response?: boolean;
+  audio_override_brightness_curve?: 'linear' | 'logarithmic' | 'exponential' | null;
+  audio_override_brightness_min?: number;
+  audio_override_brightness_max?: number;
   audio_override_detection_mode?: 'spectral_flux' | 'bass_energy';
   audio_override_frequency_zone?: boolean;
-  audio_override_silence_degradation?: boolean;
+  audio_override_silence_behavior?: 'hold' | 'slow_cycle' | 'decay_min' | 'decay_mid';
   audio_override_prediction_aggressiveness?: number;
   audio_override_latency_compensation_ms?: number;
   audio_override_color_by_frequency?: boolean;
   audio_override_rolloff_brightness?: boolean;
+  // Effect audio overrides
+  use_effect_audio_reactive?: boolean;
+  effect_audio_override_sensitivity?: number;
+  effect_audio_override_speed_enabled?: boolean;
+  effect_audio_override_brightness_enabled?: boolean;
+  effect_audio_override_silence_behavior?: string;
   hidden_builtin_presets?: FavoritePresetRef[];
   selected_entities?: string[];
   active_favorite_id?: string | null;
@@ -427,6 +464,7 @@ export interface EffectEditorDraft {
   colors: XYColor[];
   segments: string;
   hasUserInteraction: boolean;
+  audioConfig?: AudioEffectConfig;
 }
 
 export interface PatternEditorDraft {
@@ -512,12 +550,14 @@ export interface DynamicSceneEditorDraft {
   audioEnabled: boolean;
   audioEntity: string;
   audioSensitivity: number;
-  audioBrightnessResponse: boolean;
+  audioBrightnessCurve: 'linear' | 'logarithmic' | 'exponential' | null;
+  audioBrightnessMin: number;
+  audioBrightnessMax: number;
   audioColorAdvance: 'on_onset' | 'continuous' | 'beat_predictive' | 'intensity_breathing' | 'onset_flash';
   audioTransitionSpeed: number;
   audioDetectionMode: 'spectral_flux' | 'bass_energy' | 'complex_domain';
   audioFrequencyZone: boolean;
-  audioSilenceDegradation: boolean;
+  audioSilenceBehavior: 'hold' | 'slow_cycle' | 'decay_min' | 'decay_mid';
   audioPredictionAggressiveness: number;
   audioLatencyCompensationMs: number;
   audioColorByFrequency: boolean;

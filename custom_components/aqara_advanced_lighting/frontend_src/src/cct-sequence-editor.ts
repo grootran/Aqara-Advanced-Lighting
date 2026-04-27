@@ -2,7 +2,7 @@ import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, CCTSequenceStep, ScheduleStep, UserCCTSequencePreset, DeviceContext, CCTEditorDraft, Translations } from './types';
 import { ReorderableStepsMixin, reorderableStepStyles } from './reorderable-steps-mixin';
-import { editorFormStyles, localize, loopModeOptions, endBehaviorOptions } from './editor-constants';
+import { editorFormStyles, localize, loopModeOptions, endBehaviorOptions, renderInput } from './editor-constants';
 
 interface EditableStep extends CCTSequenceStep {
   id: string;
@@ -1240,31 +1240,30 @@ export class CCTSequenceEditor extends ReorderableStepsMixin(LitElement) {
         <div class="step-fields">
           <div class="step-field">
             <span class="step-field-label">${this._localize('editors.schedule_label')}</span>
-            <ha-textfield
-              .value=${step.label}
-              @change=${(e: Event) => {
+            ${renderInput({
+              value: step.label,
+              onChange: (e: Event) => {
                 const target = e.target as HTMLInputElement;
                 this._scheduleSteps = this._scheduleSteps.map(s =>
                   s.id === step.id ? { ...s, label: target.value } : s,
                 );
                 this._hasUserInteraction = true;
-              }}
-            ></ha-textfield>
+              },
+            })}
           </div>
           <div class="step-field">
             <span class="step-field-label">${this._localize('editors.schedule_time')}</span>
-            <ha-textfield
-              .value=${step.time}
-              .helper=${this._localize('editors.schedule_time_hint')}
-              .helperPersistent=${true}
-              @change=${(e: Event) => {
+            ${renderInput({
+              value: step.time,
+              hint: this._localize('editors.schedule_time_hint'),
+              onChange: (e: Event) => {
                 const target = e.target as HTMLInputElement;
                 this._scheduleSteps = this._scheduleSteps.map(s =>
                   s.id === step.id ? { ...s, time: target.value.trim() } : s,
                 );
                 this._hasUserInteraction = true;
-              }}
-            ></ha-textfield>
+              },
+            })}
           </div>
           <div class="step-field">
             <span class="step-field-label">${this._localize('editors.color_temperature_label', { value: step.color_temp.toString() })}</span>

@@ -19,6 +19,17 @@ export function getEntityFriendlyName(hass: HomeAssistant, entityId: string): st
   return entityId.split('.')[1]?.replace(/_/g, ' ') || entityId;
 }
 
+export function getEntityDeviceName(hass: HomeAssistant, entityId: string): string {
+  const entry = hass.entities?.[entityId];
+  if (entry?.device_id && hass.devices) {
+    const device = hass.devices[entry.device_id];
+    if (device) {
+      return device.name_by_user || device.name || getEntityFriendlyName(hass, entityId);
+    }
+  }
+  return getEntityFriendlyName(hass, entityId);
+}
+
 export function getEntityIcon(hass: HomeAssistant, entityId: string): string {
   const state = hass.states[entityId];
   if (state) {

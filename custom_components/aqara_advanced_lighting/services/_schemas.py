@@ -15,6 +15,12 @@ from ..const import (
     ACTIVATION_SEQUENTIAL_FORWARD,
     ACTIVATION_SEQUENTIAL_REVERSE,
     ATTR_AUDIO_EFFECT,
+    ATTR_AUDIO_ENTITY,
+    ATTR_AUDIO_SENSITIVITY,
+    ATTR_AUDIO_SILENCE_BEHAVIOR,
+    ATTR_AUDIO_SPEED_MAX,
+    ATTR_AUDIO_SPEED_MIN,
+    ATTR_AUDIO_SPEED_MODE,
     ATTR_BRIGHTNESS,
     ATTR_CLEAR_SEGMENTS,
     ATTR_COLOR_1,
@@ -48,7 +54,8 @@ from ..const import (
     DEFAULT_AUDIO_FREQUENCY_ZONE,
     DEFAULT_AUDIO_PREDICTION_AGGRESSIVENESS,
     DEFAULT_AUDIO_SENSITIVITY,
-    DEFAULT_AUDIO_SILENCE_DEGRADATION,
+    AUDIO_SILENCE_SLOW_CYCLE,
+    DEFAULT_AUDIO_RESPONSE_CURVE,
     DEFAULT_AUDIO_TRANSITION_SPEED,
     DEFAULT_DYNAMIC_SCENE_HOLD_TIME,
     DEFAULT_DYNAMIC_SCENE_TRANSITION_TIME,
@@ -90,6 +97,8 @@ from ..const import (
     SEGMENT_MODE_GRADIENT,
     VALID_AUDIO_COLOR_ADVANCE,
     VALID_AUDIO_DETECTION_MODES,
+    VALID_AUDIO_RESPONSE_CURVES,
+    VALID_AUDIO_SILENCE_BEHAVIORS,
     VALID_CCT_MODES,
     VALID_DISTRIBUTION_MODES,
     VALID_MUSIC_SYNC_EFFECTS,
@@ -164,6 +173,23 @@ SERVICE_SET_DYNAMIC_EFFECT_SCHEMA = vol.Schema(
         vol.Optional(ATTR_TURN_ON, default=False): cv.boolean,
         vol.Optional(ATTR_SYNC, default=True): cv.boolean,
         vol.Optional(ATTR_Z2M_BASE_TOPIC): cv.string,
+        # Audio-reactive effect modulation
+        vol.Optional(ATTR_AUDIO_ENTITY): cv.entity_id,
+        vol.Optional(ATTR_AUDIO_SENSITIVITY): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=100)
+        ),
+        vol.Optional(ATTR_AUDIO_SILENCE_BEHAVIOR): vol.In(
+            ["hold", "decay_min", "decay_mid"]
+        ),
+        vol.Optional(ATTR_AUDIO_SPEED_MODE): vol.In(
+            ["volume", "tempo", "combined"]
+        ),
+        vol.Optional(ATTR_AUDIO_SPEED_MIN): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=100)
+        ),
+        vol.Optional(ATTR_AUDIO_SPEED_MAX): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=100)
+        ),
     }
 )
 
@@ -432,6 +458,10 @@ _segment_sequence_schema_dict[vol.Optional(ATTR_SKIP_FIRST_IN_LOOP, default=Fals
     cv.boolean
 )
 _segment_sequence_schema_dict[vol.Optional(ATTR_Z2M_BASE_TOPIC)] = cv.string
+_segment_sequence_schema_dict[vol.Optional(ATTR_BRIGHTNESS)] = vol.All(
+    vol.Coerce(int),
+    vol.Range(min=MIN_BRIGHTNESS_PERCENT, max=MAX_BRIGHTNESS_PERCENT),
+)
 
 SERVICE_START_SEGMENT_SEQUENCE_SCHEMA = vol.Schema(_segment_sequence_schema_dict)
 
@@ -503,7 +533,15 @@ SERVICE_START_DYNAMIC_SCENE_SCHEMA = vol.Schema(
         vol.Optional("audio_sensitivity", default=DEFAULT_AUDIO_SENSITIVITY): vol.All(
             vol.Coerce(int), vol.Range(min=MIN_AUDIO_SENSITIVITY, max=MAX_AUDIO_SENSITIVITY)
         ),
-        vol.Optional("audio_brightness_response", default=True): cv.boolean,
+        vol.Optional("audio_brightness_curve", default=DEFAULT_AUDIO_RESPONSE_CURVE): vol.Any(
+            vol.In(VALID_AUDIO_RESPONSE_CURVES), None,
+        ),
+        vol.Optional("audio_brightness_min", default=30): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=100),
+        ),
+        vol.Optional("audio_brightness_max", default=100): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=100),
+        ),
         vol.Optional("audio_color_advance", default=AUDIO_COLOR_ADVANCE_ON_ONSET): vol.In(
             VALID_AUDIO_COLOR_ADVANCE
         ),
@@ -515,7 +553,9 @@ SERVICE_START_DYNAMIC_SCENE_SCHEMA = vol.Schema(
             VALID_AUDIO_DETECTION_MODES
         ),
         vol.Optional("audio_frequency_zone", default=DEFAULT_AUDIO_FREQUENCY_ZONE): cv.boolean,
-        vol.Optional("audio_silence_degradation", default=DEFAULT_AUDIO_SILENCE_DEGRADATION): cv.boolean,
+        vol.Optional("audio_silence_behavior", default=AUDIO_SILENCE_SLOW_CYCLE): vol.In(
+            VALID_AUDIO_SILENCE_BEHAVIORS
+        ),
         vol.Optional("audio_color_by_frequency", default=False): cv.boolean,
         vol.Optional("audio_rolloff_brightness", default=False): cv.boolean,
         vol.Optional("audio_prediction_aggressiveness", default=DEFAULT_AUDIO_PREDICTION_AGGRESSIVENESS): vol.All(

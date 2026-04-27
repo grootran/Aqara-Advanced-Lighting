@@ -14,70 +14,26 @@ import type {
   AnyPreset,
   PresetsData,
   UserPresetsData,
-  UserPreferences,
-  DynamicEffectPreset,
-  SegmentPatternPreset,
-  CCTSequencePreset,
-  SegmentSequencePreset,
-  DynamicScenePreset,
-  UserEffectPreset,
-  UserSegmentPatternPreset,
-  UserCCTSequencePreset,
-  UserSegmentSequencePreset,
-  UserDynamicScenePreset,
 } from './types';
 
-import {
-  renderEffectThumbnail,
-  renderSegmentPatternThumbnail,
-  renderCCTSequenceThumbnail,
-  renderSegmentSequenceThumbnail,
-  renderDynamicSceneThumbnail,
-} from './preset-thumbnails';
-
 import { PANEL_TRANSLATIONS } from './panel-translations';
-
-// ---------------------------------------------------------------------------
-// Module-level API cache — shared across all card instances on the dashboard
-// ---------------------------------------------------------------------------
-
-interface CacheEntry<T> {
-  data: T;
-  timestamp: number;
-}
-
-/** TTLs in milliseconds by endpoint category. */
-const CACHE_TTL_STATIC = 60 * 60 * 1000;   // 60 min — built-in presets, supported entities
-const CACHE_TTL_USER   =  2 * 60 * 1000;   //  2 min — user presets, user preferences
-
-const _apiCache = new Map<string, CacheEntry<unknown>>();
-
-/** Return cached data if still fresh, otherwise undefined. */
-function getCached<T>(key: string, ttl: number): T | undefined {
-  const entry = _apiCache.get(key);
-  if (entry && Date.now() - entry.timestamp < ttl) return entry.data as T;
-  return undefined;
-}
-
-/** Store data in the cache. */
-function setCache<T>(key: string, data: T): void {
-  _apiCache.set(key, { data, timestamp: Date.now() });
-}
-
-// ---------------------------------------------------------------------------
-// Config interface
-// ---------------------------------------------------------------------------
-
-interface AqaraFavoritesCardConfig {
-  type: string;
-  entity?: string;            // single entity (legacy/simple)
-  entities?: string[];        // multiple entities
-  title?: string;
-  columns?: number;
-  compact?: boolean;
-  show_names?: boolean;
-  highlight_user_presets?: boolean;
-}
+import { AqaraFavoritesCardConfig, CardLayout, normalizeCardConfig } from './card-config';
+import { resolveFavorites, type ResolvedFavorite } from './preset-runtime/preset-resolver';
+import { renderPresetIcon } from './preset-runtime/preset-icon';
+import { activatePreset, type ActivatePresetOptions } from './preset-runtime/preset-activator';
+import { applyCuration } from './card-curation';
+import {
+  getPresets,
+  getUserPresets,
+  getUserPreferences,
+  getSupportedEntities,
+  getRunningOperations,
+} from './data-client/aqara-api';
+import {
+  subscribeRunningOperations,
+  fetchRunningOnceOnAction,
+  filterActivePresets,
+} from './card-running-ops';
 
 // ---------------------------------------------------------------------------
 // Supported entity info (subset of what the API returns)
@@ -86,111 +42,6 @@ interface AqaraFavoritesCardConfig {
 interface SupportedEntityInfo {
   device_type: string;
   model_id: string;
-}
-
-// ---------------------------------------------------------------------------
-// Resolved favorite — a ref paired with its actual preset data
-// ---------------------------------------------------------------------------
-
-interface ResolvedFavorite {
-  ref: FavoritePresetRef;
-  preset: AnyPreset;
-  isUser: boolean;
-  deviceType?: string;
-}
-
-// ---------------------------------------------------------------------------
-// Card Editor
-// ---------------------------------------------------------------------------
-
-@customElement('aqara-preset-favorites-card-editor')
-export class AqaraPresetFavoritesCardEditor extends LitElement {
-  @property({ attribute: false }) public hass?: HomeAssistant;
-  @state() private _config?: AqaraFavoritesCardConfig;
-
-  private _t = PANEL_TRANSLATIONS.card;
-
-  public setConfig(config: AqaraFavoritesCardConfig): void {
-    this._config = { ...config };
-  }
-
-  protected render(): TemplateResult {
-    if (!this.hass || !this._config) return html``;
-
-    return html`
-      <div class="editor">
-        <ha-selector
-          .hass=${this.hass}
-          .label=${this._t.editor.entities_label}
-          .selector=${{ entity: { domain: 'light', multiple: true } }}
-          .value=${this._config.entities || (this._config.entity ? [this._config.entity] : [])}
-          .required=${true}
-          @value-changed=${(e: CustomEvent) => {
-            const val = e.detail.value as string[];
-            // Store as entities array, clear legacy single entity
-            this._updateConfig('entities', val?.length ? val : undefined);
-            if (this._config!.entity) this._updateConfig('entity', undefined);
-          }}
-        ></ha-selector>
-        <ha-textfield
-          .label=${this._t.editor.title_label}
-          .value=${this._config.title || ''}
-          @input=${(e: InputEvent) => this._updateConfig('title', (e.target as HTMLInputElement).value)}
-        ></ha-textfield>
-        <ha-textfield
-          .label=${this._t.editor.columns_label}
-          type="number"
-          min="0"
-          max="6"
-          .value=${String(this._config.columns || 0)}
-          @input=${(e: InputEvent) => {
-            const val = parseInt((e.target as HTMLInputElement).value, 10);
-            this._updateConfig('columns', isNaN(val) || val <= 0 ? undefined : val);
-          }}
-        ></ha-textfield>
-        <ha-formfield .label=${this._t.editor.compact_label}>
-          <ha-switch
-            .checked=${this._config.compact || false}
-            @change=${(e: Event) => this._updateConfig('compact', (e.target as HTMLInputElement).checked || undefined)}
-          ></ha-switch>
-        </ha-formfield>
-        <ha-formfield .label=${this._t.editor.show_names_label}>
-          <ha-switch
-            .checked=${this._config.show_names !== false}
-            @change=${(e: Event) => this._updateConfig('show_names', (e.target as HTMLInputElement).checked ? undefined : false)}
-          ></ha-switch>
-        </ha-formfield>
-        <ha-formfield .label=${this._t.editor.highlight_user_label}>
-          <ha-switch
-            .checked=${this._config.highlight_user_presets !== false}
-            @change=${(e: Event) => this._updateConfig('highlight_user_presets', (e.target as HTMLInputElement).checked ? undefined : false)}
-          ></ha-switch>
-        </ha-formfield>
-      </div>
-    `;
-  }
-
-  private _updateConfig(key: string, value: unknown): void {
-    if (!this._config) return;
-    const newConfig = { ...this._config, [key]: value };
-    // Remove undefined keys (but keep empty string for title — means "no title")
-    if (value === undefined || (value === '' && key !== 'title')) {
-      delete (newConfig as Record<string, unknown>)[key];
-    }
-    this._config = newConfig;
-    this.dispatchEvent(
-      new CustomEvent('config-changed', { detail: { config: newConfig } })
-    );
-  }
-
-  static styles = css`
-    .editor {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      padding: 16px;
-    }
-  `;
 }
 
 // ---------------------------------------------------------------------------
@@ -212,10 +63,47 @@ export class AqaraPresetFavoritesCard extends LitElement {
   @state() private _activating?: string;
   /** Maps preset ref.id to operation type for currently running presets. */
   @state() private _activePresets = new Map<string, string>();
+  /**
+   * Card-instance-local brightness slider value (1-100). In-memory only —
+   * never persisted; resets to 100 on card reload. Sent via
+   * ActivatePresetOptions.brightness when `brightness_override` is enabled.
+   */
+  @state() private _brightnessValue = 100;
+
+  /**
+   * Look up the running operation type for a favorite preset, handling the
+   * preset_id mismatch where dynamic scenes (and other preset variants)
+   * report their name in running_operations rather than their id.
+   *
+   * Tries ref.id first (matches when activator sends preset: preset.id, e.g.
+   * built-in effects), then falls back to preset.name (matches dynamic scenes
+   * where the activator sends scene_name: preset.name, and user variants
+   * where the activator sends preset: preset.name).
+   *
+   * Verifies the operation type matches the favorite type so collisions
+   * across preset types (e.g. an effect and a scene with the same string
+   * key) cannot cross-trigger.
+   */
+  private _findActiveOpType(ref: FavoritePresetRef, preset: AnyPreset): string | undefined {
+    const byId = this._activePresets.get(ref.id);
+    if (byId === ref.type) return byId;
+    const byName = this._activePresets.get(preset.name);
+    if (byName === ref.type) return byName;
+    return undefined;
+  }
 
   private _dataLoaded = false;
-  private _hassConnected = false;
-  private _pollTimer?: ReturnType<typeof setInterval>;
+  private _unsubRunningOps?: () => void;
+  private _subscriptionFailed = false;
+  private _lastHassConnected = true;
+  private _subscribing = false;
+  /**
+   * Entity IDs the current running-ops subscription is filtered on. Used in
+   * `updated()` to detect when Lovelace mutates `_config.entities` on the same
+   * card element instance and rebind the subscription so the filter doesn't
+   * go stale.
+   */
+  private _subscribedEntityIds: string[] = [];
 
   // -- Lovelace card API --------------------------------------------------
 
@@ -223,7 +111,7 @@ export class AqaraPresetFavoritesCard extends LitElement {
     if (!config.entity && (!config.entities || config.entities.length === 0)) {
       throw new Error('At least one entity is required');
     }
-    this._config = config;
+    this._config = normalizeCardConfig(config);
   }
 
   /** Get the configured entity list, supporting both single and multi formats. */
@@ -247,60 +135,115 @@ export class AqaraPresetFavoritesCard extends LitElement {
 
   // -- Lifecycle -----------------------------------------------------------
 
-  protected updated(changedProps: PropertyValues): void {
+  protected async updated(changedProps: PropertyValues): Promise<void> {
     super.updated(changedProps);
+    // Re-entry guard: updated() is async and Lit does not await it. Prevent
+    // overlapping invocations between _loadData and _startSubscription, which
+    // could otherwise leak subscriptions or duplicate work.
+    if (this._subscribing) return;
+
     if (changedProps.has('hass') && this.hass) {
-      const wasConnected = this._hassConnected;
-      this._hassConnected = true;
-      // Load on first hass, or reload if hass was lost and came back
-      if (!this._dataLoaded || !wasConnected) {
-        this._loadData();
-        this._startPolling();
+      this._subscribing = true;
+      try {
+        const isFirstLoad = !this._dataLoaded;
+        if (isFirstLoad) {
+          await this._loadData();
+          await this._startSubscription();
+          this._lastHassConnected = this.hass.connected !== false;
+        } else {
+          // hass.connected transition false -> true triggers a one-shot resync
+          // (spec Section 1.3). HA's WS client automatically re-subscribes
+          // events on reconnect, so we do NOT tear down or recreate the
+          // subscription - we just catch any events missed during the outage.
+          const isConnected = this.hass.connected !== false;
+          if (!this._lastHassConnected && isConnected) {
+            await this._resyncRunningOps();
+          }
+          this._lastHassConnected = isConnected;
+        }
+      } finally {
+        this._subscribing = false;
       }
     }
     if (changedProps.has('hass') && !this.hass) {
-      this._hassConnected = false;
-      this._stopPolling();
+      this._stopSubscription();
+    }
+
+    // Rebind the running-ops subscription when the configured entity set
+    // changes on the same element instance. Lovelace can mutate `_config`
+    // via setConfig without recreating the card, in which case the existing
+    // subscription's filter list goes stale. Compare the current resolved
+    // entity IDs against the last-subscribed set and re-subscribe on diff.
+    if (changedProps.has('_config') && this._dataLoaded && this.hass && !this._subscribing) {
+      const currentIds = this._getEntityIds();
+      const sameSet =
+        currentIds.length === this._subscribedEntityIds.length &&
+        currentIds.every(id => this._subscribedEntityIds.includes(id));
+      if (!sameSet) {
+        this._subscribing = true;
+        try {
+          await this._startSubscription();
+        } finally {
+          this._subscribing = false;
+        }
+      }
     }
   }
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
-    this._stopPolling();
+    this._stopSubscription();
   }
 
-  private _startPolling(): void {
-    this._stopPolling();
-    // Poll running operations every 5 seconds to track active presets
-    this._pollRunningOperations();
-    this._pollTimer = setInterval(() => this._pollRunningOperations(), 5000);
-  }
-
-  private _stopPolling(): void {
-    if (this._pollTimer) {
-      clearInterval(this._pollTimer);
-      this._pollTimer = undefined;
+  /** Subscribe to running-operations events. Tracks degraded-mode flag. */
+  private async _startSubscription(): Promise<void> {
+    this._stopSubscription();
+    if (!this.hass) return;
+    const entityIds = this._getEntityIds();
+    try {
+      const unsub = await subscribeRunningOperations(
+        this.hass,
+        entityIds,
+        (active) => { this._activePresets = active; },
+      );
+      // If the element was disconnected while we were awaiting subscribe,
+      // _stopSubscription has already run with an undefined _unsubRunningOps,
+      // so we must clean up the just-resolved subscription ourselves.
+      if (!this.isConnected) {
+        unsub();
+        return;
+      }
+      this._unsubRunningOps = unsub;
+      this._subscriptionFailed = false;
+      // Track the subscribed entity IDs so updated() can detect later
+      // mutations to _config.entities and rebind the subscription.
+      this._subscribedEntityIds = [...entityIds];
+    } catch {
+      // subscribeRunningOperations logs once-per-page-load internally; do
+      // not double-log here. Caller checks _subscriptionFailed to decide
+      // whether to use fetchRunningOnceOnAction after user actions.
+      this._subscriptionFailed = true;
+      this._subscribedEntityIds = [];
     }
   }
 
-  /** Fetch running operations and update _activePresets map. */
-  private async _pollRunningOperations(): Promise<void> {
+  /** One-shot resync after a connection bounce. Silent on failure. */
+  private async _resyncRunningOps(): Promise<void> {
     if (!this.hass) return;
     try {
-      const resp = await this.hass.callApi<{ operations: Array<{ type: string; entity_id: string; preset_id?: string }> }>(
-        'GET', 'aqara_advanced_lighting/running_operations'
-      );
-      const entityIds = new Set(this._getEntityIds());
-      const active = new Map<string, string>();
-      for (const op of resp.operations || []) {
-        if (op.preset_id && entityIds.has(op.entity_id)) {
-          active.set(op.preset_id, op.type);
-        }
-      }
-      this._activePresets = active;
+      const resp = await getRunningOperations(this.hass, { bypassCache: true });
+      this._activePresets = filterActivePresets(resp.operations, this._getEntityIds());
     } catch {
-      // Silently ignore poll failures — card stays functional
+      // Silent - subscription will recover when next event fires.
     }
+  }
+
+  private _stopSubscription(): void {
+    if (this._unsubRunningOps) {
+      this._unsubRunningOps();
+      this._unsubRunningOps = undefined;
+    }
+    this._subscribedEntityIds = [];
   }
 
   // -- Data loading --------------------------------------------------------
@@ -311,35 +254,20 @@ export class AqaraPresetFavoritesCard extends LitElement {
     this._error = undefined;
 
     try {
-      // Check cache for each endpoint, only fetch what's missing
-      type EntitiesResp = { entities: Array<{ entity_id: string; device_type: string; model_id: string }> };
-
-      const cachedPresets = getCached<PresetsData>('presets', CACHE_TTL_STATIC);
-      const cachedUserPresets = getCached<UserPresetsData>('user_presets', CACHE_TTL_USER);
-      const cachedPrefs = getCached<UserPreferences>('user_preferences', CACHE_TTL_USER);
-      const cachedEntities = getCached<EntitiesResp>('supported_entities', CACHE_TTL_STATIC);
-
-      // Build fetch promises only for stale/missing data
-      const fetches = {
-        presets: cachedPresets ?? this._fetchPresetsData(),
-        userPresets: cachedUserPresets ?? this.hass.callApi<UserPresetsData>('GET', 'aqara_advanced_lighting/user_presets'),
-        prefs: cachedPrefs ?? this.hass.callApi<UserPreferences>('GET', 'aqara_advanced_lighting/user_preferences'),
-        entities: cachedEntities ?? this.hass.callApi<EntitiesResp>('GET', 'aqara_advanced_lighting/supported_entities'),
-      };
-
       const [presetsResp, userPresetsResp, prefsResp, entitiesResp] = await Promise.all([
-        fetches.presets, fetches.userPresets, fetches.prefs, fetches.entities,
+        getPresets(this.hass),
+        getUserPresets(this.hass),
+        getUserPreferences(this.hass),
+        getSupportedEntities(this.hass),
       ]);
-
-      // Update cache for freshly fetched data
-      if (!cachedPresets) setCache('presets', presetsResp);
-      if (!cachedUserPresets) setCache('user_presets', userPresetsResp);
-      if (!cachedPrefs) setCache('user_preferences', prefsResp);
-      if (!cachedEntities) setCache('supported_entities', entitiesResp);
 
       this._presets = presetsResp;
       this._userPresets = userPresetsResp;
       this._favoriteRefs = prefsResp.favorite_presets || [];
+      // Note: user audio preferences are no longer cached on the element. They
+      // are re-fetched per-activation via getUserPreferences() so that panel
+      // mutations to audio overrides take effect on the next card activation
+      // (the shared API client invalidates its cache on those mutations).
 
       const entityMap = new Map<string, SupportedEntityInfo>();
       for (const entity of entitiesResp.entities || []) {
@@ -358,16 +286,6 @@ export class AqaraPresetFavoritesCard extends LitElement {
     }
   }
 
-  /**
-   * Fetch built-in presets data. Uses fetchWithAuth because this endpoint
-   * returns raw JSON (not the callApi wrapper format).
-   */
-  private async _fetchPresetsData(): Promise<PresetsData> {
-    const resp = await this.hass.fetchWithAuth('/api/aqara_advanced_lighting/presets');
-    if (!resp.ok) throw new Error(`Presets fetch failed: ${resp.status}`);
-    return resp.json() as Promise<PresetsData>;
-  }
-
   // -- Device type + compatibility -----------------------------------------
 
   /** Get the set of device types across all configured entities. */
@@ -381,398 +299,101 @@ export class AqaraPresetFavoritesCard extends LitElement {
     return types;
   }
 
-  /**
-   * Determine if a preset is compatible with the configured entities.
-   * Mirrors the panel's _filterPresets() at aqara-panel.ts:1930-1968
-   * and the isDeviceCompatible() closure at aqara-panel.ts:5242-5250.
-   */
-  private _isPresetCompatible(
-    ref: FavoritePresetRef,
-    deviceTypes: string[],
-    presetDeviceType?: string,
-  ): boolean {
-    if (deviceTypes.length === 0) {
-      // Unknown entities: only show universal preset types
-      return ref.type === 'cct_sequence' || ref.type === 'dynamic_scene';
-    }
-
-    // Device capability flags (same logic as _filterPresets)
-    const hasT2 = deviceTypes.includes('t2_bulb');
-    const hasT1M = deviceTypes.includes('t1m');
-    const hasT1Strip = deviceTypes.includes('t1_strip');
-    const hasGenericRGB = deviceTypes.includes('generic_rgb');
-    const hasT2CCT = deviceTypes.includes('t2_cct');
-    const hasT1MWhite = deviceTypes.includes('t1m_white');
-    const hasGenericCCT = deviceTypes.includes('generic_cct');
-
-    const isRGB = hasT2 || hasT1M || hasT1Strip || hasGenericRGB;
-    const isSegment = hasT1M || hasT1Strip;
-    const hasCCT = hasT2 || hasT2CCT || hasT1MWhite || hasT1Strip || hasGenericRGB || hasGenericCCT;
-
-    // Check device-specific preset compatibility
-    const isDeviceCompatible = (dt: string | undefined): boolean => {
-      if (!dt) return true;
-      switch (dt) {
-        case 't2_bulb': return hasT2;
-        case 't1m': case 't1': return hasT1M;
-        case 't1_strip': return hasT1Strip;
-        default: return true;
-      }
-    };
-
-    switch (ref.type) {
-      case 'effect':
-        return isRGB && isDeviceCompatible(presetDeviceType);
-      case 'segment_pattern':
-        return isSegment && isDeviceCompatible(presetDeviceType);
-      case 'cct_sequence':
-        return hasCCT;
-      case 'segment_sequence':
-        return isSegment && isDeviceCompatible(presetDeviceType);
-      case 'dynamic_scene':
-        return isRGB;
-      default:
-        return false;
-    }
-  }
-
-  // -- Favorite resolution -------------------------------------------------
-
-  /**
-   * Resolve FavoritePresetRef[] into actual preset objects.
-   * Mirrors aqara-panel.ts:574-644 (_getResolvedFavoritePresets).
-   */
-  private _resolvedFavorites(): ResolvedFavorite[] {
-    if (!this._presets || !this._userPresets) return [];
-
-    const deviceTypes = this._getSelectedDeviceTypes();
-    const resolved: ResolvedFavorite[] = [];
-
-    for (const ref of this._favoriteRefs) {
-      let preset: AnyPreset | null = null;
-      let isUser = false;
-      let deviceType: string | undefined;
-
-      switch (ref.type) {
-        case 'effect': {
-          for (const key of ['t2_bulb', 't1m', 't1_strip'] as const) {
-            const found = this._presets.dynamic_effects?.[key]?.find(p => p.id === ref.id);
-            if (found) { preset = found; deviceType = key; break; }
-          }
-          if (!preset) {
-            const userPreset = this._userPresets.effect_presets?.find(p => p.id === ref.id);
-            if (userPreset) { preset = userPreset; isUser = true; deviceType = userPreset.device_type; }
-          }
-          break;
-        }
-        case 'segment_pattern': {
-          preset = this._presets.segment_patterns?.find(p => p.id === ref.id) || null;
-          if (!preset) {
-            const userPreset = this._userPresets.segment_pattern_presets?.find(p => p.id === ref.id);
-            if (userPreset) { preset = userPreset; isUser = true; deviceType = userPreset.device_type; }
-          }
-          break;
-        }
-        case 'cct_sequence': {
-          preset = this._presets.cct_sequences?.find(p => p.id === ref.id) || null;
-          if (!preset) {
-            preset = this._userPresets.cct_sequence_presets?.find(p => p.id === ref.id) || null;
-            if (preset) isUser = true;
-          }
-          break;
-        }
-        case 'segment_sequence': {
-          preset = this._presets.segment_sequences?.find(p => p.id === ref.id) || null;
-          if (!preset) {
-            const userPreset = this._userPresets.segment_sequence_presets?.find(p => p.id === ref.id);
-            if (userPreset) { preset = userPreset; isUser = true; deviceType = userPreset.device_type; }
-          }
-          break;
-        }
-        case 'dynamic_scene': {
-          preset = this._presets.dynamic_scenes?.find(p => p.id === ref.id) || null;
-          if (!preset) {
-            preset = this._userPresets.dynamic_scene_presets?.find(p => p.id === ref.id) || null;
-            if (preset) isUser = true;
-          }
-          break;
-        }
-      }
-
-      if (preset && this._isPresetCompatible(ref, deviceTypes, deviceType)) {
-        resolved.push({ ref, preset, isUser, deviceType });
-      }
-    }
-
-    return resolved;
-  }
-
   // -- Preset activation ---------------------------------------------------
 
   /**
-   * Activate a preset by dispatching to the appropriate service call.
-   * Mirrors aqara-panel.ts:648-686 (_activateFavoritePreset) and the
-   * individual _activate* methods at lines 2240-3245.
-   *
-   * The card does NOT apply panel overrides (custom brightness, audio
-   * override, static scene mode, distribution mode override). It activates
-   * presets as-configured.
+   * Activate a preset via the shared preset-runtime activator.
+   * Toggles off if the preset is already running.
    */
   private async _activatePreset(ref: FavoritePresetRef, preset: AnyPreset, isUser: boolean): Promise<void> {
     const entityIds = this._getEntityIds();
     if (entityIds.length === 0) return;
 
     // Toggle: if this preset is already active, stop it instead
-    const activeType = this._activePresets.get(ref.id);
+    const activeType = this._findActiveOpType(ref, preset);
     if (activeType) {
-      await this._stopPreset(ref.id, activeType);
+      // Use preset.name for stop key when ref.id didn't match (consistency
+      // with the lookup above: stopPreset uses the same key the user sees
+      // as "active" in _activePresets).
+      const activeKey = this._activePresets.has(ref.id) ? ref.id : preset.name;
+      await this._stopPreset(activeKey, activeType);
       return;
     }
 
     this._activating = ref.id;
     try {
-      switch (ref.type) {
-        case 'effect':
-          if (isUser) {
-            await this._activateUserEffect(entityIds, preset as UserEffectPreset);
-          } else {
-            await this._activateBuiltinEffect(entityIds, preset as DynamicEffectPreset);
-          }
-          break;
-        case 'segment_pattern':
-          if (isUser) {
-            await this._activateUserPattern(entityIds, preset as UserSegmentPatternPreset);
-          } else {
-            await this._activateBuiltinPattern(entityIds, preset as SegmentPatternPreset);
-          }
-          break;
-        case 'cct_sequence':
-          if (isUser) {
-            await this._activateUserCCTSequence(entityIds, preset as UserCCTSequencePreset);
-          } else {
-            await this._activateBuiltinCCTSequence(entityIds, preset as CCTSequencePreset);
-          }
-          break;
-        case 'segment_sequence':
-          if (isUser) {
-            await this._activateUserSegmentSequence(entityIds, preset as UserSegmentSequencePreset);
-          } else {
-            await this._activateBuiltinSegmentSequence(entityIds, preset as SegmentSequencePreset);
-          }
-          break;
-        case 'dynamic_scene':
-          if (isUser) {
-            await this._activateUserDynamicScene(entityIds, preset as UserDynamicScenePreset);
-          } else {
-            await this._activateBuiltinDynamicScene(entityIds, preset as DynamicScenePreset);
-          }
-          break;
-      }
+      const options = await this._buildActivationOptions();
+      await activatePreset(this.hass, entityIds, ref, preset, isUser, options);
     } catch (err) {
       console.error('AqaraFavoritesCard: activation failed', err);
     } finally {
       this._activating = undefined;
-      // Refresh active state immediately after activation
-      this._pollRunningOperations();
-    }
-  }
-
-  // -- Builtin activation (aqara-panel.ts:2240-2299) -----------------------
-
-  private async _activateBuiltinEffect(entityIds: string[], preset: DynamicEffectPreset): Promise<void> {
-    await this.hass.callService('aqara_advanced_lighting', 'set_dynamic_effect', {
-      entity_id: entityIds,
-      preset: preset.id,
-      turn_on: true,
-      sync: true,
-    });
-  }
-
-  private async _activateBuiltinPattern(entityIds: string[], preset: SegmentPatternPreset): Promise<void> {
-    await this.hass.callService('aqara_advanced_lighting', 'set_segment_pattern', {
-      entity_id: entityIds,
-      preset: preset.id,
-      turn_on: true,
-      sync: true,
-    });
-  }
-
-  private async _activateBuiltinCCTSequence(entityIds: string[], preset: CCTSequencePreset): Promise<void> {
-    const isAdaptive = preset.mode === 'solar' || preset.mode === 'schedule';
-    await this.hass.callService('aqara_advanced_lighting', 'start_cct_sequence', {
-      entity_id: entityIds,
-      preset: preset.id,
-      ...(!isAdaptive && { turn_on: true }),
-      sync: true,
-    });
-  }
-
-  private async _activateBuiltinSegmentSequence(entityIds: string[], preset: SegmentSequencePreset): Promise<void> {
-    await this.hass.callService('aqara_advanced_lighting', 'start_segment_sequence', {
-      entity_id: entityIds,
-      preset: preset.id,
-      turn_on: true,
-      sync: true,
-    });
-  }
-
-  private async _activateBuiltinDynamicScene(entityIds: string[], preset: DynamicScenePreset): Promise<void> {
-    const serviceData: Record<string, unknown> = {
-      entity_id: entityIds,
-      scene_name: preset.name,
-      transition_time: preset.transition_time,
-      hold_time: preset.hold_time,
-      distribution_mode: preset.distribution_mode,
-      random_order: preset.random_order,
-      loop_mode: preset.loop_mode,
-      end_behavior: preset.end_behavior,
-      colors: preset.colors.map(c => ({ x: c.x, y: c.y, brightness_pct: c.brightness_pct })),
-    };
-    if (preset.offset_delay !== undefined && preset.offset_delay > 0) {
-      serviceData.offset_delay = preset.offset_delay;
-    }
-    if (preset.loop_mode === 'count' && preset.loop_count !== undefined) {
-      serviceData.loop_count = preset.loop_count;
-    }
-    await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
-  }
-
-  // -- User preset activation (aqara-panel.ts:3017-3245) -------------------
-
-  private async _activateUserEffect(entityIds: string[], preset: UserEffectPreset): Promise<void> {
-    const serviceData: Record<string, unknown> = {
-      entity_id: entityIds,
-      effect: preset.effect,
-      speed: preset.effect_speed,
-      preset: preset.name,
-      turn_on: true,
-      sync: true,
-    };
-    preset.effect_colors.forEach((c, i) => {
-      if (i < 8) serviceData[`color_${i + 1}`] = { x: c.x, y: c.y };
-    });
-    if (preset.effect_brightness !== undefined) {
-      serviceData.brightness = preset.effect_brightness;
-    }
-    if (preset.effect_segments) {
-      serviceData.segments = preset.effect_segments;
-    }
-    await this.hass.callService('aqara_advanced_lighting', 'set_dynamic_effect', serviceData);
-  }
-
-  private async _activateUserPattern(entityIds: string[], preset: UserSegmentPatternPreset): Promise<void> {
-    if (!preset.segments?.length) return;
-    const segment_colors = preset.segments
-      .filter(s => s?.color)
-      .map(s => ({ segment: s.segment, color: { r: s.color.r, g: s.color.g, b: s.color.b } }));
-    if (segment_colors.length === 0) return;
-
-    await this.hass.callService('aqara_advanced_lighting', 'set_segment_pattern', {
-      entity_id: entityIds,
-      segment_colors,
-      preset: preset.name,
-      turn_on: true,
-      sync: true,
-      turn_off_unspecified: true,
-    });
-  }
-
-  private async _activateUserCCTSequence(entityIds: string[], preset: UserCCTSequencePreset): Promise<void> {
-    // Adaptive presets are resolved by name on the backend
-    if (preset.mode === 'solar' || preset.mode === 'schedule') {
-      await this.hass.callService('aqara_advanced_lighting', 'start_cct_sequence', {
-        entity_id: entityIds,
-        preset: preset.name,
-        sync: true,
-      });
-      return;
-    }
-
-    const serviceData: Record<string, unknown> = {
-      entity_id: entityIds,
-      preset: preset.name,
-      loop_mode: preset.loop_mode,
-      end_behavior: preset.end_behavior,
-      turn_on: true,
-      sync: true,
-    };
-    if (preset.loop_mode === 'count' && preset.loop_count !== undefined) {
-      serviceData.loop_count = preset.loop_count;
-    }
-    preset.steps.forEach((step, i) => {
-      const n = i + 1;
-      if (n <= 20) {
-        serviceData[`step_${n}_color_temp`] = step.color_temp;
-        serviceData[`step_${n}_brightness`] = step.brightness;
-        serviceData[`step_${n}_transition`] = step.transition;
-        serviceData[`step_${n}_hold`] = step.hold;
+      // If the subscription is healthy, the backend event fires server-side
+      // and the callback updates _activePresets within milliseconds; no
+      // explicit refresh needed. In degraded mode, do a one-shot fetch to
+      // keep the UI in sync without reintroducing periodic polling.
+      if (this._subscriptionFailed) {
+        await fetchRunningOnceOnAction(this.hass, this._getEntityIds(), (active) => {
+          this._activePresets = active;
+        });
       }
-    });
-    await this.hass.callService('aqara_advanced_lighting', 'start_cct_sequence', serviceData);
+    }
   }
 
-  private async _activateUserSegmentSequence(entityIds: string[], preset: UserSegmentSequencePreset): Promise<void> {
-    const serviceData: Record<string, unknown> = {
-      entity_id: entityIds,
-      preset: preset.name,
-      loop_mode: preset.loop_mode,
-      end_behavior: preset.end_behavior,
-      turn_on: true,
-      sync: true,
-    };
-    if (preset.loop_mode === 'count' && preset.loop_count !== undefined) {
-      serviceData.loop_count = preset.loop_count;
+  /**
+   * Map the user preferences to ActivatePresetOptions so the card matches
+   * panel activation behavior. The audioOverrideEntity is the most important
+   * field here: built-in audio-reactive presets (e.g. Concert) carry
+   * audio_color_advance but no audio_entity of their own, and rely on this
+   * fallback. When the user has enabled `useAudioReactive`, the activator
+   * also applies the full set of user-level audio overrides.
+   *
+   * Prefs are fetched per-activation (not cached on the element) so that
+   * panel mutations to audio overrides take effect immediately on the next
+   * card activation. The shared API client uses a 2-min TTL cache that is
+   * invalidated on mutation, so the typical cost is a memory read.
+   *
+   * Note: staticSceneMode/distributionModeOverride are panel-only UI features
+   * the card does not expose, so they are intentionally left undefined.
+   * Phase 2 adds `brightness` from the inline slider when the card config
+   * enables `brightness_override`.
+   */
+  private async _buildActivationOptions(): Promise<ActivatePresetOptions> {
+    let prefs;
+    try {
+      prefs = await getUserPreferences(this.hass);
+    } catch {
+      // Treat as no prefs available - fall through to brightness-only options.
+      // The activator will activate without audio overrides; activation still
+      // succeeds for non-audio presets and for built-ins that carry their own
+      // audio configuration.
     }
-    preset.steps.forEach((step, i) => {
-      const n = i + 1;
-      if (n <= 20) {
-        serviceData[`step_${n}_segments`] = step.segments;
-        serviceData[`step_${n}_mode`] = step.mode;
-        serviceData[`step_${n}_duration`] = step.duration;
-        serviceData[`step_${n}_hold`] = step.hold;
-        serviceData[`step_${n}_activation_pattern`] = step.activation_pattern;
-        if (step.colors?.length) {
-          step.colors.forEach((color: number[], ci: number) => {
-            if (ci < 6) serviceData[`step_${n}_color_${ci + 1}`] = color;
-          });
-        }
-      }
-    });
-    await this.hass.callService('aqara_advanced_lighting', 'start_segment_sequence', serviceData);
-  }
-
-  private async _activateUserDynamicScene(entityIds: string[], preset: UserDynamicScenePreset): Promise<void> {
-    const serviceData: Record<string, unknown> = {
-      entity_id: entityIds,
-      scene_name: preset.name,
-      transition_time: preset.transition_time,
-      hold_time: preset.hold_time,
-      distribution_mode: preset.distribution_mode,
-      random_order: preset.random_order,
-      loop_mode: preset.loop_mode,
-      end_behavior: preset.end_behavior,
-      colors: preset.colors.map(c => ({ x: c.x, y: c.y, brightness_pct: c.brightness_pct })),
-    };
-    if (preset.offset_delay !== undefined && preset.offset_delay > 0) {
-      serviceData.offset_delay = preset.offset_delay;
+    const options: ActivatePresetOptions = prefs ? {
+      audioOverrideEntity: prefs.audio_override_entity ?? undefined,
+      useAudioReactive: prefs.use_audio_reactive,
+      useEffectAudioReactive: prefs.use_effect_audio_reactive,
+      effectAudioOverrideSensitivity: prefs.effect_audio_override_sensitivity,
+      audioOverrideSensitivity: prefs.audio_override_sensitivity,
+      audioOverrideColorAdvance: prefs.audio_override_color_advance ?? null,
+      audioOverrideTransitionSpeed: prefs.audio_override_transition_speed,
+      audioOverrideBrightnessCurve: prefs.audio_override_brightness_curve ?? null,
+      audioOverrideBrightnessMin: prefs.audio_override_brightness_min,
+      audioOverrideBrightnessMax: prefs.audio_override_brightness_max,
+      audioOverrideDetectionMode: prefs.audio_override_detection_mode,
+      audioOverrideFrequencyZone: prefs.audio_override_frequency_zone,
+      audioOverrideSilenceBehavior: prefs.audio_override_silence_behavior,
+      audioOverridePredictionAggressiveness: prefs.audio_override_prediction_aggressiveness,
+      audioOverrideLatencyCompensationMs: prefs.audio_override_latency_compensation_ms,
+      audioOverrideColorByFrequency: prefs.audio_override_color_by_frequency,
+      audioOverrideRolloffBrightness: prefs.audio_override_rolloff_brightness,
+    } : {};
+    // Phase 2: card brightness slider. The activator applies it to effects,
+    // patterns, dynamic scenes and segment sequences; CCT sequences ignore
+    // it; per-preset preset.effect_brightness still wins for user effects.
+    if (this._config?.brightness_override) {
+      options.brightness = this._brightnessValue;
     }
-    if (preset.loop_mode === 'count' && preset.loop_count !== undefined) {
-      serviceData.loop_count = preset.loop_count;
-    }
-    // Pass through preset-level audio settings (no panel override in card context)
-    if (preset.audio_entity) {
-      serviceData.audio_entity = preset.audio_entity;
-      serviceData.audio_sensitivity = preset.audio_sensitivity;
-      serviceData.audio_brightness_response = preset.audio_brightness_response;
-      serviceData.audio_color_advance = preset.audio_color_advance;
-      serviceData.audio_transition_speed = preset.audio_transition_speed;
-      serviceData.audio_detection_mode = preset.audio_detection_mode;
-      serviceData.audio_frequency_zone = preset.audio_frequency_zone;
-      serviceData.audio_silence_degradation = preset.audio_silence_degradation;
-      serviceData.audio_prediction_aggressiveness = preset.audio_prediction_aggressiveness;
-      serviceData.audio_latency_compensation_ms = preset.audio_latency_compensation_ms;
-    }
-    await this.hass.callService('aqara_advanced_lighting', 'start_dynamic_scene', serviceData);
+    return options;
   }
 
   // -- Targeted stop --------------------------------------------------------
@@ -806,71 +427,13 @@ export class AqaraPresetFavoritesCard extends LitElement {
     } finally {
       this._activating = undefined;
       this._activePresets.delete(presetId);
-      this._pollRunningOperations();
-    }
-  }
-
-  // -- Icon rendering ------------------------------------------------------
-
-  /**
-   * Render preset icon/thumbnail. Mirrors aqara-panel.ts:688-703
-   * (_renderFavoritePresetIcon) and the individual icon methods at
-   * lines 5642-5709.
-   */
-  private _renderPresetIcon(ref: FavoritePresetRef, preset: AnyPreset, isUser: boolean): TemplateResult {
-    // Helper for builtin icons (MDI or custom file)
-    const builtinIcon = (icon: string | undefined, fallback: string) => {
-      if (!icon) return html`<ha-icon icon="${fallback}"></ha-icon>`;
-      if (icon.includes('.')) return html`<img src="/api/aqara_advanced_lighting/icons/${icon}" alt="preset icon" />`;
-      return html`<ha-icon icon="${icon}"></ha-icon>`;
-    };
-
-    // Helper for user icons (thumbnail or custom icon or MDI fallback)
-    const userIcon = (
-      icon: string | undefined,
-      fallback: string,
-      thumbnailFn: () => TemplateResult | null,
-    ) => {
-      if (icon) return builtinIcon(icon, fallback);
-      return thumbnailFn() ?? html`<ha-icon icon="${fallback}"></ha-icon>`;
-    };
-
-    switch (ref.type) {
-      case 'effect':
-        return isUser
-          ? userIcon((preset as UserEffectPreset).icon, 'mdi:lightbulb-on', () => renderEffectThumbnail(preset as UserEffectPreset))
-          : builtinIcon((preset as DynamicEffectPreset).icon, 'mdi:lightbulb-on');
-      case 'segment_pattern':
-        return isUser
-          ? userIcon((preset as UserSegmentPatternPreset).icon, 'mdi:palette', () => renderSegmentPatternThumbnail(preset as UserSegmentPatternPreset))
-          : builtinIcon((preset as SegmentPatternPreset).icon, 'mdi:palette');
-      case 'cct_sequence':
-        return isUser
-          ? userIcon((preset as UserCCTSequencePreset).icon, 'mdi:temperature-kelvin', () => renderCCTSequenceThumbnail(preset as UserCCTSequencePreset))
-          : builtinIcon((preset as CCTSequencePreset).icon, 'mdi:temperature-kelvin');
-      case 'segment_sequence':
-        return isUser
-          ? userIcon((preset as UserSegmentSequencePreset).icon, 'mdi:animation-play', () => renderSegmentSequenceThumbnail(preset as UserSegmentSequencePreset))
-          : builtinIcon((preset as SegmentSequencePreset).icon, 'mdi:animation-play');
-      case 'dynamic_scene': {
-        if (isUser) {
-          const p = preset as UserDynamicScenePreset;
-          const thumb = userIcon(p.icon, 'mdi:lamps', () => renderDynamicSceneThumbnail(p));
-          if (p.audio_entity || p.audio_color_advance) {
-            return html`${thumb}<span class="audio-badge"><ha-icon icon="mdi:waveform"></ha-icon></span>`;
-          }
-          return thumb;
-        }
-        const bp = preset as DynamicScenePreset;
-        const builtinThumb = renderDynamicSceneThumbnail(bp)
-          ?? html`<ha-icon icon="mdi:lamps"></ha-icon>`;
-        if (bp.audio_color_advance) {
-          return html`${builtinThumb}<span class="audio-badge"><ha-icon icon="mdi:waveform"></ha-icon></span>`;
-        }
-        return builtinThumb;
+      // Same logic as _activatePreset: subscription drives refresh in normal
+      // mode; degraded mode falls back to a one-shot fetch.
+      if (this._subscriptionFailed) {
+        await fetchRunningOnceOnAction(this.hass, this._getEntityIds(), (active) => {
+          this._activePresets = active;
+        });
       }
-      default:
-        return html`<ha-icon icon="mdi:star"></ha-icon>`;
     }
   }
 
@@ -902,7 +465,10 @@ export class AqaraPresetFavoritesCard extends LitElement {
       `;
     }
 
-    const favorites = this._resolvedFavorites();
+    const resolved = (this._presets && this._userPresets)
+      ? resolveFavorites(this._favoriteRefs, this._presets, this._userPresets, this._getSelectedDeviceTypes())
+      : [];
+    const favorites = applyCuration(resolved, this._config?.preset_ids);
 
     if (favorites.length === 0) {
       return html`
@@ -915,39 +481,215 @@ export class AqaraPresetFavoritesCard extends LitElement {
       `;
     }
 
-    const gridStyle = this._config.columns
-      ? `grid-template-columns: repeat(${this._config.columns}, 1fr)`
-      : '';
-
-    const compact = this._config.compact || false;
-    const showNames = this._config.show_names !== false;
-    const highlightUser = this._config.highlight_user_presets !== false;
+    const layout: CardLayout = this._config.layout || 'grid';
+    const showSlider = this._config.brightness_override === true;
+    const sliderPosition = this._config.brightness_override_position || 'header';
 
     return html`
       <ha-card .header=${title}>
-        <div class="preset-grid ${compact ? 'compact' : ''} ${!showNames ? 'no-names' : ''} ${!title ? 'no-title' : ''}" style=${gridStyle || nothing}>
-          ${favorites.map(({ ref, preset, isUser }) => {
-            const isActivating = this._activating === ref.id;
-            const isActive = this._activePresets.has(ref.id);
-            return html`
-              <div
-                class="preset-button ${isUser && highlightUser ? 'user-preset' : 'builtin-preset'} ${isActivating ? 'activating' : ''} ${isActive ? 'active' : ''}"
-                role="button"
-                tabindex="0"
-                aria-label="${preset.name}"
-                @click=${() => this._activatePreset(ref, preset, isUser)}
-                @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') this._activatePreset(ref, preset, isUser); }}
-              >
-                <div class="preset-icon">
-                  ${this._renderPresetIcon(ref, preset, isUser)}
-                </div>
-                ${showNames ? html`<div class="preset-name">${preset.name}</div>` : nothing}
-                ${isActivating ? html`<div class="activating-overlay"><ha-circular-progress indeterminate size="small"></ha-circular-progress></div>` : nothing}
-              </div>
-            `;
-          })}
-        </div>
+        ${showSlider && sliderPosition !== 'footer' ? this._renderBrightnessSlider() : nothing}
+        ${this._renderLayout(layout, favorites, title)}
+        ${showSlider && sliderPosition === 'footer' ? this._renderBrightnessSlider() : nothing}
       </ha-card>
+    `;
+  }
+
+  /**
+   * Dispatch to the layout-specific renderer. Uses an exhaustive switch
+   * with a `never`-typed default so adding a new variant to `CardLayout`
+   * without updating this method is a compile-time error.
+   */
+  private _renderLayout(
+    layout: CardLayout,
+    favorites: ResolvedFavorite[],
+    title: string | undefined,
+  ): TemplateResult {
+    switch (layout) {
+      case 'list': return this._renderListLayout(favorites);
+      case 'hero': return this._renderHeroLayout(favorites);
+      case 'carousel': return this._renderCarouselLayout(favorites);
+      case 'grid':
+      case 'compact-grid':
+        return this._renderGridLayout(favorites, layout, title);
+      default: {
+        const _exhaustive: never = layout;
+        return _exhaustive;
+      }
+    }
+  }
+
+  // -- Layout: grid / compact-grid (existing behavior) --------------------
+
+  /**
+   * Derive shared display flags from `_config`. Both flags default to true
+   * when unset/undefined to preserve v1 behavior. Used by every layout
+   * except `_renderStripTile` (per its own doc comment).
+   */
+  private _getDisplayFlags(): { showNames: boolean; highlightUser: boolean } {
+    return {
+      showNames: this._config?.show_names !== false,
+      highlightUser: this._config?.highlight_user_presets !== false,
+    };
+  }
+
+  private _renderGridLayout(
+    favorites: ResolvedFavorite[],
+    layout: 'grid' | 'compact-grid',
+    title: string | undefined,
+  ): TemplateResult {
+    const compact = layout === 'compact-grid';
+    const { showNames, highlightUser } = this._getDisplayFlags();
+    const gridStyle = this._config?.columns
+      ? `grid-template-columns: repeat(${this._config.columns}, 1fr)`
+      : '';
+
+    return html`
+      <div class="preset-grid ${compact ? 'compact' : ''} ${!showNames ? 'no-names' : ''} ${!title ? 'no-title' : ''}" style=${gridStyle || nothing}>
+        ${favorites.map(({ ref, preset, isUser }) => {
+          const isActivating = this._activating === ref.id;
+          const isActive = this._findActiveOpType(ref, preset) !== undefined;
+          return html`
+            <div
+              class="preset-button ${isUser && highlightUser ? 'user-preset' : 'builtin-preset'} ${isActivating ? 'activating' : ''} ${isActive ? 'active' : ''}"
+              role="button"
+              tabindex="0"
+              aria-label="${preset.name}"
+              @click=${() => this._activatePreset(ref, preset, isUser)}
+              @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') this._activatePreset(ref, preset, isUser); }}
+            >
+              <div class="preset-icon">
+                ${renderPresetIcon(ref, preset, isUser)}
+              </div>
+              ${showNames ? html`<div class="preset-name">${preset.name}</div>` : nothing}
+              ${isActivating ? html`<div class="activating-overlay"><ha-circular-progress indeterminate size="small"></ha-circular-progress></div>` : nothing}
+            </div>
+          `;
+        })}
+      </div>
+    `;
+  }
+
+  // -- Layout: list -------------------------------------------------------
+
+  private _renderListLayout(favorites: ResolvedFavorite[]): TemplateResult {
+    const { showNames, highlightUser } = this._getDisplayFlags();
+    return html`
+      <div class="preset-list">
+        ${favorites.map(({ ref, preset, isUser }) => {
+          const isActivating = this._activating === ref.id;
+          const isActive = this._findActiveOpType(ref, preset) !== undefined;
+          return html`
+            <div
+              class="preset-list-row ${isUser && highlightUser ? 'user-preset' : 'builtin-preset'} ${isActive ? 'active' : ''} ${isActivating ? 'activating' : ''}"
+              role="button"
+              tabindex="0"
+              aria-label="${preset.name}"
+              @click=${() => this._activatePreset(ref, preset, isUser)}
+              @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') this._activatePreset(ref, preset, isUser); }}
+            >
+              <div class="preset-list-icon">${renderPresetIcon(ref, preset, isUser)}</div>
+              ${showNames ? html`<div class="preset-list-name">${preset.name}</div>` : nothing}
+              ${isActive ? html`<ha-icon class="preset-list-active-indicator" icon="mdi:circle-medium"></ha-icon>` : nothing}
+              ${isActivating ? html`<ha-circular-progress indeterminate size="small"></ha-circular-progress>` : nothing}
+            </div>
+          `;
+        })}
+      </div>
+    `;
+  }
+
+  // -- Layout: hero -------------------------------------------------------
+
+  private _renderHeroLayout(favorites: ResolvedFavorite[]): TemplateResult {
+    const hero = favorites[0];
+    if (!hero) return html``;
+    const rest = favorites.slice(1);
+    return html`
+      <div class="preset-hero-wrapper">
+        ${this._renderHeroTile(hero)}
+        ${rest.length > 0 ? html`<div class="preset-hero-strip">${rest.map(f => this._renderStripTile(f))}</div>` : nothing}
+      </div>
+    `;
+  }
+
+  private _renderHeroTile({ ref, preset, isUser }: ResolvedFavorite): TemplateResult {
+    const isActive = this._findActiveOpType(ref, preset) !== undefined;
+    const isActivating = this._activating === ref.id;
+    const { showNames } = this._getDisplayFlags();
+    return html`
+      <div
+        class="preset-hero ${isActive ? 'active' : ''} ${isActivating ? 'activating' : ''}"
+        role="button"
+        tabindex="0"
+        aria-label="${preset.name}"
+        @click=${() => this._activatePreset(ref, preset, isUser)}
+        @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') this._activatePreset(ref, preset, isUser); }}
+      >
+        <div class="preset-hero-icon">${renderPresetIcon(ref, preset, isUser)}</div>
+        ${showNames ? html`<div class="preset-hero-name">${preset.name}</div>` : nothing}
+        ${isActivating ? html`<div class="activating-overlay"><ha-circular-progress indeterminate size="small"></ha-circular-progress></div>` : nothing}
+      </div>
+    `;
+  }
+
+  /**
+   * Render a small circular icon-only tile used by the hero strip and
+   * carousel layouts. Intentionally does NOT honor `highlight_user_presets`
+   * - the tile is too small (40px icon, 56px tile) to visually differentiate
+   * the dashed-border user-preset treatment, and adding it produces visual
+   * noise. The full distinction is preserved in grid, compact-grid, and list
+   * layouts where the row is large enough.
+   */
+  private _renderStripTile({ ref, preset, isUser }: ResolvedFavorite): TemplateResult {
+    const isActive = this._findActiveOpType(ref, preset) !== undefined;
+    const isActivating = this._activating === ref.id;
+    return html`
+      <div
+        class="preset-strip-tile ${isActive ? 'active' : ''} ${isActivating ? 'activating' : ''}"
+        role="button"
+        tabindex="0"
+        aria-label="${preset.name}"
+        @click=${() => this._activatePreset(ref, preset, isUser)}
+        @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') this._activatePreset(ref, preset, isUser); }}
+      >
+        <div class="preset-strip-icon">${renderPresetIcon(ref, preset, isUser)}</div>
+      </div>
+    `;
+  }
+
+  // -- Layout: carousel ---------------------------------------------------
+
+  private _renderCarouselLayout(favorites: ResolvedFavorite[]): TemplateResult {
+    return html`
+      <div class="preset-carousel" tabindex="0">
+        ${favorites.map(f => html`<div class="preset-carousel-item">${this._renderStripTile(f)}</div>`)}
+      </div>
+    `;
+  }
+
+  // -- Brightness slider --------------------------------------------------
+
+  /**
+   * Render the inline brightness override slider. Value is local-only
+   * (never persisted) and resets to 100 on reload. Sent via
+   * `ActivatePresetOptions.brightness` on activation.
+   */
+  private _renderBrightnessSlider(): TemplateResult {
+    return html`
+      <div class="brightness-slider-row">
+        <span class="brightness-slider-label">${this._t.brightness_label}</span>
+        <input
+          type="range"
+          min="1"
+          max="100"
+          .value=${String(this._brightnessValue)}
+          @input=${(e: Event) => {
+            const v = parseInt((e.target as HTMLInputElement).value, 10);
+            if (!isNaN(v)) this._brightnessValue = v;
+          }}
+        />
+        <span class="brightness-slider-value">${this._brightnessValue}%</span>
+      </div>
     `;
   }
 
@@ -1102,7 +844,6 @@ export class AqaraPresetFavoritesCard extends LitElement {
       display: flex;
       align-items: center;
       justify-content: center;
-      position: relative;
     }
 
     .preset-icon img,
@@ -1119,8 +860,21 @@ export class AqaraPresetFavoritesCard extends LitElement {
       --mdc-icon-size: 56px;
     }
 
-    /* Audio-reactive badge overlay */
-    .preset-icon .audio-badge {
+    /*
+     * Audio-reactive badge overlay.
+     * The badge is rendered as a child of the icon container regardless of
+     * which layout (grid/list/hero/carousel) is in use. To make the absolute
+     * positioning work in every layout, ensure each icon container is a
+     * positioning context, and target the badge with a single shared rule.
+     */
+    .preset-icon,
+    .preset-list-icon,
+    .preset-hero-icon,
+    .preset-strip-icon {
+      position: relative;
+    }
+
+    .audio-badge {
       position: absolute;
       top: 50%;
       left: 50%;
@@ -1134,13 +888,26 @@ export class AqaraPresetFavoritesCard extends LitElement {
       justify-content: center;
     }
 
-    .preset-icon .audio-badge ha-icon {
+    .audio-badge ha-icon {
       display: flex;
       align-items: center;
       justify-content: center;
       width: 20px;
       height: 20px;
       --mdc-icon-size: 20px;
+    }
+
+    /* Compact icon containers (40px) get a smaller badge so it isn't oversized. */
+    .preset-list-icon .audio-badge,
+    .preset-strip-icon .audio-badge {
+      width: 18px;
+      height: 18px;
+    }
+    .preset-list-icon .audio-badge ha-icon,
+    .preset-strip-icon .audio-badge ha-icon {
+      width: 16px;
+      height: 16px;
+      --mdc-icon-size: 16px;
     }
 
     /* No names — larger icons fill the space */
@@ -1217,6 +984,265 @@ export class AqaraPresetFavoritesCard extends LitElement {
       .preset-name {
         font-size: var(--ha-font-size-xs, 11px);
       }
+    }
+
+    /* ---------- List layout ---------- */
+
+    .preset-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 8px 16px 16px;
+    }
+
+    .preset-list-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 12px;
+      border: 1px solid var(--divider-color);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease-in-out;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .preset-list-row:hover {
+      border-color: var(--primary-color);
+      background: rgba(var(--rgb-primary-color, 3, 169, 244), 0.05);
+    }
+
+    .preset-list-row.active {
+      border-color: var(--primary-color);
+      background: rgba(var(--rgb-primary-color, 3, 169, 244), 0.15);
+    }
+
+    .preset-list-row.user-preset {
+      border-style: dashed;
+    }
+
+    .preset-list-row.user-preset.active {
+      border-style: solid;
+    }
+
+    .preset-list-row.activating {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+
+    .preset-list-icon {
+      width: 40px;
+      height: 40px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .preset-list-icon ha-icon,
+    .preset-list-icon img,
+    .preset-list-icon svg {
+      width: 100%;
+      height: 100%;
+      --mdc-icon-size: 40px;
+      object-fit: contain;
+      border-radius: 50%;
+    }
+
+    .preset-list-name {
+      flex: 1;
+      font-size: var(--ha-font-size-m, 14px);
+    }
+
+    .preset-list-active-indicator {
+      color: var(--primary-color);
+    }
+
+    /* ---------- Hero layout ---------- */
+
+    .preset-hero-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 0 16px 16px;
+    }
+
+    .preset-hero {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 12px;
+      border: 2px solid var(--divider-color);
+      border-radius: var(--ha-card-border-radius, 12px);
+      cursor: pointer;
+      transition: all 0.2s ease-in-out;
+      gap: 12px;
+      position: relative;
+      overflow: hidden;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .preset-hero:hover {
+      border-color: var(--primary-color);
+    }
+
+    .preset-hero.active {
+      border-color: var(--primary-color);
+      background: rgba(var(--rgb-primary-color, 3, 169, 244), 0.15);
+    }
+
+    .preset-hero.activating {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+
+    .preset-hero-icon {
+      width: 96px;
+      height: 96px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .preset-hero-icon ha-icon,
+    .preset-hero-icon img,
+    .preset-hero-icon svg {
+      width: 100%;
+      height: 100%;
+      --mdc-icon-size: 96px;
+      object-fit: contain;
+      border-radius: 50%;
+    }
+
+    .preset-hero-name {
+      font-size: var(--ha-font-size-l, 16px);
+      font-weight: 500;
+      text-align: center;
+    }
+
+    .preset-hero-strip {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+    }
+
+    .preset-strip-tile {
+      flex: 0 0 56px;
+      width: 56px;
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid var(--divider-color);
+      border-radius: 50%;
+      cursor: pointer;
+      transition: all 0.15s ease-in-out;
+      position: relative;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .preset-strip-tile:hover {
+      border-color: var(--primary-color);
+    }
+
+    .preset-strip-tile.active {
+      border-color: var(--primary-color);
+      background: rgba(var(--rgb-primary-color, 3, 169, 244), 0.15);
+    }
+
+    .preset-strip-tile.activating {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+
+    .preset-strip-icon {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .preset-strip-icon ha-icon,
+    .preset-strip-icon img,
+    .preset-strip-icon svg {
+      width: 100%;
+      height: 100%;
+      --mdc-icon-size: 40px;
+      object-fit: contain;
+      border-radius: 50%;
+    }
+
+    /* ---------- Carousel layout ---------- */
+
+    .preset-carousel {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      /* Slightly less bottom padding so the visible scrollbar fits within the card. */
+      padding: 0 16px 12px;
+      scroll-snap-type: x mandatory;
+      outline: none;
+      /* Show a thin scrollbar on desktop so users have a visible scroll
+         affordance. Touch devices ignore these and use native finger-drag. */
+      scrollbar-width: thin;
+      scrollbar-color: var(--divider-color) transparent;
+    }
+
+    .preset-carousel::-webkit-scrollbar {
+      height: 6px;
+    }
+    .preset-carousel::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .preset-carousel::-webkit-scrollbar-thumb {
+      background: var(--divider-color);
+      border-radius: 3px;
+    }
+    .preset-carousel::-webkit-scrollbar-thumb:hover {
+      background: var(--secondary-text-color);
+    }
+
+    .preset-carousel:focus-visible {
+      outline: 2px solid var(--primary-color);
+      outline-offset: -2px;
+    }
+
+    .preset-carousel-item {
+      flex: 0 0 auto;
+      scroll-snap-align: start;
+    }
+
+    /* ---------- Brightness slider ---------- */
+
+    .brightness-slider-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 16px;
+    }
+
+    .brightness-slider-row input[type="range"] {
+      flex: 1;
+      min-width: 0;
+      accent-color: var(--primary-color);
+    }
+
+    .brightness-slider-label {
+      font-size: var(--ha-font-size-m, 14px);
+      color: var(--secondary-text-color);
+      white-space: nowrap;
+    }
+
+    .brightness-slider-value {
+      font-size: var(--ha-font-size-m, 14px);
+      color: var(--secondary-text-color);
+      min-width: 36px;
+      text-align: right;
+      flex-shrink: 0;
     }
   `;
 }

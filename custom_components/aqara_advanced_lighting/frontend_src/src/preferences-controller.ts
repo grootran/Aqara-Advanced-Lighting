@@ -21,11 +21,16 @@ export interface PreferencesState {
   audioOverrideDetectionMode: string;
   audioOverridePredictionAggressiveness: number;
   audioOverrideLatencyCompensationMs: number;
-  audioOverrideSilenceDegradation: boolean;
+  audioOverrideSilenceBehavior: string;
   audioOverrideFrequencyZone: boolean;
-  audioOverrideBrightnessResponse: boolean;
+  audioOverrideBrightnessCurve: string | null;
+  audioOverrideBrightnessMin: number;
+  audioOverrideBrightnessMax: number;
   audioOverrideColorByFrequency: boolean;
   audioOverrideRolloffBrightness: boolean;
+  useEffectAudioReactive: boolean;
+  effectAudioOverrideSensitivity: number;
+  effectAudioOverrideSilenceBehavior: string;
   hiddenBuiltinPresets: FavoritePresetRef[];
   selectedEntities: string[];
   activeFavoriteId: string | null;
@@ -58,11 +63,16 @@ const DEFAULT_STATE: PreferencesState = {
   audioOverrideDetectionMode: 'spectral_flux',
   audioOverridePredictionAggressiveness: 50,
   audioOverrideLatencyCompensationMs: 150,
-  audioOverrideSilenceDegradation: true,
+  audioOverrideSilenceBehavior: 'slow_cycle',
   audioOverrideFrequencyZone: false,
-  audioOverrideBrightnessResponse: true,
+  audioOverrideBrightnessCurve: 'linear',
+  audioOverrideBrightnessMin: 30,
+  audioOverrideBrightnessMax: 100,
   audioOverrideColorByFrequency: false,
   audioOverrideRolloffBrightness: false,
+  useEffectAudioReactive: false,
+  effectAudioOverrideSensitivity: 50,
+  effectAudioOverrideSilenceBehavior: 'hold',
   hiddenBuiltinPresets: [],
   selectedEntities: [],
   activeFavoriteId: null,
@@ -173,6 +183,10 @@ export class PreferencesController implements ReactiveController {
       console.warn('Failed to load global preferences:', err);
     }
 
+    // Run one-time migration for the favorites sort preference.
+    // Idempotent — the migration is a no-op once the value is already 'custom'.
+    this._maybeMigrateFavoritesSort(hass);
+
     this.host.requestUpdate();
   }
 
@@ -204,14 +218,19 @@ export class PreferencesController implements ReactiveController {
     if (prefs.audio_override_sensitivity !== undefined) this.state.audioOverrideSensitivity = prefs.audio_override_sensitivity;
     if (prefs.audio_override_color_advance !== undefined) this.state.audioOverrideColorAdvance = prefs.audio_override_color_advance;
     if (prefs.audio_override_transition_speed !== undefined) this.state.audioOverrideTransitionSpeed = prefs.audio_override_transition_speed;
-    if (prefs.audio_override_brightness_response !== undefined) this.state.audioOverrideBrightnessResponse = prefs.audio_override_brightness_response;
+    if (prefs.audio_override_brightness_curve !== undefined) this.state.audioOverrideBrightnessCurve = prefs.audio_override_brightness_curve;
+    if (prefs.audio_override_brightness_min !== undefined) this.state.audioOverrideBrightnessMin = prefs.audio_override_brightness_min;
+    if (prefs.audio_override_brightness_max !== undefined) this.state.audioOverrideBrightnessMax = prefs.audio_override_brightness_max;
     if (prefs.audio_override_detection_mode !== undefined) this.state.audioOverrideDetectionMode = prefs.audio_override_detection_mode;
     if (prefs.audio_override_frequency_zone !== undefined) this.state.audioOverrideFrequencyZone = prefs.audio_override_frequency_zone;
-    if (prefs.audio_override_silence_degradation !== undefined) this.state.audioOverrideSilenceDegradation = prefs.audio_override_silence_degradation;
+    if (prefs.audio_override_silence_behavior !== undefined) this.state.audioOverrideSilenceBehavior = prefs.audio_override_silence_behavior;
     if (prefs.audio_override_prediction_aggressiveness !== undefined) this.state.audioOverridePredictionAggressiveness = prefs.audio_override_prediction_aggressiveness;
     if (prefs.audio_override_latency_compensation_ms !== undefined) this.state.audioOverrideLatencyCompensationMs = prefs.audio_override_latency_compensation_ms;
     if (prefs.audio_override_color_by_frequency !== undefined) this.state.audioOverrideColorByFrequency = prefs.audio_override_color_by_frequency;
     if (prefs.audio_override_rolloff_brightness !== undefined) this.state.audioOverrideRolloffBrightness = prefs.audio_override_rolloff_brightness;
+    if (prefs.use_effect_audio_reactive !== undefined) this.state.useEffectAudioReactive = prefs.use_effect_audio_reactive;
+    if (prefs.effect_audio_override_sensitivity !== undefined) this.state.effectAudioOverrideSensitivity = prefs.effect_audio_override_sensitivity;
+    if (prefs.effect_audio_override_silence_behavior !== undefined) this.state.effectAudioOverrideSilenceBehavior = prefs.effect_audio_override_silence_behavior;
     if (prefs.selected_entities && prefs.selected_entities.length > 0) {
       this.state.selectedEntities = prefs.selected_entities;
       this.state.activeFavoriteId = prefs.active_favorite_id ?? null;
@@ -298,14 +317,19 @@ export class PreferencesController implements ReactiveController {
           audio_override_sensitivity: this.state.audioOverrideSensitivity,
           audio_override_color_advance: this.state.audioOverrideColorAdvance,
           audio_override_transition_speed: this.state.audioOverrideTransitionSpeed,
-          audio_override_brightness_response: this.state.audioOverrideBrightnessResponse,
+          audio_override_brightness_curve: this.state.audioOverrideBrightnessCurve,
+          audio_override_brightness_min: this.state.audioOverrideBrightnessMin,
+          audio_override_brightness_max: this.state.audioOverrideBrightnessMax,
           audio_override_detection_mode: this.state.audioOverrideDetectionMode,
           audio_override_frequency_zone: this.state.audioOverrideFrequencyZone,
-          audio_override_silence_degradation: this.state.audioOverrideSilenceDegradation,
+          audio_override_silence_behavior: this.state.audioOverrideSilenceBehavior,
           audio_override_prediction_aggressiveness: this.state.audioOverridePredictionAggressiveness,
           audio_override_latency_compensation_ms: this.state.audioOverrideLatencyCompensationMs,
           audio_override_color_by_frequency: this.state.audioOverrideColorByFrequency,
           audio_override_rolloff_brightness: this.state.audioOverrideRolloffBrightness,
+          use_effect_audio_reactive: this.state.useEffectAudioReactive,
+          effect_audio_override_sensitivity: this.state.effectAudioOverrideSensitivity,
+          effect_audio_override_silence_behavior: this.state.effectAudioOverrideSilenceBehavior,
           selected_entities: this.state.selectedEntities,
           active_favorite_id: this.state.activeFavoriteId,
         } as unknown as Record<string, unknown>
@@ -338,7 +362,39 @@ export class PreferencesController implements ReactiveController {
   }
 
   getSortPreference(sectionId: string): PresetSortOption {
-    return this.state.sortPreferences[sectionId] || 'name-asc';
+    const stored = this.state.sortPreferences?.[sectionId];
+    if (stored) return stored;
+    if (sectionId === 'favorite_presets') return 'custom';
+    return 'name-asc';
+  }
+
+  /**
+   * One-time migration: rewrite a stored `'date-old'` favorites sort to `'custom'`.
+   * `'date-old'` already returned array order for favorites (favorites have no
+   * `created_at`), so this is identical underlying behavior with a clearer label
+   * that unlocks drag handles. Idempotent: a second call after migration is a no-op
+   * because the value is already `'custom'`. If the PUT fails, retries on next load.
+   */
+  private _maybeMigrateFavoritesSort(hass: HomeAssistant): void {
+    if (this.state.sortPreferences?.favorite_presets !== 'date-old') return;
+
+    const next: PresetSortPreferences = {
+      ...this.state.sortPreferences,
+      favorite_presets: 'custom' as PresetSortOption,
+    };
+    this.state.sortPreferences = next;
+    this.host.requestUpdate();
+
+    // Persist immediately so the migration sticks across reloads.
+    // Failure leaves the in-memory value as 'custom' for this session and retries on
+    // next load (the on-disk value is still 'date-old' until a successful PUT).
+    hass.callApi<UserPreferences>(
+      'PUT',
+      'aqara_advanced_lighting/user_preferences',
+      { sort_preferences: next } as unknown as Record<string, unknown>,
+    ).catch(err => {
+      console.warn('Favorites sort migration to custom failed; will retry on next load', err);
+    });
   }
 
   setSortPreference(sectionId: string, value: PresetSortOption, hass: HomeAssistant): void {

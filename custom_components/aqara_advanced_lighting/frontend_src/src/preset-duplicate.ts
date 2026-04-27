@@ -5,6 +5,7 @@
 
 import { rgbToXy } from './color-utils';
 import type {
+  AudioEffectConfig,
   CCTSequencePreset,
   DynamicEffectPreset,
   DynamicScenePreset,
@@ -29,7 +30,7 @@ export function scaleSegmentPattern<T>(source: T[], targetCount: number): T[] {
 export function builtinEffectToUser(
   preset: DynamicEffectPreset, deviceType: string, copyLabel: string,
 ): UserEffectPreset {
-  return {
+  const result: UserEffectPreset = {
     id: '',
     name: `${preset.name} ${copyLabel}`,
     effect: preset.effect,
@@ -40,6 +41,18 @@ export function builtinEffectToUser(
     created_at: '',
     modified_at: '',
   };
+  // Copy audio-reactive fields if present
+  if (preset.audio_speed_mode) {
+    result.audio_config = {
+      audio_entity: '',
+      audio_sensitivity: preset.audio_sensitivity,
+      audio_silence_behavior: preset.audio_silence_behavior as AudioEffectConfig['audio_silence_behavior'],
+      audio_speed_mode: preset.audio_speed_mode as AudioEffectConfig['audio_speed_mode'],
+      audio_speed_min: preset.audio_speed_min,
+      audio_speed_max: preset.audio_speed_max,
+    };
+  }
+  return result;
 }
 
 export function builtinPatternToUser(
@@ -124,12 +137,14 @@ export function builtinDynamicSceneToUser(
   if (preset.audio_color_advance) {
     result.audio_entity = preset.audio_entity;
     result.audio_sensitivity = preset.audio_sensitivity;
-    result.audio_brightness_response = preset.audio_brightness_response;
+    result.audio_brightness_curve = preset.audio_brightness_curve;
+    result.audio_brightness_min = preset.audio_brightness_min;
+    result.audio_brightness_max = preset.audio_brightness_max;
     result.audio_color_advance = preset.audio_color_advance;
     result.audio_transition_speed = preset.audio_transition_speed;
     result.audio_detection_mode = preset.audio_detection_mode;
     result.audio_frequency_zone = preset.audio_frequency_zone;
-    result.audio_silence_degradation = preset.audio_silence_degradation;
+    result.audio_silence_behavior = preset.audio_silence_behavior;
     result.audio_prediction_aggressiveness = preset.audio_prediction_aggressiveness;
     result.audio_latency_compensation_ms = preset.audio_latency_compensation_ms;
     result.audio_color_by_frequency = preset.audio_color_by_frequency;
